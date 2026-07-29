@@ -953,6 +953,21 @@ class SettingsPanel(QWidget):
             "einen JSON-Feed mit „version\", „url\" und „sha256\" zeigen.")
         form.addRow(label_w, feed)
 
+        token = QLineEdit(s.advanced.update_token)
+        token.setEchoMode(QLineEdit.Password)
+        token.setPlaceholderText("(nur bei privatem Repository)")
+        token.editingFinished.connect(
+            lambda: (setattr(s.advanced, "update_token", token.text().strip()),
+                     self._changed("advanced"))
+        )
+        label_w, _ = self._row_label(
+            "Zugriffstoken",
+            "Nur nötig, wenn die Update-Quelle ein privates Repository ist: ein "
+            "GitHub-Token mit Leserecht („Contents: Read-only“). Er wird ausschließlich "
+            "an GitHub gesendet und nie ins Log geschrieben. Alternativ die "
+            "Umgebungsvariable FLEECH_UPDATE_TOKEN setzen.")
+        form.addRow(label_w, token)
+
         # Wayland ehrlich benennen, statt Funktionen still ausfallen zu lassen.
         from ..platformpaths import WAYLAND_LIMITS, session_kind
 
@@ -1031,7 +1046,10 @@ class SettingsPanel(QWidget):
         from .updates import check_for_updates
 
         self._update_status.setText("Suche …")
-        result = check_for_updates(self.settings.advanced.update_feed_url or None)
+        from .updates import update_token
+
+        result = check_for_updates(self.settings.advanced.update_feed_url or None,
+                                   token=update_token(self.settings))
         status = result["status"]
         if status == "update_available":
             self._update_status.setText(f"Update {result['latest']} verfügbar.")
@@ -1042,5 +1060,7 @@ class SettingsPanel(QWidget):
             self._update_status.setText("Aktuell.")
         elif status == "no_release":
             self._update_status.setText("Noch keine Veröffentlichung vorhanden.")
+        elif status == "auth_required":
+            self._update_status.setText("Kein Zugriff — Token fehlt oder gilt nicht.")
         else:
             self._update_status.setText(f"Fehlgeschlagen: {result.get('message', '')[:60]}")

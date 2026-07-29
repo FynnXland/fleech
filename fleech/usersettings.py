@@ -324,6 +324,11 @@ class AdvancedSettings:
     # Gefundene Updates gleich im Hintergrund laden (Installation bleibt ein Klick —
     # die App muss dafuer neu starten, das entscheidet niemand ausser dem Nutzer).
     auto_update_download: bool = True
+    # Zugriffstoken, wenn die Update-Quelle ein PRIVATES Repository ist. Nur lesend
+    # noetig (fein granuliert: "Contents: Read-only" fuer genau dieses Repository).
+    # Wird ausschliesslich an GitHub gesendet und nie ins Log geschrieben.
+    # Alternative ohne Eintrag in der Datei: Umgebungsvariable FLEECH_UPDATE_TOKEN.
+    update_token: str = ""
     # True (Default) = stt.device "auto" (nutzt GPU, faellt automatisch auf CPU
     # zurueck). False = "cpu" erzwingen (z. B. um GPU/VRAM fuer Spiele freizuhalten).
     # Persistiert in settings.json — uebersteht Neustart und Autostart, kein

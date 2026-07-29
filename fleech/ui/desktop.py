@@ -1169,11 +1169,13 @@ class DesktopApp:
         bus, settings = self.bus, self.settings
 
         def work():
-            from .updates import check_for_updates, download_update
+            from .updates import check_for_updates, download_update, update_token
             from .updatedialog import UPDATE_DIR
 
+            marke = update_token(settings)
             try:
-                info = check_for_updates(settings.advanced.update_feed_url or None)
+                info = check_for_updates(settings.advanced.update_feed_url or None,
+                                         token=marke)
             except Exception:
                 log.debug("Update-Pruefung fehlgeschlagen.", exc_info=True)
                 return
@@ -1189,6 +1191,7 @@ class DesktopApp:
                     on_progress=lambda p, t: None,      # still: niemand wartet darauf
                     expected_size=int(info.get("size") or 0),
                     expected_sha256=str(info.get("sha256") or ""),
+                    token=marke, dateiname=str(info.get("name") or ""),
                 )
                 datei = str(pfad) if pfad else ""
             bus.update_ready.emit(info, datei)
@@ -1224,6 +1227,7 @@ class DesktopApp:
             return
         self._update_dialog = UpdateDialog(
             info, on_quit=self._quit, fertige_datei=self._update_file,
+            settings=self.settings,
         )
         self._update_dialog.show()
         self._update_dialog.raise_()

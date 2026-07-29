@@ -7,7 +7,7 @@
 
 from __future__ import annotations
 
-APP_VERSION = "3.14.0"  # 3.14.0: Auto-Updates ueber GitHub-Releases (geprueft, auf Klick)
+APP_VERSION = "3.15.0"  # 3.15.0: Updates auch aus PRIVATEM Repository (Token, nur an GitHub)
 
 
 def _read_build() -> str:

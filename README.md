@@ -160,7 +160,26 @@ Plattformunterschiede stecken hinter festen Nahtstellen (`platformpaths`, `clipb
 `audiofocus`, `ui/x11tools`, `ui/autostart`, `singleinstance`) statt in verstreuten
 `sys.platform`-Abfragen.
 
+## Updates
+
+Fleech prüft beim Start und danach täglich, ob eine neue Version veröffentlicht ist,
+lädt sie im Hintergrund und **installiert nur auf Klick** (dabei startet die App neu).
+Geprüft wird jedes Mal die SHA-256 aus den Release-Notizen; stimmt sie nicht, wird die
+Datei gelöscht statt ausgeführt. Geladen wird ausschließlich über HTTPS von einem
+GitHub-Host — auch nach Weiterleitungen.
+
+Dieses Repository ist **privat**. Damit die Prüfung überhaupt Zugriff hat, braucht jede
+Installation einen GitHub-Token mit Leserecht für dieses Repository
+(fein granuliert: „Contents: Read-only"):
+
+- Einstellungen → Erweitert → **Zugriffstoken** (maskiertes Feld), oder
+- Umgebungsvariable `FLEECH_UPDATE_TOKEN`, wenn der Token nicht in der
+  `settings.json` stehen soll.
+
+Ohne Token meldet Fleech ehrlich „Kein Zugriff — Token fehlt oder gilt nicht" statt
+stillschweigend „aktuell". Der Token wird nur an GitHub gesendet, bei Weiterleitungen
+abgestreift und nie ins Log geschrieben.
+
 ## Lizenz
 
-Noch nicht festgelegt — bis dahin alle Rechte vorbehalten. Der Quellcode ist einsehbar;
-für eine Weiterverwendung bitte vorher anfragen.
+Noch nicht festgelegt — bis dahin alle Rechte vorbehalten.

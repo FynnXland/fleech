@@ -22,7 +22,7 @@ from PySide6.QtWidgets import (
 
 from ..usersettings import SETTINGS_DIR
 from .main_window import ACCENT, BORDER_HAIRLINE, CARD, MUTED, TEXT, style_button
-from .updates import download_update, install_update
+from .updates import download_update, install_update, update_token
 
 log = logging.getLogger(__name__)
 
@@ -41,10 +41,12 @@ class UpdateDialog(QDialog):
     fertige_datei: bereits geladene Installationsdatei (dann direkt installierbar).
     """
 
-    def __init__(self, info: dict, on_quit=None, parent=None, fertige_datei=None):
+    def __init__(self, info: dict, on_quit=None, parent=None, fertige_datei=None,
+                 settings=None):
         super().__init__(parent)
         self._info = dict(info or {})
         self._on_quit = on_quit
+        self._token = update_token(settings)
         self._datei = fertige_datei
         self._thread = None
 
@@ -137,6 +139,7 @@ class UpdateDialog(QDialog):
         self._bar.setRange(0, 100)
         bridge = self._bridge                  # nur die Bridge fangen, nicht `self`
         info = dict(self._info)
+        marke = self._token
 
         def arbeite():
             pfad = None
@@ -146,6 +149,7 @@ class UpdateDialog(QDialog):
                     on_progress=lambda p, t: bridge.progress.emit(int(p), str(t)),
                     expected_size=int(info.get("size") or 0),
                     expected_sha256=str(info.get("sha256") or ""),
+                    token=marke, dateiname=str(info.get("name") or ""),
                 )
             except Exception:
                 log.exception("Update-Download fehlgeschlagen.")
