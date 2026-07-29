@@ -44,3 +44,35 @@ def test_explicit_flag_wins_over_env_var(tmp_path, monkeypatch):
     monkeypatch.setenv("FLEECH_GPU", "1")
     assert build.resolve_gpu_flag(["build.py", "--cpu"]) is False
     assert build.read_gpu_preference() is False
+
+
+# -- Installer-Zusagen fuer den Update-Weg -------------------------------------------
+
+def _iss() -> str:
+    from pathlib import Path
+
+    return (Path(__file__).resolve().parent.parent / "packaging" /
+            "fleech.iss").read_text(encoding="utf-8", errors="replace")
+
+
+def test_installer_schliesst_laufendes_fleech():
+    """Ohne AppMutex/CloseApplications endet ein Update in „Datei in Verwendung"
+    — der Mutex-Name MUSS zu fleech/singleinstance.py passen."""
+    from fleech.singleinstance import MUTEX_NAME
+
+    text = _iss()
+    assert f"AppMutex={MUTEX_NAME}" in text
+    assert "CloseApplications=yes" in text
+
+
+def test_installer_startet_fleech_nach_stillem_update_wieder():
+    """Der stille Lauf ist das Update aus der App heraus. Ohne diesen Eintrag wäre
+    Fleech nach dem Update beendet — der Knopf verspricht aber einen Neustart."""
+    assert "skipifnotsilent" in _iss()
+
+
+def test_installer_loescht_keine_nutzerdaten():
+    """settings.json und history.db muessen ein Update ueberleben."""
+    text = _iss()
+    assert "settings.json" not in text
+    assert "history.db" not in text

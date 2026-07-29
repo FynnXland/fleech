@@ -80,12 +80,16 @@ def main() -> int:
         return 1
 
     python = sys.executable
-    for argumente in ([], ["--installer"]):
-        cmd = [python, str(ROOT / "packaging" / "build.py"), *argumente]
-        print("[release]", " ".join(cmd))
-        if subprocess.run(cmd, cwd=ROOT).returncode != 0:
-            print("[release] Build fehlgeschlagen.")
-            return 1
+    # --no-build: nutzt die vorhandene Setup-Datei. Fuer den zweiten Versuch, wenn
+    # nur der Upload gescheitert ist — ein 2-GB-Build dafuer erneut zu fahren waere
+    # eine Viertelstunde fuer nichts.
+    if "--no-build" not in sys.argv:
+        for argumente in ([], ["--installer"]):
+            cmd = [python, str(ROOT / "packaging" / "build.py"), *argumente]
+            print("[release]", " ".join(cmd))
+            if subprocess.run(cmd, cwd=ROOT).returncode != 0:
+                print("[release] Build fehlgeschlagen.")
+                return 1
 
     setup = ROOT / "dist" / f"FleechSetup-{APP_VERSION}.exe"
     if not setup.is_file():

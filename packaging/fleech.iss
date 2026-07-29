@@ -32,6 +32,13 @@ WizardStyle=modern
 PrivilegesRequired=lowest
 ArchitecturesAllowed=x64compatible
 ArchitecturesInstallIn64BitMode=x64compatible
+; Ein laufendes Fleech blockiert seine eigenen Dateien. Ohne diese drei Zeilen endet
+; ein Update in "Datei in Verwendung" bzw. verlangt einen Neustart des Rechners.
+; AppMutex ist derselbe Name wie in fleech/singleinstance.py (MUTEX_NAME) — daran
+; erkennt Inno die laufende Instanz und schliesst sie (CloseApplications) selbst.
+AppMutex=Fleech.SingleInstance
+CloseApplications=yes
+RestartApplications=no
 
 [Languages]
 Name: "german"; MessagesFile: "compiler:Languages\German.isl"
@@ -59,6 +66,10 @@ Root: HKCU; Subkey: "Software\Microsoft\Windows\CurrentVersion\Run"; \
 [Run]
 Description: "{cm:LaunchProgram,Fleech}"; Filename: "{app}\{#AppExeName}"; \
     Flags: nowait postinstall skipifsilent
+; Stiller Lauf = Update aus der App heraus ("Installieren und neu starten"). Dann
+; MUSS Fleech von allein wiederkommen — sonst waere die App nach dem Update weg.
+Filename: "{app}\{#AppExeName}"; Parameters: "--gui"; \
+    Flags: nowait skipifnotsilent
 
 [UninstallRun]
 ; Auch einen zur Laufzeit (im Settings-UI) gesetzten Autostart-Eintrag entfernen.
