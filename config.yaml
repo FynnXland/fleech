@@ -1,0 +1,84 @@
+# Fleech — Konfiguration
+# Jede Einstellung hier kann per ENV-Variable ueberschrieben werden (siehe README).
+# API-Keys gehoeren NICHT in diese Datei — nur die Namen der ENV-Variablen.
+
+hotkey:
+  dictate: f9        # Push-to-Talk: halten = aufnehmen, loslassen = verarbeiten
+
+audio:
+  samplerate: 16000
+  device: null       # null = Standard-Mikrofon; sonst Index/Name aus --list-devices
+
+stt:
+  backend: faster_whisper     # lokal — der einzige Weg (Cloud entfiel mit v3.6.0)
+  model_size: large-v3-turbo  # kleiner/schneller: medium, small, base
+  device: auto                # auto | cuda | cpu  (bei GPU-Problemen: cpu)
+  compute_type: auto
+  language: de
+  vad_filter: true            # schneidet Stille weg, verhindert Whisper-Halluzinationen
+
+llm:
+  cleanup:                    # Prompt 1/2 — jeder OpenAI-kompatible Endpoint
+    base_url: http://127.0.0.1:11434
+                              # BEWUSST die IP statt "localhost": Der Name kostet
+                              # unter Windows 2,05 s PRO ANFRAGE — Windows fragt erst
+                              # die IPv6-Adresse ::1 ab, auf der Ollama nicht lauscht,
+                              # und wartet den Verbindungs-Timeout ab. Gemessen:
+                              # 3,43 s mit Name gegen 1,19 s mit IP, bei identischer
+                              # Rechenzeit laut Ollama selbst.
+    model: gemma3:4b          # An 15 echten Diktaten gegen qwen3.5:9b / qwen3.5:4b /
+                              # qwen2.5:3b gemessen: rechnet 34 % schneller als das 9b
+                              # (0,83 s statt 1,26 s), laedt halb so lang (3,3 statt
+                              # 6,6 GB) — und ergaenzt sogar WENIGER eigene Woerter
+                              # (0,014 statt 0,021) bei praktisch gleicher Wortgetreue
+                              # (0,977 statt 0,982). Beherrscht auch die Befehls-JSONs.
+    api_key_env: ""           # z. B. DEEPSEEK_API_KEY bei base_url https://api.deepseek.com/v1
+    temperature: 0.0          # deterministisch — gleicher Input, gleiche Bereinigung
+    timeout: 60
+    reasoning_effort: ""      # gemma3 ist KEIN Thinking-Modell → Parameter weglassen.
+                              # Fuer qwen3.5 & Co. hier zwingend "none" setzen, sonst
+                              # denkt das Modell 30–50 s pro Diktat.
+    num_ctx: 8192             # Kontextfenster bei LOKALEM Ollama (0 = Ollama-Default 4096).
+                              # WICHTIG bei langen Diktaten: Ollama laedt Modelle immer mit
+                              # 4096 Token, egal was das Modell koennte. Allein dieser
+                              # System-Prompt belegt ~3000 davon — die Bereinigung eines
+                              # langen Diktats bricht dann mitten im Satz ab (gemessen:
+                              # 610 Woerter rein, 84 raus). Fleech setzt den Wert deshalb
+                              # ueber Ollamas eigene API; kostet bei normalen Diktaten
+                              # keine Zeit. Nur erhoehen, solange es in den VRAM passt.
+  cleanup_fast:               # Zweitmodell fuer kurze Diktate (adaptives Routing).
+                              # BEWUSST DASSELBE MODELL wie cleanup: Der Abstand zu
+                              # qwen2.5:3b betrug nur 0,1 s (0,83 vs 0,73 s), das kleine
+                              # Modell ergaenzte dafuer viermal so viel (0,053 vs 0,014).
+                              # Zwei Modelle bedeuteten ausserdem 8,5 GB dauerhaft im
+                              # VRAM — der Hauptgrund fuer die staendigen Entladungen
+                              # (1074 im Log). Ein Modell = seltener nachladen = in der
+                              # Praxis der groessere Zeitgewinn.
+    model: gemma3:4b
+    reasoning_effort: ""
+  command:                    # Prompt 2 (Safe-Word-Befehle) — ERBT alles von cleanup;
+                              # hier stehen nur Abweichungen (z. B. anderes Reasoning/Modell).
+    reasoning_effort: none
+
+command:
+  trigger_word: Kimono        # Safe-Word (M5) — ASR-getestet (auch gut: Ananas, Salami).
+                              # "Redax" wurde von Whisper als Idax/Edax/Redux gehoert.
+                              # Im Settings-UI (Ausgabe) ohne Neustart umsteckbar.
+
+audio_focus:                  # Heavy-Math-Dictation: Hintergrund-Apps weich ducken.
+  # Capture ist IMMER Mic-only — Ducking betrifft ausschliesslich die Wiedergabe.
+  mode: soft_duck             # pure_mic | soft_duck (Standard) | hard_focus
+  duck_level: 0.25            # Soft Duck: fremde Apps auf 25 % ihrer Lautstaerke
+  hard_duck_level: 0.08       # Hard Focus: fast stumm, Qualitaet vor Komfort
+  fade_ms: 250                # weiche Rampe rein/raus, kein harter Cut
+  hard_mute: false            # opt-in: komplett stumm statt ducken
+
+overlay:                      # M4: Live-Vorschau (roh, streamend) waehrend des Sprechens
+  enabled: true
+  model_size: small           # eigenes kleines Whisper nur fuer die Vorschau
+  interval_ms: 700            # Dekodier-Takt
+  window_seconds: 12          # gleitendes Fenster; aeltere Segmente werden eingefroren
+
+injection:
+  restore_clipboard: true     # alte Zwischenablage nach dem Einfuegen wiederherstellen
+  paste_delay_ms: 150

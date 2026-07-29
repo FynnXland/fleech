@@ -1,0 +1,35 @@
+.env
+.venv/
+__pycache__/
+*.pyc
+.pytest_cache/
+*.wav
+
+# Build-Artefakte
+build/
+dist/
+build.txt
+packaging/version_info.txt
+packaging/build.local.json
+*.spec.bak
+
+# Nutzerdaten — gehoeren NIE ins Repository.
+# Der Regelfall liegt ohnehin ausserhalb des Projekts (%APPDATA%\Fleech bzw.
+# ~/.config/Fleech); diese Zeilen sind der Fangschutz, falls doch einmal eine
+# Datenbank, ein Log oder eine Einstellungsdatei im Projektordner landet.
+*.db
+*.db-journal
+*.log
+settings.json
+
+# Enthaelt Screenshots MIT echten Diktaten (docs/_briefing_shots.py liest die
+# echte history.db). Das Briefing ist fuer einzelne Empfaenger gedacht, nicht
+# fuer die Oeffentlichkeit — Neubau jederzeit mit docs/_briefing_build.py.
+docs/fleech-briefing.html
+
+# Lokale Werkzeug-Konfiguration
+.claude/
+
+# Einmal-Generatoren fuer das private Briefing: lesen die echte history.db und
+# enthalten lokale Pfade — kein Nutzen fuer andere.
+docs/_briefing_*.py

@@ -1,0 +1,108 @@
+"""System-Tray: Status-Icon (idle/listening/processing/error), Tooltip, Menue."""
+
+from __future__ import annotations
+
+import logging
+
+from PySide6.QtCore import Qt
+from PySide6.QtGui import QAction, QBrush, QColor, QIcon, QPainter, QPen, QPixmap
+from PySide6.QtWidgets import QMenu, QSystemTrayIcon
+
+from .state import AppState
+
+log = logging.getLogger(__name__)
+
+_STATE_COLOR = {
+    AppState.IDLE: "#8a8a92",
+    AppState.LISTENING: "#e04848",
+    AppState.PROCESSING: "#e0a030",
+    AppState.ERROR: "#b03060",
+}
+_STATE_TOOLTIP = {
+    AppState.IDLE: "Fleech — bereit",
+    AppState.LISTENING: "Fleech — Aufnahme läuft",
+    AppState.PROCESSING: "Fleech — verarbeite Diktat",
+    AppState.ERROR: "Fleech — Fehler (Log prüfen)",
+}
+
+
+def _make_icon(color: str) -> QIcon:
+    """Brand-Waveform (5 Balken) in Status-Farbe, zur Laufzeit gemalt (keine Assets)."""
+    size = 64
+    pm = QPixmap(size, size)
+    pm.fill(Qt.transparent)
+    p = QPainter(pm)
+    p.setRenderHint(QPainter.Antialiasing)
+    p.setBrush(QBrush(QColor(color)))
+    p.setPen(Qt.NoPen)
+    heights = (0.40, 0.66, 1.00, 0.66, 0.40)
+    n = len(heights)
+    bar_w = size * 0.11
+    gap = size * 0.065
+    total = n * bar_w + (n - 1) * gap
+    x0 = (size - total) / 2
+    cy = size / 2
+    max_h = size * 0.62
+    for i, h in enumerate(heights):
+        bx = x0 + i * (bar_w + gap)
+        bh = max_h * h
+        p.drawRoundedRect(bx, cy - bh / 2, bar_w, bh, bar_w / 2, bar_w / 2)
+    p.end()
+    return QIcon(pm)
+
+
+class TrayController:
+    """Kapselt QSystemTrayIcon; Aktionen werden als Callbacks injiziert."""
+
+    def __init__(self, actions: dict):
+        """actions: toggle_recording, toggle_overlay, open_settings, reload, quit"""
+        self._icons = {state: _make_icon(color) for state, color in _STATE_COLOR.items()}
+        self.tray = QSystemTrayIcon(self._icons[AppState.IDLE])
+        self.tray.setToolTip(_STATE_TOOLTIP[AppState.IDLE])
+        # Brand-Tile als Kontextmenue-/Fallback-Icon (Tray selbst zeigt Status-Farbe).
+        try:
+            from ..resources import app_icon_path
+
+            brand = QIcon(str(app_icon_path()))
+            if not brand.isNull():
+                self._brand_icon = brand
+        except Exception:
+            pass
+
+        menu = QMenu()
+        self._record_action = QAction("Aufnahme starten")
+        self._record_action.triggered.connect(actions["toggle_recording"])
+        self._overlay_action = QAction("Overlay ein/aus")
+        self._overlay_action.triggered.connect(actions["toggle_overlay"])
+        settings_action = QAction("Einstellungen …")
+        settings_action.triggered.connect(actions["open_settings"])
+        reload_action = QAction("Neu laden")
+        reload_action.triggered.connect(actions["reload"])
+        quit_action = QAction("Beenden")
+        quit_action.triggered.connect(actions["quit"])
+        for a in (self._record_action, self._overlay_action, settings_action):
+            menu.addAction(a)
+        menu.addSeparator()
+        menu.addAction(reload_action)
+        menu.addAction(quit_action)
+        self._menu = menu
+        self._actions = [self._record_action, self._overlay_action, settings_action,
+                         reload_action, quit_action]  # Referenzen halten (GC!)
+        self.tray.setContextMenu(menu)
+
+        # Linksklick: Hauptfenster (Home); Rechtsklick macht Qt selbst (Menue).
+        open_main = actions.get("open_home", actions["open_settings"])
+        self.tray.activated.connect(
+            lambda reason: open_main() if reason == QSystemTrayIcon.Trigger else None
+        )
+        self.tray.show()
+
+    def set_state(self, state: AppState) -> None:
+        self.tray.setIcon(self._icons[state])
+        self.tray.setToolTip(_STATE_TOOLTIP[state])
+        self._record_action.setText(
+            "Aufnahme stoppen" if state is AppState.LISTENING else "Aufnahme starten"
+        )
+
+    def notify(self, title: str, message: str) -> None:
+        self.tray.showMessage(title, message, QSystemTrayIcon.Information, 4000)

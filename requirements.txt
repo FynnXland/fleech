@@ -1,0 +1,38 @@
+faster-whisper>=1.1.0
+sounddevice>=0.5.0
+numpy>=1.26
+# Linux: pynput separat mit --no-deps installieren (siehe packaging/setup-linux.sh).
+# Grund: pynput zieht dort "evdev" (nur fuers Wayland/uinput-Backend noetig, das
+# Fleech nicht nutzt) — evdev hat keine Binary-Wheels und scheitert ohne
+# python3-dev-Header am Source-Build. Das X11-Backend braucht nur python-xlib.
+pynput>=1.7.7; sys_platform != "linux"
+python-xlib>=0.33; sys_platform == "linux"
+pyperclip>=1.9.0
+# openai entfaellt seit v3.6.0: Fleech spricht Ollama ueber dessen eigene HTTP-API
+# an (nur urllib) — der OpenAI-Aufsatz ignorierte num_ctx, und ein Cloud-Weg ist
+# ohnehin nicht mehr vorgesehen.
+PyYAML>=6.0
+# Prozessnamen (Gaming-Erkennung, App-Profile). Unter Windows bisher transitiv
+# ueber pycaw — explizit, damit es auch unter Linux da ist.
+psutil>=5.9
+
+# Desktop-App (Tray, Overlay, Settings-Fenster)
+PySide6-Essentials>=6.6
+
+# Audio-Fokus (Ducking fremder Apps via WASAPI-Session-Volumes, nur Playback-Steuerung)
+pycaw>=20240210; sys_platform == "win32"
+comtypes>=1.4; sys_platform == "win32"
+
+# Linux: Ducking/Mic-Pegel via PulseAudio-API (funktioniert auch mit PipeWire),
+# Clipboard ohne xclip-Systemabhaengigkeit.
+pulsectl>=23.5; sys_platform == "linux"
+copykitten>=1.2; sys_platform == "linux"
+
+# GPU-Unterstuetzung fuer faster-whisper (ctranslate2 braucht CUDA-12-Libs).
+# Ohne GPU schaden sie nicht — es greift automatisch der CPU-Fallback.
+nvidia-cublas-cu12; sys_platform == "win32" or sys_platform == "linux"
+nvidia-cudnn-cu12>=9,<10; sys_platform == "win32" or sys_platform == "linux"
+
+# Build (assets/make_icons.py) + Tests
+pillow>=10
+pytest>=8.0
