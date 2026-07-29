@@ -316,7 +316,14 @@ class OutputSettings:
 @dataclass
 class AdvancedSettings:
     debug_logging: bool = False
-    update_feed_url: str = ""   # optional; leer = manuelle Updates
+    # Leer = GitHub-Releases des Projekts (Standardweg). Eine eigene URL zeigt auf
+    # einen JSON-Feed {"version", "url", "sha256"} — siehe fleech/ui/updates.py.
+    update_feed_url: str = ""
+    # Beim Start und danach taeglich pruefen. Aus = nur der Knopf in den Einstellungen.
+    auto_update_check: bool = True
+    # Gefundene Updates gleich im Hintergrund laden (Installation bleibt ein Klick —
+    # die App muss dafuer neu starten, das entscheidet niemand ausser dem Nutzer).
+    auto_update_download: bool = True
     # True (Default) = stt.device "auto" (nutzt GPU, faellt automatisch auf CPU
     # zurueck). False = "cpu" erzwingen (z. B. um GPU/VRAM fuer Spiele freizuhalten).
     # Persistiert in settings.json — uebersteht Neustart und Autostart, kein

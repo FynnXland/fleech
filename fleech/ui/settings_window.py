@@ -931,13 +931,26 @@ class SettingsPanel(QWidget):
         label_w, _ = self._row_label("Updates", "Manuell nach einer neuen Version suchen.")
         form.addRow(label_w, update_row)
 
+        self._check(form, "Automatisch nach Updates suchen", s.advanced.auto_update_check,
+                    "advanced", lambda v: setattr(s.advanced, "auto_update_check", v),
+                    "Beim Start und danach täglich. Gefunden wird nur geprüft und "
+                    "gemeldet — installiert wird nie ohne Klick.")
+        self._check(form, "Updates im Hintergrund laden",
+                    s.advanced.auto_update_download, "advanced",
+                    lambda v: setattr(s.advanced, "auto_update_download", v),
+                    "Lädt die neue Version gleich herunter (mit Prüfsummen-Kontrolle), "
+                    "damit die Installation später nur einen Klick braucht.")
+
         feed = QLineEdit(s.advanced.update_feed_url)
-        feed.setPlaceholderText("(optional) URL eines Versions-Feeds")
+        feed.setPlaceholderText("(leer) GitHub-Releases des Projekts")
         feed.editingFinished.connect(
             lambda: (setattr(s.advanced, "update_feed_url", feed.text().strip()),
                      self._changed("advanced"))
         )
-        label_w, _ = self._row_label("Update-Feed", "Optionale Feed-URL für die Update-Prüfung.")
+        label_w, _ = self._row_label(
+            "Update-Quelle",
+            "Leer = GitHub-Releases des Projekts. Eine eigene HTTPS-Adresse muss auf "
+            "einen JSON-Feed mit „version\", „url\" und „sha256\" zeigen.")
         form.addRow(label_w, feed)
 
         # Wayland ehrlich benennen, statt Funktionen still ausfallen zu lassen.
@@ -1022,9 +1035,12 @@ class SettingsPanel(QWidget):
         status = result["status"]
         if status == "update_available":
             self._update_status.setText(f"Update {result['latest']} verfügbar.")
+            hook = (self._test_hooks or {}).get("open_update")
+            if hook is not None:
+                hook()                       # Dialog mit Notizen und Download oeffnen
         elif status == "up_to_date":
             self._update_status.setText("Aktuell.")
-        elif status == "not_configured":
-            self._update_status.setText("Kein Feed konfiguriert (manuelle Updates).")
+        elif status == "no_release":
+            self._update_status.setText("Noch keine Veröffentlichung vorhanden.")
         else:
             self._update_status.setText(f"Fehlgeschlagen: {result.get('message', '')[:60]}")

@@ -14,6 +14,7 @@ import os
 import sys
 import threading
 import time
+from pathlib import Path
 
 from PySide6.QtWidgets import QApplication
 
@@ -93,6 +94,7 @@ class DesktopApp:
             "open_settings": self._open_settings,
             "reload": self._reload,
             "quit": self._quit,
+            "open_update": self.show_update_dialog,
         })
         self.store = HistoryStore()
         self.panel = panel = SettingsPanel(
@@ -103,6 +105,7 @@ class DesktopApp:
                     bypass_cooldown=True,
                 ),
                 "sound": lambda: self.notifier.sound("commit"),
+                "open_update": self.show_update_dialog,
             },
             # Globale Hotkeys waehrend der Recorder-Erfassung pausieren (lazy —
             # self.hotkeys existiert erst spaeter im __init__).
@@ -135,6 +138,7 @@ class DesktopApp:
         self.bus.transcript_ready.connect(self.overlay.show_transcript)
         self.bus.preview_text.connect(self._on_preview_text)
         self.bus.dictionary_suggestion.connect(self._on_dictionary_suggestion)
+        self.bus.update_ready.connect(self._on_update_ready)
         # Live-Vorschau (Opt-in): kleines separates Whisper-Modell + Streamer, beide
         # lazy — wer das Feature nie einschaltet, zahlt keinerlei Kosten.
         self._preview_model = None
@@ -192,6 +196,17 @@ class DesktopApp:
         self._llm_warm_timer.setInterval(60 * 1000)
         self._llm_warm_timer.timeout.connect(self._keep_warm_tick)
         self._llm_warm_timer.start()
+        # Update-Pruefung: 45 s nach dem Start (der Start hat Wichtigeres zu tun),
+        # danach taeglich. Bewusst KEIN Check bei jedem Start-Sekundentakt — eine
+        # neue Version erscheint nicht minuetlich.
+        self._pending_update = None       # Ergebnis von check_for_updates()
+        self._update_file = None          # geladene, gepruefte Installationsdatei
+        self._update_dialog = None
+        self._update_timer = QTimer()
+        self._update_timer.setInterval(24 * 60 * 60 * 1000)
+        self._update_timer.timeout.connect(self._check_updates_async)
+        self._update_timer.start()
+        QTimer.singleShot(45_000, self._check_updates_async)
         # Initialzustand (inkl. berechneter Overlay-Default-Position) sofort persistieren.
         self.settings.save()
         # Autostart mit dem gespeicherten Nutzerwunsch abgleichen: ein Update entfernt
@@ -1137,6 +1152,82 @@ class DesktopApp:
             os.execv(sys.executable, [sys.executable, "--gui"])
         else:
             os.execv(sys.executable, [sys.executable, "-m", "fleech", "--gui"])
+
+    # -- Updates ---------------------------------------------------------------------
+
+    def _check_updates_async(self) -> None:
+        """Im Hintergrund pruefen und — wenn erlaubt — gleich laden.
+
+        Alles Netz- und Dateiwerk laeuft im Thread; die UI erfaehrt das Ergebnis nur
+        ueber `bus.update_ready`. Ein nicht erreichbarer Server ist kein Ereignis:
+        gemeldet wird nur, wenn es wirklich eine neue Version gibt.
+        """
+        if not self.settings.advanced.auto_update_check:
+            return
+        if self._pending_update is not None:
+            return                       # schon gefunden — nicht erneut suchen
+        bus, settings = self.bus, self.settings
+
+        def work():
+            from .updates import check_for_updates, download_update
+            from .updatedialog import UPDATE_DIR
+
+            try:
+                info = check_for_updates(settings.advanced.update_feed_url or None)
+            except Exception:
+                log.debug("Update-Pruefung fehlgeschlagen.", exc_info=True)
+                return
+            if info.get("status") != "update_available":
+                log.info("Update-Pruefung: %s (installiert %s).",
+                         info.get("status"), info.get("current"))
+                return
+            log.info("Update %s verfuegbar.", info.get("latest"))
+            datei = ""
+            if settings.advanced.auto_update_download:
+                pfad = download_update(
+                    info.get("url", ""), UPDATE_DIR,
+                    on_progress=lambda p, t: None,      # still: niemand wartet darauf
+                    expected_size=int(info.get("size") or 0),
+                    expected_sha256=str(info.get("sha256") or ""),
+                )
+                datei = str(pfad) if pfad else ""
+            bus.update_ready.emit(info, datei)
+
+        threading.Thread(target=work, daemon=True, name="fleech-update-check").start()
+
+    def _on_update_ready(self, info, datei: str) -> None:
+        """UI-Thread: Tray-Eintrag zeigen und einmal darauf hinweisen."""
+        self._pending_update = dict(info or {})
+        self._update_file = Path(datei) if datei else None
+        version = self._pending_update.get("latest", "")
+        try:
+            self.tray.show_update(version, self._update_file is not None)
+        except Exception:
+            log.debug("Tray-Update-Eintrag fehlgeschlagen.", exc_info=True)
+        text = (f"Version {version} ist geladen und kann installiert werden."
+                if self._update_file is not None
+                else f"Version {version} ist verfügbar.")
+        self.notifier.toast("background_info", "Fleech-Update", text)
+
+    def show_update_dialog(self) -> None:
+        """Update-Dialog oeffnen (Tray-Eintrag oder Einstellungen)."""
+        from .updatedialog import UpdateDialog
+
+        info = getattr(self, "_pending_update", None)
+        if not info:
+            self._check_updates_async()
+            return
+        vorhanden = getattr(self, "_update_dialog", None)
+        if vorhanden is not None and vorhanden.isVisible():
+            vorhanden.raise_()
+            vorhanden.activateWindow()
+            return
+        self._update_dialog = UpdateDialog(
+            info, on_quit=self._quit, fertige_datei=self._update_file,
+        )
+        self._update_dialog.show()
+        self._update_dialog.raise_()
+        self._update_dialog.activateWindow()
 
     def _quit(self) -> None:
         self.controller.stop_if_active()

@@ -70,6 +70,13 @@ class TrayController:
             pass
 
         menu = QMenu()
+        # Update-Eintrag: erst sichtbar, wenn wirklich eine neue Version bereitliegt.
+        # Er ist der Weg, der auch dann funktioniert, wenn der Nutzer alle Toasts
+        # abgeschaltet hat — sonst waere ein Update unsichtbar.
+        self._update_action = QAction("Update installieren …")
+        self._update_action.setVisible(False)
+        if actions.get("open_update"):
+            self._update_action.triggered.connect(actions["open_update"])
         self._record_action = QAction("Aufnahme starten")
         self._record_action.triggered.connect(actions["toggle_recording"])
         self._overlay_action = QAction("Overlay ein/aus")
@@ -83,11 +90,13 @@ class TrayController:
         for a in (self._record_action, self._overlay_action, settings_action):
             menu.addAction(a)
         menu.addSeparator()
+        menu.addAction(self._update_action)
         menu.addAction(reload_action)
         menu.addAction(quit_action)
         self._menu = menu
         self._actions = [self._record_action, self._overlay_action, settings_action,
-                         reload_action, quit_action]  # Referenzen halten (GC!)
+                         self._update_action, reload_action,
+                         quit_action]  # Referenzen halten (GC!)
         self.tray.setContextMenu(menu)
 
         # Linksklick: Hauptfenster (Home); Rechtsklick macht Qt selbst (Menue).
@@ -103,6 +112,14 @@ class TrayController:
         self._record_action.setText(
             "Aufnahme stoppen" if state is AppState.LISTENING else "Aufnahme starten"
         )
+
+    def show_update(self, version: str, bereit: bool) -> None:
+        """Update-Eintrag im Menue ein-/ausblenden. bereit = schon geladen."""
+        self._update_action.setText(
+            f"Update {version} installieren …" if bereit
+            else f"Update {version} laden …"
+        )
+        self._update_action.setVisible(bool(version))
 
     def notify(self, title: str, message: str) -> None:
         self.tray.showMessage(title, message, QSystemTrayIcon.Information, 4000)

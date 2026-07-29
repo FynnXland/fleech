@@ -7,7 +7,7 @@
 
 from __future__ import annotations
 
-APP_VERSION = "3.13.0"  # 3.13.0: Kaltstart-Einrichtung (Ollama + Modelle) in der UI
+APP_VERSION = "3.14.0"  # 3.14.0: Auto-Updates ueber GitHub-Releases (geprueft, auf Klick)
 
 
 def _read_build() -> str:

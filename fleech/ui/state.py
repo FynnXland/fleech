@@ -41,6 +41,10 @@ class StateBus(QObject):
     tail_dropped = Signal(str)
     dictionary_suggestion = Signal(str, str, str)  # (erkannt, gemeint, satz) — Rueckfrage
     command_armed = Signal(bool)     # Befehls-Aufnahme laeuft (Trigger-Button) → Pille armen
+    # Update-Pruefung/-Download laufen im Worker-Thread; das Ergebnis darf die UI nur
+    # ueber dieses Signal erreichen. dict = Ergebnis von check_for_updates(),
+    # str = Pfad der geladenen Datei ("" = noch nicht geladen).
+    update_ready = Signal(object, str)
 
     def __init__(self):
         super().__init__()
