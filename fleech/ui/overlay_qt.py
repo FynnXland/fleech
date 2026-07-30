@@ -5,6 +5,12 @@ Design (bewusst ohne Live-Transkriptionstext — clean, unauffaellig, nicht stoe
 - Mitte:  Live-Audiopegel — Punktreihe bei Stille, Balken beim Sprechen,
           sanfte Welle waehrend der Verarbeitung
 - rechts: ✓ = Aufnahme beenden und normal verarbeiten/einfuegen
+- eigene Inseln aussen: Modus-Punkt (links) und ⏸ Pause (rechts)
+
+Die zentrale Kapsel bleibt bewusst SYMMETRISCH (✕ · Waveform · ✓). Der Pause-Knopf
+sass kurzzeitig mit darin und hat die Mitte verschoben — er gehoert auf die rechte
+Insel, wo vorher der »-Knopf fuer den Befehls-Modus lag (nie benutzt, deshalb aus
+der Pille entfernt; das gesprochene Safe-Word funktioniert unveraendert weiter).
 
 Eigenschaften wie gehabt: frei verschiebbar (Position persistiert), nimmt NIE den
 Fokus (WindowDoesNotAcceptFocus → WS_EX_NOACTIVATE: Buttons sind klickbar, ohne dem
@@ -237,10 +243,6 @@ def _glyph_icon(kind: str, color: QColor = _BAR) -> QIcon:
     if kind == "x":
         p.drawLine(QPointF(8, 8), QPointF(16, 16))
         p.drawLine(QPointF(16, 8), QPointF(8, 16))
-    elif kind == "trigger":
-        # Doppel-Chevron „»" = Befehl (Safe-Word) ausloesen/beenden.
-        p.drawPolyline([QPointF(7, 7), QPointF(12, 12), QPointF(7, 17)])
-        p.drawPolyline([QPointF(13, 7), QPointF(18, 12), QPointF(13, 17)])
     elif kind == "pause":
         # Zwei Balken. Gefuellt statt gestrichelt: der Knopf soll auch bei 16 px
         # noch eindeutig sein, und Striche wuerden mit der Waveform verschwimmen.
@@ -378,7 +380,7 @@ def _button_style(radius: int) -> str:
 
 # Glyph-Farben der Pillen-Buttons (Design-System): ✓ traegt den Akzent,
 # ✕ neutral, » gedimmt (leuchtet cyan, wenn der Befehls-Modus scharf ist).
-_GLYPH_COLORS = {"check": _ACCENT, "x": _BAR, "trigger": _BAR_DIM,
+_GLYPH_COLORS = {"check": _ACCENT, "x": _BAR,
                  # Pause so hell wie das ✕ (beides neutrale Bedienelemente),
                  # „weiter" im Prompting-Amber — dieselbe Farbe, die die Pille im
                  # Pausenzustand traegt.
@@ -486,7 +488,6 @@ class TranscriptCaption(QWidget):
 class OverlayWindow(QWidget):
     cancel_requested = Signal()   # ✕ — verwerfen ohne Verarbeitung
     finish_requested = Signal()   # ✓ — beenden und einfuegen
-    trigger_requested = Signal()  # » — Befehls-Aufnahme (Safe-Word) starten/beenden
     mode_toggle_requested = Signal()  # Modus-Punkt geklickt — KI-Prompting an/aus
     pause_requested = Signal()    # ⏸ — Aufnahme anhalten/fortsetzen
 
@@ -526,20 +527,13 @@ class OverlayWindow(QWidget):
         # leuchtet bei aktivem Mathe-Modus. Nur sichtbar, wenn Mathe aktiv ist.
         self._math_dot = _StatusDot()
         self._cancel_btn = _round_button("x", "Aufnahme verwerfen")
-        self._pause_btn = _round_button("pause", "Pause — Aufnahme anhalten")
         self._finish_btn = _round_button("check", "Fertig — Text einfügen")
-        # Ganz rechts (eigene Insel): Befehl per Safe-Word auslösen/beenden.
-        self._trigger_btn = _round_button("trigger", "Befehl (Safe-Word) starten / beenden")
+        # Ganz rechts (eigene Insel): Aufnahme anhalten/fortsetzen.
+        self._pause_btn = _round_button("pause", "Pause — Aufnahme anhalten")
         # Luecken-Widgets trennen die drei Inseln sichtbar (transparenter Zwischenraum,
         # der auch zum Ziehen der Pille dient). Ihre Groesse setzt _apply_scale.
         self._gap_l = QWidget()
         self._gap_r = QWidget()
-        # Trigger-Insel reserviert ihren Platz auch ausgeblendet — so verrutscht die
-        # zentrale Pille nicht, wenn das Safe-Word aus ist. Der Mathe-Dot ist dauerhaft
-        # sichtbar (dezenter Punkt, wenn inaktiv; leuchtend, wenn aktiv).
-        sp = self._trigger_btn.sizePolicy()
-        sp.setRetainSizeWhenHidden(True)
-        self._trigger_btn.setSizePolicy(sp)
         # WICHTIG: das Lambda darf NICHT `self` fangen — es liegt als Attribut im
         # Kind-Widget und wuerde einen Python-Referenzzyklus Parent↔Kind erzeugen.
         # Qt-Widgets in GC-Zyklen werden in undefinierter Reihenfolge zerstoert →
@@ -554,14 +548,12 @@ class OverlayWindow(QWidget):
         layout.addWidget(self._gap_l)
         layout.addWidget(self._cancel_btn)
         layout.addWidget(self._wave, 1)
-        layout.addWidget(self._pause_btn)
         layout.addWidget(self._finish_btn)
         layout.addWidget(self._gap_r)
-        layout.addWidget(self._trigger_btn)
+        layout.addWidget(self._pause_btn)
         self._cancel_btn.clicked.connect(self.cancel_requested.emit)
         self._finish_btn.clicked.connect(self.finish_requested.emit)
         self._pause_btn.clicked.connect(self.pause_requested.emit)
-        self._trigger_btn.clicked.connect(self.trigger_requested.emit)
         self._math_dot.clicked.connect(self.mode_toggle_requested.emit)
 
         # Erklaerende Tooltips — beim laengeren Hover eingeblendet, UNTERHALB der Pille
@@ -569,7 +561,6 @@ class OverlayWindow(QWidget):
         # Ereignis ab und positioniert den Hinweis mittig unter der Pille.
         self._cancel_btn.setToolTip("Abbrechen — nichts einfügen")
         self._finish_btn.setToolTip("Fertig — Text einfügen")
-        self._trigger_btn.setToolTip("Befehls-Modus starten/beenden (statt Safe-Word)")
         self._dot_tooltip_base = (
             "Modus (Klick wechselt): Aus → Mathe → KI-Prompting. "
             "Violett = Mathe, Amber = KI-Prompting. "
@@ -579,8 +570,7 @@ class OverlayWindow(QWidget):
         # Tooltips auch bei INAKTIVEM Fenster zeigen: das Overlay ist ein Tool-Fenster
         # ohne Fokus — ohne dieses Attribut unterdrueckt Qt die Tooltips komplett.
         self.setAttribute(Qt.WA_AlwaysShowToolTips, True)
-        for w in (self._math_dot, self._cancel_btn, self._pause_btn,
-                  self._finish_btn, self._trigger_btn):
+        for w in (self._math_dot, self._cancel_btn, self._pause_btn, self._finish_btn):
             w.setAttribute(Qt.WA_AlwaysShowToolTips, True)
             w.installEventFilter(self)
 
@@ -626,7 +616,7 @@ class OverlayWindow(QWidget):
         # isHidden() statt isVisible(): spiegelt den expliziten Zeige-Zustand,
         # unabhaengig davon, ob das Fenster gerade sichtbar ist.
         math_on = not self._math_dot.isHidden()
-        trigger_on = not self._trigger_btn.isHidden()
+        pause_on = not self._pause_btn.isHidden()
         if getattr(self.settings, "separate_islands", True):
             # Drei getrennte Hintergruende: die zentrale Pille bleibt vollstaendig,
             # auch wenn eine Rand-Insel fehlt. Ihr Padding kommt aus den vier Randwerten.
@@ -642,13 +632,16 @@ class OverlayWindow(QWidget):
                 else:
                     m_fill, m_border = _BG, None
                 self._draw_bg(painter, island, m_fill, m_border)
-            if trigger_on:
-                self._draw_bg(painter, self._island_rect(self._trigger_btn), fill, border)
+            if pause_on:
+                # Pausen-Insel neutral halten: sie zeigt ihren Zustand ueber die
+                # Glyphe (⏸/▶). Ein farbiger Hintergrund waere ein zweites Signal
+                # fuer dieselbe Sache.
+                self._draw_bg(painter, self._island_rect(self._pause_btn), _BG, None)
         else:
             # Durchgehende Pille: EIN Hintergrund von der linkesten bis zur rechtesten
             # sichtbaren Zelle; die vier Randwerte polstern diese eine Pille.
             left_w = self._math_dot if math_on else self._cancel_btn
-            right_w = self._trigger_btn if trigger_on else self._finish_btn
+            right_w = self._pause_btn if pause_on else self._finish_btn
             left = left_w.geometry().left() - pl
             right = right_w.geometry().right() + pr
             # Bei BEIDEN Modi bleibt die Pille neutral — der geteilte Punkt ist der
@@ -699,8 +692,6 @@ class OverlayWindow(QWidget):
             return
         self._command_armed = armed
         self._wave.set_armed(armed)
-        # »-Glyphe leuchtet cyan, solange der Befehls-Modus scharf ist (Design).
-        self._trigger_btn.setIcon(_glyph_icon("trigger", _ACCENT if armed else _BAR_DIM))
         self.update()
 
     def set_prompt_latched(self, latched: bool) -> None:
@@ -728,13 +719,6 @@ class OverlayWindow(QWidget):
             if self._effective_visibility() == "during_activity" \
                     and self._state is AppState.IDLE:
                 self.hide()
-        self.update()
-
-    def set_trigger_available(self, available: bool) -> None:
-        """Trigger-Insel nur zeigen, wenn Safe-Word-Befehle eingeschaltet sind. Ist sie
-        aus, verschwindet die rechte Insel komplett (eigener Hintergrund) — die zentrale
-        Pille bleibt dabei unveraendert an ihrem Platz (Platz reserviert)."""
-        self._trigger_btn.setVisible(available)
         self.update()
 
     # -- Einstellungen (auch live aus dem Settings-Fenster) ----------------------------
@@ -794,7 +778,7 @@ class OverlayWindow(QWidget):
             gap_l = gap_r = base_gap
         self._layout.setContentsMargins(left_m, vmargin + et, right_m, vmargin + eb)
         self._layout.setSpacing(spacing)
-        for b in (self._cancel_btn, self._pause_btn, self._finish_btn, self._trigger_btn):
+        for b in (self._cancel_btn, self._pause_btn, self._finish_btn):
             b.setFixedSize(btn, btn)
             b.setIconSize(QSize(icon, icon))
             b.setStyleSheet(_button_style(btn // 2))

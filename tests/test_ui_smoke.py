@@ -116,20 +116,16 @@ def test_overlay_legacy_settings_migrate_to_custom(qapp):
     o.close()
 
 
-def test_overlay_trigger_button_emits_and_toggles_availability(qapp):
+def test_overlay_hat_keinen_befehls_knopf_mehr(qapp):
+    """Der »-Knopf (Befehls-Modus) ist aus der Pille entfernt — er wurde nie
+    benutzt und hat den Platz belegt, den jetzt die Pause hat. Das gesprochene
+    Safe-Word bleibt davon unberuehrt (Routing, nicht UI)."""
     from fleech.ui.overlay_qt import OverlayWindow
 
-    s = UserSettings().overlay
-    o = OverlayWindow(s)
-    fired = []
-    o.trigger_requested.connect(lambda: fired.append(True))
-    o._trigger_btn.click()
-    assert fired == [True]
-    # Safe-Word aus → rechte Insel verschwindet komplett (eigener Hintergrund).
-    o.set_trigger_available(False)
-    assert o._trigger_btn.isHidden() is True
-    o.set_trigger_available(True)
-    assert o._trigger_btn.isHidden() is False
+    o = OverlayWindow(UserSettings().overlay)
+    assert not hasattr(o, "_trigger_btn")
+    assert not hasattr(o, "trigger_requested")
+    assert not hasattr(o, "set_trigger_available")
     o.close()
 
 
@@ -273,8 +269,8 @@ def test_overlay_size_presets_scale_pill_and_buttons(qapp):
     # Buttons sind quadratisch und passen mit gleichem Rand oben/unten (Symmetrie).
     assert o._cancel_btn.width() == o._cancel_btn.height()
     assert o._cancel_btn.height() <= large_h
-    # Alle Zellen (Mathe-Dot, X, ✓, Trigger) gleich groß → linke/rechte Seite symmetrisch.
-    assert o._math_dot.width() == o._cancel_btn.width() == o._trigger_btn.width()
+    # Alle Zellen (Mathe-Dot, X, ✓, Pause) gleich groß → linke/rechte Seite symmetrisch.
+    assert o._math_dot.width() == o._cancel_btn.width() == o._pause_btn.width()
 
     s.size = "compact"
     o.apply_settings()

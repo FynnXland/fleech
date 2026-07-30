@@ -82,12 +82,9 @@ class DesktopApp:
         )
         self.overlay.cancel_requested.connect(self._cancel_recording)
         self.overlay.finish_requested.connect(lambda: self.controller.stop_if_active())
-        self.overlay.trigger_requested.connect(self._on_overlay_trigger)
         self.overlay.pause_requested.connect(self.toggle_pause)
         # Modus-Punkt-Klick: KI-Prompting an/aus.
         self.overlay.mode_toggle_requested.connect(self._cycle_overlay_mode)
-        # Trigger-Button nur aktiv, wenn Safe-Word-Befehle eingeschaltet sind.
-        self.overlay.set_trigger_available(self.settings.output.command_enabled)
         self.tray = TrayController({
             "toggle_recording": lambda: self.controller.start_via_ui("dictate"),
             "toggle_overlay": self._toggle_overlay,
@@ -590,13 +587,6 @@ class DesktopApp:
             daemon=True,
         ).start()
 
-    def _on_overlay_trigger(self) -> None:
-        """Overlay-»-Button: Befehls-Aufnahme (Safe-Word) starten bzw. laufende beenden —
-        wie ein Toggle, ohne das Auslösewort sprechen zu müssen."""
-        if not self.settings.output.command_enabled:
-            return
-        self.controller.start_via_ui("command")
-
     def _cancel_recording(self) -> None:
         """Overlay-X: Aufnahme verwerfen — kein STT, kein LLM, kein Paste."""
         kind = self.controller.cancel()
@@ -981,7 +971,6 @@ class DesktopApp:
         elif section == "output":
             self.pipeline.intervention = self.settings.output.intervention
             self._apply_trigger_word()
-            self.overlay.set_trigger_available(self.settings.output.command_enabled)
         elif section == "dictionary":
             self.pipeline.set_dictionary(self.settings.output.dictionary,
                                          self.settings.output.dictionary_usage)

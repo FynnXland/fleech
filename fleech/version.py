@@ -7,7 +7,7 @@
 
 from __future__ import annotations
 
-APP_VERSION = "4.1.0"  # 4.1.0: Pause waehrend der Aufnahme (Pille + Strg+Alt+Leertaste)
+APP_VERSION = "4.2.0"  # 4.2.0: Pause auf die rechte Insel, »-Befehlsknopf raus
 
 
 def _read_build() -> str:
