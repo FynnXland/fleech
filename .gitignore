@@ -33,3 +33,6 @@ docs/fleech-briefing.html
 # Einmal-Generatoren fuer das private Briefing: lesen die echte history.db und
 # enthalten lokale Pfade — kein Nutzen fuer andere.
 docs/_briefing_*.py
+
+# Signierschluessel (Lizenzen) — gehoert NIE ins Repository.
+*.pem

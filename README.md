@@ -160,25 +160,57 @@ Plattformunterschiede stecken hinter festen Nahtstellen (`platformpaths`, `clipb
 `audiofocus`, `ui/x11tools`, `ui/autostart`, `singleinstance`) statt in verstreuten
 `sys.platform`-Abfragen.
 
-## Updates
+## Weitergabe: Lizenzschlüssel und Updates
 
-Fleech prüft beim Start und danach täglich, ob eine neue Version veröffentlicht ist,
-lädt sie im Hintergrund und **installiert nur auf Klick** (dabei startet die App neu).
-Geprüft wird jedes Mal die SHA-256 aus den Release-Notizen; stimmt sie nicht, wird die
-Datei gelöscht statt ausgeführt. Geladen wird ausschließlich über HTTPS von einem
-GitHub-Host — auch nach Weiterleitungen.
+Zwei getrennte Dinge, die zusammen das Ziel erfüllen — *weitergeben können, ohne dass
+die Datei überall läuft, und trotzdem automatische Updates*:
 
-Dieses Repository ist **privat**. Damit die Prüfung überhaupt Zugriff hat, braucht jede
-Installation einen GitHub-Token mit Leserecht für dieses Repository
-(fein granuliert: „Contents: Read-only"):
+### Wer darf Fleech benutzen? — signierter Lizenzschlüssel
 
-- Einstellungen → Erweitert → **Zugriffstoken** (maskiertes Feld), oder
-- Umgebungsvariable `FLEECH_UPDATE_TOKEN`, wenn der Token nicht in der
-  `settings.json` stehen soll.
+Fleech nimmt nur mit gültigem Schlüssel auf. Der Schlüssel ist eine **Ed25519-Signatur**,
+keine geheime Zeichenkette: Die App kennt ausschließlich den *öffentlichen* Schlüssel,
+mit dem sich Lizenzen **prüfen**, aber niemals **erzeugen** lassen. Wer die EXE zerlegt,
+findet dort also nichts Verwertbares. Geprüft wird ohne Internet.
 
-Ohne Token meldet Fleech ehrlich „Kein Zugriff — Token fehlt oder gilt nicht" statt
-stillschweigend „aktuell". Der Token wird nur an GitHub gesendet, bei Weiterleitungen
-abgestreift und nie ins Log geschrieben.
+```powershell
+python packaging\issue_key.py --init            # einmalig: Schlüsselpaar erzeugen
+python packaging\issue_key.py "Max Mustermann"  # Schlüssel für eine Person
+python packaging\issue_key.py "Max" --days 365  # befristet
+```
+
+Der **private** Schlüssel liegt außerhalb des Projekts (`%APPDATA%\Fleech\signing\`)
+und wird nie ausgeliefert — diese eine Datei ist das ganze Geheimnis. Der Empfänger
+fügt seinen Schlüssel unter Einstellungen → Allgemein → **Lizenz** ein.
+
+*Grenze, ehrlich gesagt:* Das hält niemanden auf, der die EXE zerlegt und die Prüfung
+herauspatcht — das kann keine lokale Prüfung, egal mit welchem Verfahren. Es verhindert
+genau das, worum es geht: dass eine weitergereichte Datei bei irgendwem einfach läuft.
+
+### Wie kommen Updates an? — zwei Repositories
+
+| Repository | Inhalt | Sichtbarkeit |
+|---|---|---|
+| `FynnXland/fleech` | Quellcode | **privat** |
+| `FynnXland/fleech-releases` | nur die Setup-Dateien | öffentlich |
+
+Fleech fragt beim Releases-Repo nach — deshalb braucht **keine** Installation einen
+GitHub-Token, und der Quellcode bleibt trotzdem privat. Sichtbar ist dort nur die
+Installationsdatei, also genau das, was der Empfänger ohnehin bekommt; benutzen kann
+er sie ohne Lizenzschlüssel nicht.
+
+Geprüft wird beim Start und danach täglich, geladen im Hintergrund, **installiert nur
+auf Klick** (dabei startet die App neu). Vor jeder Installation wird die SHA-256 aus
+den Release-Notizen geprüft; stimmt sie nicht, wird die Datei gelöscht statt ausgeführt.
+Geladen wird ausschließlich über HTTPS von einem GitHub-Host — auch nach Weiterleitungen.
+
+Veröffentlichen:
+
+```powershell
+.venv\Scripts\python packaging\release.py       # baut, signiert die Prüfsumme, lädt hoch
+```
+
+Für einen privaten Feed gibt es weiterhin das Token-Feld unter Einstellungen →
+Erweitert; im Normalbetrieb bleibt es leer.
 
 ## Lizenz
 

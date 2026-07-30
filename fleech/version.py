@@ -7,7 +7,7 @@
 
 from __future__ import annotations
 
-APP_VERSION = "3.15.0"  # 3.15.0: Updates auch aus PRIVATEM Repository (Token, nur an GitHub)
+APP_VERSION = "4.0.0"  # 4.0.0: Lizenzschluessel + Updates aus dem oeffentlichen Releases-Repo
 
 
 def _read_build() -> str:

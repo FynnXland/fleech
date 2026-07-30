@@ -106,6 +106,7 @@ class DesktopApp:
                 ),
                 "sound": lambda: self.notifier.sound("commit"),
                 "open_update": self.show_update_dialog,
+                "open_license": self.show_license_dialog,
             },
             # Globale Hotkeys waehrend der Recorder-Erfassung pausieren (lazy —
             # self.hotkeys existiert erst spaeter im __init__).
@@ -511,6 +512,14 @@ class DesktopApp:
     # ------------------------------------------------------------------ Aufnahme --
 
     def _on_record_start(self, kind: str) -> None:
+        # Lizenz zuerst: ohne gueltigen Schluessel wird nicht aufgenommen. Bewusst
+        # HIER und nicht tiefer in der Pipeline — es soll gar nichts erst ins
+        # Mikrofon gehen, und der Nutzer bekommt sofort den Dialog statt einer
+        # Fehlermeldung nach dem Sprechen.
+        if not self._license_ok():
+            self.controller.stop_if_active()
+            self.show_license_dialog()
+            return
         allowed, message = self.focus.may_record(math_mode=False)
         if not allowed:
             log.error(message)
@@ -1152,6 +1161,51 @@ class DesktopApp:
             os.execv(sys.executable, [sys.executable, "--gui"])
         else:
             os.execv(sys.executable, [sys.executable, "-m", "fleech", "--gui"])
+
+    # -- Lizenz ----------------------------------------------------------------------
+
+    def _license_ok(self) -> bool:
+        """Darf diese Installation diktieren?
+
+        Das Ergebnis wird gemerkt, weil die Pruefung bei JEDEM Aufnahmestart laeuft
+        — eine Signaturpruefung kostet zwar nur Mikrosekunden, aber der Hotkey-Pfad
+        ist der letzte Ort, an dem man Arbeit sammeln will. Der Merker wird
+        zurueckgesetzt, sobald ein Schluessel eingetragen wird.
+        """
+        gemerkt = getattr(self, "_license_state", None)
+        if gemerkt is None:
+            from ..licensing import check
+
+            gemerkt = check(self.settings)
+            self._license_state = gemerkt
+            if not gemerkt.ok:
+                log.warning("Fleech ist nicht freigeschaltet: %s", gemerkt.reason)
+        return bool(gemerkt.ok)
+
+    def show_license_dialog(self) -> None:
+        """Freischalt-Dialog zeigen (nicht-modal, Referenz gehalten)."""
+        from .licensedialog import LicenseDialog
+
+        vorhanden = getattr(self, "_license_dialog", None)
+        if vorhanden is not None and vorhanden.isVisible():
+            vorhanden.raise_()
+            vorhanden.activateWindow()
+            return
+        self._license_dialog = LicenseDialog(
+            self.settings, on_changed=self._on_license_changed,
+        )
+        self._license_dialog.show()
+        self._license_dialog.raise_()
+        self._license_dialog.activateWindow()
+
+    def _on_license_changed(self, _section: str = "general") -> None:
+        self._license_state = None            # neu bewerten
+        try:
+            self.panel.refresh_license()
+        except Exception:
+            log.debug("Lizenzzeile liess sich nicht nachziehen.", exc_info=True)
+        if self._license_ok():
+            self._flash_status("Fleech ist freigeschaltet.")
 
     # -- Updates ---------------------------------------------------------------------
 

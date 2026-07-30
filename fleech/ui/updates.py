@@ -41,7 +41,11 @@ from ..version import APP_VERSION
 
 log = logging.getLogger(__name__)
 
-GITHUB_REPO = "FynnXland/fleech"
+# Update-Quelle ist ein EIGENES, oeffentliches Repository, das ausschliesslich die
+# Installationsdateien traegt — kein Quellcode. Damit funktioniert die Pruefung ohne
+# jeden Zugriffstoken, waehrend `FynnXland/fleech` (der Quellcode) privat bleibt.
+# Wer die Setup-Datei sieht, sieht genau das, was er ohnehin installiert.
+GITHUB_REPO = "FynnXland/fleech-releases"
 RELEASES_API = f"https://api.github.com/repos/{GITHUB_REPO}/releases/latest"
 
 # Erlaubte Hosts fuer den Standardweg (GitHub liefert Assets ueber Subdomains von

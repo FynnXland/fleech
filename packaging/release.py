@@ -10,7 +10,14 @@ Der Ablauf entspricht dem, was der Update-Client in `fleech/ui/updates.py` erwar
 1. `build.py` (EXE) und `build.py --installer` (Inno Setup) laufen lassen.
 2. SHA-256 des Installers bilden — sie landet als Zeile `SHA256: <hex>` in den
    Release-Notizen. Der Client verweigert die Installation, wenn sie nicht passt.
-3. Release `v<APP_VERSION>` anlegen und die Setup-Datei als Asset hochladen (`gh`).
+3. Release `v<APP_VERSION>` im OEFFENTLICHEN Releases-Repository anlegen und die
+   Setup-Datei als Asset hochladen (`gh`).
+
+Zwei Repositories, mit Absicht: der Quellcode (`FynnXland/fleech`) bleibt privat,
+die Installationsdateien liegen in `FynnXland/fleech-releases`. Nur so kommt die
+Update-Pruefung ohne Zugriffstoken aus — und ein Token in einer ausgelieferten EXE
+waere ohnehin auslesbar. Wer Fleech benutzen darf, entscheidet stattdessen der
+Lizenzschluessel (`fleech/licensing.py`, ausgestellt mit `packaging/issue_key.py`).
 
 Voraussetzungen: Inno Setup 6 (`winget install JRSoftware.InnoSetup`) und ein
 angemeldetes `gh` (`gh auth status`). Beides wird vorab geprueft, damit der Fehler
@@ -28,7 +35,8 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT))
 
-from fleech.version import APP_VERSION           # noqa: E402
+from fleech.ui.updates import GITHUB_REPO as RELEASE_REPO   # noqa: E402
+from fleech.version import APP_VERSION                      # noqa: E402
 
 
 def sha256(datei: Path) -> str:
@@ -104,10 +112,14 @@ def main() -> int:
         return 0
 
     tag = f"v{APP_VERSION}"
+    # Veroeffentlicht wird ins RELEASES-Repository, nicht ins Quellcode-Repository:
+    # dort liegen nur die Setup-Dateien, deshalb darf es oeffentlich sein und die
+    # Update-Pruefung braucht keinen Zugriffstoken.
     cmd = ["gh", "release", "create", tag, str(setup),
+           "--repo", RELEASE_REPO,
            "--title", f"Fleech {APP_VERSION}",
            "--notes", notizen(hash_hex, setup)]
-    print("[release] gh release create", tag)
+    print(f"[release] gh release create {tag} → {RELEASE_REPO}")
     if subprocess.run(cmd, cwd=ROOT).returncode != 0:
         print("[release] Release-Erstellung fehlgeschlagen (Tag schon vorhanden?).")
         return 1

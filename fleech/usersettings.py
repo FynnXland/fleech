@@ -37,6 +37,10 @@ class GeneralSettings:
     # auch fuer sie. Gewollt: die Einfuehrung ist neu, einmal zeigen schadet nicht,
     # und jeder Weg hinaus (auch X) setzt das Flag dauerhaft.
     onboarding_done: bool = False
+    # Signierter Lizenzschluessel dieser Installation (siehe fleech/licensing.py).
+    # Leer = Fleech diktiert nicht; alles andere bleibt bedienbar, damit man den
+    # Schluessel ueberhaupt eintragen kann.
+    license_key: str = ""
 
 
 @dataclass
