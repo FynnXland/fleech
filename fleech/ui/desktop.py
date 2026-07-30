@@ -83,6 +83,7 @@ class DesktopApp:
         self.overlay.cancel_requested.connect(self._cancel_recording)
         self.overlay.finish_requested.connect(lambda: self.controller.stop_if_active())
         self.overlay.trigger_requested.connect(self._on_overlay_trigger)
+        self.overlay.pause_requested.connect(self.toggle_pause)
         # Modus-Punkt-Klick: KI-Prompting an/aus.
         self.overlay.mode_toggle_requested.connect(self._cycle_overlay_mode)
         # Trigger-Button nur aktiv, wenn Safe-Word-Befehle eingeschaltet sind.
@@ -804,6 +805,14 @@ class DesktopApp:
             else:
                 self._undo_last_output()
             return
+        if name == "pause":
+            # Nur waehrend einer Aufnahme sinnvoll — ausserhalb bleibt die Taste
+            # fuer andere Programme frei (gleiche Regel wie bei den Modus-Hotkeys).
+            if recording:
+                self.toggle_pause()
+            else:
+                log.info("Pause-Hotkey ignoriert — keine Aufnahme aktiv.")
+            return
         if name == "prompt_toggle":
             if recording:
                 self._toggle_prompt_oneshot()
@@ -813,7 +822,7 @@ class DesktopApp:
         self.controller.press(name)
 
     def _on_hotkey_deactivate(self, name: str) -> None:
-        if name in ("prompt_toggle", "undo"):
+        if name in ("prompt_toggle", "undo", "pause"):
             return  # wirken beim Druck, nicht beim Loslassen
         self.controller.release(name)
 
@@ -933,7 +942,8 @@ class DesktopApp:
         # Formeln laufen ueber Mathe-Umschalt (Latch/Inline) und die Auto-Erkennung.
         for name, attr in (("dictate", "hotkey"),
                            ("prompt_toggle", "prompt_toggle_hotkey"),
-                           ("undo", "undo_hotkey")):
+                           ("undo", "undo_hotkey"),
+                           ("pause", "pause_hotkey")):
             raw = getattr(self.settings.recording, attr)
             if not raw:
                 continue  # geloeschte Bindung → nicht registrieren
@@ -1161,6 +1171,34 @@ class DesktopApp:
             os.execv(sys.executable, [sys.executable, "--gui"])
         else:
             os.execv(sys.executable, [sys.executable, "-m", "fleech", "--gui"])
+
+    # -- Pause -----------------------------------------------------------------------
+
+    def toggle_pause(self) -> None:
+        """Aufnahme anhalten bzw. fortsetzen (Pillen-Knopf oder Hotkey).
+
+        Zweck: mitten im Diktat kurz mit jemandem sprechen, ohne das bisher
+        Gesagte zu verlieren. Der Mikrofon-Stream bleibt offen, es wird nur nichts
+        mehr gesammelt — beim Fortsetzen haengt Fleech eine kurze Stille an, damit
+        die Erkennung an der Nahtstelle eine Sprechpause sieht statt eines
+        Schnitts mitten im Wort.
+
+        Ohne laufende Aufnahme passiert bewusst nichts: ein „Pause" im Leerlauf
+        haette keinen Zustand, den man spaeter fortsetzen koennte.
+        """
+        if not self.recorder.recording:
+            log.info("Pause ignoriert — es laeuft keine Aufnahme.")
+            return
+        if self.recorder.paused:
+            self.recorder.resume()
+            log.info("Aufnahme fortgesetzt.")
+        else:
+            self.recorder.pause()
+            log.info("Aufnahme pausiert — es wird nichts aufgezeichnet.")
+        self.overlay.set_paused(self.recorder.paused)
+        # Ueber den Notifier, nicht direkt am SoundPlayer vorbei: sonst piepst es
+        # auch im Spiel oder bei „Nicht stoeren" (dieselbe Regel wie Start/Stopp).
+        self.notifier.sound("stop" if self.recorder.paused else "start")
 
     # -- Lizenz ----------------------------------------------------------------------
 

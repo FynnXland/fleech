@@ -126,6 +126,11 @@ def audio_to_wav_bytes(audio: np.ndarray, samplerate: int = 16000) -> bytes:
     return buf.getvalue()
 
 
+# Stille an der Nahtstelle nach einer Pause. Kurz genug, um nicht zu stoeren,
+# lang genug, dass die Erkennung dort eine Sprechpause sieht statt eines Schnitts.
+_RESUME_GAP_S = 0.35
+
+
 class Recorder:
     """Nimmt Mono-Float32-Audio auf. Nicht reentrant: ein Segment zur Zeit."""
 
@@ -141,10 +146,42 @@ class Recorder:
         # kann (direktes hw-Geraet, z. B. Focusrite: min. 44,1 kHz). Nach aussen
         # liefert der Recorder IMMER self.samplerate (Rueck-Resampling in _to_target).
         self._capture_rate = samplerate
+        self._paused = False   # Aufnahme laeuft, sammelt aber nicht (siehe pause())
 
     @property
     def recording(self) -> bool:
         return self._stream is not None
+
+    @property
+    def paused(self) -> bool:
+        return self._paused
+
+    def pause(self) -> None:
+        """Aufnahme anhalten: der Stream laeuft weiter, aber nichts wird gesammelt.
+
+        Absicht: mitten im Diktat kurz mit jemandem sprechen, ohne das Diktat zu
+        verlieren. Der Stream bleibt bewusst offen — ihn zu schliessen und neu zu
+        oeffnen kostet unter Windows spuerbar Zeit und kann das Geraet wechseln.
+        """
+        self._paused = True
+
+    def resume(self) -> None:
+        """Weiter aufnehmen — mit einer kurzen Stille an der Nahtstelle.
+
+        Ohne diese Stille stossen die beiden Haelften hart aneinander (das
+        Dazwischen faellt ja weg) und Whisper klebt die letzten und ersten Woerter
+        zu einem Wort zusammen. Eine kurze Pause ist genau das Signal, das ein
+        Sprecher an dieser Stelle ohnehin gemacht haette.
+        """
+        if not self._paused:
+            return
+        self._paused = False
+        if self._stream is None:
+            return
+        stille = np.zeros((int(self._capture_rate * _RESUME_GAP_S), 1), dtype=np.float32)
+        with self._lock:
+            self._frames.append(stille)
+            self._samples += len(stille)
 
     def start(self) -> None:
         if self._stream is not None:
@@ -154,6 +191,7 @@ class Recorder:
         with self._lock:
             self._frames = []
             self._samples = 0
+        self._paused = False        # eine neue Aufnahme beginnt nie pausiert
         device = resolve_input_device(self.device)
         try:
             self._stream = self._open_stream(sd, device, self.samplerate)
@@ -192,6 +230,11 @@ class Recorder:
     def _callback(self, indata, frames, time_info, status) -> None:
         if status:
             log.debug("Audio-Status: %s", status)
+        if self._paused:
+            # Pegel auf 0 ziehen, damit die Waveform in der Pille wirklich ruht —
+            # ein zappelnder Balken waehrend einer Pause waere ein falsches Signal.
+            self._level = 0.0
+            return
         self._level = float(np.sqrt(np.mean(np.square(indata))))
         with self._lock:
             self._frames.append(indata.copy())
@@ -220,6 +263,7 @@ class Recorder:
         """Beendet die Aufnahme und gibt das Segment als 1-D-float32-Array zurueck."""
         if self._stream is None:
             return np.zeros(0, dtype=np.float32)
+        self._paused = False
         try:
             self._stream.stop()
             self._stream.close()

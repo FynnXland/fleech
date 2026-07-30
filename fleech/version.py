@@ -7,7 +7,7 @@
 
 from __future__ import annotations
 
-APP_VERSION = "4.0.0"  # 4.0.0: Lizenzschluessel + Updates aus dem oeffentlichen Releases-Repo
+APP_VERSION = "4.1.0"  # 4.1.0: Pause waehrend der Aufnahme (Pille + Strg+Alt+Leertaste)
 
 
 def _read_build() -> str:

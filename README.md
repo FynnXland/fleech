@@ -72,8 +72,14 @@ zu versagen.
 
 **F9 gedrückt halten, sprechen, loslassen** — oder auf Umschalten stellen (drücken =
 Start, nochmal = Ende). Während der Aufnahme erscheint eine kleine Pille am
-Bildschirmrand: **✕** verwirft, **✓** beendet und fügt ein, in der Mitte läuft der
-Live-Pegel. Sie nimmt nie den Fokus — sonst wäre das Ziel-Textfeld weg.
+Bildschirmrand: **✕** verwirft, **⏸** hält an, **✓** beendet und fügt ein, in der
+Mitte läuft der Live-Pegel. Sie nimmt nie den Fokus — sonst wäre das Ziel-Textfeld weg.
+
+**Pause** (Knopf in der Pille oder `Strg+Alt+Leertaste`): Spricht jemand dazwischen,
+hält Fleech die Aufnahme an — währenddessen wird nichts aufgezeichnet, du kannst also
+frei reden. Nochmal drücken setzt **dasselbe** Diktat fort; an der Nahtstelle fügt
+Fleech eine kurze Stille ein, damit die Erkennung dort eine Sprechpause sieht statt
+eines Schnitts mitten im Wort.
 
 Vier Modi:
 

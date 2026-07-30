@@ -36,6 +36,7 @@ PILL_WIDTH, PILL_HEIGHT = 272, 44
 _BG = QColor(24, 24, 28, 235)
 _BG_ARMED = QColor(16, 44, 52, 240)   # Befehls-Modus erkannt: dunkles Cyan
 _BG_PROMPT = QColor(56, 42, 16, 240)  # KI-Prompting aktiv: dunkles Amber
+_BG_PAUSED = QColor(30, 30, 34, 235)  # Pause: sichtbar matter als die Aufnahme
 _PROMPT_ACCENT = QColor(232, 161, 60)  # #E8A13C — Prompting-Akzent (Rahmen + Punkt)
 # Auto-Gain der Waveform (rein optisch, beeinflusst die Erkennung NICHT):
 # FLOOR = leiseste Lautstaerke, die noch als „da spricht jemand" gilt — darunter
@@ -240,6 +241,22 @@ def _glyph_icon(kind: str, color: QColor = _BAR) -> QIcon:
         # Doppel-Chevron „»" = Befehl (Safe-Word) ausloesen/beenden.
         p.drawPolyline([QPointF(7, 7), QPointF(12, 12), QPointF(7, 17)])
         p.drawPolyline([QPointF(13, 7), QPointF(18, 12), QPointF(13, 17)])
+    elif kind == "pause":
+        # Zwei Balken. Gefuellt statt gestrichelt: der Knopf soll auch bei 16 px
+        # noch eindeutig sein, und Striche wuerden mit der Waveform verschwimmen.
+        p.setPen(Qt.NoPen)
+        p.setBrush(color)
+        # Breiter und weiter auseinander als der erste Entwurf: dort verschmolzen
+        # die schmalen Striche mit der Punktreihe der Waveform daneben und sahen
+        # aus wie ein Teil der Anzeige statt wie ein Knopf (im Render gesehen).
+        p.drawRoundedRect(QRectF(7.6, 7.0, 3.4, 10), 1.4, 1.4)
+        p.drawRoundedRect(QRectF(13.0, 7.0, 3.4, 10), 1.4, 1.4)
+    elif kind == "resume":
+        # Dreieck „weiter". Gleiche optische Masse wie die Pausenbalken, damit der
+        # Knopf beim Umschalten nicht zu springen scheint.
+        p.setPen(Qt.NoPen)
+        p.setBrush(color)
+        p.drawPolygon([QPointF(9, 7), QPointF(17, 12), QPointF(9, 17)])
     else:  # check
         p.drawPolyline([QPointF(7, 12.5), QPointF(10.5, 16), QPointF(17, 8.5)])
     p.end()
@@ -361,7 +378,11 @@ def _button_style(radius: int) -> str:
 
 # Glyph-Farben der Pillen-Buttons (Design-System): ✓ traegt den Akzent,
 # ✕ neutral, » gedimmt (leuchtet cyan, wenn der Befehls-Modus scharf ist).
-_GLYPH_COLORS = {"check": _ACCENT, "x": _BAR, "trigger": _BAR_DIM}
+_GLYPH_COLORS = {"check": _ACCENT, "x": _BAR, "trigger": _BAR_DIM,
+                 # Pause so hell wie das ✕ (beides neutrale Bedienelemente),
+                 # „weiter" im Prompting-Amber — dieselbe Farbe, die die Pille im
+                 # Pausenzustand traegt.
+                 "pause": _BAR, "resume": _PROMPT_ACCENT}
 
 
 def _round_button(kind: str, tooltip: str) -> QPushButton:
@@ -467,6 +488,7 @@ class OverlayWindow(QWidget):
     finish_requested = Signal()   # ✓ — beenden und einfuegen
     trigger_requested = Signal()  # » — Befehls-Aufnahme (Safe-Word) starten/beenden
     mode_toggle_requested = Signal()  # Modus-Punkt geklickt — KI-Prompting an/aus
+    pause_requested = Signal()    # ⏸ — Aufnahme anhalten/fortsetzen
 
     def __init__(self, settings: OverlaySettings, on_geometry_changed=None,
                  level_provider=lambda: 0.0):
@@ -490,6 +512,7 @@ class OverlayWindow(QWidget):
         self._caption_is_status = False  # … oder einen Fortschritts-Hinweis?
         self._command_armed = False    # Signalwort in der Live-Vorschau erkannt
         self._prompt_latched = False   # KI-Prompting-Latch aktiv (exklusiv zu Mathe)
+        self._paused = False           # Aufnahme angehalten (Pause-Knopf)
 
         self.setAttribute(Qt.WA_ShowWithoutActivating)
         self.setAttribute(Qt.WA_TranslucentBackground)
@@ -503,6 +526,7 @@ class OverlayWindow(QWidget):
         # leuchtet bei aktivem Mathe-Modus. Nur sichtbar, wenn Mathe aktiv ist.
         self._math_dot = _StatusDot()
         self._cancel_btn = _round_button("x", "Aufnahme verwerfen")
+        self._pause_btn = _round_button("pause", "Pause — Aufnahme anhalten")
         self._finish_btn = _round_button("check", "Fertig — Text einfügen")
         # Ganz rechts (eigene Insel): Befehl per Safe-Word auslösen/beenden.
         self._trigger_btn = _round_button("trigger", "Befehl (Safe-Word) starten / beenden")
@@ -530,11 +554,13 @@ class OverlayWindow(QWidget):
         layout.addWidget(self._gap_l)
         layout.addWidget(self._cancel_btn)
         layout.addWidget(self._wave, 1)
+        layout.addWidget(self._pause_btn)
         layout.addWidget(self._finish_btn)
         layout.addWidget(self._gap_r)
         layout.addWidget(self._trigger_btn)
         self._cancel_btn.clicked.connect(self.cancel_requested.emit)
         self._finish_btn.clicked.connect(self.finish_requested.emit)
+        self._pause_btn.clicked.connect(self.pause_requested.emit)
         self._trigger_btn.clicked.connect(self.trigger_requested.emit)
         self._math_dot.clicked.connect(self.mode_toggle_requested.emit)
 
@@ -553,7 +579,8 @@ class OverlayWindow(QWidget):
         # Tooltips auch bei INAKTIVEM Fenster zeigen: das Overlay ist ein Tool-Fenster
         # ohne Fokus — ohne dieses Attribut unterdrueckt Qt die Tooltips komplett.
         self.setAttribute(Qt.WA_AlwaysShowToolTips, True)
-        for w in (self._math_dot, self._cancel_btn, self._finish_btn, self._trigger_btn):
+        for w in (self._math_dot, self._cancel_btn, self._pause_btn,
+                  self._finish_btn, self._trigger_btn):
             w.setAttribute(Qt.WA_AlwaysShowToolTips, True)
             w.installEventFilter(self)
 
@@ -592,6 +619,10 @@ class OverlayWindow(QWidget):
         pr = getattr(self, "_pill_pad_r", 4)
         fill = _BG_ARMED if self._command_armed else _BG
         border = _ACCENT if self._command_armed else None
+        if self._paused:
+            # Pause gewinnt gegen jeden Modus-Zustand: waehrend der Pause laeuft
+            # nichts ins Diktat, das muss die Pille auf einen Blick sagen.
+            fill, border = _BG_PAUSED, _BAR_DIM
         # isHidden() statt isVisible(): spiegelt den expliziten Zeige-Zustand,
         # unabhaengig davon, ob das Fenster gerade sichtbar ist.
         math_on = not self._math_dot.isHidden()
@@ -763,7 +794,7 @@ class OverlayWindow(QWidget):
             gap_l = gap_r = base_gap
         self._layout.setContentsMargins(left_m, vmargin + et, right_m, vmargin + eb)
         self._layout.setSpacing(spacing)
-        for b in (self._cancel_btn, self._finish_btn, self._trigger_btn):
+        for b in (self._cancel_btn, self._pause_btn, self._finish_btn, self._trigger_btn):
             b.setFixedSize(btn, btn)
             b.setIconSize(QSize(icon, icon))
             b.setStyleSheet(_button_style(btn // 2))
@@ -1074,8 +1105,12 @@ class OverlayWindow(QWidget):
         busy = state in (AppState.LISTENING, AppState.PROCESSING)
         self._cancel_btn.setEnabled(state is AppState.LISTENING)
         self._finish_btn.setEnabled(state is AppState.LISTENING)
+        self._pause_btn.setEnabled(state is AppState.LISTENING)
         if state is not AppState.LISTENING:
             self.set_command_armed(False)  # Befehls-Optik endet mit der Aufnahme
+            # Pause endet IMMER mit der Aufnahme. Bliebe die Optik stehen, zeigte
+            # die naechste Aufnahme einen Pausenknopf, der nichts pausiert hat.
+            self.set_paused(False)
         if state is not AppState.PROCESSING:
             # Fortschritts-Hinweis gehoert zur Verarbeitung — danach nie stehen lassen.
             self._clear_status_caption()
@@ -1109,6 +1144,37 @@ class OverlayWindow(QWidget):
 
     def set_mode_line(self, text: str) -> None:
         self.setToolTip(text)  # unauffaellig: Modus-Info nur als Tooltip
+
+    def set_paused(self, paused: bool) -> None:
+        """Pausenzustand anzeigen: Knopf-Glyphe, ruhende Waveform, matte Pille.
+
+        Die Waveform geht bewusst in den IDLE-Zustand (Punktreihe) statt auf
+        flache Balken: eine Reihe stiller Balken saehe aus wie „Mikrofon hoert zu,
+        du bist nur leise" — genau die Verwechslung, die hier teuer waere.
+        """
+        if paused == self._paused:
+            return
+        self._paused = paused
+        self._pause_btn.setIcon(_glyph_icon(
+            "resume" if paused else "pause",
+            _GLYPH_COLORS["resume" if paused else "pause"],
+        ))
+        self._pause_btn.setToolTip(
+            "Weiter — Aufnahme fortsetzen" if paused else "Pause — Aufnahme anhalten"
+        )
+        self._wave.set_state(AppState.IDLE if paused else AppState.LISTENING)
+        # Bewusst NICHT ueber show_progress(): das gilt nur waehrend der
+        # Verarbeitung. Hier laeuft die Aufnahme (Zustand LISTENING) und steht
+        # trotzdem still — der Hinweis muss genau dann erscheinen.
+        if paused:
+            self._caption_is_live = False
+            self._caption_is_status = True
+            self._caption.show_above(
+                self.frameGeometry(), "Pause — es wird nichts aufgenommen", sticky=True,
+            )
+        else:
+            self._clear_status_caption()
+        self.update()
 
     def set_session_info(self, info) -> None:
         """Session-Punkt: info = (bloecke, minuten[, nur_lesbar]) | None.

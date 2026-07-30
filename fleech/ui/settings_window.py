@@ -441,8 +441,12 @@ class SettingsPanel(QWidget):
         form.addRow(label_w, row)
         return s
 
+    # Anzeigenamen fuer die Kollisionswarnung („belegt durch …"). JEDER Hotkey
+    # braucht hier einen Eintrag — fehlt einer, wirft die Warnung einen KeyError,
+    # sobald zwei Felder existieren.
     _HOTKEY_FRIENDLY = {"dictate": "Diktat", "math_toggle": "Mathe-Umschalt",
-                        "prompt_toggle": "KI-Prompting"}
+                        "prompt_toggle": "KI-Prompting", "undo": "Rohtext einsetzen",
+                        "pause": "Pause"}
 
     def _add_hotkey_field(self, form, label, settings_attr, kind, default, hint_text=""):
         from ..hotkey import HotkeySpec
@@ -582,6 +586,12 @@ class SettingsPanel(QWidget):
             hint_text="Ersetzt die zuletzt eingefügte Fassung durch das wörtliche "
                       "Transkript — für den Fall, dass die Bereinigung danebengriff. "
                       "Nur direkt danach und solange der Cursor noch dort steht.",
+        )
+        self._add_hotkey_field(
+            form, "Pause", "pause_hotkey", "pause", "ctrl+alt+space",
+            hint_text="Hält die laufende Aufnahme an — währenddessen wird nichts "
+                      "aufgezeichnet, du kannst also frei sprechen. Nochmal drücken "
+                      "setzt dasselbe Diktat fort. Auch als Knopf in der Pille.",
         )
         mics = [(None, "Systemstandard")] + [(name, name) for name in self._list_microphones()]
         self._combo(

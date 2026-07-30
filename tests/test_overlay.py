@@ -185,3 +185,4 @@ def test_spitzenwert_faellt_wieder():
     for _ in range(200):                      # danach normale Lautstaerke
         w._scaled(0.03, 1.0)
     assert w._peak < loud_peak
+

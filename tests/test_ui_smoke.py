@@ -2684,3 +2684,141 @@ def test_license_state_wird_gemerkt_und_nach_eingabe_neu_bewertet(monkeypatch):
     assert DesktopApp._license_ok(fake) is False
     assert DesktopApp._license_ok(fake) is False
     assert len(aufrufe) == 1                       # gemerkt, nicht bei jedem Hotkey
+
+
+# -- Pause: Verdrahtung Recorder ↔ Pille ---------------------------------------------
+
+def _pause_fake(recording=True, paused=False):
+    import types
+
+    from fleech.ui.desktop import DesktopApp
+
+    zustand = {"paused": paused}
+    protokoll = []
+
+    class FakeRecorder:
+        """`paused` muss LIVE gelesen werden — toggle_pause fragt es zweimal ab
+        (vor der Entscheidung und danach fuer die Anzeige)."""
+
+        def __init__(self):
+            self.recording = recording
+
+        @property
+        def paused(self):
+            return zustand["paused"]
+
+        def pause(self):
+            zustand["paused"] = True
+            protokoll.append("pause")
+
+        def resume(self):
+            zustand["paused"] = False
+            protokoll.append("resume")
+
+    recorder = FakeRecorder()
+    fake = types.SimpleNamespace(
+        recorder=recorder,
+        overlay=types.SimpleNamespace(
+            set_paused=lambda p: protokoll.append(f"overlay:{p}")),
+        notifier=types.SimpleNamespace(sound=lambda n: protokoll.append(f"sound:{n}")),
+    )
+    return DesktopApp.toggle_pause, fake, protokoll
+
+
+def test_toggle_pause_haelt_an_und_setzt_fort():
+    toggle, fake, protokoll = _pause_fake()
+    toggle(fake)
+    assert protokoll == ["pause", "overlay:True", "sound:stop"]
+    protokoll.clear()
+    toggle(fake)
+    assert protokoll == ["resume", "overlay:False", "sound:start"]
+
+
+def test_toggle_pause_ohne_aufnahme_tut_nichts():
+    """Ein „Pause" im Leerlauf haette keinen Zustand zum Fortsetzen."""
+    toggle, fake, protokoll = _pause_fake(recording=False)
+    toggle(fake)
+    assert protokoll == []
+
+
+def test_pause_hotkey_nur_waehrend_der_aufnahme(monkeypatch):
+    import types
+
+    from fleech.ui.desktop import DesktopApp
+
+    gerufen = []
+    fake = types.SimpleNamespace(
+        controller=types.SimpleNamespace(active=True, press=lambda n: None),
+        recorder=types.SimpleNamespace(recording=True),
+        toggle_pause=lambda: gerufen.append(True),
+    )
+    DesktopApp._on_hotkey_activate(fake, "pause")
+    assert gerufen == [True]
+
+    fake.recorder = types.SimpleNamespace(recording=False)
+    DesktopApp._on_hotkey_activate(fake, "pause")
+    assert gerufen == [True]                     # ausserhalb bleibt die Taste frei
+
+
+def test_pause_hotkey_ist_belegt_und_konfigurierbar():
+    from fleech.usersettings import RecordingSettings
+
+    s = RecordingSettings()
+    assert s.pause_hotkey == "ctrl+alt+space"
+    s.pause_hotkey = ""                          # loeschbar wie die anderen
+    assert s.pause_hotkey == ""
+
+
+# -- Pause in der Pille -------------------------------------------------------------
+
+def test_pause_knopf_wechselt_zustand_und_beruhigt_die_waveform(qapp):
+    """Pause muss auf einen Blick erkennbar sein: andere Glyphe, ruhende Anzeige."""
+    from fleech.ui.overlay_qt import OverlayWindow
+    from fleech.ui.state import AppState
+    from fleech.usersettings import OverlaySettings
+
+    o = OverlayWindow(OverlaySettings())
+    o.set_app_state(AppState.LISTENING)
+    assert "Pause" in o._pause_btn.toolTip()
+
+    o.set_paused(True)
+    assert o._paused is True
+    assert "Weiter" in o._pause_btn.toolTip()
+    # Punktreihe statt Balken — flache Balken saehen aus wie „du bist nur leise".
+    assert o._wave._state is AppState.IDLE
+
+    o.set_paused(False)
+    assert o._wave._state is AppState.LISTENING
+    assert "Pause" in o._pause_btn.toolTip()
+    o.deleteLater()
+
+
+def test_pause_endet_mit_der_aufnahme(qapp):
+    """Sonst zeigte die naechste Aufnahme einen Knopf, der nichts pausiert hat."""
+    from fleech.ui.overlay_qt import OverlayWindow
+    from fleech.ui.state import AppState
+    from fleech.usersettings import OverlaySettings
+
+    o = OverlayWindow(OverlaySettings())
+    o.set_app_state(AppState.LISTENING)
+    o.set_paused(True)
+    o.set_app_state(AppState.PROCESSING)
+    assert o._paused is False
+    assert not o._pause_btn.isEnabled()          # nur waehrend der Aufnahme bedienbar
+    o.deleteLater()
+
+
+def test_pause_knopf_meldet_sich_nur_per_signal(qapp):
+    from fleech.ui.overlay_qt import OverlayWindow
+    from fleech.ui.state import AppState
+    from fleech.usersettings import OverlaySettings
+
+    o = OverlayWindow(OverlaySettings())
+    o.set_app_state(AppState.LISTENING)
+    gerufen = []
+    o.pause_requested.connect(lambda: gerufen.append(True))
+    o._pause_btn.click()
+    assert gerufen == [True]
+    # Der Knopf schaltet NICHT selbst um — die Wahrheit ist der Recorder.
+    assert o._paused is False
+    o.deleteLater()

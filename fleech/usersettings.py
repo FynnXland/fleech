@@ -59,6 +59,9 @@ class RecordingSettings:
     # Bereinigung danebengriff — Wort fuer Wort das, was gesprochen wurde, statt
     # eine Formulierung, die man so nicht gesagt hat.
     undo_hotkey: str = "ctrl+alt+z"
+    # Aufnahme anhalten/fortsetzen (z. B. um kurz mit jemandem zu sprechen).
+    # Waehrend der Pause laeuft der Stream weiter, es wird aber nichts gesammelt.
+    pause_hotkey: str = "ctrl+alt+space"
     microphone: str | int | None = None  # None = Systemstandard
     # Nutzer-Sperrliste fuer Aufnahmegeraete: Teilstrings von Geraetenamen, die nie
     # als Mikrofon gelten sollen. Ergaenzt die eingebaute Wortliste — unter Windows
