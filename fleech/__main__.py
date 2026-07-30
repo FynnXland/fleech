@@ -70,6 +70,11 @@ def main() -> int:
              "durchlaufen lassen (erwartet diktat_de.wav/command_redax.wav/"
              "math_quadratisch.wav im angegebenen Ordner, je optional).",
     )
+    parser.add_argument(
+        "--license", action="store_true",
+        help="Lizenzstatus dieser Installation anzeigen (fuer Rueckfragen bei der "
+             "Weitergabe: sagt, ob und bis wann der Schluessel gilt)",
+    )
     parser.add_argument("-v", "--verbose", action="store_true", help="Debug-Logging")
     args = parser.parse_args()
 
@@ -94,6 +99,20 @@ def main() -> int:
         datefmt="%H:%M:%S",
         handlers=handlers,
     )
+
+    if args.license:
+        # Bewusst OHNE Qt und ohne Modelle: das muss auch dann noch antworten,
+        # wenn sonst nichts laeuft — genau dann fragt man danach.
+        from .licensing import check
+        from .usersettings import UserSettings
+
+        zustand = check(UserSettings.load())
+        print(f"Lizenz: {'gültig' if zustand.ok else 'NICHT gültig'}")
+        if zustand.name:
+            print(f"Ausgestellt auf: {zustand.name}")
+        print(f"Gültig bis: {zustand.expires or 'unbefristet'}"
+              if zustand.ok else f"Grund: {zustand.reason}")
+        return 0 if zustand.ok else 1
 
     if args.list_devices:
         import sounddevice as sd

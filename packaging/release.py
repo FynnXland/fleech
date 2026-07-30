@@ -119,7 +119,9 @@ def main() -> int:
            "--repo", RELEASE_REPO,
            "--title", f"Fleech {APP_VERSION}",
            "--notes", notizen(hash_hex, setup)]
-    print(f"[release] gh release create {tag} → {RELEASE_REPO}")
+    # Bewusst ohne Sonderzeichen: die Windows-Konsole faehrt cp1252, ein Pfeil
+    # wuerde den Lauf mit UnicodeEncodeError abbrechen (real passiert).
+    print(f"[release] gh release create {tag} in {RELEASE_REPO}")
     if subprocess.run(cmd, cwd=ROOT).returncode != 0:
         print("[release] Release-Erstellung fehlgeschlagen (Tag schon vorhanden?).")
         return 1
