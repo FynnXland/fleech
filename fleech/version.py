@@ -7,7 +7,7 @@
 
 from __future__ import annotations
 
-APP_VERSION = "4.4.1"  # 4.4.1: vierter Halluzinations-Filter (fremdsprachiger Wortsalat)
+APP_VERSION = "4.5.0"  # 4.5.0: Profil-Hotkey (tippen/halten), Escape loescht Bindungen
 
 
 def _read_build() -> str:

@@ -1,7 +1,7 @@
 """Hotkey-Recorder fuer das Settings-UI: Taste(n) druecken statt Namen eintippen.
 
 - HotkeyRecorderDialog: greift die Tastatur, zeigt live die gedrueckte Kombination,
-  finalisiert bei der ersten Nicht-Modifier-Taste. Esc bricht ab, Backspace/Entf
+  finalisiert bei der ersten Nicht-Modifier-Taste. Esc/Backspace/Entf
   loescht die Bindung. Auto-Repeat wird entprellt.
 - HotkeyField: Zeile im Settings-Formular (Anzeige + Button + Kollisionswarnung).
 - collision_warning(): interne Doppelbelegung + Hinweis auf Windows-problematische Combos.
@@ -125,7 +125,7 @@ class HotkeyRecorderDialog(QDialog):
         hint = QLabel("Auch Maustaste 4/5 oder Mitte: einfach hier im Dialog klicken.\n"
                       "G-/Makrotasten (Corsair, Logitech …) funktionieren, wenn sie in\n"
                       "iCUE/G HUB eine Taste senden (z. B. F13–F24).\n"
-                      "Esc = abbrechen · Entf/Backspace = Bindung löschen")
+                      "Esc, Entf oder Backspace = Bindung löschen")
         hint.setStyleSheet("color: #808088; font-size: 8pt;")
         layout.addWidget(self._title)
         layout.addWidget(self._live)
@@ -203,10 +203,12 @@ class HotkeyRecorderDialog(QDialog):
         if event.isAutoRepeat():
             return
         qk = event.key()
-        if qk == Qt.Key_Escape:
-            self._finish(cancel=True)
-            return
-        if qk in (Qt.Key_Backspace, Qt.Key_Delete):
+        if qk in (Qt.Key_Escape, Qt.Key_Backspace, Qt.Key_Delete):
+            # Escape LOESCHT die Bindung, statt nur abzubrechen. Genau das war die
+            # Erwartung im Alltag („ich will die Taste nicht mehr") — und ein
+            # Abbruch ohne Aenderung ist ohnehin trivial: dieselbe Taste nochmal
+            # druecken. Ein Weg, den man sucht und nicht findet, ist schlimmer als
+            # ein fehlender Abbruch.
             self.cleared = True
             self._finish()
             return

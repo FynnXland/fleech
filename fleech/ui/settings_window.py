@@ -446,16 +446,23 @@ class SettingsPanel(QWidget):
     # sobald zwei Felder existieren.
     _HOTKEY_FRIENDLY = {"dictate": "Diktat", "math_toggle": "Mathe-Umschalt",
                         "prompt_toggle": "KI-Prompting", "undo": "Rohtext einsetzen",
-                        "pause": "Pause"}
+                        "pause": "Pause", "profile": "Profil wechseln"}
 
     def _add_hotkey_field(self, form, label, settings_attr, kind, default, hint_text=""):
         from ..hotkey import HotkeySpec
         from .hotkey_recorder import HotkeyField
 
-        try:
-            spec = HotkeySpec.parse(getattr(self.settings.recording, settings_attr) or default)
-        except ValueError:
-            spec = HotkeySpec.parse(default)
+        roh = getattr(self.settings.recording, settings_attr) or default
+        if not roh:
+            # Bindung bewusst leer (geloescht oder ohne Vorbelegung, wie beim
+            # Profil-Wechsel). Frueher lief das in einen ValueError, weil beide
+            # Zweige `parse("")` versuchten.
+            spec = None
+        else:
+            try:
+                spec = HotkeySpec.parse(roh)
+            except ValueError:
+                spec = HotkeySpec.parse(default) if default else None
 
         def others():
             return {
@@ -590,6 +597,13 @@ class SettingsPanel(QWidget):
             hint_text="Ersetzt die zuletzt eingefügte Fassung durch das wörtliche "
                       "Transkript — für den Fall, dass die Bereinigung danebengriff. "
                       "Nur direkt danach und solange der Cursor noch dort steht.",
+        )
+        self._add_hotkey_field(
+            form, "Profil wechseln", "profile_hotkey", "profile", "",
+            hint_text="Kurz drücken = nächstes Profil. GEDRÜCKT HALTEN = Liste aller "
+                      "Profile am Mauszeiger, dort direkt anklicken. Sinnvoll auf "
+                      "einer Maus-Zusatztaste (mouse4/mouse5) — deshalb ohne "
+                      "Vorbelegung. Esc im Aufnahmefeld löscht eine Bindung.",
         )
         self._add_hotkey_field(
             form, "Pause", "pause_hotkey", "pause", "ctrl+alt+space",

@@ -62,6 +62,10 @@ class RecordingSettings:
     # Aufnahme anhalten/fortsetzen (z. B. um kurz mit jemandem zu sprechen).
     # Waehrend der Pause laeuft der Stream weiter, es wird aber nichts gesammelt.
     pause_hotkey: str = "ctrl+alt+space"
+    # Profil wechseln. TIPPEN = naechstes Profil, HALTEN = Auswahlliste am Zeiger.
+    # Leer als Default: die sinnvollste Belegung ist eine Maus-Zusatztaste
+    # (mouse4/mouse5), und die ist je nach Maus anders — raten waere hier falsch.
+    profile_hotkey: str = ""
     microphone: str | int | None = None  # None = Systemstandard
     # Nutzer-Sperrliste fuer Aufnahmegeraete: Teilstrings von Geraetenamen, die nie
     # als Mikrofon gelten sollen. Ergaenzt die eingebaute Wortliste — unter Windows
@@ -507,6 +511,11 @@ class ProfilesSettings:
 
     enabled: bool = True                 # globaler Schalter
     items: list = field(default_factory=_default_profiles)
+    # Von Hand gewaehltes Profil (Pillen-Punkt oder Profil-Hotkey). "" = automatisch
+    # nach App. Persistent, weil es eine bewusste Entscheidung ist: Wer im
+    # E-Mail-Profil arbeitet, will nach einem Neustart nicht stillschweigend wieder
+    # normal diktieren — genau das faellt erst am fertigen Text auf.
+    active: str = ""
 
 
 @dataclass

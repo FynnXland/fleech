@@ -95,9 +95,16 @@ Vier Modi:
   markiert und vor dem Einfügen gezeigt.
 - **KI-Prompting** — `Strg+Alt+P`: aus dem Diktat wird ein strukturierter Prompt.
 
-**Profile bestimmen, WAS aus dem Diktat wird.** Klick auf den Punkt links in der Pille
-schaltet reihum weiter (der Name erscheint kurz daneben) — auch mitten in der Aufnahme,
-denn ob daraus eine Mail wird, entscheidest du beim Sprechen:
+**Profile bestimmen, WAS aus dem Diktat wird.** Drei Wege zum Wechseln, alle auch
+mitten in der Aufnahme — denn ob daraus eine Mail wird, entscheidest du beim Sprechen:
+
+- **Punkt links in der Pille** anklicken: schaltet reihum weiter.
+- **Profil-Hotkey kurz drücken** (Einstellungen → Aufnahme; sinnvoll auf einer
+  Maus-Zusatztaste): dasselbe, ohne hinzusehen.
+- **Profil-Hotkey gedrückt halten**: Liste aller Profile am Mauszeiger, direkt anklicken.
+
+Der Name erscheint kurz neben der Pille. Das gewählte Profil bleibt aktiv — auch nach
+einem Neustart.
 
 | Profil-Ausgabeformat | Ergebnis |
 |---|---|

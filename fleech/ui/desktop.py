@@ -16,6 +16,7 @@ import threading
 import time
 from pathlib import Path
 
+from PySide6.QtCore import QTimer
 from PySide6.QtWidgets import QApplication
 
 from ..app import DictationApp
@@ -37,6 +38,11 @@ from .tray import TrayController
 from .windowsfocus import FocusProbe
 
 log = logging.getLogger(__name__)
+
+# Ab dieser Haltedauer gilt der Profil-Hotkey als „gehalten" und oeffnet die
+# Auswahlliste. 350 ms: lang genug, dass ein zuegiger Tipp nie versehentlich die
+# Liste oeffnet, kurz genug, dass Halten sich nicht wie Warten anfuehlt.
+_PROFIL_HALTEN_MS = 350
 
 
 def list_input_devices() -> list[str]:
@@ -636,14 +642,14 @@ class DesktopApp:
         # Von Hand gewaehltes Profil (Punkt in der Pille) sticht die App-Zuordnung.
         # Ob dieses Diktat eine Mail wird, weiss nur der Sprecher — keine Regel
         # ueber Prozessnamen kann das wissen.
-        gewaehlt = getattr(self, "_manual_profile", "")
+        gewaehlt = getattr(self.settings.profiles, "active", "")
         if gewaehlt:
             for item in prof.items or []:
                 if isinstance(item, dict) and item.get("name") == gewaehlt:
                     return overrides_from(item)
             log.info("Gewaehltes Profil %r gibt es nicht mehr — zurueck auf automatisch.",
                      gewaehlt)
-            self._manual_profile = ""
+            self._set_profile("")
         app = getattr(self, "_record_app", "") or ""
         title = getattr(self, "_record_title", "") or ""
 
@@ -691,7 +697,7 @@ class DesktopApp:
 
     def active_profile_name(self) -> str:
         """Profil, das fuer das naechste Diktat gilt — gewaehlt oder automatisch."""
-        gewaehlt = getattr(self, "_manual_profile", "")
+        gewaehlt = getattr(self.settings.profiles, "active", "")
         if gewaehlt:
             return gewaehlt
         for item in self.settings.profiles.items or []:
@@ -710,15 +716,55 @@ class DesktopApp:
         if not namen:
             return
         stationen = namen + [""]        # "" = automatisch (App-Zuordnung)
-        jetzt = getattr(self, "_manual_profile", "")
+        jetzt = getattr(self.settings.profiles, "active", "")
         try:
             naechste = stationen[(stationen.index(jetzt) + 1) % len(stationen)]
         except ValueError:
             naechste = stationen[0]
-        self._manual_profile = naechste
-        anzeige = naechste or f"Automatisch ({self.active_profile_name()})"
+        self._set_profile(naechste)
+
+    def _set_profile(self, name: str) -> None:
+        """Profil festlegen, merken und kurz anzeigen. "" = automatisch nach App."""
+        self.settings.profiles.active = name
+        self.settings.save()
+        anzeige = name or f"Automatisch ({self.active_profile_name()})"
         log.info("Profil gewaehlt: %s", anzeige)
-        self.overlay.show_profile(anzeige)
+        try:
+            self.overlay.show_profile(anzeige)
+        except Exception:
+            log.debug("Profil-Anzeige fehlgeschlagen.", exc_info=True)
+
+    # -- Profil-Hotkey: tippen = weiterschalten, halten = Auswahlliste --------------
+
+    def _on_profile_key_down(self) -> None:
+        """Taste gedrueckt: Timer starten. Ob Tippen oder Halten, entscheidet sich
+        erst beim Loslassen — deshalb passiert hier bewusst noch nichts."""
+        self._profile_key_held = True
+        QTimer.singleShot(_PROFIL_HALTEN_MS, self._maybe_open_profile_picker)
+
+    def _maybe_open_profile_picker(self) -> None:
+        if not getattr(self, "_profile_key_held", False):
+            return                      # war ein Tipp — schon losgelassen
+        self._profile_picker_open = True
+        self.show_profile_picker()
+
+    def _on_profile_key_up(self) -> None:
+        war_gehalten = getattr(self, "_profile_picker_open", False)
+        self._profile_key_held = False
+        self._profile_picker_open = False
+        if not war_gehalten:
+            self.cycle_profile()        # kurzer Tipp → naechstes Profil
+
+    def show_profile_picker(self) -> None:
+        """Auswahlliste am Mauszeiger (Hotkey halten)."""
+        from .profilepicker import ProfilePicker
+
+        picker = getattr(self, "_profile_picker", None)
+        if picker is None:
+            picker = self._profile_picker = ProfilePicker()
+            picker.chosen.connect(self._set_profile)
+        picker.show_at_cursor(self.profile_names(),
+                              getattr(self.settings.profiles, "active", ""))
 
     def _process(self, audio, force_command: bool = False,
                  prompt_oneshot: bool = False) -> None:
@@ -860,6 +906,12 @@ class DesktopApp:
             else:
                 self._undo_last_output()
             return
+        if name == "profile":
+            # Tippen/Halten unterscheidet sich erst beim Loslassen — hier nur den
+            # Timer starten. Bewusst AUCH waehrend der Aufnahme erlaubt: ob dieses
+            # Diktat eine Mail wird, entscheidet man oft mitten im Sprechen.
+            self._on_profile_key_down()
+            return
         if name == "pause":
             # Nur waehrend einer Aufnahme sinnvoll — ausserhalb bleibt die Taste
             # fuer andere Programme frei (gleiche Regel wie bei den Modus-Hotkeys).
@@ -877,6 +929,9 @@ class DesktopApp:
         self.controller.press(name)
 
     def _on_hotkey_deactivate(self, name: str) -> None:
+        if name == "profile":
+            self._on_profile_key_up()
+            return
         if name in ("prompt_toggle", "undo", "pause"):
             return  # wirken beim Druck, nicht beim Loslassen
         self.controller.release(name)
@@ -989,7 +1044,8 @@ class DesktopApp:
         for name, attr in (("dictate", "hotkey"),
                            ("prompt_toggle", "prompt_toggle_hotkey"),
                            ("undo", "undo_hotkey"),
-                           ("pause", "pause_hotkey")):
+                           ("pause", "pause_hotkey"),
+                           ("profile", "profile_hotkey")):
             raw = getattr(self.settings.recording, attr)
             if not raw:
                 continue  # geloeschte Bindung → nicht registrieren

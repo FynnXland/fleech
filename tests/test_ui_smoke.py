@@ -167,19 +167,21 @@ def test_punkt_schaltet_reihum_durch_die_profile(qapp):
     gezeigt = []
     fake = types.SimpleNamespace(
         settings=types.SimpleNamespace(profiles=types.SimpleNamespace(
-            enabled=True, items=[{"name": "Standard", "default": True},
-                                 {"name": "E-Mail", "mode": "email"}])),
+            enabled=True, active="",
+            items=[{"name": "Standard", "default": True},
+                   {"name": "E-Mail", "mode": "email"}])),
         overlay=types.SimpleNamespace(show_profile=gezeigt.append),
-        _manual_profile="",
     )
     fake.profile_names = lambda: DesktopApp.profile_names(fake)
     fake.active_profile_name = lambda: DesktopApp.active_profile_name(fake)
+    fake._set_profile = lambda n: DesktopApp._set_profile(fake, n)
+    fake.settings.save = lambda: None
     DesktopApp.cycle_profile(fake)
-    assert fake._manual_profile == "Standard"
+    assert fake.settings.profiles.active == "Standard"
     DesktopApp.cycle_profile(fake)
-    assert fake._manual_profile == "E-Mail"
+    assert fake.settings.profiles.active == "E-Mail"
     DesktopApp.cycle_profile(fake)
-    assert fake._manual_profile == ""          # zurueck auf automatisch
+    assert fake.settings.profiles.active == ""          # zurueck auf automatisch
     assert gezeigt[-1].startswith("Automatisch")
 
 
@@ -192,16 +194,17 @@ def test_profilwechsel_geht_auch_waehrend_der_aufnahme(qapp):
 
     fake = types.SimpleNamespace(
         settings=types.SimpleNamespace(profiles=types.SimpleNamespace(
-            enabled=True, items=[{"name": "E-Mail", "mode": "email"}])),
+            enabled=True, active="", items=[{"name": "E-Mail", "mode": "email"}])),
         overlay=types.SimpleNamespace(show_profile=lambda n: None),
-        _manual_profile="",
         recorder=types.SimpleNamespace(recording=True),
         controller=types.SimpleNamespace(active=True),
     )
     fake.profile_names = lambda: DesktopApp.profile_names(fake)
     fake.active_profile_name = lambda: DesktopApp.active_profile_name(fake)
+    fake._set_profile = lambda n: DesktopApp._set_profile(fake, n)
+    fake.settings.save = lambda: None
     DesktopApp.cycle_profile(fake)
-    assert fake._manual_profile == "E-Mail"
+    assert fake.settings.profiles.active == "E-Mail"
 
 
 def test_overlay_edit_mode_keeps_pill_visible(qapp):
@@ -947,7 +950,12 @@ def test_hotkey_recorder_letter_uses_native_vk(qapp):
     assert d.result_spec.serialize() == "ctrl+d"
 
 
-def test_hotkey_recorder_escape_cancels(qapp):
+def test_hotkey_recorder_escape_clears(qapp):
+    """Escape LOESCHT die Bindung (vorher: Abbruch ohne Aenderung).
+
+    Nutzererwartung im Alltag: „ich will die Taste nicht mehr" — und genau danach
+    hat er gesucht und nichts gefunden. Ein Abbruch ist ohnehin trivial: dieselbe
+    Taste nochmal druecken."""
     from PySide6.QtCore import Qt
 
     from fleech.ui.hotkey_recorder import HotkeyRecorderDialog
@@ -955,7 +963,7 @@ def test_hotkey_recorder_escape_cancels(qapp):
     d = HotkeyRecorderDialog()
     d.keyPressEvent(_key_event(Qt.Key_Escape))
     assert d.result_spec is None
-    assert not d.cleared
+    assert d.cleared
 
 
 def test_hotkey_recorder_delete_clears(qapp):
@@ -2847,3 +2855,108 @@ def test_pause_knopf_meldet_sich_nur_per_signal(qapp):
     # Der Knopf schaltet NICHT selbst um — die Wahrheit ist der Recorder.
     assert o._paused is False
     o.deleteLater()
+
+
+# -- Profil-Hotkey: tippen vs. halten -------------------------------------------------
+
+def _profil_fake(qapp=None):
+    import types
+
+    from fleech.ui.desktop import DesktopApp
+
+    protokoll = []
+    fake = types.SimpleNamespace(
+        settings=types.SimpleNamespace(
+            save=lambda: protokoll.append("gespeichert"),
+            profiles=types.SimpleNamespace(
+                enabled=True, active="",
+                items=[{"name": "Standard", "default": True},
+                       {"name": "E-Mail", "mode": "email"}])),
+        overlay=types.SimpleNamespace(show_profile=lambda n: protokoll.append(f"zeig:{n}")),
+        _profile_key_held=False,
+        _profile_picker_open=False,
+    )
+    fake.profile_names = lambda: DesktopApp.profile_names(fake)
+    fake.active_profile_name = lambda: DesktopApp.active_profile_name(fake)
+    fake._set_profile = lambda n: DesktopApp._set_profile(fake, n)
+    fake.cycle_profile = lambda: DesktopApp.cycle_profile(fake)
+    fake.show_profile_picker = lambda: protokoll.append("liste")
+    fake._maybe_open_profile_picker = lambda: DesktopApp._maybe_open_profile_picker(fake)
+    return DesktopApp, fake, protokoll
+
+
+def test_kurzer_tipp_schaltet_weiter(qapp):
+    """Loslassen, bevor die Haltezeit um ist → naechstes Profil, keine Liste."""
+    App, fake, protokoll = _profil_fake()
+    App._on_profile_key_down(fake)
+    App._on_profile_key_up(fake)               # sofort losgelassen
+    assert fake.settings.profiles.active == "Standard"
+    assert "liste" not in protokoll
+
+
+def test_halten_oeffnet_die_liste_und_schaltet_nicht_weiter(qapp):
+    """Wer die Liste oeffnet, will genau waehlen — nicht nebenbei weitergeschaltet
+    werden."""
+    App, fake, protokoll = _profil_fake()
+    App._on_profile_key_down(fake)
+    App._maybe_open_profile_picker(fake)       # Haltezeit erreicht
+    App._on_profile_key_up(fake)
+    assert protokoll.count("liste") == 1
+    assert fake.settings.profiles.active == ""   # nichts weitergeschaltet
+
+
+def test_liste_oeffnet_nicht_wenn_schon_losgelassen(qapp):
+    """Der Timer laeuft weiter, auch wenn die Taste laengst oben ist."""
+    App, fake, protokoll = _profil_fake()
+    App._on_profile_key_down(fake)
+    App._on_profile_key_up(fake)
+    App._maybe_open_profile_picker(fake)       # Timer feuert verspaetet
+    assert "liste" not in protokoll
+
+
+def test_gewaehltes_profil_wird_gespeichert(qapp):
+    """„Zuletzt genutztes Profil bleibt aktiv" — auch über einen Neustart."""
+    App, fake, protokoll = _profil_fake()
+    App._set_profile(fake, "E-Mail")
+    assert fake.settings.profiles.active == "E-Mail"
+    assert "gespeichert" in protokoll
+
+
+def test_profil_picker_listet_alle_und_automatisch(qapp):
+    from fleech.ui.profilepicker import ProfilePicker
+
+    p = ProfilePicker()
+    p.show_at_cursor(["Standard", "E-Mail", "Coding"], aktiv="E-Mail")
+    beschriftungen = [b.text() for b in p._buttons]
+    assert beschriftungen[:3] == ["Standard", "E-Mail", "Coding"]
+    assert "Automatisch" in beschriftungen[-1]
+    werte = [b.property("profil") for b in p._buttons]
+    assert werte[-1] == ""                     # letzte Station: automatisch
+    p.hide()
+
+
+def test_profil_picker_meldet_die_auswahl(qapp):
+    from fleech.ui.profilepicker import ProfilePicker
+
+    p = ProfilePicker()
+    p.show_at_cursor(["Standard", "E-Mail"])
+    gewaehlt = []
+    p.chosen.connect(gewaehlt.append)
+    p._buttons[1].click()
+    assert gewaehlt == ["E-Mail"]
+    assert not p.isVisible()                   # schliesst sich nach der Wahl
+    p.hide()
+
+
+def test_profil_picker_zieht_nie_den_fokus(qapp):
+    """Sonst waere das Ziel-Textfeld weg, in das gleich eingefuegt werden soll."""
+    from PySide6.QtCore import Qt
+
+    from fleech.ui.profilepicker import ProfilePicker
+
+    p = ProfilePicker()
+    p.show_at_cursor(["Standard"])
+    assert p.testAttribute(Qt.WA_ShowWithoutActivating)
+    assert p.windowFlags() & Qt.WindowDoesNotAcceptFocus
+    assert all(b.focusPolicy() == Qt.NoFocus for b in p._buttons)
+    p.hide()
