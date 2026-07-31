@@ -3061,3 +3061,34 @@ def test_pille_rastet_auf_mitte_und_rand_ein(qapp):
     x, _y = o._snap(frei, rand.top() + 300)
     assert x == frei
     o.deleteLater()
+
+
+def test_profilliste_wiederholt_den_namen_nicht(qapp, monkeypatch):
+    """„E-Mail · E-Mail" ist Lärm, keine Zusatzinfo: Die Standardprofile heißen
+    wie ihr Format. Real gemeldet als „doppelte Einträge"."""
+    from fleech.ui.main_window import ProfilesPage
+    from fleech.usersettings import UserSettings
+
+    s = UserSettings()
+    monkeypatch.setattr(UserSettings, "save", lambda self, path=None: None)
+    s.profiles.items = [
+        {"name": "Standard", "default": True},
+        {"name": "E-Mail", "mode": "email"},          # Name = Format
+        {"name": "Kundenmail", "mode": "email"},      # Name ≠ Format
+    ]
+    page = ProfilesPage(s, lambda sec: None)
+    page._refresh_profiles()
+    zeilen = [page._profiles_list.item(i).text()
+              for i in range(page._profiles_list.count())]
+    assert zeilen[1].count("E-Mail") == 1
+    assert "E-Mail" in zeilen[2] and zeilen[2].startswith("Kundenmail")
+    page.deleteLater()
+
+
+def test_kategoriefarben_meiden_die_akzentfarbe(qapp):
+    """Die Brand-Farbe steht im ganzen Programm für „ausgewählt" — als
+    Kategoriepunkt gelesen wirkte sie wie eine Markierung."""
+    from fleech.ui.main_window import ACCENT, ProfilesPage
+
+    assert ACCENT.lower() not in {c.lower() for c in
+                                  ProfilesPage._MODE_DOT_COLORS.values()}

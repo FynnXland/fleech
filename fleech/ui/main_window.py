@@ -1708,6 +1708,14 @@ class ProfilesPage(QWidget):
         self._assigned_note.hide()
         detail_box.addWidget(self._assigned_note)
 
+        # Ohne diesen Dehnungs-Platzhalter verteilt Qt den freien Platz GLEICHMAESSIG
+        # zwischen allen Zeilen, sobald der erweiterte Block (mit der App-Liste, die
+        # den Raum bisher aufgefangen hat) versteckt ist: Beschriftungen standen dann
+        # weit von ihren Bedienelementen entfernt und die Karte sah leer aus.
+        # WICHTIG in die AEUSSERE Karte — `detail_box` zeigt hier laengst auf den
+        # erweiterten Container, dort waere der Platzhalter mit versteckt.
+        detail_frame.layout().addStretch(1)
+
         self._advanced_cb = QCheckBox("Erweiterte Einstellungen")
         self._advanced_cb.setCursor(Qt.PointingHandCursor)
         self._advanced_cb.setStyleSheet(apply_chevrons(cb_style))
@@ -1770,8 +1778,11 @@ class ProfilesPage(QWidget):
             item.setData(Qt.UserRole, app)
             self._apps_list.addItem(item)
 
+    # BEWUSST OHNE die Brand-Akzentfarbe (#35C0D8): die steht im ganzen Programm
+    # fuer „ausgewaehlt". Als Kategoriefarbe gelesen wirkte der E-Mail-Punkt wie
+    # eine Markierung — genau so wurde es gemeldet.
     _MODE_DOT_COLORS = {"math": "#AA78F0", "prompt": "#E8A13C",
-                        "email": "#35C0D8", "summary": "#7FD1A6"}
+                        "email": "#6E86C8", "summary": "#7FD1A6"}
     # Kurzform des Ausgabeformats hinter dem Namen. Beantwortet die Frage „was macht
     # dieses Profil?" in der LISTE — vorher musste man jedes Profil anklicken.
     _MODE_KURZ = {"email": "E-Mail", "prompt": "KI-Prompt", "math": "Formeln",
@@ -1802,7 +1813,10 @@ class ProfilesPage(QWidget):
             if profile.get("default"):
                 name += "  („Alle“)"
             kurz = self._MODE_KURZ.get(profile_mode(profile), "")
-            if kurz:
+            # „E-Mail · E-Mail" ist keine Zusatzinfo, sondern Laerm: Die
+            # Standardprofile heissen wie ihr Format. Nur anhaengen, wenn der
+            # Name das Format NICHT schon sagt.
+            if kurz and kurz.lower() not in name.lower():
                 name += f"   ·  {kurz}"
             if not profile_in_quickswitch(profile):
                 # Ausgeblendete Profile bleiben sichtbar, aber erkennbar: sonst

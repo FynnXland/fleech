@@ -7,7 +7,7 @@
 
 from __future__ import annotations
 
-APP_VERSION = "4.6.0"  # 4.6.0: Zusammenfassen-Profil, Schnellwechsel-Auswahl, Einrasten
+APP_VERSION = "4.6.1"  # 4.6.1: Profilseite — doppelter Name, Akzentfarbe, Leerraum
 
 
 def _read_build() -> str:
