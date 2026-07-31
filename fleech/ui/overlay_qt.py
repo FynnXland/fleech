@@ -419,6 +419,10 @@ class ProfileBadge(QWidget):
         self.setAttribute(Qt.WA_ShowWithoutActivating)
         self.setAttribute(Qt.WA_TranslucentBackground)
         self.setAttribute(Qt.WA_TransparentForMouseEvents, True)
+        # Ohne eigenen Cursor zeigt Windows ueber diesem Fenster den „Anwendung
+        # startet"-Zeiger (Pfeil mit Kreisel) — sichtbar gemeldet. Der Zeiger haengt
+        # an der Fensterklasse, nicht an der Klickbarkeit.
+        self.setCursor(Qt.ArrowCursor)
         self._label = QLabel(self)
         self._label.setAlignment(Qt.AlignCenter)
         self._label.setStyleSheet("color: #E8E8EC; font-size: 9.5pt; font-weight: 600;")
@@ -438,19 +442,25 @@ class ProfileBadge(QWidget):
         p.drawRoundedRect(QRectF(r), r.height() / 2.0, r.height() / 2.0)
 
     def show_beside(self, pill: QRect, text: str) -> None:
-        """Links neben der Pille einblenden — dort ist der Punkt, der sie ausloest.
+        """Mittig UNTER der Pille einblenden.
 
-        Kein Platz nach links (Pille klebt am linken Rand)? Dann nach rechts, statt
-        halb aus dem Bild zu ragen."""
+        Erst stand die Kapsel links daneben (dort sitzt ja der Punkt, der sie
+        ausloest) — im Betrieb war das aber unruhig: die Pille steht meist am
+        rechten Bildschirmrand, die Kapsel sprang je nach Namenslaenge weit nach
+        links weg. Unter der Pille und auf sie zentriert bleibt sie an einem festen,
+        vorhersagbaren Platz. Oben liegt ohnehin die Transkript-Blase.
+        """
         self._label.setText(text)
         self.adjustSize()
         breite, hoehe = self.width(), self.height()
-        abstand = 10
-        x = pill.left() - breite - abstand
+        x = pill.center().x() - breite // 2
+        y = pill.bottom() + 10
         screen = QApplication.screenAt(pill.center()) or QApplication.primaryScreen()
-        if screen is not None and x < screen.availableGeometry().left() + 4:
-            x = pill.right() + abstand
-        y = pill.center().y() - hoehe // 2
+        if screen is not None:
+            rand = screen.availableGeometry()
+            x = max(rand.left() + 6, min(x, rand.right() - breite - 6))
+            if y + hoehe > rand.bottom() - 6:      # unten kein Platz → nach oben
+                y = pill.top() - hoehe - 10
         self.move(x, y)
         self.show()
         self.raise_()
@@ -1152,6 +1162,9 @@ class OverlayWindow(QWidget):
         self._pause_btn.setEnabled(state is AppState.LISTENING)
         if state is not AppState.LISTENING:
             self.set_command_armed(False)  # Befehls-Optik endet mit der Aufnahme
+            # Profil-Kapsel gehoert zur Auswahl, nicht zum Ergebnis: spaetestens
+            # mit dem Zustandswechsel ist sie weg (zweites Netz neben dem Timer).
+            self._profile_badge.hide()
             # Pause endet IMMER mit der Aufnahme. Bliebe die Optik stehen, zeigte
             # die naechste Aufnahme einen Pausenknopf, der nichts pausiert hat.
             self.set_paused(False)

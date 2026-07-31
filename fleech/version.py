@@ -7,7 +7,7 @@
 
 from __future__ import annotations
 
-APP_VERSION = "4.5.0"  # 4.5.0: Profil-Hotkey (tippen/halten), Escape loescht Bindungen
+APP_VERSION = "4.5.1"  # 4.5.1: Profil-Kapsel — Thread-Fehler, Position, Mauszeiger
 
 
 def _read_build() -> str:

@@ -45,6 +45,11 @@ class StateBus(QObject):
     # ueber dieses Signal erreichen. dict = Ergebnis von check_for_updates(),
     # str = Pfad der geladenen Datei ("" = noch nicht geladen).
     update_ready = Signal(object, str)
+    # Profil-Taste (gedrueckt/losgelassen). Der Hotkey kommt aus dem pynput-Thread —
+    # dort ist QTimer WIRKUNGSLOS: weder die Halte-Erkennung noch das automatische
+    # Ausblenden der Profil-Kapsel liefen, die Kapsel blieb ewig stehen. Ueber dieses
+    # Signal landet beides im UI-Thread, wo Timer funktionieren.
+    profile_key = Signal(bool)
 
     def __init__(self):
         super().__init__()

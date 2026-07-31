@@ -164,6 +164,7 @@ class DesktopApp:
         self.bus.preview_text.connect(self._on_preview_text)
         self.bus.dictionary_suggestion.connect(self._on_dictionary_suggestion)
         self.bus.update_ready.connect(self._on_update_ready)
+        self.bus.profile_key.connect(self._on_profile_key)
         # Live-Vorschau (Opt-in): kleines separates Whisper-Modell + Streamer, beide
         # lazy — wer das Feature nie einschaltet, zahlt keinerlei Kosten.
         self._preview_model = None
@@ -736,6 +737,13 @@ class DesktopApp:
 
     # -- Profil-Hotkey: tippen = weiterschalten, halten = Auswahlliste --------------
 
+    def _on_profile_key(self, gedrueckt: bool) -> None:
+        """UI-Thread: Profil-Taste gedrueckt (True) bzw. losgelassen (False)."""
+        if gedrueckt:
+            self._on_profile_key_down()
+        else:
+            self._on_profile_key_up()
+
     def _on_profile_key_down(self) -> None:
         """Taste gedrueckt: Timer starten. Ob Tippen oder Halten, entscheidet sich
         erst beim Loslassen — deshalb passiert hier bewusst noch nichts."""
@@ -907,10 +915,11 @@ class DesktopApp:
                 self._undo_last_output()
             return
         if name == "profile":
-            # Tippen/Halten unterscheidet sich erst beim Loslassen — hier nur den
-            # Timer starten. Bewusst AUCH waehrend der Aufnahme erlaubt: ob dieses
-            # Diktat eine Mail wird, entscheidet man oft mitten im Sprechen.
-            self._on_profile_key_down()
+            # NUR melden: dieser Aufruf kommt aus dem pynput-Thread, dort waere
+            # jeder QTimer wirkungslos. Die Zeitmessung laeuft im UI-Thread.
+            # Bewusst AUCH waehrend der Aufnahme erlaubt: ob dieses Diktat eine
+            # Mail wird, entscheidet man oft mitten im Sprechen.
+            self.bus.profile_key.emit(True)
             return
         if name == "pause":
             # Nur waehrend einer Aufnahme sinnvoll — ausserhalb bleibt die Taste
@@ -930,7 +939,7 @@ class DesktopApp:
 
     def _on_hotkey_deactivate(self, name: str) -> None:
         if name == "profile":
-            self._on_profile_key_up()
+            self.bus.profile_key.emit(False)
             return
         if name in ("prompt_toggle", "undo", "pause"):
             return  # wirken beim Druck, nicht beim Loslassen

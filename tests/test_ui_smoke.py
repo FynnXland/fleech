@@ -2960,3 +2960,75 @@ def test_profil_picker_zieht_nie_den_fokus(qapp):
     assert p.windowFlags() & Qt.WindowDoesNotAcceptFocus
     assert all(b.focusPolicy() == Qt.NoFocus for b in p._buttons)
     p.hide()
+
+
+def test_profil_taste_geht_ueber_den_statebus(qapp):
+    """Der Hotkey kommt aus dem pynput-Thread. Dort ist QTimer WIRKUNGSLOS — die
+    Halte-Erkennung lief nie und die Profil-Kapsel blieb ewig stehen (real
+    gemeldet). Deshalb darf der Hotkey-Pfad nur noch melden, nicht rechnen."""
+    import types
+
+    from fleech.ui.desktop import DesktopApp
+
+    gemeldet = []
+    fake = types.SimpleNamespace(
+        bus=types.SimpleNamespace(
+            profile_key=types.SimpleNamespace(emit=gemeldet.append)),
+        controller=types.SimpleNamespace(active=False, press=lambda n: None),
+        recorder=types.SimpleNamespace(recording=False),
+    )
+    DesktopApp._on_hotkey_activate(fake, "profile")
+    DesktopApp._on_hotkey_deactivate(fake, "profile")
+    assert gemeldet == [True, False]
+
+
+def test_profil_kapsel_sitzt_mittig_unter_der_pille(qapp):
+    """Vorher stand sie links daneben und sprang je nach Namenslänge weg."""
+    from PySide6.QtCore import QRect
+
+    from fleech.ui.overlay_qt import ProfileBadge
+
+    b = ProfileBadge()
+    pille = QRect(600, 400, 272, 44)
+    b.show_beside(pille, "E-Mail")
+    assert abs(b.geometry().center().x() - pille.center().x()) <= 1
+    assert b.geometry().top() > pille.bottom()
+    b.hide()
+
+
+def test_profil_kapsel_blendet_sich_selbst_aus(qapp):
+    from PySide6.QtCore import QRect
+
+    from fleech.ui.overlay_qt import ProfileBadge
+
+    b = ProfileBadge()
+    b.show_beside(QRect(600, 400, 272, 44), "E-Mail")
+    assert b._timer.isActive() and b._timer.interval() == ProfileBadge.SHOW_MS
+    b._timer.timeout.emit()                    # Zeit abgelaufen
+    assert b.isHidden()
+
+
+def test_profil_kapsel_endet_mit_der_aufnahme(qapp):
+    """Zweites Netz neben dem Timer: nach einem Diktat bleibt nichts stehen."""
+    from PySide6.QtCore import QRect
+
+    from fleech.ui.overlay_qt import OverlayWindow
+    from fleech.ui.state import AppState
+    from fleech.usersettings import UserSettings
+
+    o = OverlayWindow(UserSettings().overlay)
+    o.set_app_state(AppState.LISTENING)
+    o._profile_badge.show_beside(QRect(600, 400, 272, 44), "E-Mail")
+    assert not o._profile_badge.isHidden()
+    o.set_app_state(AppState.PROCESSING)
+    assert o._profile_badge.isHidden()
+    o.deleteLater()
+
+
+def test_profil_kapsel_hat_einen_eigenen_mauszeiger(qapp):
+    """Ohne eigenen Cursor zeigt Windows den „Anwendung startet"-Kreisel darüber."""
+    from PySide6.QtCore import Qt
+
+    from fleech.ui.overlay_qt import ProfileBadge
+
+    assert ProfileBadge().cursor().shape() == Qt.ArrowCursor
