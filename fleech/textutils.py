@@ -359,6 +359,132 @@ def meaning_flipped(raw: str, cleaned: str) -> str:
     return ""
 
 
+# -- Vierter Artefakt-Filter: fremdsprachiger Wortsalat am Ende ----------------------
+#
+# Fehlerbild (real, vom Nutzer gemeldet, mehrfach): Nach dem letzten gesprochenen Satz
+# haengt Whisper einen Block an, der wie Sprache AUSSIEHT, aber keine ist:
+#
+#   „… dass man damit abusen kann. căn probabilien werden kann. seekers Odoo Time
+#    Go Go Go Go S Go Go and Let me and or"
+#
+# Warum die drei bestehenden Filter das durchlassen:
+#   - fremde SCHRIFT: „ă" ist lateinisch, kein Kyrillisch/CJK → kein Treffer.
+#   - Wiederholungen: „Go" steht 4x, der Filter verlangt 5 (damit ein dreifaches
+#     „nein" ueberlebt) — und der Lauf endet nicht am Textende.
+#   - Wortsalat: der Filter sucht ein dominantes LANGES Wort; hier sind es kurze.
+#
+# Dieser Filter bewertet den Schwanz deshalb an MEHREREN unabhaengigen Merkmalen und
+# schneidet erst, wenn zwei davon zugleich zutreffen. Ein einzelnes Merkmal reicht
+# bewusst nicht: „Señor" in einem deutschen Satz ist kein Artefakt, und wer englische
+# Fachbegriffe diktiert („Friendly Fire", „Cooldown"), soll sie behalten.
+
+# Lateinische Diakritika, die das Deutsche NICHT kennt. Sie tauchen auf, wenn Whisper
+# in eine andere Sprache kippt. Deutsche Umlaute und ß fehlen hier natuerlich.
+# KEIN re.IGNORECASE: das tuerkische „ı" (punktloses i) faellt beim Ignorieren der
+# Gross-/Kleinschreibung mit dem normalen „I" zusammen — damit galt jedes Wort mit
+# einem i als fremd („damit", „nicht", „ist" …). Deshalb beide Schreibweisen
+# ausgeschrieben und das dotless i ganz draussen.
+_FREMDE_DIAKRITIKA = re.compile(
+    r"[ăâșțşćčĉłőűñõøåæēěīōūŭǎàòùìĝĥĵŝĂÂȘȚŞĆČĈŁŐŰÑÕØÅÆĒĚĪŌŪŬǍÀÒÙÌĜĤĴŜ]")
+
+# Englische Funktionswoerter. Einzeln harmlos (jeder streut mal ein englisches Wort
+# ein) — als Haeufung am Textende dagegen ein deutliches Signal.
+_ENGLISCHE_FUELLER = frozenset("""
+and or the let me you we to of in is it that this for be are was not with have do
+my your they he she his her him them there here what when who how why all any some
+go going get got make made take see look know think want need come back down up out
+""".split())
+
+# Deutsche Funktionswoerter. Fehlt JEDES davon in einem laengeren Abschnitt, ist der
+# Abschnitt kein deutscher Satz — egal wie er aussieht.
+_DEUTSCHE_FUELLER = frozenset("""
+der die das den dem des ein eine einen einem einer und oder aber dass wenn weil
+ich du er sie es wir ihr man mich dir mir ihm ihn uns euch sich nicht kein noch
+schon auch ist sind war waren hat habe haben wird werden kann koennen können soll
+sollen muss müssen mit von zu bei nach aus vor ueber über unter fuer für als wie
+so dann hier da also sehr gut wirklich mehr immer wieder jetzt doch mal halt eben
+nur ganz etwas viel vielleicht echt einfach gerade natuerlich natürlich genau
+ja nein okay quasi irgendwie bisschen weiter erstmal
+""".split())
+
+_GIBBERISH_MIN_KEEP = 10       # so viel echter Text muss stehen bleiben
+_GIBBERISH_MAX_TAIL = 60       # weiter zurueck als 60 Woerter wird nie geschnitten
+_GIBBERISH_ENGLISCH_ANTEIL = 0.35
+
+
+def _gibberish_signale(segment: str) -> int:
+    """Wie viele Artefakt-Merkmale trägt dieser Abschnitt? (0–4)"""
+    woerter = [w.strip(".,!?;:„“\"'()").lower() for w in segment.split()]
+    woerter = [w for w in woerter if w]
+    if not woerter:
+        return 0
+    signale = 0
+    if _FREMDE_DIAKRITIKA.search(segment):
+        signale += 1
+    # Vier gleiche Woerter am Stueck („Go Go Go Go"). Drei waren zu wenig: „sehr
+    # sehr sehr gut" ist echte gesprochene Betonung und wurde im Verlaufstest als
+    # Halluzination erkannt — der eine Fehlalarm, der wirklich weh taete.
+    lauf = best = 1
+    for vorher, jetzt in zip(woerter, woerter[1:]):
+        lauf = lauf + 1 if jetzt == vorher else 1
+        best = max(best, lauf)
+    if best >= 4:
+        signale += 1
+    englisch = sum(1 for w in woerter if w in _ENGLISCHE_FUELLER)
+    if englisch / len(woerter) >= _GIBBERISH_ENGLISCH_ANTEIL:
+        signale += 1
+    if len(woerter) >= 5 and not any(w in _DEUTSCHE_FUELLER for w in woerter):
+        signale += 1
+    return signale
+
+
+def strip_gibberish_tail(raw: str) -> tuple[str, str]:
+    """Fremdsprachigen Wortsalat am Textende abschneiden — (Text, Entferntes).
+
+    Vorgehen: Satzweise von hinten. Der letzte Satz mit ZWEI Merkmalen ist der Anker;
+    von dort wandert der Schnitt weiter nach vorn, solange die Saetze noch EIN Merkmal
+    tragen — Halluzinationen fangen selten sauber an (im Beispiel oben kippt schon der
+    Satz davor ins Rumaenische). Beim ersten unauffaelligen Satz ist Schluss.
+    """
+    text = (raw or "").strip()
+    if not text:
+        return text, ""
+    saetze = [s for s in _SENTENCE_SPLIT.split(text) if s.strip()]
+    if len(saetze) < 2:
+        return text, ""
+
+    anker = -1
+    woerter_im_schwanz = 0
+    for i in range(len(saetze) - 1, -1, -1):
+        woerter_im_schwanz += len(saetze[i].split())
+        if woerter_im_schwanz > _GIBBERISH_MAX_TAIL:
+            break
+        if _gibberish_signale(saetze[i]) >= 2:
+            anker = i
+            break
+    if anker < 0:
+        return text, ""
+
+    # Rueckwaerts nur ueber Saetze, die selbst deutlich auffaellig sind. Ein
+    # EINZELNES Merkmal reicht dafuer nicht: normale deutsche Saetze streifen
+    # gelegentlich eines (ein englisches Fachwort, ein Name mit Akzent) — mit
+    # dieser Schwelle wanderte der Schnitt durch das halbe Diktat.
+    schnitt = anker
+    while schnitt > 0:
+        davor = saetze[schnitt - 1]
+        stark = (_gibberish_signale(davor) >= 2
+                 or _FREMDE_DIAKRITIKA.search(davor) is not None)
+        if not stark:
+            break
+        schnitt -= 1
+
+    behalten = " ".join(s.strip() for s in saetze[:schnitt]).strip()
+    if len(behalten.split()) < _GIBBERISH_MIN_KEEP:
+        return text, ""      # zu wenig echter Text uebrig — lieber nichts anfassen
+    entfernt = " ".join(s.strip() for s in saetze[schnitt:]).strip()
+    return behalten, entfernt
+
+
 def strip_hallucinated_tail(raw: str) -> tuple[str, str]:
     """Zerfallenden Whisper-Schwanz abschneiden — (bereinigt, entfernt).
 

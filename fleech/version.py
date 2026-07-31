@@ -7,7 +7,7 @@
 
 from __future__ import annotations
 
-APP_VERSION = "4.4.0"  # 4.4.0: Profile mit Ausgabeformat (E-Mail/KI-Prompt), Profil-Knopf
+APP_VERSION = "4.4.1"  # 4.4.1: vierter Halluzinations-Filter (fremdsprachiger Wortsalat)
 
 
 def _read_build() -> str:

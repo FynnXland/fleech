@@ -33,6 +33,7 @@ from .textutils import (
     meaning_flipped,
     replacement_overlap, strip_foreign_tail, strip_hallucinated_tail, strip_latex_blocks,
     strip_meta_preamble,
+    strip_gibberish_tail,
     strip_wrapping_quotes, trim_unsupported_tail, verbatim_ratio,
     vocab_initial_prompt, wrap_transcript,
 )
@@ -586,7 +587,16 @@ class Pipeline:
             log.warning("STT-Halluzination am Ende verworfen (%d Woerter): %s",
                         len(dropped2.split()), dropped2[:160])
             cleaned = rest
-        verworfen = " ".join(x for x in (dropped2, dropped) if x).strip()
+        # Vierter Fall: fremdsprachiger Wortsalat, der die drei Filter oben
+        # unterlaeuft — lateinische Schrift, kurze Woerter, kein sauberer Loop
+        # („… seekers Odoo Time Go Go Go Go and Let me and or"). Bewertet mehrere
+        # Merkmale zugleich und schneidet erst bei zweien.
+        rest3, dropped3 = strip_gibberish_tail(cleaned)
+        if dropped3:
+            log.warning("STT-Wortsalat am Ende verworfen (%d Woerter): %s",
+                        len(dropped3.split()), dropped3[:160])
+            cleaned = rest3
+        verworfen = " ".join(x for x in (dropped3, dropped2, dropped) if x).strip()
         if verworfen:
             self.last_dropped_tail = verworfen
         return cleaned
