@@ -23,7 +23,7 @@ log = logging.getLogger(__name__)
 
 # Ausgabeformate mit eigener Prompt-Datei. "prompt" laeuft weiterhin ueber das
 # eigene Feld (Bestandscode), alles Weitere kommt hierueber dazu.
-_FORMAT_PROMPT_FILES = {"email": "email"}
+_FORMAT_PROMPT_FILES = {"email": "email", "summary": "summary"}
 
 
 def _load_format_prompts(config: AppConfig) -> dict:

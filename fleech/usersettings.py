@@ -137,6 +137,11 @@ class InterfaceSettings:
     insights_show_processing: bool = True  # Verarbeitung: Latenzen, Routing, Fallback-Quote
     insights_show_advice: bool = True   # Vorschlaege (Korrektur-Regeln, Fallback-Trend)
     insights_show_commands: bool = True  # Befehlsarten (umformulieren/loeschen/…)
+    # Profilseite: erweiterte Felder (Eingriff, Safe-Word, Absenden, App-Zuweisung)
+    # zeigen. Aus = nur Name, Ausgabeformat, Schnellwechsel — das reicht fuer den
+    # Normalfall, und ein Profil ohne zugewiesene Apps ist voellig in Ordnung:
+    # gewaehlt wird es dann von Hand.
+    profiles_advanced: bool = False
 
 
 @dataclass
@@ -391,6 +396,11 @@ def _default_profiles() -> list:
          "mode": "email", "command": "off"},
         {"name": "KI-Prompt", "intervention": "standard", "tags": [], "apps": [],
          "mode": "prompt", "command": "off", "auto_send": False},
+        # Der leisere Bruder des KI-Prompts: nur destillieren, keine Rolle und
+        # keinen Kontext erfinden. Fuer Zuruf an eine KI oft der bessere Weg —
+        # dort steht der Kontext ohnehin schon im Gespraech.
+        {"name": "Zusammenfassen", "intervention": "standard", "tags": [], "apps": [],
+         "mode": "summary", "command": "off"},
     ]
 
 
@@ -435,6 +445,24 @@ class ProfileOverrides:
         if self.command == "on":
             return True
         return bool(global_enabled)
+
+
+def profile_in_quickswitch(item: dict) -> bool:
+    """Erscheint dieses Profil im Schnellwechsel (Pillen-Punkt, Hotkey, Liste)?
+
+    Default TRUE, damit bestehende settings.json unveraendert weiterlaufen. Wer
+    acht Profile pflegt, aber nur zwei im Alltag umschaltet, blendet den Rest hier
+    aus — durchschalten wird sonst zur Zumutung, und genau daran scheitert die
+    Idee „eine Taste, ein Profil".
+    """
+    return bool(item.get("quick", True))
+
+
+def quickswitch_profiles(items: list) -> list:
+    """Namen der Profile fuer den Schnellwechsel, in Listenreihenfolge."""
+    return [str(i.get("name", "")) for i in (items or [])
+            if isinstance(i, dict) and str(i.get("name", "")).strip()
+            and profile_in_quickswitch(i)]
 
 
 def profile_command_mode(item: dict) -> str:
@@ -486,12 +514,13 @@ def app_rule_matches(entry, process: str, title: str) -> bool:
 # gehoert in einer Mail anders formuliert als in einem KI-Chat.
 PROFILE_FORMATS = [
     ("", "Diktat (Standard)"),
+    ("summary", "Zusammenfassen"),
     ("email", "E-Mail"),
     ("prompt", "KI-Prompt"),
     ("math", "Formeln"),
 ]
 # Formate, die den Text ueber einen eigenen System-Prompt neu formulieren.
-REWRITING_FORMATS = ("email", "prompt")
+REWRITING_FORMATS = ("summary", "email", "prompt")
 
 
 def profile_mode(item: dict) -> str:
@@ -499,7 +528,7 @@ def profile_mode(item: dict) -> str:
 
     Migration: aeltere Profile hatten ein Bool-Feld "math" statt "mode"."""
     mode = str(item.get("mode", "") or "").lower()
-    if mode in ("math", "prompt", "email"):
+    if mode in ("math", "prompt", "email", "summary"):
         return mode
     return "math" if item.get("math") else ""
 

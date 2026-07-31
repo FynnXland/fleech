@@ -1571,18 +1571,7 @@ class ProfilesPage(QWidget):
         trow.addWidget(HelpBadge("Name anklicken und tippen — Enter benennt das Profil um."))
         detail_box.addWidget(title_row)
 
-        detail_box.addWidget(_section(
-            "Eingriff", "Wie stark die KI Diktate in den zugewiesenen Apps glättet. "
-            "„Wie Einstellungen“ = globaler Wert aus Einstellungen → Ausgabe.",
-        ))
         from .chevron import apply_chevrons
-
-        self._intervention_combo = QComboBox()
-        self._intervention_combo.setStyleSheet(apply_chevrons(combo_style))
-        for value, label in self._INTERVENTION_LABELS:
-            self._intervention_combo.addItem(label, value)
-        self._intervention_combo.currentIndexChanged.connect(self._on_intervention_changed)
-        detail_box.addWidget(self._intervention_combo)
 
         # Ausgabeformat: die Einstellung, die aus einem Profil mehr macht als eine
         # Glaettungsstufe. Der frueher entfernte „Modus-Slot" ist damit zurueck —
@@ -1600,6 +1589,40 @@ class ProfilesPage(QWidget):
             self._on_profile_format_changed
         )
         detail_box.addWidget(self._profile_format_combo)
+
+        self._quick_cb = QCheckBox("Im Schnellwechsel zeigen")
+        self._quick_cb.setCursor(Qt.PointingHandCursor)
+        self._quick_cb.setStyleSheet(apply_chevrons(cb_style))
+        self._quick_cb.setToolTip(
+            "Punkt in der Pille, Profil-Hotkey und Auswahlliste gehen nur durch "
+            "diese Profile. Wer viele pflegt, aber im Alltag zwischen zweien "
+            "wechselt, blendet den Rest hier aus."
+        )
+        self._quick_cb.toggled.connect(self._on_quick_toggled)
+        detail_box.addWidget(self._quick_cb)
+
+        # Ab hier: alles, was der Normalfall NICHT braucht. Der Umschalter unten
+        # blendet diesen Block aus — ein Profil besteht dann aus Name, Ausgabeformat
+        # und Schnellwechsel. Die App-Zuweisung steckt bewusst hier drin: Profile
+        # sind seit den Ausgabeformaten in erster Linie eine Wahl beim Sprechen,
+        # nicht eine Automatik nach Prozessnamen.
+        self._advanced_box = QWidget()
+        adv = QVBoxLayout(self._advanced_box)
+        adv.setContentsMargins(0, 0, 0, 0)
+        adv.setSpacing(detail_box.spacing())
+        detail_box.addWidget(self._advanced_box, 1)
+        detail_box = adv
+
+        detail_box.addWidget(_section(
+            "Eingriff", "Wie stark die KI das Diktat glättet. „Wie Einstellungen“ = "
+            "globaler Wert aus Einstellungen → Ausgabe.",
+        ))
+        self._intervention_combo = QComboBox()
+        self._intervention_combo.setStyleSheet(apply_chevrons(combo_style))
+        for value, label in self._INTERVENTION_LABELS:
+            self._intervention_combo.addItem(label, value)
+        self._intervention_combo.currentIndexChanged.connect(self._on_intervention_changed)
+        detail_box.addWidget(self._intervention_combo)
 
         # Gesprochenes Safe-Word je Profil: im Meeting/Grossraum unpassend und
         # zufaellig ausloesbar. Der »-Knopf in der Pille bleibt immer verfuegbar.
@@ -1684,6 +1707,19 @@ class ProfilesPage(QWidget):
         self._assigned_note.setStyleSheet(f"color: {MUTED}; font-size: 8.5pt;")
         self._assigned_note.hide()
         detail_box.addWidget(self._assigned_note)
+
+        self._advanced_cb = QCheckBox("Erweiterte Einstellungen")
+        self._advanced_cb.setCursor(Qt.PointingHandCursor)
+        self._advanced_cb.setStyleSheet(apply_chevrons(cb_style))
+        self._advanced_cb.setToolTip(
+            "Zeigt Eingriffsgrad, Safe-Word, automatisches Absenden und die "
+            "Zuweisung von Apps. Ohne das besteht ein Profil aus Name, "
+            "Ausgabeformat und Schnellwechsel — für die meisten genug."
+        )
+        self._advanced_cb.setChecked(bool(self.settings.interface.profiles_advanced))
+        self._advanced_cb.toggled.connect(self._on_advanced_toggled)
+        detail_frame.layout().addWidget(self._advanced_cb)
+        self._advanced_box.setVisible(self._advanced_cb.isChecked())
         body.addWidget(detail_frame, 1)
 
         # Der Funktions-Balken (Mathe-Funktion) ist mit v3.7.4 entfallen: Er
@@ -1734,7 +1770,12 @@ class ProfilesPage(QWidget):
             item.setData(Qt.UserRole, app)
             self._apps_list.addItem(item)
 
-    _MODE_DOT_COLORS = {"math": "#AA78F0", "prompt": "#E8A13C"}
+    _MODE_DOT_COLORS = {"math": "#AA78F0", "prompt": "#E8A13C",
+                        "email": "#35C0D8", "summary": "#7FD1A6"}
+    # Kurzform des Ausgabeformats hinter dem Namen. Beantwortet die Frage „was macht
+    # dieses Profil?" in der LISTE — vorher musste man jedes Profil anklicken.
+    _MODE_KURZ = {"email": "E-Mail", "prompt": "KI-Prompt", "math": "Formeln",
+                  "summary": "Zusammenfassen"}
 
     @staticmethod
     def _mode_dot_icon(color: str) -> QIcon:
@@ -1751,7 +1792,7 @@ class ProfilesPage(QWidget):
         return QIcon(pm)
 
     def _refresh_profiles(self, keep_row: bool = False) -> None:
-        from ..usersettings import profile_mode
+        from ..usersettings import profile_in_quickswitch, profile_mode
 
         previous = self._profiles_list.currentRow() if keep_row else 0
         self._loading = True
@@ -1760,6 +1801,13 @@ class ProfilesPage(QWidget):
             name = profile.get("name", "Profil")
             if profile.get("default"):
                 name += "  („Alle“)"
+            kurz = self._MODE_KURZ.get(profile_mode(profile), "")
+            if kurz:
+                name += f"   ·  {kurz}"
+            if not profile_in_quickswitch(profile):
+                # Ausgeblendete Profile bleiben sichtbar, aber erkennbar: sonst
+                # sucht man spaeter, warum der Schnellwechsel eines auslaesst.
+                name += "   (nicht im Schnellwechsel)"
             item = QListWidgetItem(name)
             # Modus-Slot direkt in der Liste sichtbar machen (Design-System):
             # farbiger Punkt in der Modus-Farbe vor dem Namen.
@@ -1807,6 +1855,9 @@ class ProfilesPage(QWidget):
         self._profile_format_combo.setCurrentIndex(
             formate.index(fmt) if fmt in formate else 0
         )
+        from ..usersettings import profile_in_quickswitch
+
+        self._quick_cb.setChecked(profile_in_quickswitch(profile))
         if is_default:
             # Fallback-Profil: gilt fuer ALLE nicht zugewiesenen Apps.
             item = QListWidgetItem("„Alle“ — Fallback für nicht zugewiesene Apps")
@@ -1887,6 +1938,22 @@ class ProfilesPage(QWidget):
         profile["name"] = name
         self._save()
         self._refresh_profiles(keep_row=True)
+
+    def _on_advanced_toggled(self, checked: bool) -> None:
+        self._advanced_box.setVisible(bool(checked))
+        if self._loading:
+            return
+        self.settings.interface.profiles_advanced = bool(checked)
+        self.settings.save()
+
+    def _on_quick_toggled(self, checked: bool) -> None:
+        if self._loading:
+            return
+        profile = self._current_profile()
+        if profile is not None:
+            profile["quick"] = bool(checked)
+            self._save()
+            self._refresh_profiles(keep_row=True)
 
     def _on_profile_format_changed(self, _index: int) -> None:
         if self._loading:

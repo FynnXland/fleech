@@ -62,6 +62,12 @@ _FALLBACK_FLASH_MS = 3000  # so lange bleibt der Haken nach einem Fallback amber
 # tatsaechlich LESEN muss — aber ohne Bestaetigungsklick, der den Fluss braeche.
 _FORMULA_PREVIEW_MS = 5000
 
+# Einrasten beim Ziehen: Innerhalb dieses Abstands springt die Pille auf eine
+# ausgezeichnete Linie (Bildschirmmitte, Standard-Rand). Von Hand exakt zu treffen
+# ist unmoeglich — „ein bisschen daneben" sieht man dafuer sofort. 18 px sind eng
+# genug, dass eine bewusst schraege Position moeglich bleibt.
+_SNAP_PX = 18
+
 
 def _guessed_line(formulas: list) -> str:
     """Eine kurze Zeile fuer geratene Formeln — in LESBARER Form.
@@ -1277,9 +1283,40 @@ class OverlayWindow(QWidget):
         if event.button() == Qt.LeftButton:
             self._drag_offset = event.globalPosition().toPoint() - self.frameGeometry().topLeft()
 
+    def _snap(self, x: int, y: int) -> tuple[int, int]:
+        """Position auf die naechste ausgezeichnete Linie ziehen, wenn sie nah ist.
+
+        Linien: horizontale und vertikale Bildschirmmitte sowie die vier
+        Standard-Raender. Ohne das trifft man die Mitte per Hand nie exakt — und
+        genau das faellt beim fertig positionierten Overlay sofort auf.
+        """
+        screen = QApplication.screenAt(QPoint(x, y)) or self.screen()
+        if screen is None:
+            return x, y
+        rand = screen.availableGeometry()
+        w, h = self.width(), self.height()
+        for kandidat in (rand.left() + _MARGIN,
+                         rand.right() - _MARGIN - w,
+                         rand.left() + (rand.width() - w) // 2):
+            if abs(x - kandidat) <= _SNAP_PX:
+                x = kandidat
+                break
+        for kandidat in (rand.top() + _MARGIN,
+                         rand.bottom() - _MARGIN - h,
+                         rand.top() + (rand.height() - h) // 2,
+                         # Die Default-Hoehe (42 % statt exakt mittig) ist die
+                         # Position, aus der die meisten starten — sie soll sich
+                         # genauso zurueckfinden lassen.
+                         rand.top() + int(rand.height() * 0.42)):
+            if abs(y - kandidat) <= _SNAP_PX:
+                y = kandidat
+                break
+        return x, y
+
     def mouseMoveEvent(self, event) -> None:
         if self._drag_offset is not None and event.buttons() & Qt.LeftButton:
-            self.move(event.globalPosition().toPoint() - self._drag_offset)
+            ziel = event.globalPosition().toPoint() - self._drag_offset
+            self.move(*self._snap(ziel.x(), ziel.y()))
             if self._edit_mode:
                 self._show_edit_hint()  # Hinweis folgt der Pille
 

@@ -7,7 +7,7 @@
 
 from __future__ import annotations
 
-APP_VERSION = "4.5.1"  # 4.5.1: Profil-Kapsel — Thread-Fehler, Position, Mauszeiger
+APP_VERSION = "4.6.0"  # 4.6.0: Zusammenfassen-Profil, Schnellwechsel-Auswahl, Einrasten
 
 
 def _read_build() -> str:

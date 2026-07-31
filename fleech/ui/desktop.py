@@ -692,9 +692,13 @@ class DesktopApp:
     # -- Profil-Umschaltung (Punkt in der Pille) --------------------------------------
 
     def profile_names(self) -> list:
-        """Namen aller Profile in Listenreihenfolge — die Reihenfolge des Knopfes."""
-        return [str(i.get("name", "")) for i in (self.settings.profiles.items or [])
-                if isinstance(i, dict) and str(i.get("name", "")).strip()]
+        """Profile fuer den Schnellwechsel (Punkt, Hotkey, Liste).
+
+        Nicht alle Profile: Wer viele pflegt, schaltet im Alltag nur zwischen
+        zweien um — der Rest laesst sich auf der Profilseite ausblenden."""
+        from ..usersettings import quickswitch_profiles
+
+        return quickswitch_profiles(self.settings.profiles.items)
 
     def active_profile_name(self) -> str:
         """Profil, das fuer das naechste Diktat gilt — gewaehlt oder automatisch."""

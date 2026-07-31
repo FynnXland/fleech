@@ -264,7 +264,11 @@ class SettingsPanel(QWidget):
         from dataclasses import fields
 
         ui = self.settings.interface
-        hidden = [f.name for f in fields(ui) if not getattr(ui, f.name)]
+        # NUR Sichtbarkeits-Felder („…_show_…"). Frueher galt jedes falsche Bool als
+        # ausgeblendete Karte — mit dem ersten Nicht-Sichtbarkeits-Schalter in dieser
+        # Klasse (profiles_advanced) haette der Knopf ihn stillschweigend mitgesetzt.
+        hidden = [f.name for f in fields(ui)
+                  if "_show_" in f.name and not getattr(ui, f.name)]
         for name in hidden:
             setattr(ui, name, True)
         self.settings.save()

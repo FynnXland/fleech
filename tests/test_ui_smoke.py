@@ -1749,7 +1749,11 @@ def test_karten_ausblenden_und_zurueckholen(qapp, tmp_path, monkeypatch):
 
     panel._restore_cards()
 
-    assert all(getattr(settings.interface, f.name) for f in fields(InterfaceSettings))
+    # Nur die Sichtbarkeits-Felder: „profiles_advanced" ist ein Bedien-Schalter,
+    # keine Karte — der Knopf darf ihn nicht mit umlegen.
+    assert all(getattr(settings.interface, f.name) for f in fields(InterfaceSettings)
+               if "_show_" in f.name)
+    assert settings.interface.profiles_advanced is False
     assert "interface" in changed
     assert "2 Karte(n)" in panel._cards_hint.text()
 
@@ -3032,3 +3036,28 @@ def test_profil_kapsel_hat_einen_eigenen_mauszeiger(qapp):
     from fleech.ui.overlay_qt import ProfileBadge
 
     assert ProfileBadge().cursor().shape() == Qt.ArrowCursor
+
+
+def test_pille_rastet_auf_mitte_und_rand_ein(qapp):
+    """Von Hand trifft man die Mitte nie exakt — „ein bisschen daneben" sieht man
+    dafür sofort. Deshalb springt die Pille beim Ziehen auf die Linien."""
+    from PySide6.QtWidgets import QApplication
+
+    from fleech.ui.overlay_qt import _MARGIN, OverlayWindow
+    from fleech.usersettings import UserSettings
+
+    o = OverlayWindow(UserSettings().overlay)
+    rand = QApplication.primaryScreen().availableGeometry()
+    mitte_x = rand.left() + (rand.width() - o.width()) // 2
+
+    # knapp neben der Mitte → rastet ein
+    x, _y = o._snap(mitte_x + 9, rand.top() + 300)
+    assert x == mitte_x
+    # knapp neben dem linken Standardrand → rastet ein
+    x, _y = o._snap(rand.left() + _MARGIN - 7, rand.top() + 300)
+    assert x == rand.left() + _MARGIN
+    # weit weg → bleibt, wo es ist (eine schräge Position muss möglich bleiben)
+    frei = mitte_x + 120
+    x, _y = o._snap(frei, rand.top() + 300)
+    assert x == frei
+    o.deleteLater()
