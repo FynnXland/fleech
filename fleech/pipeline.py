@@ -26,6 +26,7 @@ from .snippets import (
 )
 from .textutils import (
     TRANSCRIPT_CLOSE, TRANSCRIPT_OPEN, added_ratio, apply_dictionary,
+    spoken_symbols,
     classify_complexity,
     collapse_trailing_repetitions, content_words, has_self_correction,
     latex_blocks_implausible, parse_dictionary, primed_terms,
@@ -161,6 +162,20 @@ class Pipeline:
         # konkurrierende transcribe-Aufrufe auf demselben Modell.
         self._stt_lock = threading.Lock()
 
+    def _finalize(self, text: str) -> str:
+        """Letzte Textstufe vor dem Einfuegen — nach allen Pruefungen.
+
+        Zwei deterministische Korrekturen, bewusst NACH dem Sprachmodell:
+        1. Woerterbuch-Regeln — greifen auch, wenn Whisper einen Begriff falsch
+           erkannt und das Modell ihn unveraendert gelassen hat.
+        2. Gesprochene Zeichen („Slash Hunter" → „/Hunter"). Hier und nicht davor,
+           weil das Modell aus einem „/" sonst wieder Prosa machen koennte.
+        """
+        text = apply_dictionary(text, self._vocab_rules)
+        if getattr(self, "spoken_symbols", True):
+            text = spoken_symbols(text)
+        return text
+
     def set_dictionary(self, lines: list, usage: dict | None = None) -> None:
         """Nutzer-Woerterbuch uebernehmen: Whisper-Priming + Ersetzungsregeln.
 
@@ -288,7 +303,7 @@ class Pipeline:
                         text, cont_fallback = self._cleanup(
                             continuation, intervention_override, style_hints
                         )
-                        text = apply_dictionary(text, self._vocab_rules)
+                        text = self._finalize(text)
                         self._inject_append(text)
                         return "fallback" if cont_fallback else "ok"
                     return "ok"
@@ -302,7 +317,7 @@ class Pipeline:
         text, cleanup_fallback = self._cleanup(raw, intervention_override, style_hints)
         # Woerterbuch: deterministische Korrektur bekannter Fehlschreibungen — greift
         # auch, wenn Whisper den Begriff falsch erkannt hat und das LLM ihn beliess.
-        text = apply_dictionary(text, self._vocab_rules)
+        text = self._finalize(text)
         self._inject_append(text)
         return "fallback" if (fallback or cleanup_fallback) else "ok"
 
@@ -735,7 +750,7 @@ class Pipeline:
             return "empty"
         merged = " ".join(parts)
         text, _fb = self._cleanup(merged, intervention_override, style_hints)
-        text = apply_dictionary(text, self._vocab_rules)
+        text = self._finalize(text)
         if not text.strip():
             return "empty"
         log.info("Befehl gescheitert → nur Diktat vor dem Safe-Word eingefuegt.")
@@ -780,7 +795,7 @@ class Pipeline:
         self.last_llm_ms = int((time.perf_counter() - t0) * 1000)
         log.info("KI-Prompting (%.2f s): %d Zeichen strukturierter Prompt.",
                  time.perf_counter() - t0, len(text))
-        text = apply_dictionary(text, self._vocab_rules)
+        text = self._finalize(text)
         self._inject_append(text)
         return True
 

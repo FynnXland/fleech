@@ -7,7 +7,7 @@
 
 from __future__ import annotations
 
-APP_VERSION = "4.2.0"  # 4.2.0: Pause auf die rechte Insel, »-Befehlsknopf raus
+APP_VERSION = "4.3.0"  # 4.3.0: Formel-Erkennung gehaertet + gesprochene Zeichen
 
 
 def _read_build() -> str:

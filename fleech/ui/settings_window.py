@@ -863,6 +863,12 @@ class SettingsPanel(QWidget):
         self._check(form, "Safe-Word-Befehle aktiv", s.output.command_enabled, "output",
                     lambda v: setattr(s.output, "command_enabled", v),
                     "Befehle per Safe-Word an/aus.")
+        self._check(form, "Gesprochene Zeichen schreiben", s.output.spoken_symbols,
+                    "output", lambda v: setattr(s.output, "spoken_symbols", v),
+                    "„Slash Hunter“ wird zu „/Hunter“. Betrifft nur eindeutige "
+                    "Wörter (Slash, Backslash, Hashtag, Raute, Unterstrich, "
+                    "Klammeraffe) — „Minus“ und „Plus“ bleiben Text, das sind "
+                    "gewöhnliche deutsche Wörter.")
         self._check(form, "Cursor-Rückkehr", s.output.restore_focus, "output",
                     lambda v: setattr(s.output, "restore_focus", v),
                     "Fügt den Text dort ein, wo das Diktat begann — auch wenn du "

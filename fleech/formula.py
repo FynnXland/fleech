@@ -377,6 +377,76 @@ _STOP = frozenset({
 
 _MIN_FORMULA_TOKENS = 3
 
+# Ein Bindestrich MITTEN in einem Wort ist kein Minus. Ohne diese Pruefung wurden
+# zusammengesetzte Woerter zerrissen — real eingefuegt:
+#   „3D-Model"           → `$3D -$Model`
+#   „Combat-Log-Dummy"   → `Combat$-\log -$Dummy`
+#   „1.21-Jar"           → `$121 -$Jar`
+#   „schl-a-gen"         → `schl$-a -$gen`
+# In allen Faellen lieferte der Bindestrich das Operator-Token, das aus zwei
+# harmlosen Zeichen eine „Formel" machte. Gesprochenes Minus kommt als WORT
+# („minus") an; der Strich stammt fast immer aus Whispers Schreibweise.
+def _is_compound_hyphen(text: str, start: int, end: int) -> bool:
+    """Steht der Strich ohne Leerzeichen zwischen zwei WORTzeichen?
+
+    Mathematische Sonderzeichen zaehlen NICHT als Wortzeichen: In „x²-1" ist das
+    hochgestellte Zwei fuer Python zwar alphanumerisch, der Strich danach ist aber
+    ein echtes Minus (real gemeldeter Fall). Nur Buchstaben und normale Ziffern
+    binden den Strich ans Wort.
+    """
+    davor = text[start - 1] if start > 0 else " "
+    danach = text[end] if end < len(text) else " "
+    return all(z.isalnum() and z not in _SYMBOL_WORDS for z in (davor, danach))
+
+
+# Ein Abschnitt braucht mindestens EIN echtes Mathe-Signal, das nicht der
+# Bindestrich ist: entweder ein gesprochenes Mathe-Wort oder ein anderes Symbol.
+# Genau daran scheitern die Faelle oben — „3D-Model" hat als einziges „Signal"
+# den Strich. Bewusst KEINE Pruefung des ganzen Diktats: Formeln stehen meistens
+# mitten im Fliesstext (Nutzer-Fall: „…, von der die Determinante t+2 zum Quadrat
+# …"), eine Gesamt-Einordnung wuerde genau die verwerfen.
+_SUBSTANZ_WOERTER = frozenset(
+    list(_FUNCS) + list(_OPS) + list(_GREEK) + list(_NUMBERS)
+    + ["hoch", "quadrat", "quadriert", "wurzel", "bruch", "durch", "geteilt",
+       "klammer", "integral", "summe", "ableitung"]
+) - {"minus"}          # „minus" allein traegt keine Formel
+
+
+# Ein alleinstehendes Minus reicht als Signal erst ab dieser Zahl von Operanden.
+# Gemessen am echten Verlauf (1137 Diktate): darunter liegen „Seite 3 - 4",
+# „2 - 1", „A - 1" — darueber die echten Zeilenumformungen „Z2 - 3Z1". Zwei nackte
+# Zahlen mit einem Strich dazwischen sind meistens keine Rechnung.
+_MINUS_MIN_OPERANDEN = 4
+
+
+def _hat_substanz(tokens: list) -> bool:
+    """Genug Mathematik fuer eine Formel — oder nur Zahlen mit Strichen dazwischen?
+
+    Ein Signal, das NICHT der Strich ist (Mathe-Wort oder anderes Symbol), plus
+    zwei Operanden — das ist der Normalfall. „3D -" hat zwar zwei Operanden, aber
+    kein Signal; „- a -" hat ein Signal, aber nur einen Operanden.
+
+    Das Minus ist der Sonderfall: als einziges Signal traegt es eine Formel erst,
+    wenn wirklich gerechnet aussieht, was dasteht (siehe Konstante oben).
+    """
+    signal = False
+    nur_minus = False
+    operanden = 0
+    for tok in tokens:
+        low = tok.lower()
+        if low in _SUBSTANZ_WOERTER:
+            signal = True
+        elif tok in _SYMBOL_WORDS or low == "minus":
+            if tok in ("-", "–", "−") or low == "minus":
+                nur_minus = True
+            else:
+                signal = True
+        if _atom(tok) is not None and low not in _FUNCS:
+            operanden += 1
+    if signal:
+        return operanden >= 2
+    return nur_minus and operanden >= _MINUS_MIN_OPERANDEN
+
 
 def find_formulas(text: str) -> list[tuple[int, int, str, list]]:
     """[(start, ende, latex, rate_hinweise)] aller uebersetzbaren Stellen im Text.
@@ -406,8 +476,11 @@ def find_formulas(text: str) -> list[tuple[int, int, str, list]]:
         def flush(run_words):
             if len(run_words) < _MIN_FORMULA_TOKENS:
                 return
+            roh = [w.group() for w in run_words]
+            if not _hat_substanz(roh):
+                return
             guessed: list[str] = []
-            latex = _parse(_expand_tokens([w.group() for w in run_words]), guessed)
+            latex = _parse(_expand_tokens(roh), guessed)
             if not latex:
                 return
             start = chunk.start() + run_words[0].start()
@@ -416,6 +489,12 @@ def find_formulas(text: str) -> list[tuple[int, int, str, list]]:
 
         for word in words:
             low = word.group().lower()
+            if word.group() in ("-", "–", "−") and _is_compound_hyphen(
+                    segment, word.start(), word.end()):
+                # Wort-Bindestrich: trennt zwei Woerter, ist aber kein Operator.
+                flush(run)
+                run = []
+                continue
             known = (word.group() in _SYMBOL_WORDS
                      or _atom(word.group()) is not None or low in _OPS
                      or low in ("hoch", "quadrat", "quadriert", "wurzel", "aus",

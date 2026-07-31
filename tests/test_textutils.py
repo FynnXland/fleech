@@ -317,3 +317,46 @@ def test_strip_latex_erfasst_abgesetzte_formeln():
     assert n == 1 and "int" not in rest and rest == "Also gilt am Ende."
     rest, n = strip_latex_blocks(r"Damit \[x^2 + 1\] fertig.")
     assert n == 1 and rest == "Damit fertig."
+
+
+# -- Gesprochene Zeichen -------------------------------------------------------------
+
+def test_gesprochene_zeichen_kleben_am_folgewort():
+    """So wird es gesprochen: Pfade, Handles, Kanäle."""
+    from fleech.textutils import spoken_symbols
+
+    assert spoken_symbols("einmal Slash Hunter Help") == "einmal /Hunter Help"
+    assert spoken_symbols("Schreib Hashtag Fleech dazu") == "Schreib #Fleech dazu"
+    # chr(92) = Backslash — als Literal waere die Zeile beim Bearbeiten zu leicht
+    # in ein echtes Zeilenumbruch-Escape zu verwandeln (genau das ist passiert).
+    assert (spoken_symbols("Backslash n macht einen Umbruch")
+            == chr(92) + "n macht einen Umbruch")
+
+
+def test_zeichenwort_am_satzende_bleibt_wort():
+    """Ohne Folgewort ist „Slash" vermutlich wirklich gemeint."""
+    from fleech.textutils import spoken_symbols
+
+    assert spoken_symbols("Setz da einen Slash.") == "Setz da einen Slash."
+
+
+def test_minus_und_plus_bleiben_text():
+    """Gewöhnliche deutsche Wörter — eine Ersetzung macht hier mehr kaputt als sie
+    hilft. Rechnende Minuszeichen entstehen ohnehin im Formel-Parser."""
+    from fleech.textutils import spoken_symbols
+
+    satz = "Der Preis ist minus zwanzig Grad, mal sehen, plus Versand."
+    assert spoken_symbols(satz) == satz
+
+
+def test_zeichenwort_nur_als_ganzes_wort():
+    from fleech.textutils import spoken_symbols
+
+    assert spoken_symbols("Slasher Filme mag ich nicht") == "Slasher Filme mag ich nicht"
+
+
+def test_leerer_text_bleibt_leer():
+    from fleech.textutils import spoken_symbols
+
+    assert spoken_symbols("") == ""
+    assert spoken_symbols(None) is None

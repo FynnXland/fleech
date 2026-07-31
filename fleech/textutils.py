@@ -607,6 +607,37 @@ def find_terms_in_text(text: str, terms: list[str]) -> list[str]:
     return found
 
 
+# Gesprochene Zeichen, die ausgeschrieben nie gemeint sind. Wer „Slash Hunter Help"
+# diktiert, meint `/hunter help` — das Wort „Slash" im Fliesstext ist der Ausnahmefall.
+#
+# BEWUSST KLEIN GEHALTEN. Nicht dabei sind „Minus", „Plus", „Mal", „Punkt", „Komma“:
+# das sind gewoehnliche deutsche Woerter („minus zwanzig Grad", „ein Punkt, der …"),
+# und eine Ersetzung wuerde dort mehr kaputt machen als sie hilft. Rechnende Minus-
+# Zeichen entstehen ohnehin im Formel-Parser. Wer mehr braucht, legt sich eine eigene
+# Ersetzungsregel unter „Textersetzung" an.
+_GESPROCHENE_ZEICHEN = {
+    "slash": "/", "schrägstrich": "/", "schraegstrich": "/",
+    "backslash": "\\", "hashtag": "#", "raute": "#",
+    "unterstrich": "_", "klammeraffe": "@",
+}
+# Das Zeichen klebt am FOLGENDEN Wort ("Slash Hunter" → "/Hunter"): so wird es
+# gesprochen (Pfade, Handles, Kanaele). Am Satzende bleibt es allein stehen.
+_ZEICHEN_RE = re.compile(
+    r"\b(" + "|".join(sorted(_GESPROCHENE_ZEICHEN, key=len, reverse=True)) + r")\b"
+    r"(\s+)(?=\S)", re.IGNORECASE)
+
+
+def spoken_symbols(text: str) -> str:
+    """„Slash Hunter" → „/Hunter". Wandelt nur die eindeutigen Zeichenwoerter."""
+    if not text:
+        return text
+
+    def ersetze(m):
+        return _GESPROCHENE_ZEICHEN[m.group(1).lower()]
+
+    return _ZEICHEN_RE.sub(ersetze, text)
+
+
 def apply_dictionary(text: str, rules: list[tuple[str, str]]) -> str:
     """Wendet die Ersetzungsregeln wortgrenzen-basiert und case-insensitiv an."""
     for wrong, right in rules:

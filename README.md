@@ -95,7 +95,9 @@ Vier Modi:
   markiert und vor dem Einfügen gezeigt.
 - **KI-Prompting** — `Strg+Alt+P`: aus dem Diktat wird ein strukturierter Prompt.
 
-Außerdem: **Textbausteine** („Baustein Signatur"), ein **Wörterbuch** für Fachbegriffe
+Außerdem: **gesprochene Zeichen** („Slash Hunter" → „/Hunter"; nur eindeutige Wörter,
+„Minus" und „Plus" bleiben Text), **Textbausteine** („Baustein Signatur"), ein
+**Wörterbuch** für Fachbegriffe
 (primt zusätzlich die Erkennung), **Ersetzungsregeln**, **Profile** je Anwendung
 (Eingriffsgrad, Safe-Word an/aus, automatisch absenden), **Rückgängig** nach einer
 Fehlausgabe (`Strg+Alt+Z`) und ein **Verlauf** mit Auswertung (Wörter, WPM, Serie,

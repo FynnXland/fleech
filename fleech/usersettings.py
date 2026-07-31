@@ -282,6 +282,10 @@ def apply_toast_level(f: FocusSettings, level: str) -> None:
 @dataclass
 class OutputSettings:
     intervention: str = "standard"  # minimal | standard | strong
+    # Gesprochene Zeichen als Zeichen schreiben („Slash Hunter" → „/Hunter").
+    # Bewusst nur eindeutige Woerter (Slash, Hashtag, Unterstrich, Klammeraffe) —
+    # „Minus"/„Plus" bleiben Text, das sind gewoehnliche deutsche Woerter.
+    spoken_symbols: bool = True
     # Safe-Word-Befehle komplett an/aus ("aktiv beenden", nicht nur Wort wechseln).
     command_enabled: bool = True
     # Safe-Word fuer Befehle im Redefluss. Leer = Wert aus config.yaml verwenden.

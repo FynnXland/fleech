@@ -970,6 +970,7 @@ class DesktopApp:
             )
         elif section == "output":
             self.pipeline.intervention = self.settings.output.intervention
+            self.pipeline.spoken_symbols = self.settings.output.spoken_symbols
             self._apply_trigger_word()
         elif section == "dictionary":
             self.pipeline.set_dictionary(self.settings.output.dictionary,
