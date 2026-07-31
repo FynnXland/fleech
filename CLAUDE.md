@@ -71,6 +71,20 @@ entscheidet die Plattform, auf der du gerade arbeitest:
    dann **Verify-Lauf** `robocopy … /MIR /L /R:0 /W:0` — **muss Exit 0** liefern (0 Unterschiede),
    dann Fleech neu starten. (`copy exit: 1` = Dateien kopiert = ok; `verify exit: 0` = synchron.)
 
+### Wann wird VERÖFFENTLICHT? (nicht bei jeder Änderung)
+
+Die drei Schritte oben gelten immer. Der **Release** (Installer bauen + hochladen)
+dauert zusätzlich rund zehn Minuten — oft länger als die Änderung selbst. Deshalb:
+
+- **Patch-Version** (`4.3.1`, `4.3.2`, …) = Kleinigkeit → **kein Release**. Nur Schritte
+  1–3, damit die laufende Installation aktuell ist. `packaging/release.py` weigert
+  sich bei Patch-Versionen von sich aus (`--force` überstimmt).
+- **Minor/Major** (`4.4.0`, `5.0.0`) = genug zusammengekommen → `packaging/release.py`.
+  Dann bekommt auch die Weitergabe die neuen Sachen auf einmal.
+
+Faustregel für die Nummer: Fehlerbehebung oder Feinschliff → dritte Stelle. Neue
+Funktion, geänderte Bedienung oder etwas, das der Empfänger merken soll → zweite.
+
 **Linux** (Projekt liegt auf NTFS → venv liegt AUSSERHALB: `~/.venvs/fleech`;
 Neuaufsetzen: `bash packaging/setup-linux.sh` — installiert u. a. pynput bewusst
 mit `--no-deps`, weil evdev ohne python3-dev nicht baut und X11 es nicht braucht):

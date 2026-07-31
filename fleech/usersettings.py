@@ -380,14 +380,31 @@ def _default_profiles() -> list:
         # mode="math": Diktate in zugewiesene Apps laufen automatisch im Formel-Modus.
         {"name": "Mathe", "intervention": "standard", "tags": [], "apps": [],
          "mode": "math"},
+        # Die beiden UMFORMULIERENDEN Profile. Sie sind bewusst KEINER App fest
+        # zugewiesen: ob dieses Diktat eine Mail wird, weiss nur der Sprecher —
+        # deshalb ueber den Profil-Knopf in der Pille waehlbar.
+        {"name": "E-Mail", "intervention": "strong", "tags": [], "apps": [],
+         "mode": "email", "command": "off"},
+        {"name": "KI-Prompt", "intervention": "standard", "tags": [], "apps": [],
+         "mode": "prompt", "command": "off", "auto_send": False},
     ]
 
 
 def ensure_default_profile(items: list) -> None:
-    """Migration: aeltere settings.json ohne Standardprofil bekommen es nachgezogen."""
+    """Migration: fehlende Standard-Profile nachziehen (additiv, nie loeschend).
+
+    Bestehende Installationen haben die beiden umformulierenden Profile noch nicht.
+    Sie werden ergaenzt, wenn kein Profil dieses Format traegt — wer sie geloescht
+    oder umbenannt hat, bekommt sie also nicht wieder aufgedraengt, solange das
+    Format belegt ist."""
     if not any(isinstance(i, dict) and i.get("default") for i in items):
         items.insert(0, {"name": "Standard", "default": True, "intervention": "",
                          "tags": [], "apps": []})
+    vorhandene = {profile_mode(i) for i in items if isinstance(i, dict)}
+    for vorlage in _default_profiles():
+        mode = profile_mode(vorlage)
+        if mode in REWRITING_FORMATS and mode not in vorhandene:
+            items.append(dict(vorlage))
 
 
 @dataclass
@@ -460,12 +477,25 @@ def app_rule_matches(entry, process: str, title: str) -> bool:
     return want_title.lower() in (title or "").lower()
 
 
+# Ausgabeformate eines Profils: WAS aus dem Diktat wird, nicht nur wie stark
+# geglaettet wird. Ein Diktat ist je nach Ziel etwas anderes — dieselbe Aeusserung
+# gehoert in einer Mail anders formuliert als in einem KI-Chat.
+PROFILE_FORMATS = [
+    ("", "Diktat (Standard)"),
+    ("email", "E-Mail"),
+    ("prompt", "KI-Prompt"),
+    ("math", "Formeln"),
+]
+# Formate, die den Text ueber einen eigenen System-Prompt neu formulieren.
+REWRITING_FORMATS = ("email", "prompt")
+
+
 def profile_mode(item: dict) -> str:
-    """Modus-Slot eines Profils: "" | "math" | "prompt" (exklusiv).
+    """Ausgabeformat eines Profils: "" | "math" | "prompt" | "email" (exklusiv).
 
     Migration: aeltere Profile hatten ein Bool-Feld "math" statt "mode"."""
     mode = str(item.get("mode", "") or "").lower()
-    if mode in ("math", "prompt"):
+    if mode in ("math", "prompt", "email"):
         return mode
     return "math" if item.get("math") else ""
 

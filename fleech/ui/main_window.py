@@ -28,7 +28,7 @@ from PySide6.QtWidgets import (
 from .. import __version__
 from ..history import HistoryStore, Stats
 from ..milestones import word_milestone
-from ..usersettings import UserSettings
+from ..usersettings import PROFILE_FORMATS, UserSettings
 
 log = logging.getLogger(__name__)
 
@@ -1584,10 +1584,22 @@ class ProfilesPage(QWidget):
         self._intervention_combo.currentIndexChanged.connect(self._on_intervention_changed)
         detail_box.addWidget(self._intervention_combo)
 
-        # Der Modus-Slot ist mit v3.7.2 entfallen. Er bot „Mathe" — den Modus gibt es
-        # seit v3.0.0 nicht mehr — und „KI-Prompting", das in 900 Diktaten genau
-        # einmal vorkam. Das Feld `mode` bleibt in den Settings und wirkt weiter,
-        # falls es dort gesetzt ist; nur die Auswahl hier ist weg.
+        # Ausgabeformat: die Einstellung, die aus einem Profil mehr macht als eine
+        # Glaettungsstufe. Der frueher entfernte „Modus-Slot" ist damit zurueck —
+        # diesmal mit einem Zweck, den man beim Diktieren sofort merkt.
+        detail_box.addWidget(_section(
+            "Ausgabeformat", "Was aus dem Diktat wird. „Diktat“ = bereinigter Text "
+            "wie gesprochen. „E-Mail“ und „KI-Prompt“ formulieren um: Anrede und "
+            "Absätze bzw. knappe Stichpunkte für eine KI.",
+        ))
+        self._profile_format_combo = QComboBox()
+        self._profile_format_combo.setStyleSheet(apply_chevrons(combo_style))
+        for value, label in PROFILE_FORMATS:
+            self._profile_format_combo.addItem(label, value)
+        self._profile_format_combo.currentIndexChanged.connect(
+            self._on_profile_format_changed
+        )
+        detail_box.addWidget(self._profile_format_combo)
 
         # Gesprochenes Safe-Word je Profil: im Meeting/Grossraum unpassend und
         # zufaellig ausloesbar. Der »-Knopf in der Pille bleibt immer verfuegbar.
@@ -1788,6 +1800,13 @@ class ProfilesPage(QWidget):
         self._intervention_combo.setCurrentIndex(
             values.index(current) if current in values else 0
         )
+        from ..usersettings import profile_mode
+
+        formate = [v for v, _l in PROFILE_FORMATS]
+        fmt = profile_mode(profile)
+        self._profile_format_combo.setCurrentIndex(
+            formate.index(fmt) if fmt in formate else 0
+        )
         if is_default:
             # Fallback-Profil: gilt fuer ALLE nicht zugewiesenen Apps.
             item = QListWidgetItem("„Alle“ — Fallback für nicht zugewiesene Apps")
@@ -1868,6 +1887,14 @@ class ProfilesPage(QWidget):
         profile["name"] = name
         self._save()
         self._refresh_profiles(keep_row=True)
+
+    def _on_profile_format_changed(self, _index: int) -> None:
+        if self._loading:
+            return
+        profile = self._current_profile()
+        if profile is not None:
+            profile["mode"] = self._profile_format_combo.currentData()
+            self._save()
 
     def _on_intervention_changed(self, _index: int) -> None:
         if self._loading:

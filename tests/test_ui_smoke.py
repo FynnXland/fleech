@@ -157,22 +157,51 @@ def _hotkey_fake(recording: bool):
     return fake, calls
 
 
-def test_modus_punkt_schaltet_ki_prompting(qapp):
-    """Der Punkt in der Pille war ein Dreier-Zyklus (Aus → Mathe → Prompting).
-    Seit v3.0.0 gibt es keinen Mathe-Slot mehr — er schaltet nur noch Prompting."""
-    fake, calls = _hotkey_fake(recording=False)
+def test_punkt_schaltet_reihum_durch_die_profile(qapp):
+    """Der Punkt war erst ein Modus-Zyklus (Mathe/Prompting), dann funktionslos.
+    Jetzt waehlt er das Profil — inklusive Station „automatisch" am Ende."""
+    import types
 
-    fake._cycle_overlay_mode()
-    assert fake._prompt_latched is True and calls["prompt"] == [True]
+    from fleech.ui.desktop import DesktopApp
 
-    fake._cycle_overlay_mode()
-    assert fake._prompt_latched is False and calls["prompt"] == [True, False]
+    gezeigt = []
+    fake = types.SimpleNamespace(
+        settings=types.SimpleNamespace(profiles=types.SimpleNamespace(
+            enabled=True, items=[{"name": "Standard", "default": True},
+                                 {"name": "E-Mail", "mode": "email"}])),
+        overlay=types.SimpleNamespace(show_profile=gezeigt.append),
+        _manual_profile="",
+    )
+    fake.profile_names = lambda: DesktopApp.profile_names(fake)
+    fake.active_profile_name = lambda: DesktopApp.active_profile_name(fake)
+    DesktopApp.cycle_profile(fake)
+    assert fake._manual_profile == "Standard"
+    DesktopApp.cycle_profile(fake)
+    assert fake._manual_profile == "E-Mail"
+    DesktopApp.cycle_profile(fake)
+    assert fake._manual_profile == ""          # zurueck auf automatisch
+    assert gezeigt[-1].startswith("Automatisch")
 
 
-def test_modus_punkt_waehrend_der_aufnahme_ignoriert(qapp):
-    fake, calls = _hotkey_fake(recording=True)
-    fake._cycle_overlay_mode()
-    assert fake._prompt_latched is False and calls["prompt"] == []
+def test_profilwechsel_geht_auch_waehrend_der_aufnahme(qapp):
+    """Erst beim Verarbeiten wird aufgeloest — deshalb darf man mitten im
+    Sprechen noch entscheiden, ob daraus eine Mail wird."""
+    import types
+
+    from fleech.ui.desktop import DesktopApp
+
+    fake = types.SimpleNamespace(
+        settings=types.SimpleNamespace(profiles=types.SimpleNamespace(
+            enabled=True, items=[{"name": "E-Mail", "mode": "email"}])),
+        overlay=types.SimpleNamespace(show_profile=lambda n: None),
+        _manual_profile="",
+        recorder=types.SimpleNamespace(recording=True),
+        controller=types.SimpleNamespace(active=True),
+    )
+    fake.profile_names = lambda: DesktopApp.profile_names(fake)
+    fake.active_profile_name = lambda: DesktopApp.active_profile_name(fake)
+    DesktopApp.cycle_profile(fake)
+    assert fake._manual_profile == "E-Mail"
 
 
 def test_overlay_edit_mode_keeps_pill_visible(qapp):

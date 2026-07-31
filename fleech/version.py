@@ -7,7 +7,7 @@
 
 from __future__ import annotations
 
-APP_VERSION = "4.3.0"  # 4.3.0: Formel-Erkennung gehaertet + gesprochene Zeichen
+APP_VERSION = "4.4.0"  # 4.4.0: Profile mit Ausgabeformat (E-Mail/KI-Prompt), Profil-Knopf
 
 
 def _read_build() -> str:

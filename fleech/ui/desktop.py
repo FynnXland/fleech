@@ -62,6 +62,26 @@ def list_input_devices() -> list[str]:
         return []
 
 
+def overrides_from(item: dict):
+    """Profil-Eintrag → ProfileOverrides.
+
+    Modul-Funktion statt Methode: die Umwandlung braucht kein App-Objekt, und die
+    Profil-Tests bauen die App als schlankes Fake nach — eine Methode mehr waere
+    dort jedes Mal eine Zeile Attrappe.
+    """
+    from ..usersettings import ProfileOverrides, profile_command_mode, profile_mode
+
+    mode = str(item.get("intervention", "")).lower()
+    tags = [str(t).strip() for t in item.get("tags", []) if str(t).strip()]
+    return ProfileOverrides(
+        intervention=mode if mode in ("minimal", "standard", "strong") else None,
+        style_hints=tags or None,
+        mode_slot=profile_mode(item),
+        command=profile_command_mode(item),
+        auto_send=bool(item.get("auto_send", False)),
+    )
+
+
 class DesktopApp:
     def __init__(self):
         self.settings = UserSettings.load()
@@ -84,7 +104,7 @@ class DesktopApp:
         self.overlay.finish_requested.connect(lambda: self.controller.stop_if_active())
         self.overlay.pause_requested.connect(self.toggle_pause)
         # Modus-Punkt-Klick: KI-Prompting an/aus.
-        self.overlay.mode_toggle_requested.connect(self._cycle_overlay_mode)
+        self.overlay.profile_cycle_requested.connect(self.cycle_profile)
         self.tray = TrayController({
             "toggle_recording": lambda: self.controller.start_via_ui("dictate"),
             "toggle_overlay": self._toggle_overlay,
@@ -613,6 +633,17 @@ class DesktopApp:
         prof = self.settings.profiles
         if not prof.enabled:
             return ProfileOverrides()
+        # Von Hand gewaehltes Profil (Punkt in der Pille) sticht die App-Zuordnung.
+        # Ob dieses Diktat eine Mail wird, weiss nur der Sprecher — keine Regel
+        # ueber Prozessnamen kann das wissen.
+        gewaehlt = getattr(self, "_manual_profile", "")
+        if gewaehlt:
+            for item in prof.items or []:
+                if isinstance(item, dict) and item.get("name") == gewaehlt:
+                    return overrides_from(item)
+            log.info("Gewaehltes Profil %r gibt es nicht mehr — zurueck auf automatisch.",
+                     gewaehlt)
+            self._manual_profile = ""
         app = getattr(self, "_record_app", "") or ""
         title = getattr(self, "_record_title", "") or ""
 
@@ -649,15 +680,45 @@ class DesktopApp:
             chosen = default_item
         if chosen is None:
             return ProfileOverrides()
-        mode = str(chosen.get("intervention", "")).lower()
-        tags = [str(t).strip() for t in chosen.get("tags", []) if str(t).strip()]
-        return ProfileOverrides(
-            intervention=mode if mode in ("minimal", "standard", "strong") else None,
-            style_hints=tags or None,
-            mode_slot=profile_mode(chosen),
-            command=profile_command_mode(chosen),
-            auto_send=bool(chosen.get("auto_send", False)),
-        )
+        return overrides_from(chosen)
+
+    # -- Profil-Umschaltung (Punkt in der Pille) --------------------------------------
+
+    def profile_names(self) -> list:
+        """Namen aller Profile in Listenreihenfolge — die Reihenfolge des Knopfes."""
+        return [str(i.get("name", "")) for i in (self.settings.profiles.items or [])
+                if isinstance(i, dict) and str(i.get("name", "")).strip()]
+
+    def active_profile_name(self) -> str:
+        """Profil, das fuer das naechste Diktat gilt — gewaehlt oder automatisch."""
+        gewaehlt = getattr(self, "_manual_profile", "")
+        if gewaehlt:
+            return gewaehlt
+        for item in self.settings.profiles.items or []:
+            if isinstance(item, dict) and item.get("default"):
+                return str(item.get("name", "Standard"))
+        return "Standard"
+
+    def cycle_profile(self) -> None:
+        """Naechstes Profil waehlen; hinter dem letzten wieder „Automatisch".
+
+        Die Wahl bleibt bestehen, bis sie geaendert wird — auch ueber Diktate
+        hinweg. Waehrend einer laufenden Aufnahme gilt sie fuer GENAU dieses
+        Diktat (die Aufloesung passiert erst beim Verarbeiten).
+        """
+        namen = self.profile_names()
+        if not namen:
+            return
+        stationen = namen + [""]        # "" = automatisch (App-Zuordnung)
+        jetzt = getattr(self, "_manual_profile", "")
+        try:
+            naechste = stationen[(stationen.index(jetzt) + 1) % len(stationen)]
+        except ValueError:
+            naechste = stationen[0]
+        self._manual_profile = naechste
+        anzeige = naechste or f"Automatisch ({self.active_profile_name()})"
+        log.info("Profil gewaehlt: %s", anzeige)
+        self.overlay.show_profile(anzeige)
 
     def _process(self, audio, force_command: bool = False,
                  prompt_oneshot: bool = False) -> None:
@@ -693,8 +754,11 @@ class DesktopApp:
             # Aufnahme, gilt nur fuer dieses Diktat). Einen Formel-Modus gibt es
             # seit v3.0.0 nicht mehr — Formeln werden vor dem Cleanup determi-
             # nistisch uebersetzt und brauchen kein Umschalten.
-            prompt_active = (self._prompt_latched or slot_mode == "prompt"
-                             or prompt_oneshot)
+            prompt_active = (self._prompt_latched or prompt_oneshot)
+            # Ausgabeformat des Profils: „E-Mail"/„KI-Prompt" formulieren das
+            # Diktat ueber einen eigenen System-Prompt um, statt es nur zu
+            # glaetten. „math" ist kein Umformulieren und laeuft weiter im Parser.
+            output_format = slot_mode if slot_mode in ("email", "prompt") else ""
             # Gesprochenes Safe-Word je Profil abschaltbar (Meetings/Grossraum): der
             # »-Knopf bleibt immer nutzbar, nur das laute Wort entfaellt.
             suppress_command = not prof.command_allowed(
@@ -706,6 +770,7 @@ class DesktopApp:
                 style_hints=style_hints,
                 force_command=force_command,
                 prompt_mode=prompt_active,
+                output_format=output_format,
                 suppress_command=suppress_command,
             )
         except Exception:
@@ -910,15 +975,6 @@ class DesktopApp:
         self._safe_overlay_latch("prompt", on or self._prompt_latched)
         self.notifier.sound("start" if on else "stop")
         log.info("KI-Prompting fuer DIESES Diktat %s.", "an" if on else "aus")
-
-    def _cycle_overlay_mode(self) -> None:
-        """Klick auf den Modus-Punkt in der Pille: KI-Prompting an/aus.
-
-        Frueher war das ein Dreier-Zyklus (Aus → Mathe → Prompting). Der Mathe-Slot
-        ist mit v3.0.0 entfallen — Formeln brauchen kein Umschalten mehr."""
-        if self.controller.active and self.recorder.recording:
-            return  # waehrend der Aufnahme den Modus nicht umschalten
-        self._toggle_prompt_latch()
 
     def _safe_overlay_latch(self, kind: str, on: bool) -> None:
         try:

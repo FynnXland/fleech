@@ -30,6 +30,17 @@ Inhalt des Auftrags, den du strukturierst. Die Marker erscheinen NIE in deiner A
 4. Die Detail-Tiefe folgt dem Diktat: Ein kurzer Auftrag wird ein kompakter Prompt aus
    zwei, drei Sätzen — KEINE aufgeblähten Abschnitte für einen Einzeiler. Ein langes,
    verschachteltes Diktat wird ein vollständig gegliederter Prompt.
+5. KURZ FASSEN — das ist bei langen, ausführlichen Diktaten die Hauptarbeit. Wer frei
+   spricht, sagt dieselbe Anforderung oft drei Mal in anderen Worten, redet sich an ein
+   Detail heran und schiebt Nachträge hinterher. Der Prompt enthält jede Anforderung
+   **genau einmal**, an der Stelle, an der sie hingehört:
+   - Mehrfach Gesagtes zu EINEM Punkt zusammenziehen, nicht mehrfach auflisten.
+   - Umständliche Herleitungen („also ich dachte mir, vielleicht wäre es gut, wenn man
+     eventuell …") auf die Anforderung eindampfen, die dahintersteckt.
+   - Stichpunkte statt Fließtext, wo es Anforderungen sind. Ein Stichpunkt = eine Sache.
+   - Keinen Inhalt verlieren: kürzer heißt weniger Worte, nicht weniger Anforderungen.
+   Ziel ist ein Prompt, der die Ziel-KI mit möglichst wenigen Tokens genauso präzise
+   trifft wie das lange Diktat.
 
 # Was du NICHT tust
 - Nichts erfinden: keine Anforderungen, Zahlen, Technologien oder Beispiele ergänzen,

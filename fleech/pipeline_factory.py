@@ -7,6 +7,8 @@ modus nutzen — verhindert Drift zwischen "echtem Betrieb" und Selbsttest.
 
 from __future__ import annotations
 
+import logging
+
 from .config import AppConfig
 from .document import DocumentTracker
 from .injection import TextInjector
@@ -15,6 +17,27 @@ from .pipeline import Pipeline
 from .prompts import load_command_prompt, load_prompt
 from .stt import create_stt
 from .usersettings import UserSettings
+
+log = logging.getLogger(__name__)
+
+
+# Ausgabeformate mit eigener Prompt-Datei. "prompt" laeuft weiterhin ueber das
+# eigene Feld (Bestandscode), alles Weitere kommt hierueber dazu.
+_FORMAT_PROMPT_FILES = {"email": "email"}
+
+
+def _load_format_prompts(config: AppConfig) -> dict:
+    """{Format: System-Prompt}. Fehlende Datei = Format faellt auf Cleanup zurueck.
+
+    Defensiv, weil ein aelterer Benutzer-Prompt-Ordner (%APPDATA%\Fleech\prompts)
+    die neuen Dateien nicht hat — das darf den Start nie reissen."""
+    geladen = {}
+    for fmt, datei in _FORMAT_PROMPT_FILES.items():
+        try:
+            geladen[fmt] = load_prompt(config.prompts_dir, datei)
+        except FileNotFoundError:
+            log.info("Prompt fuer Ausgabeformat %r fehlt — faellt auf Cleanup zurueck.", fmt)
+    return geladen
 
 
 def build_pipeline(config: AppConfig, settings: UserSettings, injector=None,
@@ -28,6 +51,11 @@ def build_pipeline(config: AppConfig, settings: UserSettings, injector=None,
     pipeline.set_snippets(settings.output.snippets, settings.output.snippet_keyword)
     pipeline.auto_latex = settings.math.enabled and settings.math.auto_latex
     pipeline.spoken_symbols = settings.output.spoken_symbols
+    # Weitere Ausgabeformate: eine Prompt-Datei je Format. Fehlt sie, faellt genau
+    # dieses Format auf normales Cleanup zurueck — kein Startfehler.
+    pipeline.format_prompts = _load_format_prompts(config)
+    # Absendername fuer die E-Mail-Signatur (Einstellungen → Allgemein).
+    pipeline.author_name = settings.general.display_name
     pipeline.status_callback = status
     return pipeline
 

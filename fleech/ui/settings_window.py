@@ -513,7 +513,11 @@ class SettingsPanel(QWidget):
             lambda: (setattr(s.general, "display_name", name.text().strip()),
                      self._changed("general"))
         )
-        label_w, _ = self._row_label("Anzeigename", "Name in der Begrüßung auf Home.")
+        label_w, _ = self._row_label(
+            "Anzeigename",
+            "Name in der Begrüßung auf Home — und die Unterschrift unter Diktaten "
+            "im Profil „E-Mail“. Leer heißt: die Mail endet mit der Grußformel, "
+            "ohne Namen (ein geratener Name unter einer Mail wäre schlimmer).")
         form.addRow(label_w, name)
         self._check(form, "Diktat-Verlauf speichern", s.general.save_history, "general",
                     lambda v: setattr(s.general, "save_history", v),

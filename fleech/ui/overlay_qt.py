@@ -399,6 +399,64 @@ def _round_button(kind: str, tooltip: str) -> QPushButton:
     return btn
 
 
+class ProfileBadge(QWidget):
+    """Kleine Kapsel NEBEN der Pille mit dem Namen des gewaehlten Profils.
+
+    Bewusst nur beim Umschalten sichtbar und danach wieder weg: Das Profil ist
+    eine Entscheidung, die man trifft und dann vergisst — eine Dauereinblendung
+    waere ein weiteres Element, das immer im Bild steht. Reine Anzeige,
+    klick-transparent, nimmt nie den Fokus.
+    """
+
+    SHOW_MS = 1800
+
+    def __init__(self):
+        super().__init__(
+            None,
+            Qt.FramelessWindowHint | Qt.Tool | Qt.WindowStaysOnTopHint
+            | Qt.WindowDoesNotAcceptFocus,
+        )
+        self.setAttribute(Qt.WA_ShowWithoutActivating)
+        self.setAttribute(Qt.WA_TranslucentBackground)
+        self.setAttribute(Qt.WA_TransparentForMouseEvents, True)
+        self._label = QLabel(self)
+        self._label.setAlignment(Qt.AlignCenter)
+        self._label.setStyleSheet("color: #E8E8EC; font-size: 9.5pt; font-weight: 600;")
+        layout = QHBoxLayout(self)
+        layout.setContentsMargins(12, 7, 12, 7)
+        layout.addWidget(self._label)
+        self._timer = QTimer(self)
+        self._timer.setSingleShot(True)
+        self._timer.timeout.connect(self.hide)
+
+    def paintEvent(self, event) -> None:
+        p = QPainter(self)
+        p.setRenderHint(QPainter.Antialiasing)
+        p.setPen(Qt.NoPen)
+        p.setBrush(_BG)
+        r = self.rect()
+        p.drawRoundedRect(QRectF(r), r.height() / 2.0, r.height() / 2.0)
+
+    def show_beside(self, pill: QRect, text: str) -> None:
+        """Links neben der Pille einblenden — dort ist der Punkt, der sie ausloest.
+
+        Kein Platz nach links (Pille klebt am linken Rand)? Dann nach rechts, statt
+        halb aus dem Bild zu ragen."""
+        self._label.setText(text)
+        self.adjustSize()
+        breite, hoehe = self.width(), self.height()
+        abstand = 10
+        x = pill.left() - breite - abstand
+        screen = QApplication.screenAt(pill.center()) or QApplication.primaryScreen()
+        if screen is not None and x < screen.availableGeometry().left() + 4:
+            x = pill.right() + abstand
+        y = pill.center().y() - hoehe // 2
+        self.move(x, y)
+        self.show()
+        self.raise_()
+        self._timer.start(self.SHOW_MS)
+
+
 class TranscriptCaption(QWidget):
     """Dunkle Sprechblase ueber der Pille — zeigt kurz den erkannten Text bzw. im
     Bearbeiten-Modus einen Ziehen-Hinweis. Reine Anzeige (klick-transparent), klaut
@@ -488,7 +546,7 @@ class TranscriptCaption(QWidget):
 class OverlayWindow(QWidget):
     cancel_requested = Signal()   # ✕ — verwerfen ohne Verarbeitung
     finish_requested = Signal()   # ✓ — beenden und einfuegen
-    mode_toggle_requested = Signal()  # Modus-Punkt geklickt — KI-Prompting an/aus
+    profile_cycle_requested = Signal()  # Punkt geklickt — naechstes Profil
     pause_requested = Signal()    # ⏸ — Aufnahme anhalten/fortsetzen
 
     def __init__(self, settings: OverlaySettings, on_geometry_changed=None,
@@ -509,6 +567,7 @@ class OverlayWindow(QWidget):
         # Live-Transkription, nur unterhalb der Pille (statt QToolTip, dessen Breite bei
         # umbrechendem Text nicht exakt zentrierbar ist).
         self._tip_caption = TranscriptCaption()
+        self._profile_badge = ProfileBadge()
         self._caption_is_live = False  # zeigt die Blase gerade die Live-Vorschau?
         self._caption_is_status = False  # … oder einen Fortschritts-Hinweis?
         self._command_armed = False    # Signalwort in der Live-Vorschau erkannt
@@ -554,7 +613,7 @@ class OverlayWindow(QWidget):
         self._cancel_btn.clicked.connect(self.cancel_requested.emit)
         self._finish_btn.clicked.connect(self.finish_requested.emit)
         self._pause_btn.clicked.connect(self.pause_requested.emit)
-        self._math_dot.clicked.connect(self.mode_toggle_requested.emit)
+        self._math_dot.clicked.connect(self.profile_cycle_requested.emit)
 
         # Erklaerende Tooltips — beim laengeren Hover eingeblendet, UNTERHALB der Pille
         # (oben liegt die Live-Transkription). Der Event-Filter faengt das ToolTip-
@@ -562,9 +621,10 @@ class OverlayWindow(QWidget):
         self._cancel_btn.setToolTip("Abbrechen — nichts einfügen")
         self._finish_btn.setToolTip("Fertig — Text einfügen")
         self._dot_tooltip_base = (
-            "Modus (Klick wechselt): Aus → Mathe → KI-Prompting. "
-            "Violett = Mathe, Amber = KI-Prompting. "
-            "Geteilt = beide zugleich (Formel im Prompt, während der Aufnahme)."
+            "Profil wechseln (Klick): reihum durch deine Profile und zurück auf "
+            "automatisch. Das Profil bestimmt, WAS aus dem Diktat wird — normaler "
+            "Text, eine E-Mail oder ein KI-Prompt. Wechseln geht auch mitten in "
+            "der Aufnahme."
         )
         self._math_dot.setToolTip(self._dot_tooltip_base)
         # Tooltips auch bei INAKTIVEM Fenster zeigen: das Overlay ist ein Tool-Fenster
@@ -1128,6 +1188,12 @@ class OverlayWindow(QWidget):
 
     def set_mode_line(self, text: str) -> None:
         self.setToolTip(text)  # unauffaellig: Modus-Info nur als Tooltip
+
+    def show_profile(self, name: str) -> None:
+        """Profilnamen kurz neben der Pille zeigen (nach dem Umschalten)."""
+        if not name:
+            return
+        self._profile_badge.show_beside(self.frameGeometry(), name)
 
     def set_paused(self, paused: bool) -> None:
         """Pausenzustand anzeigen: Knopf-Glyphe, ruhende Waveform, matte Pille.

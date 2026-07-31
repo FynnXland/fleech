@@ -95,6 +95,19 @@ Vier Modi:
   markiert und vor dem Einfügen gezeigt.
 - **KI-Prompting** — `Strg+Alt+P`: aus dem Diktat wird ein strukturierter Prompt.
 
+**Profile bestimmen, WAS aus dem Diktat wird.** Klick auf den Punkt links in der Pille
+schaltet reihum weiter (der Name erscheint kurz daneben) — auch mitten in der Aufnahme,
+denn ob daraus eine Mail wird, entscheidest du beim Sprechen:
+
+| Profil-Ausgabeformat | Ergebnis |
+|---|---|
+| **Diktat** | bereinigter Text, wie gesprochen |
+| **E-Mail** | Anrede, Absätze, Grußformel, gehobenerer Ton — Name aus Einstellungen → Anzeigename |
+| **KI-Prompt** | Wiederholungen raus, Anforderungen als Stichpunkte, möglichst wenige Tokens |
+
+Jedes Profil hat eigene Einstellungen (Eingriffsgrad, Safe-Word, automatisch absenden)
+und lässt sich Anwendungen zuweisen; die Handauswahl sticht die Zuweisung.
+
 Außerdem: **gesprochene Zeichen** („Slash Hunter" → „/Hunter"; nur eindeutige Wörter,
 „Minus" und „Plus" bleiben Text), **Textbausteine** („Baustein Signatur"), ein
 **Wörterbuch** für Fachbegriffe

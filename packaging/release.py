@@ -78,8 +78,25 @@ def notizen(hash_hex: str, datei: Path) -> str:
     )
 
 
+def ist_patch_version() -> bool:
+    """Dritte Stelle > 0 = Kleinigkeit (4.3.1, 4.3.2 …).
+
+    Fuer die wird bewusst NICHT veroeffentlicht: Installer bauen und 1 GB
+    hochladen dauert rund zehn Minuten — so lange wie die Aenderung selbst. Ein
+    Release lohnt sich erst, wenn genug zusammengekommen ist (neue Minor- oder
+    Major-Version). Wer es doch braucht: --force.
+    """
+    teile = APP_VERSION.split(".")
+    return len(teile) > 2 and teile[2].isdigit() and int(teile[2]) > 0
+
+
 def main() -> int:
     dry_run = "--dry-run" in sys.argv
+    if ist_patch_version() and "--force" not in sys.argv and not dry_run:
+        print(f"[release] {APP_VERSION} ist eine Patch-Version — kein Release.")
+        print("[release] Kleinigkeiten sammeln und mit der naechsten Minor-Version")
+        print("[release] veroeffentlichen (oder --force, wenn es wirklich raus muss).")
+        return 0
     fehlt = pruefe_werkzeuge(dry_run)
     if fehlt:
         print("[release] Abbruch — Voraussetzungen fehlen:")
