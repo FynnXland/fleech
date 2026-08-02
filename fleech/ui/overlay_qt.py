@@ -447,26 +447,36 @@ class ProfileBadge(QWidget):
         r = self.rect()
         p.drawRoundedRect(QRectF(r), r.height() / 2.0, r.height() / 2.0)
 
+    # Derselbe Abstand, den auch die Hover-Blasen unter der Pille halten
+    # (TranscriptCaption.show_above mit force_below) — die Kapsel sitzt damit
+    # genau auf deren Platz und nicht irgendwo dazwischen.
+    ABSTAND_PX = 10
+
     def show_beside(self, pill: QRect, text: str) -> None:
-        """Mittig UNTER der Pille einblenden.
+        """Mittig UNTER der Pille einblenden — immer, ohne Ausweichen nach oben.
 
         Erst stand die Kapsel links daneben (dort sitzt ja der Punkt, der sie
         ausloest) — im Betrieb war das aber unruhig: die Pille steht meist am
         rechten Bildschirmrand, die Kapsel sprang je nach Namenslaenge weit nach
         links weg. Unter der Pille und auf sie zentriert bleibt sie an einem festen,
-        vorhersagbaren Platz. Oben liegt ohnehin die Transkript-Blase.
+        vorhersagbaren Platz.
+
+        UNTEN ist Absicht und nicht verhandelbar: oberhalb der Pille laeuft die
+        Live-Transkription. Ein Ausweichen nach oben (frueher bei knappem Platz am
+        unteren Bildschirmrand) legte die Kapsel genau auf den mitlaufenden Text —
+        gemeldet als „ueberdeckt die Transkription". Bei wenig Platz rutscht sie
+        deshalb nur bis an den Bildschirmrand heran, aber nie auf die andere Seite.
         """
         self._label.setText(text)
         self.adjustSize()
         breite, hoehe = self.width(), self.height()
         x = pill.center().x() - breite // 2
-        y = pill.bottom() + 10
+        y = pill.bottom() + self.ABSTAND_PX
         screen = QApplication.screenAt(pill.center()) or QApplication.primaryScreen()
         if screen is not None:
             rand = screen.availableGeometry()
             x = max(rand.left() + 6, min(x, rand.right() - breite - 6))
-            if y + hoehe > rand.bottom() - 6:      # unten kein Platz → nach oben
-                y = pill.top() - hoehe - 10
+            y = min(y, rand.bottom() - hoehe - 6)
         self.move(x, y)
         self.show()
         self.raise_()
@@ -589,6 +599,9 @@ class OverlayWindow(QWidget):
         self._command_armed = False    # Signalwort in der Live-Vorschau erkannt
         self._prompt_latched = False   # KI-Prompting-Latch aktiv (exklusiv zu Mathe)
         self._paused = False           # Aufnahme angehalten (Pause-Knopf)
+        # Modus-Zeile (Fokus/Eingriff/Modell). Nur noch Zustand, keine Einblendung
+        # mehr — siehe set_mode_line.
+        self._mode_line = ""
 
         self.setAttribute(Qt.WA_ShowWithoutActivating)
         self.setAttribute(Qt.WA_TranslucentBackground)
@@ -604,7 +617,9 @@ class OverlayWindow(QWidget):
         self._cancel_btn = _round_button("x", "Aufnahme verwerfen")
         self._finish_btn = _round_button("check", "Fertig — Text einfügen")
         # Ganz rechts (eigene Insel): Aufnahme anhalten/fortsetzen.
-        self._pause_btn = _round_button("pause", "Pause — Aufnahme anhalten")
+        # Ohne Tooltip (siehe set_paused): die Blase landete unter der Pille,
+        # auf demselben Platz wie die Profil-Kapsel.
+        self._pause_btn = _round_button("pause", "")
         # Luecken-Widgets trennen die drei Inseln sichtbar (transparenter Zwischenraum,
         # der auch zum Ziehen der Pille dient). Ihre Groesse setzt _apply_scale.
         self._gap_l = QWidget()
@@ -1206,7 +1221,16 @@ class OverlayWindow(QWidget):
             self._hide_timer.start(int(max(0.5, self.settings.auto_hide_seconds) * 1000))
 
     def set_mode_line(self, text: str) -> None:
-        self.setToolTip(text)  # unauffaellig: Modus-Info nur als Tooltip
+        """Modus-Zeile („Fokus: soft_duck · Eingriff: Standard · nichts erkannt").
+
+        Bewusst NICHT mehr als Tooltip: Sie erschien beim Hover ueber der ganzen
+        Pille — also auch ueber jedem Knopf — und legte sich unter der Pille auf
+        dieselbe Stelle wie die Knopf-Erklaerungen und die Profil-Kapsel. Drei
+        Einblendungen um einen Platz, von denen eine niemand angefordert hatte.
+        Der Text bleibt als Attribut erhalten (Diagnose/Tests), zeigt sich aber
+        nur noch, wo er hingehoert: in Fenster und Log.
+        """
+        self._mode_line = text or ""
 
     def show_profile(self, name: str) -> None:
         """Profilnamen kurz neben der Pille zeigen (nach dem Umschalten)."""
@@ -1228,9 +1252,10 @@ class OverlayWindow(QWidget):
             "resume" if paused else "pause",
             _GLYPH_COLORS["resume" if paused else "pause"],
         ))
-        self._pause_btn.setToolTip(
-            "Weiter — Aufnahme fortsetzen" if paused else "Pause — Aufnahme anhalten"
-        )
+        # Kein Tooltip: Die Glyphe sagt es bereits, und die Blase landete unter der
+        # Pille — dort, wo auch die Profil-Kapsel steht. Zwei Einblendungen auf
+        # einem Platz. Bei ✓/✕ bleibt die Erklaerung, die sind mehrdeutiger
+        # (verwerfen vs. einfuegen) und dort ist ein Fehlgriff teuer.
         self._wave.set_state(AppState.IDLE if paused else AppState.LISTENING)
         # Bewusst NICHT ueber show_progress(): das gilt nur waehrend der
         # Verarbeitung. Hier laeuft die Aufnahme (Zustand LISTENING) und steht
@@ -1274,8 +1299,9 @@ class OverlayWindow(QWidget):
         self._math_dot.setToolTip(text)
 
     def set_feedback(self, text: str) -> None:
+        # Haengte frueher an denselben Pillen-Tooltip an — siehe set_mode_line.
         if text:
-            self.setToolTip(f"{self.toolTip().splitlines()[0] if self.toolTip() else ''}\n{text}".strip())
+            self._mode_line = f"{self._mode_line.splitlines()[0] if self._mode_line else ''}\n{text}".strip()
 
     # -- Verschieben per Maus + Persistenz -------------------------------------------------
 

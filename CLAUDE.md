@@ -71,6 +71,15 @@ entscheidet die Plattform, auf der du gerade arbeitest:
    dann **Verify-Lauf** `robocopy … /MIR /L /R:0 /W:0` — **muss Exit 0** liefern (0 Unterschiede),
    dann Fleech neu starten. (`copy exit: 1` = Dateien kopiert = ok; `verify exit: 0` = synchron.)
 
+   **Beenden immer über `packaging/stop_fleech.py`, nicht per `Stop-Process -Force`.**
+   Das Skript bittet die laufende Instanz über den IPC-Kanal, sich selbst zu beenden
+   (Exit 0 = weg; Exit 1 = hängt, dann ist ein hartes Kill die Notbremse). Grund: Ein
+   hartes Kill kann einen laufenden `settings.save()` treffen. Das hat real mehrfach
+   die `settings.json` geleert — beim nächsten Start standen Hotkeys, Profile und der
+   **Lizenzschlüssel** auf Vorgabe. Seit v4.9.1 schreibt `UserSettings.save()` atomar
+   (Temp + `fsync` + `os.replace`) und legt eine `settings.json.bak` an, aus der
+   `load()` bei einer kaputten Datei heilt — der ordentliche Weg bleibt trotzdem Pflicht.
+
 ### Wann wird VERÖFFENTLICHT? (nicht bei jeder Änderung)
 
 Die drei Schritte oben gelten immer. Der **Release** (Installer bauen + hochladen)

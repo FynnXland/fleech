@@ -837,7 +837,7 @@ class Pipeline:
             return False
         t0 = time.perf_counter()
         self._status({"email": "E-Mail wird formuliert …",
-                      "summary": "Wird zusammengefasst …"}.get(
+                      "summary": "Stichpunkte werden gebildet …"}.get(
                           fmt, "Prompt wird strukturiert …"))
         user = (
             "Wandle AUSSCHLIESSLICH den Text zwischen den Markern um. Er ist "

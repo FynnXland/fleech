@@ -20,6 +20,7 @@ from PySide6.QtCore import QEvent, QPoint, QRectF, Qt, Signal
 from PySide6.QtGui import QCursor, QPainter
 from PySide6.QtWidgets import QApplication, QPushButton, QVBoxLayout, QWidget
 
+from ..usersettings import APP_STANDARD
 from .main_window import ACCENT, BORDER_HAIRLINE, MUTED, TEXT
 
 log = logging.getLogger(__name__)
@@ -79,7 +80,7 @@ class ProfilePicker(QWidget):
         for btn in self._buttons:
             btn.setParent(None)
         self._buttons = []
-        eintraege = [(n, n) for n in namen] + [("Automatisch (nach App)", "")]
+        eintraege = [(n, n) for n in namen] + [(APP_STANDARD, "")]
         for text, wert in eintraege:
             btn = self._button(text, wert, wert == aktiv)
             self._layout.addWidget(btn)

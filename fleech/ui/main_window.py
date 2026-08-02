@@ -195,6 +195,11 @@ def _nav_icon(kind: str, color: str) -> QIcon:
         # Person: Kopf + Schulterbogen
         p.drawEllipse(QRectF(7, 3.5, 6, 6))
         p.drawArc(QRectF(4.5, 11, 11, 10), 0, 180 * 16)
+    elif kind == "apps":
+        # Vier Kacheln — die uebliche Bildsprache fuer „Anwendungen"; klar
+        # unterscheidbar von den Reglern der Einstellungen daneben.
+        for x, y in ((3.5, 3.5), (11, 3.5), (3.5, 11), (11, 11)):
+            p.drawRoundedRect(QRectF(x, y, 5.5, 5.5), 1.5, 1.5)
     else:  # sliders
         for y, knob_x in ((5, 13), (10, 7), (15, 11)):
             p.drawLine(4, y, 16, y)
@@ -267,6 +272,74 @@ def _no_hscroll(lst) -> None:
     lst.setWordWrap(True)
     lst.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
     lst.setTextElideMode(Qt.ElideNone)
+
+
+def _dauer(sekunden: float) -> str:
+    """Sekunden → „46 s" | „3 min" | „1 h 12 min" | „15,1 Stunden".
+
+    Vier Stufen statt einer Formel: „0,05 h" sagt niemandem etwas, „906 min" auch
+    nicht mehr. Unter einer Minute braucht es Sekunden — sonst wird ein Diktat von
+    46 s zu „1 min", und der Schnitt je Diktat waere fuer alle gleich. Ab zehn
+    Stunden ist umgekehrt die Minute belanglos; dort ist die Dezimalstunde die
+    Zahl, die man weitererzaehlt.
+    """
+    sekunden = max(0.0, float(sekunden or 0.0))
+    if sekunden < 60:
+        return f"{sekunden:.0f} s"
+    minuten = sekunden / 60.0
+    if minuten < 60:
+        return f"{minuten:.0f} min"
+    stunden, rest = int(minuten // 60), int(minuten) % 60
+    if stunden < 10:
+        return f"{stunden} h {rest} min" if rest else f"{stunden} h"
+    return f"{minuten / 60.0:.1f} Stunden".replace(".", ",")
+
+
+def _diktierzeit_text(stats) -> str:
+    """Zeile unter dem Tacho: gesprochene Zeit gesamt und je Diktat."""
+    gesamt = getattr(stats, "total_audio_seconds", 0.0) or 0.0
+    anzahl = getattr(stats, "total_dictations", 0) or 0
+    if gesamt <= 0:
+        return "Noch keine Sprechzeit aufgezeichnet."
+    text = f"{_dauer(gesamt)} gesprochen"
+    if anzahl:
+        text += f" · Ø {_dauer(gesamt / anzahl)} je Diktat"
+    return text
+
+
+def _suchfeld(platzhalter: str):
+    """Schmales Suchfeld ueber einer Liste — Apps- und Profilseite teilen es sich,
+    damit Suchen an beiden Stellen gleich aussieht und sich gleich anfuehlt.
+
+    Escape leert das Feld: Wer nach der Suche wieder alles sehen will, soll nicht
+    ruecklaufend loeschen muessen.
+    """
+    from PySide6.QtWidgets import QLineEdit
+
+    feld = QLineEdit()
+    feld.setPlaceholderText(platzhalter)
+    feld.setClearButtonEnabled(True)
+    feld.setStyleSheet(
+        f"QLineEdit {{ background: {CARD}; color: {TEXT};"
+        f"  border: 1px solid {BORDER_HAIRLINE}; border-radius: 8px;"
+        f"  padding: 5px 9px; font-size: 9pt; }}"
+        f"QLineEdit:focus {{ border-color: {ACCENT}; }}")
+    return feld
+
+
+def _passt(text: str, suche: str) -> bool:
+    """Einfache Teilstring-Suche, Gross-/Kleinschreibung egal.
+
+    Bewusst kein Fuzzy-Matching: Die Listen sind kurz, und ein „ungefaehrer"
+    Treffer, den man nicht erklaeren kann, kostet mehr Vertrauen als er Tipparbeit
+    spart. Mehrere Woerter muessen ALLE vorkommen (Reihenfolge egal) — so findet
+    „code fleech" die Titel-Regel, ohne dass man sie exakt abtippt.
+    """
+    suche = (suche or "").strip().lower()
+    if not suche:
+        return True
+    ziel = (text or "").lower()
+    return all(teil in ziel for teil in suche.split())
 
 
 def enable_card_hiding(frame: QFrame, title: str, attr: str, settings, on_changed) -> None:
@@ -959,6 +1032,17 @@ class InsightsPage(QWidget):
         gauge_row.addWidget(self._gauge)
         gauge_row.addStretch(1)  # Gauge mittig in der Karte (Design)
         wpm_box.addLayout(gauge_row)
+        # Echte Sprechzeit aus `audio_seconds` der Historie — NICHT aus Woertern
+        # geteilt durch WPM gerechnet. Das waere ein Zirkelschluss (WPM stammt aus
+        # denselben zwei Zahlen) und haette Pausen, Verwerfungen und abgebrochene
+        # Aufnahmen unterschlagen.
+        self._time_label = QLabel("")
+        self._time_label.setWordWrap(True)
+        self._time_label.setAlignment(Qt.AlignCenter)
+        self._time_label.setStyleSheet(
+            f"color: {MUTED}; font-size: 8.5pt; border: none;")
+        wpm_box.addWidget(self._time_label)
+        wpm_box.addStretch(1)
 
         self._fix_frame, fix_box, self._fix_value = _metric("Korrekturen von Fleech")
         self._fix_detail = QLabel("")
@@ -1266,6 +1350,7 @@ class InsightsPage(QWidget):
     def refresh(self) -> None:
         stats = self.store.stats(since=self._range_since())
         self._gauge.set_wpm(stats.wpm)  # Kennzahl steht IM Gauge (Design)
+        self._time_label.setText(_diktierzeit_text(stats))
         self._fix_value.setText(f"{stats.corrected_words:n}")
         per_dictation = (stats.corrected_words / stats.total_dictations
                          if stats.total_dictations else 0.0)
@@ -1401,6 +1486,470 @@ class DictionarySuggestionDialog(QDialog):
         return super().event(e)
 
 
+class AppsPage(QWidget):
+    """Zuordnung App → Profil, von der APP aus gedacht.
+
+    Auf der Profilseite stand dieselbe Beziehung andersherum („welche Apps gehoeren
+    zu diesem Profil?") — und damit an der falschen Stelle: Ein Profil beantwortet
+    seit den Ausgabeformaten die Frage „was wird aus dem Diktat", nicht „wo".
+    Gefragt wird im Alltag aber „was soll Fleech in DIESEM Programm tun?" — genau
+    das ist diese Seite.
+
+    Die Daten bleiben unveraendert: zugewiesen wird weiterhin in `profil["apps"]`,
+    nur die Blickrichtung dreht sich. Keine Migration.
+    """
+
+    KEIN_PROFIL = "— kein Profil (Standard)"
+
+    def __init__(self, settings: UserSettings, store: HistoryStore, on_changed=None):
+        super().__init__()
+        self.settings = settings
+        self.store = store
+        self._on_changed = on_changed or (lambda section: None)
+        self._loading = False
+
+        from PySide6.QtWidgets import QComboBox, QLineEdit
+
+        from .chevron import apply_chevrons
+
+        layout = QVBoxLayout(self)
+        layout.setContentsMargins(28, 24, 28, 20)
+        layout.setSpacing(12)
+        titel = QLabel("Apps")
+        titel.setStyleSheet(f"color: {TEXT}; font-size: 17pt; font-weight: 600;")
+        layout.addWidget(titel)
+        unter = QLabel("Anwendung links wählen. In der Mitte, welches Profil "
+                       "Fleech dort automatisch nimmt — rechts, zwischen welchen "
+                       "der Profil-Hotkey dort wechselt. Ohne Zuordnung gilt das "
+                       "Standardprofil oder das, was du von Hand gewählt hast.")
+        unter.setWordWrap(True)
+        unter.setStyleSheet(f"color: {MUTED}; font-size: 9pt;")
+        layout.addWidget(unter)
+
+        body = QHBoxLayout()
+        body.setSpacing(14)
+        layout.addLayout(body, 1)
+
+        list_style = (
+            f"QListWidget {{ background: transparent; border: none; outline: none;"
+            f"  color: {TEXT}; font-size: 9.5pt; }}"
+            f"QListWidget::item {{ padding: 7px 10px; border-radius: 8px; }}"
+            f"QListWidget::item:hover {{ background: {ROW_HOVER}; }}"
+            f"QListWidget::item:selected {{ background: {NAV_ACTIVE_BG}; color: {ACCENT}; }}"
+        )
+        links, links_box = _card("Anwendungen")
+        self._app_suche = _suchfeld("Anwendung suchen …")
+        self._app_suche.textChanged.connect(lambda _t: self._filter_apps())
+        links_box.addWidget(self._app_suche)
+        self._apps = QListWidget()
+        self._apps.setStyleSheet(list_style)
+        _no_hscroll(self._apps)
+        self._apps.currentRowChanged.connect(lambda _r: self._refresh_detail())
+        links_box.addWidget(self._apps, 1)
+        body.addWidget(links, 5)
+
+        rechts, rechts_box = _card("Zuordnung")
+        self._app_titel = QLabel("")
+        self._app_titel.setStyleSheet(
+            f"color: {TEXT}; font-size: 11pt; font-weight: 600;")
+        rechts_box.addWidget(self._app_titel)
+
+        hinweis = QLabel("Profil für diese Anwendung")
+        hinweis.setStyleSheet(f"color: {MUTED}; font-size: 9pt;")
+        rechts_box.addWidget(hinweis)
+        self._profil_combo = QComboBox()
+        self._profil_combo.setStyleSheet(apply_chevrons(
+            f"QComboBox {{ background: {CARD}; color: {TEXT};"
+            f"  border: 1px solid {BORDER_HAIRLINE}; border-radius: 8px;"
+            f"  padding: 6px 10px; }}"
+            f"QComboBox::drop-down {{ border: none; width: 22px; }}"
+            f"QComboBox::down-arrow {{ width: 11px; height: 11px;"
+            f"  margin-right: 6px; image: url(__CHEV_DOWN__); }}"
+            f"QComboBox QAbstractItemView {{ background: {SIDEBAR}; color: {TEXT};"
+            f"  border: 1px solid {TRACK}; outline: none; padding: 4px;"
+            f"  selection-background-color: {NAV_ACTIVE_BG};"
+            f"  selection-color: {ACCENT}; }}"))
+        self._profil_combo.currentIndexChanged.connect(self._on_profil_gewaehlt)
+        rechts_box.addWidget(self._profil_combo)
+
+        # Eigene, DRITTE Spalte: acht Profile in die Zuordnungs-Karte gequetscht
+        # zeigten drei Zeilen mit Scrollbalken — man sah nicht einmal, welche
+        # angehakt sind. Und es ist ohnehin eine andere Frage: „welches Profil gilt
+        # hier" (Mitte) gegen „zwischen welchen kann ich hier wechseln" (rechts).
+        dritte, dritte_box = _card("Schnellwechsel")
+        self._app_titel2 = QLabel("")
+        self._app_titel2.setStyleSheet(
+            f"color: {TEXT}; font-size: 11pt; font-weight: 600;")
+        dritte_box.addWidget(self._app_titel2)
+        schnell_hinweis = QLabel(
+            "Was der Profil-Hotkey in dieser Anwendung durchtippt — und beim "
+            "Halten zur Auswahl stellt. Alles angehakt = keine Einschränkung.")
+        schnell_hinweis.setWordWrap(True)
+        schnell_hinweis.setStyleSheet(f"color: {MUTED}; font-size: 8.5pt;")
+        dritte_box.addWidget(schnell_hinweis)
+        self._schnell = QListWidget()
+        # Ankreuz-Kaestchen im Design-System (15px, Radius 4, Akzent-Fuellung mit
+        # generiertem Haken) — der Windows-Standardindikator sass hier als einziges
+        # helles Element in einer dunklen Karte.
+        self._schnell.setStyleSheet(apply_chevrons(
+            list_style
+            + f"QListWidget::indicator {{ width: 15px; height: 15px;"
+              f"  border-radius: 4px; border: 1.5px solid {TRACK};"
+              f"  background: transparent; margin-right: 4px; }}"
+              f"QListWidget::indicator:hover {{ border-color: {MUTED}; }}"
+              f"QListWidget::indicator:checked {{ background: {ACCENT};"
+              f"  border-color: {ACCENT}; image: url(__CHEV_CHECK__); }}"))
+        _no_hscroll(self._schnell)
+        self._schnell.itemChanged.connect(self._schnell_geaendert)
+        dritte_box.addWidget(self._schnell, 1)
+
+        rechts_box.addSpacing(8)
+        regel_hinweis = QLabel(
+            "Ausnahmen nach Fenstertitel — derselbe Prozess trägt oft sehr "
+            "verschiedene Kontexte (ein Editor mit Code, einer mit Notizen). "
+            "Eine Ausnahme gewinnt gegen das Profil oben. Doppelklick entfernt sie.")
+        regel_hinweis.setWordWrap(True)
+        regel_hinweis.setStyleSheet(f"color: {MUTED}; font-size: 8.5pt;")
+        rechts_box.addWidget(regel_hinweis)
+        self._regeln = QListWidget()
+        self._regeln.setStyleSheet(list_style)
+        _no_hscroll(self._regeln)
+        self._regeln.setMinimumHeight(60)
+        self._regeln.itemDoubleClicked.connect(self._regel_entfernen)
+        rechts_box.addWidget(self._regeln, 1)
+
+        neu_row = QHBoxLayout()
+        neu_row.setSpacing(6)
+        self._regel_titel = QLineEdit()
+        self._regel_titel.setPlaceholderText("Titel …")
+        self._regel_titel.setStyleSheet(
+            f"QLineEdit {{ background: {CARD}; color: {TEXT};"
+            f"  border: 1px solid {BORDER_HAIRLINE}; border-radius: 8px;"
+            f"  padding: 6px 10px; font-size: 9.5pt; }}"
+            f"QLineEdit:focus {{ border-color: {ACCENT}; }}")
+        self._regel_titel.returnPressed.connect(self._regel_hinzufuegen)
+        neu_row.addWidget(self._regel_titel, 3)
+        self._regel_profil = QComboBox()
+        self._regel_profil.setStyleSheet(self._profil_combo.styleSheet())
+        neu_row.addWidget(self._regel_profil, 2)
+        plus = style_button(QPushButton("Hinzufügen"), "ghost")
+        plus.clicked.connect(self._regel_hinzufuegen)
+        neu_row.addWidget(plus)
+        rechts_box.addLayout(neu_row)
+        body.addWidget(rechts, 5)
+        body.addWidget(dritte, 4)
+
+    # -- Daten ---------------------------------------------------------------------
+
+    def _items(self) -> list:
+        return [i for i in (self.settings.profiles.items or []) if isinstance(i, dict)]
+
+    def _aktuelle_app(self) -> str:
+        item = self._apps.currentItem()
+        return str(item.data(Qt.UserRole)) if item is not None else ""
+
+    def refresh(self) -> None:
+        from ..usersettings import parse_app_rule
+        from .windowsfocus import list_visible_window_processes
+
+        vorher = self._aktuelle_app()
+        self._loading = True
+        self._apps.clear()
+        gesehen: set = set()
+        self._erhoben: list = []      # [(app, zusatz)] — Quelle fuer die Anzeige
+        try:
+            laufend = list_visible_window_processes()
+        except Exception:
+            log.debug("Fensterliste nicht abrufbar.", exc_info=True)
+            laufend = []
+        for app in laufend:
+            gesehen.add(app.lower())
+            self._eintrag(app, "läuft")
+        try:
+            haeufig = self.store.stats().app_usage or []
+        except Exception:
+            haeufig = []
+        for app, words, _share in haeufig:
+            if app.lower() not in gesehen:
+                gesehen.add(app.lower())
+                self._eintrag(app, f"{words} Wörter diktiert")
+        # Zugewiesene Apps, die gerade weder laufen noch im Verlauf stehen: sonst
+        # verschwindet eine bestehende Regel aus der Sicht und wirkt geloescht.
+        # Der „nie gesehen"-Hinweis ist wichtig — ein vertippter Prozessname
+        # faellt sonst NIE auf, weil das Profil einfach stumm nie greift.
+        stale = self._stale_apps()
+        for profil in self._items():
+            for eintrag in profil.get("apps", []):
+                prozess = parse_app_rule(eintrag)[0]
+                if prozess and prozess.lower() not in gesehen:
+                    gesehen.add(prozess.lower())
+                    tage = stale.get(prozess.lower())
+                    if tage is None:
+                        zusatz = "zugewiesen"
+                    elif tage:
+                        zusatz = f"seit {tage} Tagen nicht gesehen"
+                    else:
+                        zusatz = "noch nie gesehen"
+                    self._eintrag(prozess, zusatz)
+        self._loading = False
+        self._zeige_apps(vorher)
+
+    def _stale_apps(self) -> dict:
+        """{prozess_klein: tage_seit_letztem_diktat} fuer Prozesse, die weder gerade
+        laufen noch in den letzten 30 Tagen als Diktat-Ziel auftauchten.
+
+        None-Wert gibt es nicht — 0 bedeutet „noch nie gesehen"."""
+        try:
+            from .windowsfocus import list_visible_window_processes
+
+            running = {a.lower() for a in list_visible_window_processes()}
+        except Exception:
+            running = set()
+        try:
+            seen = self.store.last_seen_apps()
+        except Exception:
+            seen = {}
+        import time as _time
+
+        now = _time.time()
+        stale = {}
+        for profile in self.settings.profiles.items or []:
+            if not isinstance(profile, dict) or profile.get("default"):
+                continue
+            for entry in profile.get("apps", []):
+                from ..usersettings import parse_app_rule
+
+                process = parse_app_rule(entry)[0].lower()
+                if not process or process in running or process in stale:
+                    continue
+                ts = seen.get(process)
+                if ts is None:
+                    stale[process] = 0
+                    continue
+                days = int((now - ts) // 86400)
+                if days >= _STALE_APP_DAYS:
+                    stale[process] = days
+        return stale
+
+    def _eintrag(self, app: str, zusatz: str) -> None:
+        from ..usersettings import parse_app_rule
+
+        # Nur die ALLGEMEINE Regel (ohne Titel-Bedingung) anzeigen — sonst stuende
+        # links ein Profil, das nur in einem einzigen Fenster gilt, und der Pfeil
+        # loege ueber den Normalfall. Titel-Ausnahmen bekommen ein eigenes Zeichen.
+        profil, ausnahmen = "", 0
+        for p in self._items():
+            for eintrag in p.get("apps", []):
+                prozess, titel = parse_app_rule(eintrag)
+                if prozess.lower() != app.lower():
+                    continue
+                if titel:
+                    ausnahmen += 1
+                elif not profil:
+                    profil = str(p.get("name", ""))
+        text = f"{app}   ·  {zusatz}"
+        if profil:
+            text += f"   →  {profil}"
+        if ausnahmen:
+            text += f"   (+{ausnahmen} nach Titel)"
+        self._erhoben.append((app, zusatz, text))
+
+    def _refresh_detail(self) -> None:
+        from ..usersettings import parse_app_rule
+
+        app = self._aktuelle_app()
+        self._loading = True
+        self._regeln.clear()
+        self._profil_combo.clear()
+        self._regel_profil.clear()
+        self._profil_combo.addItem(self.KEIN_PROFIL, "")
+        for p in self._items():
+            if not p.get("default"):
+                name = str(p.get("name", ""))
+                self._profil_combo.addItem(name, name)
+                self._regel_profil.addItem(name, name)
+        self._app_titel.setText(app or "Keine Anwendung gewählt")
+        self._app_titel2.setText(app or "—")
+        self._profil_combo.setEnabled(bool(app))
+        for w in (self._regel_titel, self._regel_profil):
+            w.setEnabled(bool(app) and self._regel_profil.count() > 0)
+        self._fuelle_schnellwechsel(app)
+        if not app:
+            self._loading = False
+            return
+
+        gewaehlt = ""
+        for p in self._items():
+            for eintrag in p.get("apps", []):
+                prozess, titel = parse_app_rule(eintrag)
+                if prozess.lower() != app.lower():
+                    continue
+                if titel:
+                    zeile = QListWidgetItem(
+                        f"Titel enthält „{titel}“   →  {p.get('name', '')}")
+                    zeile.setData(Qt.UserRole, (str(p.get("name", "")), eintrag))
+                    self._regeln.addItem(zeile)
+                else:
+                    gewaehlt = str(p.get("name", ""))
+        index = self._profil_combo.findData(gewaehlt)
+        self._profil_combo.setCurrentIndex(max(0, index))
+        self._loading = False
+
+    # -- Aenderungen ----------------------------------------------------------------
+
+    def _on_profil_gewaehlt(self, _index: int) -> None:
+        if self._loading:
+            return
+        app = self._aktuelle_app()
+        if not app:
+            return
+        from ..usersettings import parse_app_rule
+
+        ziel = str(self._profil_combo.currentData() or "")
+        # Erst ueberall entfernen (nur die Regel OHNE Titel), dann neu setzen: Eine
+        # App gehoert nie zu zwei Profilen, sonst entscheidet die Listenreihenfolge
+        # und niemand kann nachvollziehen, warum welches gewinnt.
+        for p in self._items():
+            p["apps"] = [e for e in p.get("apps", [])
+                         if not (parse_app_rule(e)[0].lower() == app.lower()
+                                 and not parse_app_rule(e)[1])]
+        if ziel:
+            for p in self._items():
+                if str(p.get("name", "")) == ziel:
+                    p.setdefault("apps", []).append(app)
+                    break
+        self.settings.save()
+        self._on_changed("profiles")
+        log.info("App %s → Profil %s", app, ziel or "(keins)")
+        self.refresh()
+
+    # -- Schnellwechsel je App ------------------------------------------------------
+
+    def _app_quick(self) -> dict:
+        vorhanden = getattr(self.settings.profiles, "app_quick", None)
+        if not isinstance(vorhanden, dict):
+            vorhanden = {}
+            self.settings.profiles.app_quick = vorhanden
+        return vorhanden
+
+    def _fuelle_schnellwechsel(self, app: str) -> None:
+        """Ankreuzliste der global freigegebenen Profile, Haken je App.
+
+        Angeboten werden nur Profile, die global im Schnellwechsel stehen — was
+        dort ausgeblendet ist, kann eine App nicht zurueckholen. Sonst gaebe es
+        zwei Schalter fuer dieselbe Frage, und der eine wuerde den anderen
+        stillschweigend uebersteuern.
+        """
+        from ..usersettings import quickswitch_profiles
+
+        self._schnell.clear()
+        namen = quickswitch_profiles(self._items())
+        erlaubt = {str(n).lower()
+                   for n in (self._app_quick().get((app or "").lower()) or [])}
+        for name in namen:
+            item = QListWidgetItem(name)
+            item.setFlags(item.flags() | Qt.ItemIsUserCheckable)
+            # Ohne Eintrag ist ALLES erlaubt — dann alle Haken setzen, sonst saehe
+            # eine unkonfigurierte App aus, als waere der Schnellwechsel dort leer.
+            item.setCheckState(Qt.Checked if not erlaubt or name.lower() in erlaubt
+                               else Qt.Unchecked)
+            item.setData(Qt.UserRole, name)
+            self._schnell.addItem(item)
+        self._schnell.setEnabled(bool(app) and bool(namen))
+
+    def _schnell_geaendert(self, _item) -> None:
+        if self._loading:
+            return
+        app = self._aktuelle_app()
+        if not app:
+            return
+        angehakt = [str(self._schnell.item(i).data(Qt.UserRole))
+                    for i in range(self._schnell.count())
+                    if self._schnell.item(i).checkState() == Qt.Checked]
+        speicher = self._app_quick()
+        schluessel = app.lower()
+        # Alle angehakt = kein Sonderfall → Eintrag entfernen statt die Vollmenge
+        # zu speichern. Sonst friert die App auf dem heutigen Profilstand ein: ein
+        # spaeter angelegtes Profil taucht dort nie auf, ohne dass man ahnt, warum.
+        if len(angehakt) == self._schnell.count():
+            speicher.pop(schluessel, None)
+        else:
+            # Leere Auswahl NICHT speichern — sie hiesse „hier gar kein Profil"
+            # und liesse sich per Hotkey nicht mehr verlassen.
+            speicher[schluessel] = angehakt or None
+            if not angehakt:
+                speicher.pop(schluessel, None)
+        self.settings.save()
+        self._on_changed("profiles")
+        log.info("Schnellwechsel fuer %s: %s", app,
+                 ", ".join(angehakt) if angehakt else "(alle)")
+
+    def _zeige_apps(self, auswahl: str = "") -> None:
+        """Gemerkte Eintraege anzeigen, gefiltert nach dem Suchfeld.
+
+        Getrennt von `refresh()`, weil dort die teuren Quellen stecken (Fensterliste
+        per EnumWindows, Verlaufs-Statistik). Beides bei jedem Tastendruck im
+        Suchfeld abzufragen waere spuerbar traege.
+        """
+        suche = self._app_suche.text()
+        self._loading = True
+        self._apps.clear()
+        for app, zusatz, text in getattr(self, "_erhoben", []):
+            # Gesucht wird ueber die GANZE Zeile, nicht nur den Prozessnamen — so
+            # findet „stichpunkte" auch die Apps, die auf dieses Profil zeigen.
+            if not _passt(text, suche):
+                continue
+            item = QListWidgetItem(text)
+            item.setData(Qt.UserRole, app)
+            self._apps.addItem(item)
+        self._loading = False
+        if self._apps.count():
+            treffer = [i for i in range(self._apps.count())
+                       if str(self._apps.item(i).data(Qt.UserRole)) == auswahl]
+            self._apps.setCurrentRow(treffer[0] if treffer else 0)
+        self._refresh_detail()
+
+    def _filter_apps(self) -> None:
+        self._zeige_apps(self._aktuelle_app())
+
+    def _regel_hinzufuegen(self) -> None:
+        app = self._aktuelle_app()
+        titel = self._regel_titel.text().strip()
+        ziel = str(self._regel_profil.currentData() or "")
+        if not app or not titel or not ziel:
+            return
+        from ..usersettings import format_app_rule, parse_app_rule
+
+        # Dieselbe Titel-Bedingung nie zweimal: sonst haengt dieselbe App an zwei
+        # Profilen und die Reihenfolge in der Liste entscheidet.
+        for p in self._items():
+            p["apps"] = [e for e in p.get("apps", [])
+                         if not (parse_app_rule(e)[0].lower() == app.lower()
+                                 and parse_app_rule(e)[1].lower() == titel.lower())]
+        for p in self._items():
+            if str(p.get("name", "")) == ziel:
+                p.setdefault("apps", []).append(format_app_rule(app, titel))
+                break
+        self.settings.save()
+        self._on_changed("profiles")
+        log.info("App %s (Titel %r) → Profil %s", app, titel, ziel)
+        self._regel_titel.clear()
+        self.refresh()
+
+    def _regel_entfernen(self, item) -> None:
+        daten = item.data(Qt.UserRole)
+        if not daten:
+            return
+        profilname, eintrag = daten
+        for p in self._items():
+            if str(p.get("name", "")) == profilname:
+                p["apps"] = [e for e in p.get("apps", []) if e != eintrag]
+                break
+        self.settings.save()
+        self._on_changed("profiles")
+        self.refresh()
+
+
 class ProfilesPage(QWidget):
     """App-Profile: pro Ziel-App automatisch Eingriffsgrad + Stil-Tags fahren.
 
@@ -1452,8 +2001,9 @@ class ProfilesPage(QWidget):
         self._global_cb.toggled.connect(self._on_global_toggled)
         head.addWidget(self._global_cb)
         outer.addLayout(head)
-        hint = QLabel("Apps links per Doppelklick dem gewählten Profil zuweisen. "
-                      "Ohne Zuweisung gilt das Standardprofil („Alle“).")
+        hint = QLabel("Ein Profil bestimmt, was aus dem Diktat wird. Welche App "
+                      "welches Profil bekommt, steht auf der Seite „Apps“ — hier "
+                      "gilt „Alle“ als Standard.")
         hint.setStyleSheet(f"color: {MUTED}; font-size: 9pt;")
         hint.setWordWrap(True)
         outer.addWidget(hint)
@@ -1517,21 +2067,14 @@ class ProfilesPage(QWidget):
             lay.addStretch(1)
             return w
 
-        # Links: Apps (laufend + haeufig diktiert) — Doppelklick weist zu.
-        apps_frame, apps_box = _card("Apps")
-        apps_box.addWidget(_section(
-            "Doppelklick = zuweisen",
-            "Weist die App dem in der Mitte gewählten Profil zu.",
-        ))
-        self._apps_list = QListWidget()
-        self._apps_list.setStyleSheet(list_style)
-        _no_hscroll(self._apps_list)
-        self._apps_list.itemDoubleClicked.connect(lambda _i: self._assign_selected_app())
-        apps_box.addWidget(self._apps_list, 1)
-        body.addWidget(apps_frame, 1)
-
-        # Mitte: Profil-Liste (Klick = Auswahl) + Funktions-Schalter darunter.
+        # Links: Profil-Liste (Klick = Auswahl) + Funktions-Schalter darunter.
+        # Die frueher hier stehende App-Spalte ist mit v4.7.0 auf die eigene
+        # Seite „Apps" gewandert: Ein Profil beantwortet „was wird aus dem
+        # Diktat", die Frage „wo gilt das" gehoert zur App, nicht zum Profil.
         profiles_frame, profiles_box = _card("Profile")
+        self._profil_suche = _suchfeld("Profil suchen …")
+        self._profil_suche.textChanged.connect(lambda _t: self._refresh_profiles(keep_row=True))
+        profiles_box.addWidget(self._profil_suche)
         self._profiles_list = QListWidget()
         self._profiles_list.setStyleSheet(list_style)
         _no_hscroll(self._profiles_list)
@@ -1663,51 +2206,6 @@ class ProfilesPage(QWidget):
         self._autosend_cb.toggled.connect(self._on_autosend_toggled)
         detail_box.addWidget(self._autosend_cb)
 
-        detail_box.addWidget(_section(
-            "Zugewiesene Apps",
-            "Doppelklick entfernt. Auswählen, um sie auf einen Fenstertitel einzugrenzen.",
-        ))
-        self._assigned_list = QListWidget()
-        self._assigned_list.setStyleSheet(list_style)
-        _no_hscroll(self._assigned_list)
-        # Mindesthoehe fuer rund vier Eintraege: Mit Titel-Regel und Hinweiszeile
-        # darunter drueckte der Stretch-Anteil die Liste sonst auf eine einzige
-        # sichtbare Zeile zusammen — genau die Liste, um die es auf dieser Seite geht.
-        self._assigned_list.setMinimumHeight(96)
-        self._assigned_list.itemDoubleClicked.connect(lambda item: self._remove_assigned_app(item))
-        self._assigned_list.currentItemChanged.connect(self._on_assigned_selected)
-        detail_box.addWidget(self._assigned_list, 1)
-
-        # Titel-Bedingung: derselbe Prozess traegt oft sehr verschiedene Kontexte
-        # (ein Editor-Fenster mit Code, eines mit Notizen). Gilt fuer die oben
-        # ausgewaehlte App; leer = Profil greift bei jedem Fenster dieser App.
-        # Bewusst EINE kompakte Zeile statt eines eigenen Abschnitts: Die Profilseite
-        # hat keinen Scrollbereich — ein zweizeiliger Abschnittskopf haette die
-        # Liste der zugewiesenen Apps aus dem Fenster gedrueckt.
-        title_row = QWidget()
-        trow = QHBoxLayout(title_row)
-        trow.setContentsMargins(0, 0, 0, 0)
-        trow.setSpacing(8)
-        title_label = QLabel("Titel enthält")
-        title_label.setStyleSheet(f"color: {MUTED}; font-size: 9pt;")
-        self._title_rule = QLineEdit()
-        self._title_rule.setPlaceholderText("App oben auswählen …")
-        self._title_rule.setEnabled(False)
-        self._title_rule.setToolTip(
-            "Optional: Das Profil greift dann nur, wenn der Fenstertitel diesen Text "
-            "enthält — z. B. ein Projektname, um dieselbe App in zwei Kontexten zu "
-            "trennen. Leer = jedes Fenster dieser App."
-        )
-        self._title_rule.editingFinished.connect(self._on_title_rule_changed)
-        trow.addWidget(title_label)
-        trow.addWidget(self._title_rule, 1)
-        detail_box.addWidget(title_row)
-        self._assigned_note = QLabel("")
-        self._assigned_note.setWordWrap(True)
-        self._assigned_note.setStyleSheet(f"color: {MUTED}; font-size: 8.5pt;")
-        self._assigned_note.hide()
-        detail_box.addWidget(self._assigned_note)
-
         # Ohne diesen Dehnungs-Platzhalter verteilt Qt den freien Platz GLEICHMAESSIG
         # zwischen allen Zeilen, sobald der erweiterte Block (mit der App-Liste, die
         # den Raum bisher aufgefangen hat) versteckt ist: Beschriftungen standen dann
@@ -1720,9 +2218,10 @@ class ProfilesPage(QWidget):
         self._advanced_cb.setCursor(Qt.PointingHandCursor)
         self._advanced_cb.setStyleSheet(apply_chevrons(cb_style))
         self._advanced_cb.setToolTip(
-            "Zeigt Eingriffsgrad, Safe-Word, automatisches Absenden und die "
-            "Zuweisung von Apps. Ohne das besteht ein Profil aus Name, "
-            "Ausgabeformat und Schnellwechsel — für die meisten genug."
+            "Zeigt Eingriffsgrad, Safe-Word und automatisches Absenden. Ohne "
+            "das besteht ein Profil aus Name, Ausgabeformat und Schnellwechsel "
+            "— für die meisten genug. Welche App welches Profil bekommt, steht "
+            "auf der Seite „Apps“."
         )
         self._advanced_cb.setChecked(bool(self.settings.interface.profiles_advanced))
         self._advanced_cb.toggled.connect(self._on_advanced_toggled)
@@ -1743,10 +2242,23 @@ class ProfilesPage(QWidget):
     def _items(self) -> list:
         return self.settings.profiles.items
 
+    def _current_index(self) -> int:
+        """Index in `items` — aus dem Item, NICHT aus der Zeilennummer.
+
+        Mit dem Suchfeld sind das zwei verschiedene Dinge: Zeile 0 einer gefilterten
+        Liste kann Profil 5 sein. Wer hier die Zeilennummer nimmt, benennt oder
+        loescht stillschweigend das falsche Profil.
+        """
+        item = self._profiles_list.currentItem()
+        if item is None:
+            return -1
+        wert = item.data(Qt.UserRole)
+        return int(wert) if isinstance(wert, int) else -1
+
     def _current_profile(self) -> dict | None:
-        row = self._profiles_list.currentRow()
+        index = self._current_index()
         items = self._items()
-        return items[row] if 0 <= row < len(items) else None
+        return items[index] if 0 <= index < len(items) else None
 
     def _save(self) -> None:
         self.settings.save()
@@ -1757,26 +2269,7 @@ class ProfilesPage(QWidget):
         from ..usersettings import ensure_default_profile
 
         ensure_default_profile(self._items())
-        self._refresh_apps()
         self._refresh_profiles(keep_row=True)
-
-    def _refresh_apps(self) -> None:
-        from .windowsfocus import list_visible_window_processes
-
-        self._apps_list.clear()
-        seen: set[str] = set()
-        for app in list_visible_window_processes():
-            seen.add(app.lower())
-            item = QListWidgetItem(f"{app}   ·  läuft")
-            item.setData(Qt.UserRole, app)
-            self._apps_list.addItem(item)
-        # Haeufig diktierte Apps aus der Historie (die nicht ohnehin laufen).
-        for app, words, _share in (self.store.stats().app_usage or []):
-            if app.lower() in seen:
-                continue
-            item = QListWidgetItem(f"{app}   ·  {words} Wörter diktiert")
-            item.setData(Qt.UserRole, app)
-            self._apps_list.addItem(item)
 
     # BEWUSST OHNE die Brand-Akzentfarbe (#35C0D8): die steht im ganzen Programm
     # fuer „ausgewaehlt". Als Kategoriefarbe gelesen wirkte der E-Mail-Punkt wie
@@ -1786,7 +2279,7 @@ class ProfilesPage(QWidget):
     # Kurzform des Ausgabeformats hinter dem Namen. Beantwortet die Frage „was macht
     # dieses Profil?" in der LISTE — vorher musste man jedes Profil anklicken.
     _MODE_KURZ = {"email": "E-Mail", "prompt": "KI-Prompt", "math": "Formeln",
-                  "summary": "Zusammenfassen"}
+                  "summary": "Stichpunkte"}
 
     @staticmethod
     def _mode_dot_icon(color: str) -> QIcon:
@@ -1805,10 +2298,11 @@ class ProfilesPage(QWidget):
     def _refresh_profiles(self, keep_row: bool = False) -> None:
         from ..usersettings import profile_in_quickswitch, profile_mode
 
-        previous = self._profiles_list.currentRow() if keep_row else 0
+        previous = self._current_index() if keep_row else 0
+        suche = self._profil_suche.text()
         self._loading = True
         self._profiles_list.clear()
-        for profile in self._items():
+        for index, profile in enumerate(self._items()):
             name = profile.get("name", "Profil")
             if profile.get("default"):
                 name += "  („Alle“)"
@@ -1822,7 +2316,10 @@ class ProfilesPage(QWidget):
                 # Ausgeblendete Profile bleiben sichtbar, aber erkennbar: sonst
                 # sucht man spaeter, warum der Schnellwechsel eines auslaesst.
                 name += "   (nicht im Schnellwechsel)"
+            if not _passt(name, suche):
+                continue
             item = QListWidgetItem(name)
+            item.setData(Qt.UserRole, index)
             # Modus-Slot direkt in der Liste sichtbar machen (Design-System):
             # farbiger Punkt in der Modus-Farbe vor dem Namen.
             mode = profile_mode(profile)
@@ -1831,22 +2328,20 @@ class ProfilesPage(QWidget):
             self._profiles_list.addItem(item)
         self._loading = False
         if self._profiles_list.count():
-            self._profiles_list.setCurrentRow(
-                min(max(previous, 0), self._profiles_list.count() - 1)
-            )
+            zeilen = [i for i in range(self._profiles_list.count())
+                      if self._profiles_list.item(i).data(Qt.UserRole) == previous]
+            self._profiles_list.setCurrentRow(zeilen[0] if zeilen else 0)
         self._refresh_detail()
 
     def _refresh_detail(self) -> None:
         profile = self._current_profile()
         self._loading = True
-        self._assigned_list.clear()
         if profile is None:
             self._detail_title.setText("")
             self._detail_title.setEnabled(False)
             self._profile_command_combo.setCurrentIndex(0)
             self._loading = False
             return
-        is_default = bool(profile.get("default"))
         self._detail_title.setEnabled(True)
         self._detail_title.setText(profile.get("name", "Profil"))
         from ..usersettings import profile_mode
@@ -1872,34 +2367,6 @@ class ProfilesPage(QWidget):
         from ..usersettings import profile_in_quickswitch
 
         self._quick_cb.setChecked(profile_in_quickswitch(profile))
-        if is_default:
-            # Fallback-Profil: gilt fuer ALLE nicht zugewiesenen Apps.
-            item = QListWidgetItem("„Alle“ — Fallback für nicht zugewiesene Apps")
-            item.setFlags(Qt.ItemIsEnabled)  # nicht auswaehlbar/entfernbar
-            self._assigned_list.addItem(item)
-        else:
-            from ..usersettings import parse_app_rule
-
-            stale = self._stale_apps()
-            for entry in profile.get("apps", []):
-                process, title_rule = parse_app_rule(entry)
-                label = process
-                if title_rule:
-                    label += f"   ·  Titel enthält „{title_rule}“"
-                days = stale.get(process.lower())
-                if days is not None:
-                    # Ein zugewiesener Prozess, der weder laeuft noch je diktiert
-                    # wurde, ist fast immer ein Tippfehler oder eine umbenannte App —
-                    # das faellt sonst NIE auf, weil das Profil einfach nie greift.
-                    label += (f"   ·  seit {days} Tagen nicht gesehen" if days
-                              else "   ·  noch nie gesehen")
-                item = QListWidgetItem(label)
-                item.setData(Qt.UserRole, entry)
-                self._assigned_list.addItem(item)
-        self._title_rule.setEnabled(False)
-        self._title_rule.setText("")
-        self._title_rule.setPlaceholderText("App oben auswählen …")
-        self._assigned_note.hide()
         self._loading = False
 
     # -- Interaktionen ---------------------------------------------------------------------
@@ -1985,132 +2452,23 @@ class ProfilesPage(QWidget):
             profile["intervention"] = self._intervention_combo.currentData()
             self._save()
 
-    def _assign_selected_app(self) -> None:
-        profile = self._current_profile()
-        item = self._apps_list.currentItem()
-        if profile is None or item is None or profile.get("default"):
-            return  # dem Standardprofil ("Alle") werden keine Apps zugewiesen
-        app = item.data(Qt.UserRole)
-        apps = profile.setdefault("apps", [])
-        if app and app.lower() not in [a.lower() for a in apps]:
-            apps.append(app)
-            self._save()
-        self._refresh_detail()
-
-    def _remove_assigned_app(self, item) -> None:
-        profile = self._current_profile()
-        if profile is None or profile.get("default") or item is None:
-            return
-        # Ueber Qt.UserRole, NICHT ueber den Anzeigetext: der traegt inzwischen
-        # Titel-Bedingung und „lange nicht gesehen"-Hinweis und wuerde nie mehr
-        # auf den gespeicherten Eintrag passen.
-        entry = item.data(Qt.UserRole)
-        if entry is None:
-            return
-        profile["apps"] = [a for a in profile.get("apps", [])
-                           if str(a).lower() != str(entry).lower()]
-        self._save()
-        self._refresh_detail()
-
-    def _stale_apps(self) -> dict:
-        """{prozess_klein: tage_seit_letztem_diktat} fuer Prozesse, die weder gerade
-        laufen noch in den letzten 30 Tagen als Diktat-Ziel auftauchten.
-
-        None-Wert gibt es nicht — 0 bedeutet „noch nie gesehen"."""
-        try:
-            from .windowsfocus import list_visible_window_processes
-
-            running = {a.lower() for a in list_visible_window_processes()}
-        except Exception:
-            running = set()
-        try:
-            seen = self.store.last_seen_apps()
-        except Exception:
-            seen = {}
-        import time as _time
-
-        now = _time.time()
-        stale = {}
-        for profile in self.settings.profiles.items or []:
-            if not isinstance(profile, dict) or profile.get("default"):
-                continue
-            for entry in profile.get("apps", []):
-                from ..usersettings import parse_app_rule
-
-                process = parse_app_rule(entry)[0].lower()
-                if not process or process in running or process in stale:
-                    continue
-                ts = seen.get(process)
-                if ts is None:
-                    stale[process] = 0
-                    continue
-                days = int((now - ts) // 86400)
-                if days >= _STALE_APP_DAYS:
-                    stale[process] = days
-        return stale
-
-    def _on_assigned_selected(self, current, _previous=None) -> None:
-        """Titel-Bedingung der ausgewaehlten App ins Eingabefeld holen."""
-        from ..usersettings import parse_app_rule
-
-        profile = self._current_profile()
-        if current is None or profile is None or profile.get("default"):
-            self._title_rule.setEnabled(False)
-            self._title_rule.setText("")
-            self._title_rule.setPlaceholderText("App oben auswählen …")
-            self._assigned_note.hide()
-            return
-        entry = current.data(Qt.UserRole)
-        process, title_rule = parse_app_rule(entry)
-        self._title_rule.setEnabled(True)
-        self._title_rule.setPlaceholderText(f"z. B. ein Projektname — leer = jedes {process}-Fenster")
-        was_loading = self._loading
-        self._loading = True
-        self._title_rule.setText(title_rule)
-        self._loading = was_loading
-        self._assigned_note.hide()
-
-    def _on_title_rule_changed(self) -> None:
-        """Titel-Bedingung schreiben. Kollidiert der neue Eintrag mit einem
-        bestehenden, wird nicht gespeichert — sonst faellt still einer weg."""
-        from ..usersettings import format_app_rule, parse_app_rule
-
-        if self._loading:
-            return
-        profile = self._current_profile()
-        item = self._assigned_list.currentItem()
-        if profile is None or item is None or profile.get("default"):
-            return
-        old = item.data(Qt.UserRole)
-        process, current_rule = parse_app_rule(old)
-        new_rule = self._title_rule.text().strip()
-        if new_rule == current_rule:
-            return
-        new_entry = format_app_rule(process, new_rule)
-        apps = profile.get("apps", [])
-        others = [a for a in apps if str(a) != str(old)]
-        if any(str(a).lower() == new_entry.lower() for a in others):
-            self._assigned_note.setText(
-                f"„{new_entry}“ ist in diesem Profil schon eingetragen — nicht "
-                f"übernommen."
-            )
-            self._assigned_note.show()
-            return
-        profile["apps"] = [new_entry if str(a) == str(old) else a for a in apps]
-        self._save()
-        self._refresh_detail()
-
-
     def _add_profile(self) -> None:
         items = self._items()
         items.append({"name": f"Profil {len(items)}", "intervention": "standard",
                       "tags": [], "apps": []})
         self._save()
+        # Suche leeren: Sonst legt man bei aktivem Filter ein Profil an, das die
+        # Suche nicht trifft — es waere sofort unsichtbar und wirkte wie ein
+        # fehlgeschlagener Klick.
+        if self._profil_suche.text():
+            self._loading = True
+            self._profil_suche.clear()
+            self._loading = False
         self._refresh_profiles()
         self._profiles_list.setCurrentRow(self._profiles_list.count() - 1)
 
     def _delete_profile(self) -> None:
-        row = self._profiles_list.currentRow()
+        row = self._current_index()
         items = self._items()
         if 0 <= row < len(items) and not items[row].get("default"):
             del items[row]   # das Standardprofil ist nicht loeschbar
@@ -2119,7 +2477,7 @@ class ProfilesPage(QWidget):
 
 
 class MainWindow(QMainWindow):
-    PAGE_KEYS = ("home", "insights", "profiles", "settings")
+    PAGE_KEYS = ("home", "insights", "profiles", "apps", "settings")
 
     def __init__(self, settings: UserSettings, store: HistoryStore,
                  settings_panel: QWidget, on_close_to_tray):
@@ -2222,6 +2580,8 @@ class MainWindow(QMainWindow):
         side.addWidget(nav_button("insights", "Insights", "chart"))
         side.addSpacing(2)
         side.addWidget(nav_button("profiles", "Profile", "profile"))
+        side.addSpacing(2)
+        side.addWidget(nav_button("apps", "Apps", "apps"))
         side.addStretch(1)
         # Einstellungen unten, mit Hairline-Trenner abgesetzt (Design-System).
         divider = QFrame()
@@ -2242,6 +2602,10 @@ class MainWindow(QMainWindow):
             settings, store,
             on_changed=getattr(settings_panel, "_on_changed", None),
         )
+        self.apps = AppsPage(
+            settings, store,
+            on_changed=getattr(settings_panel, "_on_changed", None),
+        )
         self.settings_panel = settings_panel
         # Karten per Rechtsklick ausblendbar — ersetzt elf Checkboxen.
         _notify = getattr(settings_panel, "_on_changed", None)
@@ -2250,6 +2614,7 @@ class MainWindow(QMainWindow):
         self._stack.addWidget(self.home)
         self._stack.addWidget(self.insights)
         self._stack.addWidget(self.profiles)
+        self._stack.addWidget(self.apps)
         self._stack.addWidget(settings_panel)
         # Content-Panel: eigener dunkler Hintergrund mit abgerundeter oberer Ecke
         # (oben links, wo es an die Sidebar/den oberen Rand grenzt).
@@ -2306,6 +2671,8 @@ class MainWindow(QMainWindow):
             self.insights.refresh()
         elif key == "profiles":
             self.profiles.refresh()
+        elif key == "apps":
+            self.apps.refresh()
 
     def open_page(self, key: str) -> None:
         """Fenster anzeigen + Seite waehlen (Tray-Aktionen)."""

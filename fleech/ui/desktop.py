@@ -26,7 +26,7 @@ from ..hotkey import HotkeyManager, HotkeySpec
 from ..pipeline_factory import build_pipeline
 from ..recording_control import RecordingController
 from ..stt import create_stt
-from ..usersettings import UserSettings
+from ..usersettings import APP_STANDARD, UserSettings
 from ..history import DictationRecord, HistoryStore
 from .main_window import MainWindow
 from .notifications import NotificationPolicy, Notifier
@@ -165,6 +165,8 @@ class DesktopApp:
         self.bus.dictionary_suggestion.connect(self._on_dictionary_suggestion)
         self.bus.update_ready.connect(self._on_update_ready)
         self.bus.profile_key.connect(self._on_profile_key)
+        self.bus.license_needed.connect(self.show_license_dialog)
+        self.bus.paused_changed.connect(self.overlay.set_paused)
         # Live-Vorschau (Opt-in): kleines separates Whisper-Modell + Streamer, beide
         # lazy — wer das Feature nie einschaltet, zahlt keinerlei Kosten.
         self._preview_model = None
@@ -543,7 +545,8 @@ class DesktopApp:
         # Fehlermeldung nach dem Sprechen.
         if not self._license_ok():
             self.controller.stop_if_active()
-            self.show_license_dialog()
+            # NICHT direkt aufrufen: diese Methode laeuft im pynput-Listener-Thread.
+            self.bus.license_needed.emit()
             return
         allowed, message = self.focus.may_record(math_mode=False)
         if not allowed:
@@ -691,14 +694,38 @@ class DesktopApp:
 
     # -- Profil-Umschaltung (Punkt in der Pille) --------------------------------------
 
+    def current_app(self) -> str:
+        """Prozessname der App, in die gerade diktiert wird bzw. wuerde.
+
+        Waehrend einer Aufnahme der beim Start festgehaltene Wert — sonst waere die
+        Auswahlliste eine andere als die, fuer die das Diktat gilt (der Fokus kann
+        zwischendurch wandern). Sonst der laufende Fokus-Poll.
+        """
+        if getattr(self, "recorder", None) is not None and self.recorder.recording:
+            gemerkt = getattr(self, "_record_app", "")
+            if gemerkt:
+                return gemerkt
+        try:
+            return self.notifier.context.foreground_process or ""
+        except Exception:
+            return ""
+
     def profile_names(self) -> list:
         """Profile fuer den Schnellwechsel (Punkt, Hotkey, Liste).
 
         Nicht alle Profile: Wer viele pflegt, schaltet im Alltag nur zwischen
-        zweien um — der Rest laesst sich auf der Profilseite ausblenden."""
-        from ..usersettings import quickswitch_profiles
+        zweien um — der Rest laesst sich auf der Profilseite global ausblenden,
+        und auf der Apps-Seite je Anwendung noch einmal enger fassen. In Claude
+        will man zwischen „KI-Prompt" und „Stichpunkte" wechseln, nicht durch
+        „E-Mail" und „Formeln" hindurchtippen.
+        """
+        from ..usersettings import quickswitch_for_app
 
-        return quickswitch_profiles(self.settings.profiles.items)
+        return quickswitch_for_app(
+            self.settings.profiles.items,
+            getattr(self.settings.profiles, "app_quick", {}) or {},
+            self.current_app(),
+        )
 
     def active_profile_name(self) -> str:
         """Profil, das fuer das naechste Diktat gilt — gewaehlt oder automatisch."""
@@ -711,7 +738,7 @@ class DesktopApp:
         return "Standard"
 
     def cycle_profile(self) -> None:
-        """Naechstes Profil waehlen; hinter dem letzten wieder „Automatisch".
+        """Naechstes Profil waehlen; hinter dem letzten wieder „App-Standard".
 
         Die Wahl bleibt bestehen, bis sie geaendert wird — auch ueber Diktate
         hinweg. Waehrend einer laufenden Aufnahme gilt sie fuer GENAU dieses
@@ -732,7 +759,7 @@ class DesktopApp:
         """Profil festlegen, merken und kurz anzeigen. "" = automatisch nach App."""
         self.settings.profiles.active = name
         self.settings.save()
-        anzeige = name or f"Automatisch ({self.active_profile_name()})"
+        anzeige = name or f"{APP_STANDARD} ({self.active_profile_name()})"
         log.info("Profil gewaehlt: %s", anzeige)
         try:
             self.overlay.show_profile(anzeige)
@@ -1266,9 +1293,23 @@ class DesktopApp:
             log.exception("IPC-Setup fehlgeschlagen — Zweitstart oeffnet kein Fenster.")
 
     def _on_ipc_wake(self) -> None:
+        """Zwei Befehle: "show" (Zweitstart) und "quit" (Update/Deployment).
+
+        „quit" gibt es, weil ein hartes Beenden von aussen (`taskkill /F`) mitten
+        in einem `settings.save()` landen kann. Seit dem atomaren Schreiben ist das
+        nicht mehr fatal — aber der ordentliche Weg ist trotzdem der bessere: Die
+        App speichert zu Ende, gibt Mutex und Hotkeys frei und geht dann.
+        """
         sock = self._ipc.nextPendingConnection()
+        befehl = b""
         if sock is not None:
+            if sock.waitForReadyRead(300):
+                befehl = bytes(sock.readAll()).strip()
             sock.close()
+        if befehl == b"quit":
+            log.info("Beenden per IPC angefordert (Update/Deployment).")
+            self._quit()
+            return
         log.info("Zweite Instanz angeklopft — oeffne Hauptfenster.")
         self.window.open_page("home")
 
@@ -1310,7 +1351,7 @@ class DesktopApp:
         else:
             self.recorder.pause()
             log.info("Aufnahme pausiert — es wird nichts aufgezeichnet.")
-        self.overlay.set_paused(self.recorder.paused)
+        self.bus.paused_changed.emit(self.recorder.paused)
         # Ueber den Notifier, nicht direkt am SoundPlayer vorbei: sonst piepst es
         # auch im Spiel oder bei „Nicht stoeren" (dieselbe Regel wie Start/Stopp).
         self.notifier.sound("stop" if self.recorder.paused else "start")

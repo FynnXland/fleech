@@ -13,6 +13,7 @@ from __future__ import annotations
 
 import json
 import logging
+import os
 from dataclasses import asdict, dataclass, field
 from pathlib import Path
 
@@ -22,6 +23,38 @@ log = logging.getLogger(__name__)
 
 SETTINGS_DIR = user_data_dir()
 SETTINGS_PATH = SETTINGS_DIR / "settings.json"
+
+
+# Beschriftung fuer „kein Profil von Hand gewaehlt" — es gilt, was die Apps-Seite
+# fuer die gerade fokussierte Anwendung vorsieht. Hiess bis v4.9.2 „Automatisch
+# (nach App)"; das las sich wie eine Automatik, die selbst entscheidet, statt wie
+# der Standard, den man dort hinterlegt hat.
+APP_STANDARD = "App-Standard"
+
+
+def _backup_path(path: Path) -> Path:
+    """Die letzte gute Fassung — liegt neben der Datei, nicht in einem Unterordner:
+    Wer sie von Hand zurueckholen will, soll sie sehen, ohne zu suchen."""
+    return path.with_name(path.name + ".bak")
+
+
+def _lies_json(path: Path):
+    """JSON lesen. None = nicht da, leer oder unbrauchbar (kein Dict).
+
+    Die Leer-Pruefung ist der Kern: Eine auf 0 Byte gekuerzte Datei ist genau das,
+    was ein abgebrochener Schreibvorgang hinterlaesst, und `json.loads("")` wirft —
+    beides muss denselben Weg gehen, naemlich zur Sicherung.
+    """
+    try:
+        if not path.is_file():
+            return None
+        roh = path.read_text(encoding="utf-8").strip()
+        if not roh:
+            return None
+        data = json.loads(roh)
+        return data if isinstance(data, dict) else None
+    except Exception:
+        return None
 
 
 @dataclass
@@ -465,6 +498,30 @@ def quickswitch_profiles(items: list) -> list:
             and profile_in_quickswitch(i)]
 
 
+def quickswitch_for_app(items: list, app_quick: dict, app: str) -> list:
+    """Schnellwechsel-Profile fuer GENAU diese App, in Listenreihenfolge.
+
+    Ohne Eintrag fuer die App gilt die globale Auswahl — der Normalfall, und der
+    Grund, warum bestehende Einstellungen unveraendert weiterlaufen.
+
+    Namen, die es nicht mehr gibt (Profil umbenannt oder geloescht), werden still
+    uebergangen: Die Alternative waere ein Schnellwechsel, der auf ein totes Profil
+    zeigt und beim Tippen scheinbar nichts tut. Bleibt am Ende nichts uebrig,
+    faellt die Funktion auf die globale Auswahl zurueck — eine App ohne jedes
+    Profil koennte man sonst nur noch ueber das Hauptfenster verlassen.
+    """
+    alle = quickswitch_profiles(items)
+    schluessel = str(app or "").strip().lower()
+    if not schluessel or not isinstance(app_quick, dict):
+        return alle
+    erlaubt = app_quick.get(schluessel)
+    if not isinstance(erlaubt, list) or not erlaubt:
+        return alle
+    namen = {str(n).lower() for n in erlaubt}
+    gefiltert = [n for n in alle if n.lower() in namen]
+    return gefiltert or alle
+
+
 def profile_command_mode(item: dict) -> str:
     """Safe-Word-Schalter eines Profils: "" (wie Einstellungen) | "on" | "off"."""
     value = str(item.get("command", "") or "").lower()
@@ -514,7 +571,7 @@ def app_rule_matches(entry, process: str, title: str) -> bool:
 # gehoert in einer Mail anders formuliert als in einem KI-Chat.
 PROFILE_FORMATS = [
     ("", "Diktat (Standard)"),
-    ("summary", "Zusammenfassen"),
+    ("summary", "Stichpunkte"),
     ("email", "E-Mail"),
     ("prompt", "KI-Prompt"),
     ("math", "Formeln"),
@@ -545,6 +602,16 @@ class ProfilesSettings:
     # E-Mail-Profil arbeitet, will nach einem Neustart nicht stillschweigend wieder
     # normal diktieren — genau das faellt erst am fertigen Text auf.
     active: str = ""
+    # Schnellwechsel je App: {"claude.exe": ["KI-Prompt", "Zusammenfassen"]}.
+    # Fehlt eine App (Normalfall), gelten die global freigegebenen Profile — alte
+    # settings.json laufen dadurch unveraendert weiter, keine Migration.
+    #
+    # Zweck: Beim Durchtippen des Profil-Hotkeys will man in Claude nicht durch
+    # „E-Mail" und „Formeln" hindurch, sondern zwischen den zwei Profilen wechseln,
+    # die dort ueberhaupt Sinn ergeben. Der Prozessname ist der Schluessel (klein
+    # geschrieben) — Titel-Bedingungen bleiben der App-Zuordnung vorbehalten, hier
+    # waeren sie eine Genauigkeit, die niemand pflegen will.
+    app_quick: dict = field(default_factory=dict)
 
 
 @dataclass
@@ -578,12 +645,44 @@ class UserSettings:
     # -- Persistenz ---------------------------------------------------------------
 
     def save(self, path: Path | None = None) -> None:
+        """Atomar speichern, mit Sicherung der letzten guten Fassung.
+
+        Frueher: `path.write_text(...)`. Das kuerzt die Datei auf 0 und schreibt neu
+        — wird der Prozess in genau diesem Moment beendet (hartes Kill beim Update,
+        Absturz, Stromausfall), bleibt eine leere oder halbe Datei zurueck. Beim
+        naechsten Start hiess das: alles auf Vorgaben, Lizenzschluessel weg. Genau
+        das ist mehrfach passiert, weil `settings.save()` an ueber einem Dutzend
+        Stellen laeuft (Fensterposition, Profilwechsel, Hotkeys …) — die Chance,
+        ausgerechnet dabei getroffen zu werden, ist ueber den Tag nicht klein.
+
+        Jetzt: erst vollstaendig in eine Nebendatei schreiben, auf die Platte
+        zwingen (`fsync` — ohne das steht der Inhalt nur im Cache und ein
+        Stromausfall liefert eine Datei voller Nullen), dann `os.replace`. Das ist
+        auf NTFS wie auf ext4 atomar: Es gibt nur die alte ODER die neue Fassung,
+        nie etwas dazwischen.
+        """
         path = path or SETTINGS_PATH
         try:
+            inhalt = json.dumps(asdict(self), indent=2, ensure_ascii=False)
+        except Exception:
+            log.exception("Einstellungen liessen sich nicht serialisieren — nichts geschrieben.")
+            return
+        try:
             path.parent.mkdir(parents=True, exist_ok=True)
-            path.write_text(
-                json.dumps(asdict(self), indent=2, ensure_ascii=False), encoding="utf-8"
-            )
+            # Sicherung der bisherigen Fassung, BEVOR sie ersetzt wird. Sie ist die
+            # Rettung fuer den Fall, dass die neue Datei kaputt geht — und der
+            # Grund, warum ein Reset nicht mehr endgueltig ist.
+            if path.is_file() and path.stat().st_size > 0:
+                try:
+                    _backup_path(path).write_bytes(path.read_bytes())
+                except Exception:
+                    log.debug("Sicherung der Einstellungen fehlgeschlagen.", exc_info=True)
+            tmp = path.with_name(path.name + ".tmp")
+            with open(tmp, "w", encoding="utf-8") as f:
+                f.write(inhalt)
+                f.flush()
+                os.fsync(f.fileno())
+            os.replace(tmp, path)
         except Exception:
             log.exception("Einstellungen konnten nicht gespeichert werden: %s", path)
 
@@ -591,12 +690,26 @@ class UserSettings:
     def load(cls, path: Path | None = None) -> "UserSettings":
         path = path or SETTINGS_PATH
         settings = cls()
-        if not path.is_file():
-            return settings
-        try:
-            data = json.loads(path.read_text(encoding="utf-8"))
-        except Exception:
-            log.exception("settings.json unlesbar — nutze Defaults.")
+        data = _lies_json(path)
+        if data is None and path.is_file():
+            # Kaputte Datei NICHT stillschweigend durch Vorgaben ersetzen: Der
+            # naechste `save()` wuerde die Vorgaben zementieren und alles waere
+            # endgueltig weg. Stattdessen die Sicherung ziehen und die kaputte
+            # Fassung zur Ansicht aufheben.
+            sicherung = _lies_json(_backup_path(path))
+            if sicherung is not None:
+                log.warning("settings.json war unbrauchbar — Sicherung von %s "
+                            "wiederhergestellt.", _backup_path(path).name)
+                data = sicherung
+            else:
+                try:
+                    path.replace(path.with_name(path.name + ".kaputt"))
+                    log.error("settings.json unbrauchbar und keine Sicherung da — "
+                              "als settings.json.kaputt beiseitegelegt, starte mit "
+                              "Vorgaben.")
+                except Exception:
+                    log.debug("Kaputte settings.json nicht verschiebbar.", exc_info=True)
+        if data is None:
             return settings
         for section_name, section_data in (data or {}).items():
             section = getattr(settings, section_name, None)

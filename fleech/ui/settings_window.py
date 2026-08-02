@@ -456,16 +456,20 @@ class SettingsPanel(QWidget):
         from ..hotkey import HotkeySpec
         from .hotkey_recorder import HotkeyField
 
-        roh = getattr(self.settings.recording, settings_attr) or default
+        # Der GESPEICHERTE Wert ist die Wahrheit — auch wenn er leer ist. Frueher
+        # stand hier `… or default`: Eine bewusst geloeschte Bindung zeigte nach
+        # jedem Neustart wieder ihre alte Vorbelegung an, und beim naechsten
+        # Speichern waere sie echt zurueckgekehrt. Genau so wurde es gemeldet
+        # („bei jedem Update resettet er die Hotkeys"). Der Parameter `default`
+        # dient nur noch als Rueckfall fuer einen UNLESBAREN Wert.
+        roh = getattr(self.settings.recording, settings_attr)
         if not roh:
-            # Bindung bewusst leer (geloescht oder ohne Vorbelegung, wie beim
-            # Profil-Wechsel). Frueher lief das in einen ValueError, weil beide
-            # Zweige `parse("")` versuchten.
             spec = None
         else:
             try:
                 spec = HotkeySpec.parse(roh)
             except ValueError:
+                log.warning("Ungueltige Bindung %s=%r — nutze Vorgabe.", settings_attr, roh)
                 spec = HotkeySpec.parse(default) if default else None
 
         def others():
