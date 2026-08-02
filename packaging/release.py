@@ -65,10 +65,43 @@ def pruefe_werkzeuge(dry_run: bool) -> list:
     return fehlt
 
 
+def changelog_abschnitt(version: str = APP_VERSION) -> str:
+    """Den Abschnitt dieser Version aus CHANGELOG.md holen (ohne Ueberschrift).
+
+    Damit steht im GitHub-Release das, was der Empfaenger wissen will, statt nur
+    Dateigroesse und Pruefsumme. Der Changelog ist die eine Quelle — eine zweite
+    Liste in den Release-Notizen zu pflegen hiesse, dass sie irgendwann abweicht.
+
+    Leer, wenn es keinen Eintrag gibt: Ein Release ohne Notizen ist unschoen, aber
+    besser als eines, das den Text der Vorversion behauptet.
+    """
+    datei = ROOT / "CHANGELOG.md"
+    if not datei.is_file():
+        return ""
+    zeilen = datei.read_text(encoding="utf-8").splitlines()
+    start = None
+    for i, zeile in enumerate(zeilen):
+        if zeile.startswith("## ") and zeile[3:].strip().startswith(version):
+            start = i + 1
+            break
+    if start is None:
+        return ""
+    ende = start
+    while ende < len(zeilen) and not zeilen[ende].startswith("## "):
+        ende += 1
+    # Der Trenner „---" gehoert zum Seitenaufbau, nicht zum Abschnitt.
+    text = "\n".join(zeilen[start:ende]).strip()
+    return text.removesuffix("---").strip()
+
+
 def notizen(hash_hex: str, datei: Path) -> str:
     mb = datei.stat().st_size / (1024 * 1024)
+    was_neu = changelog_abschnitt()
+    kopf = f"Fleech {APP_VERSION}\n\n"
+    if was_neu:
+        kopf += f"{was_neu}\n\n---\n\n"
     return (
-        f"Fleech {APP_VERSION}\n\n"
+        f"{kopf}"
         f"Installation: `{datei.name}` herunterladen und ausführen (per-user, kein "
         f"Administrator nötig). Ein laufendes Fleech bitte vorher beenden.\n\n"
         f"Größe: {mb:.0f} MB\n"

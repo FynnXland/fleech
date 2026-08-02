@@ -94,6 +94,15 @@ dauert zusätzlich rund zehn Minuten — oft länger als die Änderung selbst. D
 Faustregel für die Nummer: Fehlerbehebung oder Feinschliff → dritte Stelle. Neue
 Funktion, geänderte Bedienung oder etwas, das der Empfänger merken soll → zweite.
 
+**`CHANGELOG.md` gehört zu jeder Versionsänderung** — dieselbe Zeile Arbeit wie
+`version.py`, nicht ein Extra-Schritt am Ende. Geschrieben für den, der Fleech
+*benutzt*: was sich für ihn ändert, nicht welche Funktion umgebaut wurde (das
+steht in der Commit-Nachricht). Patch-Versionen bekommen den Zusatz „nicht
+einzeln veröffentlicht". `packaging/release.py` zieht den Abschnitt der aktuellen
+Version automatisch in die GitHub-Release-Notizen — fehlt er, geht das Release
+ohne Erklärung raus. `tests/test_changelog.py` schlägt Alarm, wenn die Version in
+`version.py` keinen Eintrag hat.
+
 **Linux** (Projekt liegt auf NTFS → venv liegt AUSSERHALB: `~/.venvs/fleech`;
 Neuaufsetzen: `bash packaging/setup-linux.sh` — installiert u. a. pynput bewusst
 mit `--no-deps`, weil evdev ohne python3-dev nicht baut und X11 es nicht braucht):
