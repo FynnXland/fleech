@@ -7,7 +7,7 @@
 
 from __future__ import annotations
 
-APP_VERSION = "4.10.2"  # 4.10.2: Profil folgt der App sofort, nicht erst nach 3 s
+APP_VERSION = "5.0.0"  # 5.0.0: erste Fassung zur Weitergabe
 
 
 def _read_build() -> str:

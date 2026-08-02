@@ -102,6 +102,11 @@ Zwei Dinge:
 Beides darf in dieselbe Mail — der Link ist ohnehin öffentlich, geheim ist nur der
 Schlüssel.
 
+Dazu die Anleitung [FUER-EMPFAENGER.md](FUER-EMPFAENGER.md): Installation,
+Freischalten, erste Schritte, die häufigsten Stolpersteine. Sie ist so
+geschrieben, dass man sie unverändert weiterleiten kann — ohne Wissen über
+Repositories, Signaturen oder den Build.
+
 ---
 
 ## Was beim Empfänger passiert

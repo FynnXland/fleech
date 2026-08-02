@@ -37,12 +37,65 @@ from fleech.platformpaths import user_data_dir                       # noqa: E40
 KEY_PATH = user_data_dir() / "signing" / "fleech-signing-key.pem"
 
 
-def _laden():
+def _sieht_gesund_aus(roh: bytes) -> bool:
+    """Traegt die Datei ueberhaupt ein vollstaendiges PEM?
+
+    Diese Unterscheidung ist der ganze Zweck: „Die Datei ist zerstoert" und „sie
+    liess sich gerade nicht laden" fuehlen sich beim Lesen gleich an, sind aber
+    das Gegenteil voneinander. Die eine bedeutet, dass alle je ausgestellten
+    Schluessel neu gemacht werden muessen — die andere, dass man es nochmal
+    versuchen soll.
+    """
+    text = roh.decode("ascii", "replace")
+    return ("BEGIN PRIVATE KEY" in text and "END PRIVATE KEY" in text
+            and len(text.strip().splitlines()) >= 3)
+
+
+def _laden(versuche: int = 3):
+    """Privaten Schluessel laden. None = keine Datei da.
+
+    Mit Wiederholung: Ein Ladefehler bei nachweislich gesunder Datei kommt von
+    aussen (die OpenSSL-Bibliothek von `cryptography` war kurz nicht verfuegbar —
+    real aufgetreten, waehrend PyInstaller im Nebenlauf genau diese Bibliothek
+    ins Paket schrieb). Ein zweiter Versuch kostet Millisekunden; die Alternative
+    ist ein Traceback, der aussieht wie „dein Signaturschluessel ist zerstoert".
+    """
+    import time
+
     from cryptography.hazmat.primitives import serialization
 
     if not KEY_PATH.is_file():
         return None
-    return serialization.load_pem_private_key(KEY_PATH.read_bytes(), password=None)
+    roh = KEY_PATH.read_bytes()
+    letzter = None
+    for versuch in range(versuche):
+        try:
+            return serialization.load_pem_private_key(roh, password=None)
+        except Exception as exc:
+            letzter = exc
+            if versuch + 1 < versuche:
+                time.sleep(0.4)
+
+    print()
+    print("  Der Signaturschluessel liess sich nicht laden.")
+    print(f"    {KEY_PATH}")
+    print(f"    ({type(letzter).__name__}: {letzter})")
+    print()
+    if _sieht_gesund_aus(roh):
+        # Der wichtigste Satz dieses Programms.
+        print("  DIE DATEI SELBST IST IN ORDNUNG — sie enthaelt ein vollstaendiges")
+        print("  PEM. Es ist also NICHTS verloren, und es muessen KEINE Schluessel")
+        print("  neu ausgestellt werden.")
+        print()
+        print("  Das passiert, wenn die Krypto-Bibliothek gerade nicht verfuegbar")
+        print("  ist — etwa waehrend ein Build laeuft, der sie mitpackt. Warte, bis")
+        print("  der Build durch ist, und starte diese Datei einfach nochmal.")
+    else:
+        print("  Die Datei traegt KEIN vollstaendiges PEM (kein BEGIN/END).")
+        print("  Falls es eine Sicherung gibt, spiel sie zurueck. Sonst hilft nur")
+        print("  ein neues Paar (--init), PUBLIC_KEY_HEX in fleech/licensing.py")
+        print("  ersetzen, neu ausliefern — und ALLE Schluessel neu ausgeben.")
+    raise SystemExit(1)
 
 
 def _erzeugen():

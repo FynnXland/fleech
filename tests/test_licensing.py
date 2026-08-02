@@ -209,3 +209,100 @@ def test_dialog_meldet_fehlenden_signaturschluessel(_issue_key, monkeypatch, cap
     assert code == 1
     assert "Kein privater Signaturschluessel" in aus
     assert "FLEECH-1." not in aus
+
+
+# -- Ladefehler richtig einordnen ------------------------------------------------------
+
+
+def test_gesunde_datei_wird_als_gesund_erkannt(_issue_key):
+    """Real passiert: Das Laden scheiterte bei voellig intakter Datei (die
+    Krypto-Bibliothek wurde im Nebenlauf gerade von PyInstaller eingepackt). Der
+    rohe Traceback las sich wie „dein Signaturschluessel ist zerstoert" — die
+    teuerste Fehldiagnose, die dieses Programm anbieten kann."""
+    issue_key, _oeff = _issue_key
+
+    # WEGWERF-Schluessel, eigens fuer diesen Test erzeugt und nirgends sonst
+    # verwendet. Hier NIE echtes Schluesselmaterial einsetzen: Ein Test wird
+    # committet, und damit stuende das Geheimnis dauerhaft in der Historie —
+    # genau das ist beim Schreiben dieses Tests einmal passiert.
+    echt = (b"-----BEGIN PRIVATE KEY-----\n"
+            b"MC4CAQAwBQYDK2VwBCIEIIzirvgOnS8y0+AKi1o+Ag+OrGfqw/0EIGboInluATyx\n"
+            b"-----END PRIVATE KEY-----\n")
+    assert issue_key._sieht_gesund_aus(echt)
+    assert issue_key._sieht_gesund_aus(echt.replace(b"\n", b"\r\n"))   # Windows
+
+
+@pytest.mark.parametrize("kaputt", [
+    b"",
+    b"   \n",
+    b"-----BEGIN PRIVATE KEY-----\n",                    # abgeschnitten
+    b"MC4CAQAwBQYDK2VwBCIEIMqS6VDErxtC7GWCnyBF83IQ\n",   # nur der Rumpf
+    b"\x00\x00\x00\x00",
+])
+def test_kaputte_datei_wird_als_kaputt_erkannt(_issue_key, kaputt):
+    issue_key, _oeff = _issue_key
+    assert not issue_key._sieht_gesund_aus(kaputt)
+
+
+def test_laden_wiederholt_bevor_es_aufgibt(monkeypatch, tmp_path, capsys):
+    """Ein voruebergehender Fehler darf nicht sofort zum Abbruch fuehren."""
+    import sys
+    from pathlib import Path
+
+    sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "packaging"))
+    import issue_key
+
+    datei = tmp_path / "key.pem"
+    datei.write_bytes(b"-----BEGIN PRIVATE KEY-----\nMC4=\n-----END PRIVATE KEY-----\n")
+    monkeypatch.setattr(issue_key, "KEY_PATH", datei)
+    monkeypatch.setattr("time.sleep", lambda _s: None)
+
+    versuche = []
+
+    def flaky(roh, password=None):
+        versuche.append(1)
+        if len(versuche) < 3:
+            raise ValueError("MalformedFraming")
+        return "geladen"
+
+    monkeypatch.setattr(
+        "cryptography.hazmat.primitives.serialization.load_pem_private_key", flaky)
+    assert issue_key._laden() == "geladen"
+    assert len(versuche) == 3
+
+
+def test_dauerfehler_meldet_dass_nichts_verloren_ist(monkeypatch, tmp_path, capsys):
+    """Bleibt es beim Fehler, MUSS dastehen, dass die Datei in Ordnung ist —
+    sonst stellt jemand in Panik ein neues Schluesselpaar aus und entwertet damit
+    alle bereits verschickten Lizenzen."""
+    import sys
+    from pathlib import Path
+
+    sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "packaging"))
+    import issue_key
+
+    datei = tmp_path / "key.pem"
+    datei.write_bytes(b"-----BEGIN PRIVATE KEY-----\nMC4=\n-----END PRIVATE KEY-----\n")
+    monkeypatch.setattr(issue_key, "KEY_PATH", datei)
+    monkeypatch.setattr("time.sleep", lambda _s: None)
+    monkeypatch.setattr(
+        "cryptography.hazmat.primitives.serialization.load_pem_private_key",
+        lambda *a, **k: (_ for _ in ()).throw(ValueError("MalformedFraming")))
+
+    with pytest.raises(SystemExit):
+        issue_key._laden()
+    aus = capsys.readouterr().out
+    assert "NICHTS verloren" in aus
+    assert "nochmal" in aus
+    assert "--init" not in aus          # NICHT zum Neuausstellen raten
+
+
+def test_fehlende_datei_bleibt_ein_stiller_none(monkeypatch, tmp_path):
+    import sys
+    from pathlib import Path
+
+    sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "packaging"))
+    import issue_key
+
+    monkeypatch.setattr(issue_key, "KEY_PATH", tmp_path / "gibtsnicht.pem")
+    assert issue_key._laden() is None

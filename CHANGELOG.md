@@ -11,6 +11,29 @@ GitHub-Release-Notizen (`packaging/release.py`).
 
 ---
 
+## 5.0.0 — 2026-08-02
+
+**Die erste Fassung, die für jemand anderen gebaut ist.** Technisch bricht nichts
+— die große Zahl markiert die Schwelle: Bis hierher lief Fleech auf einem
+Rechner, ab hier wird es weitergegeben. Wer von 4.x kommt, findet vor allem die
+App-Zuordnung an einer neuen Stelle (eigene Seite „Apps" statt in den Profilen);
+bestehende Zuordnungen wandern unverändert mit.
+
+Enthalten sind die Kleinigkeiten aus 4.10.1 und 4.10.2 (siehe unten): die
+Profil-Anzeige unter der Pille, die sich schließende Auswahlliste und das Profil,
+das der App sofort folgt statt erst nach drei Sekunden.
+
+**Für den Empfänger** braucht es nur zwei Dinge: die Setup-Datei aus diesem
+Release und einen persönlichen Lizenzschlüssel. Beim ersten Start richtet Fleech
+sich selbst ein — Ollama, Sprachmodell, Spracherkennung, mit Fortschrittsanzeige
+statt Terminal. Danach läuft alles lokal: weder Audio noch Text verlassen den
+Rechner. Der ganze Ablauf steht in [docs/WEITERGABE.md](docs/WEITERGABE.md).
+
+**Behoben (Werkzeug):** Schlug das Laden des Signaturschlüssels fehl, erschien ein
+roher Fehlerbericht — der sich las, als sei der Schlüssel zerstört. Er wird jetzt
+mehrfach versucht, und die Meldung unterscheidet klar zwischen „die Datei ist in
+Ordnung, versuch es gleich nochmal" und einer wirklich beschädigten Datei.
+
 ## 4.10.2 — 2026-08-02 · nicht einzeln veröffentlicht
 
 **Das Profil folgt der App jetzt sofort.** Fleech fragte das Vordergrundfenster
