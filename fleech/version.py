@@ -7,7 +7,7 @@
 
 from __future__ import annotations
 
-APP_VERSION = "4.10.0"  # 4.10.0: Apps-Seite, Stichpunkte, Suche, Einstellungen sicher
+APP_VERSION = "4.10.1"  # 4.10.1: Profil-Blase wie die Transkription, Liste schliesst
 
 
 def _read_build() -> str:

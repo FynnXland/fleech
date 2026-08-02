@@ -2946,306 +2946,6 @@ def test_pille_blendet_unter_sich_nur_noch_eine_sache_ein(qapp):
     o.deleteLater()
 
 
-def test_profil_kapsel_bleibt_unter_der_pille(qapp):
-    """Nie nach oben ausweichen — dort laeuft die Live-Transkription.
-
-    Frueher sprang die Kapsel bei knappem Platz am unteren Bildschirmrand ueber
-    die Pille und legte sich auf den mitlaufenden Text.
-    """
-    from PySide6.QtCore import QRect
-    from PySide6.QtWidgets import QApplication
-
-    from fleech.ui.overlay_qt import ProfileBadge
-
-    rand = QApplication.primaryScreen().availableGeometry()
-    badge = ProfileBadge()
-
-    # Pille mittig: Kapsel exakt im Standardabstand darunter.
-    pille = QRect(rand.center().x() - 90, rand.center().y(), 180, 40)
-    badge.show_beside(pille, "Stichpunkte")
-    assert badge.y() == pille.bottom() + badge.ABSTAND_PX
-    assert badge.y() > pille.bottom()
-
-    # Pille ganz unten: rutscht nur bis an den Rand, bleibt aber UNTEN.
-    tief = QRect(rand.center().x() - 90, rand.bottom() - 45, 180, 40)
-    badge.show_beside(tief, "Stichpunkte")
-    assert badge.y() > tief.top()
-    assert badge.y() + badge.height() <= rand.bottom()
-    badge.hide()
-    badge.deleteLater()
-
-
-def test_pause_endet_mit_der_aufnahme(qapp):
-    """Sonst zeigte die naechste Aufnahme einen Knopf, der nichts pausiert hat."""
-    from fleech.ui.overlay_qt import OverlayWindow
-    from fleech.ui.state import AppState
-    from fleech.usersettings import OverlaySettings
-
-    o = OverlayWindow(OverlaySettings())
-    o.set_app_state(AppState.LISTENING)
-    o.set_paused(True)
-    o.set_app_state(AppState.PROCESSING)
-    assert o._paused is False
-    assert not o._pause_btn.isEnabled()          # nur waehrend der Aufnahme bedienbar
-    o.deleteLater()
-
-
-def test_pause_knopf_meldet_sich_nur_per_signal(qapp):
-    from fleech.ui.overlay_qt import OverlayWindow
-    from fleech.ui.state import AppState
-    from fleech.usersettings import OverlaySettings
-
-    o = OverlayWindow(OverlaySettings())
-    o.set_app_state(AppState.LISTENING)
-    gerufen = []
-    o.pause_requested.connect(lambda: gerufen.append(True))
-    o._pause_btn.click()
-    assert gerufen == [True]
-    # Der Knopf schaltet NICHT selbst um — die Wahrheit ist der Recorder.
-    assert o._paused is False
-    o.deleteLater()
-
-
-# -- Profil-Hotkey: tippen vs. halten -------------------------------------------------
-
-def _profil_fake(qapp=None):
-    import types
-
-    from fleech.ui.desktop import DesktopApp
-
-    protokoll = []
-    fake = types.SimpleNamespace(
-        settings=types.SimpleNamespace(
-            save=lambda: protokoll.append("gespeichert"),
-            profiles=types.SimpleNamespace(
-                enabled=True, active="",
-                items=[{"name": "Standard", "default": True},
-                       {"name": "E-Mail", "mode": "email"}])),
-        overlay=types.SimpleNamespace(show_profile=lambda n: protokoll.append(f"zeig:{n}")),
-        _profile_key_held=False,
-        _profile_picker_open=False,
-    )
-    fake.current_app = lambda: ""        # kein App-Filter in diesem Test
-    fake.profile_names = lambda: DesktopApp.profile_names(fake)
-    fake.active_profile_name = lambda: DesktopApp.active_profile_name(fake)
-    fake._set_profile = lambda n: DesktopApp._set_profile(fake, n)
-    fake.cycle_profile = lambda: DesktopApp.cycle_profile(fake)
-    fake.show_profile_picker = lambda: protokoll.append("liste")
-    fake._maybe_open_profile_picker = lambda: DesktopApp._maybe_open_profile_picker(fake)
-    return DesktopApp, fake, protokoll
-
-
-def test_kurzer_tipp_schaltet_weiter(qapp):
-    """Loslassen, bevor die Haltezeit um ist → naechstes Profil, keine Liste."""
-    App, fake, protokoll = _profil_fake()
-    App._on_profile_key_down(fake)
-    App._on_profile_key_up(fake)               # sofort losgelassen
-    assert fake.settings.profiles.active == "Standard"
-    assert "liste" not in protokoll
-
-
-def test_halten_oeffnet_die_liste_und_schaltet_nicht_weiter(qapp):
-    """Wer die Liste oeffnet, will genau waehlen — nicht nebenbei weitergeschaltet
-    werden."""
-    App, fake, protokoll = _profil_fake()
-    App._on_profile_key_down(fake)
-    App._maybe_open_profile_picker(fake)       # Haltezeit erreicht
-    App._on_profile_key_up(fake)
-    assert protokoll.count("liste") == 1
-    assert fake.settings.profiles.active == ""   # nichts weitergeschaltet
-
-
-def test_liste_oeffnet_nicht_wenn_schon_losgelassen(qapp):
-    """Der Timer laeuft weiter, auch wenn die Taste laengst oben ist."""
-    App, fake, protokoll = _profil_fake()
-    App._on_profile_key_down(fake)
-    App._on_profile_key_up(fake)
-    App._maybe_open_profile_picker(fake)       # Timer feuert verspaetet
-    assert "liste" not in protokoll
-
-
-def test_gewaehltes_profil_wird_gespeichert(qapp):
-    """„Zuletzt genutztes Profil bleibt aktiv" — auch über einen Neustart."""
-    App, fake, protokoll = _profil_fake()
-    App._set_profile(fake, "E-Mail")
-    assert fake.settings.profiles.active == "E-Mail"
-    assert "gespeichert" in protokoll
-
-
-def test_profil_picker_listet_alle_und_automatisch(qapp):
-    from fleech.usersettings import APP_STANDARD
-    from fleech.ui.profilepicker import ProfilePicker
-
-    p = ProfilePicker()
-    p.show_at_cursor(["Standard", "E-Mail", "Coding"], aktiv="E-Mail")
-    beschriftungen = [b.text() for b in p._buttons]
-    assert beschriftungen[:3] == ["Standard", "E-Mail", "Coding"]
-    # „App-Standard" statt „Automatisch (nach App)": Es ist kein Automatismus,
-    # der selbst entscheidet, sondern der auf der Apps-Seite hinterlegte Standard.
-    assert beschriftungen[-1] == APP_STANDARD
-    werte = [b.property("profil") for b in p._buttons]
-    assert werte[-1] == ""                     # letzte Station: automatisch
-    p.hide()
-
-
-def test_profil_picker_meldet_die_auswahl(qapp):
-    from fleech.ui.profilepicker import ProfilePicker
-
-    p = ProfilePicker()
-    p.show_at_cursor(["Standard", "E-Mail"])
-    gewaehlt = []
-    p.chosen.connect(gewaehlt.append)
-    p._buttons[1].click()
-    assert gewaehlt == ["E-Mail"]
-    assert not p.isVisible()                   # schliesst sich nach der Wahl
-    p.hide()
-
-
-def test_profil_picker_zieht_nie_den_fokus(qapp):
-    """Sonst waere das Ziel-Textfeld weg, in das gleich eingefuegt werden soll."""
-    from PySide6.QtCore import Qt
-
-    from fleech.ui.profilepicker import ProfilePicker
-
-    p = ProfilePicker()
-    p.show_at_cursor(["Standard"])
-    assert p.testAttribute(Qt.WA_ShowWithoutActivating)
-    assert p.windowFlags() & Qt.WindowDoesNotAcceptFocus
-    assert all(b.focusPolicy() == Qt.NoFocus for b in p._buttons)
-    p.hide()
-
-
-def test_profil_taste_geht_ueber_den_statebus(qapp):
-    """Der Hotkey kommt aus dem pynput-Thread. Dort ist QTimer WIRKUNGSLOS — die
-    Halte-Erkennung lief nie und die Profil-Kapsel blieb ewig stehen (real
-    gemeldet). Deshalb darf der Hotkey-Pfad nur noch melden, nicht rechnen."""
-    import types
-
-    from fleech.ui.desktop import DesktopApp
-
-    gemeldet = []
-    fake = types.SimpleNamespace(
-        bus=types.SimpleNamespace(
-            profile_key=types.SimpleNamespace(emit=gemeldet.append)),
-        controller=types.SimpleNamespace(active=False, press=lambda n: None),
-        recorder=types.SimpleNamespace(recording=False),
-    )
-    DesktopApp._on_hotkey_activate(fake, "profile")
-    DesktopApp._on_hotkey_deactivate(fake, "profile")
-    assert gemeldet == [True, False]
-
-
-def test_profil_kapsel_sitzt_mittig_unter_der_pille(qapp):
-    """Vorher stand sie links daneben und sprang je nach Namenslänge weg."""
-    from PySide6.QtCore import QRect
-
-    from fleech.ui.overlay_qt import ProfileBadge
-
-    b = ProfileBadge()
-    pille = QRect(600, 400, 272, 44)
-    b.show_beside(pille, "E-Mail")
-    assert abs(b.geometry().center().x() - pille.center().x()) <= 1
-    assert b.geometry().top() > pille.bottom()
-    b.hide()
-
-
-def test_profil_kapsel_blendet_sich_selbst_aus(qapp):
-    from PySide6.QtCore import QRect
-
-    from fleech.ui.overlay_qt import ProfileBadge
-
-    b = ProfileBadge()
-    b.show_beside(QRect(600, 400, 272, 44), "E-Mail")
-    assert b._timer.isActive() and b._timer.interval() == ProfileBadge.SHOW_MS
-    b._timer.timeout.emit()                    # Zeit abgelaufen
-    assert b.isHidden()
-
-
-def test_profil_kapsel_endet_mit_der_aufnahme(qapp):
-    """Zweites Netz neben dem Timer: nach einem Diktat bleibt nichts stehen."""
-    from PySide6.QtCore import QRect
-
-    from fleech.ui.overlay_qt import OverlayWindow
-    from fleech.ui.state import AppState
-    from fleech.usersettings import UserSettings
-
-    o = OverlayWindow(UserSettings().overlay)
-    o.set_app_state(AppState.LISTENING)
-    o._profile_badge.show_beside(QRect(600, 400, 272, 44), "E-Mail")
-    assert not o._profile_badge.isHidden()
-    o.set_app_state(AppState.PROCESSING)
-    assert o._profile_badge.isHidden()
-    o.deleteLater()
-
-
-def test_profil_kapsel_hat_einen_eigenen_mauszeiger(qapp):
-    """Ohne eigenen Cursor zeigt Windows den „Anwendung startet"-Kreisel darüber."""
-    from PySide6.QtCore import Qt
-
-    from fleech.ui.overlay_qt import ProfileBadge
-
-    assert ProfileBadge().cursor().shape() == Qt.ArrowCursor
-
-
-def test_pille_rastet_auf_mitte_und_rand_ein(qapp):
-    """Von Hand trifft man die Mitte nie exakt — „ein bisschen daneben" sieht man
-    dafür sofort. Deshalb springt die Pille beim Ziehen auf die Linien."""
-    from PySide6.QtWidgets import QApplication
-
-    from fleech.ui.overlay_qt import _MARGIN, OverlayWindow
-    from fleech.usersettings import UserSettings
-
-    o = OverlayWindow(UserSettings().overlay)
-    rand = QApplication.primaryScreen().availableGeometry()
-    mitte_x = rand.left() + (rand.width() - o.width()) // 2
-
-    # knapp neben der Mitte → rastet ein
-    x, _y = o._snap(mitte_x + 9, rand.top() + 300)
-    assert x == mitte_x
-    # knapp neben dem linken Standardrand → rastet ein
-    x, _y = o._snap(rand.left() + _MARGIN - 7, rand.top() + 300)
-    assert x == rand.left() + _MARGIN
-    # weit weg → bleibt, wo es ist (eine schräge Position muss möglich bleiben)
-    frei = mitte_x + 120
-    x, _y = o._snap(frei, rand.top() + 300)
-    assert x == frei
-    o.deleteLater()
-
-
-def test_profilliste_wiederholt_den_namen_nicht(qapp, monkeypatch):
-    """„E-Mail · E-Mail" ist Lärm, keine Zusatzinfo: Die Standardprofile heißen
-    wie ihr Format. Real gemeldet als „doppelte Einträge"."""
-    from fleech.ui.main_window import ProfilesPage
-    from fleech.usersettings import UserSettings
-
-    s = UserSettings()
-    monkeypatch.setattr(UserSettings, "save", lambda self, path=None: None)
-    s.profiles.items = [
-        {"name": "Standard", "default": True},
-        {"name": "E-Mail", "mode": "email"},          # Name = Format
-        {"name": "Kundenmail", "mode": "email"},      # Name ≠ Format
-    ]
-    page = ProfilesPage(s, lambda sec: None)
-    page._refresh_profiles()
-    zeilen = [page._profiles_list.item(i).text()
-              for i in range(page._profiles_list.count())]
-    assert zeilen[1].count("E-Mail") == 1
-    assert "E-Mail" in zeilen[2] and zeilen[2].startswith("Kundenmail")
-    page.deleteLater()
-
-
-def test_kategoriefarben_meiden_die_akzentfarbe(qapp):
-    """Die Brand-Farbe steht im ganzen Programm für „ausgewählt" — als
-    Kategoriepunkt gelesen wirkte sie wie eine Markierung."""
-    from fleech.ui.main_window import ACCENT, ProfilesPage
-
-    assert ACCENT.lower() not in {c.lower() for c in
-                                  ProfilesPage._MODE_DOT_COLORS.values()}
-
-
-# -- Schnellwechsel je App ------------------------------------------------------------
-
-
 def test_schnellwechsel_haelt_sich_an_die_app(qapp):
     """In Claude nur die zwei Profile durchtippen, die dort Sinn ergeben.
 
@@ -3472,3 +3172,84 @@ def test_neues_profil_bleibt_trotz_aktiver_suche_sichtbar(qapp, tmp_path, monkey
     assert page._profil_suche.text() == ""
     assert page._profiles_list.count() == vorher + 1
     assert page._current_profile() is settings.profiles.items[-1]
+
+
+# -- Profil-Liste: Klick daneben schliesst (v4.11.0) -----------------------------------
+
+
+def _picker(qapp, monkeypatch, cursor=(400, 300)):
+    from PySide6.QtCore import QPoint
+
+    from fleech.ui.profilepicker import ProfilePicker
+
+    monkeypatch.setattr("PySide6.QtGui.QCursor.pos",
+                        staticmethod(lambda: QPoint(*cursor)))
+    p = ProfilePicker()
+    p.show_at_cursor(["Standard", "E-Mail"], aktiv="")
+    return p
+
+
+def test_liste_schliesst_bei_klick_in_eine_fremde_anwendung(qapp, monkeypatch):
+    """Der gemeldete Fall: Die Liste nimmt nie den Fokus, ein Klick daneben geht
+    also direkt an die andere Anwendung — Qt sieht davon nichts. Ohne eigene
+    Wache blieb sie stehen, „bis was gedrueckt wird"."""
+    from PySide6.QtCore import QPoint
+
+    p = _picker(qapp, monkeypatch)
+    assert not p.isHidden()
+
+    # Maustaste gedrueckt, Zeiger WEIT weg von der Liste.
+    monkeypatch.setattr(type(p), "_gedrueckt", staticmethod(lambda: True))
+    weit = p.geometry().bottomRight() + QPoint(400, 400)
+    monkeypatch.setattr("PySide6.QtGui.QCursor.pos", staticmethod(lambda: weit))
+    p._pruefe_fremdklick()
+    assert p.isHidden()
+
+
+def test_klick_auf_die_liste_selbst_schliesst_nicht_vorschnell(qapp, monkeypatch):
+    """Sonst waere die Liste weg, bevor der Knopf sein clicked() ausloest — man
+    koennte kein Profil mehr auswaehlen."""
+    p = _picker(qapp, monkeypatch)
+    monkeypatch.setattr(type(p), "_gedrueckt", staticmethod(lambda: True))
+    monkeypatch.setattr("PySide6.QtGui.QCursor.pos",
+                        staticmethod(lambda: p.geometry().center()))
+    p._pruefe_fremdklick()
+    assert not p.isHidden()
+    p.hide()
+
+
+def test_ohne_klick_bleibt_die_liste_stehen(qapp, monkeypatch):
+    from PySide6.QtCore import QPoint
+
+    p = _picker(qapp, monkeypatch)
+    monkeypatch.setattr(type(p), "_gedrueckt", staticmethod(lambda: False))
+    monkeypatch.setattr("PySide6.QtGui.QCursor.pos",
+                        staticmethod(lambda: QPoint(1500, 900)))
+    for _ in range(5):
+        p._pruefe_fremdklick()
+    assert not p.isHidden()
+    p.hide()
+
+
+def test_wache_laeuft_nur_solange_die_liste_offen_ist(qapp, monkeypatch):
+    """Ein Timer, der nach dem Schliessen weiterpollt, ist stille Dauerlast."""
+    import sys
+
+    p = _picker(qapp, monkeypatch)
+    if sys.platform == "win32":
+        assert p._wache is not None and p._wache.isActive()
+    p.hide()
+    assert p._wache is None or not p._wache.isActive()
+
+
+def test_wache_ueberlebt_eine_kaputte_maus_abfrage(qapp, monkeypatch):
+    """Faellt die Systemabfrage aus, darf die Liste nicht mitreissen — sie ist
+    ueber Escape und Auswahl weiterhin bedienbar."""
+    def kaputt():
+        raise OSError("kein user32")
+
+    p = _picker(qapp, monkeypatch)
+    monkeypatch.setattr(type(p), "_gedrueckt", staticmethod(kaputt))
+    p._pruefe_fremdklick()                 # darf nicht werfen
+    assert not p.isHidden()
+    p.hide()

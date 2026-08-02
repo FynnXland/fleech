@@ -15,8 +15,9 @@ Aktivierung und schliesst bei Auswahl, Escape oder Klick daneben.
 from __future__ import annotations
 
 import logging
+import sys
 
-from PySide6.QtCore import QEvent, QPoint, QRectF, Qt, Signal
+from PySide6.QtCore import QEvent, QPoint, QRectF, Qt, QTimer, Signal
 from PySide6.QtGui import QCursor, QPainter
 from PySide6.QtWidgets import QApplication, QPushButton, QVBoxLayout, QWidget
 
@@ -46,6 +47,7 @@ class ProfilePicker(QWidget):
         self._layout.setContentsMargins(6, 6, 6, 6)
         self._layout.setSpacing(2)
         self._buttons: list[QPushButton] = []
+        self._wache = None      # QTimer — sieht Klicks in fremde Fenster
 
     # -- Aufbau -------------------------------------------------------------------
 
@@ -102,6 +104,7 @@ class ProfilePicker(QWidget):
         self.show()
         self.raise_()
         QApplication.instance().installEventFilter(self)
+        self._starte_fremdklick_wache()
 
     # -- Schliessen ---------------------------------------------------------------
 
@@ -109,10 +112,16 @@ class ProfilePicker(QWidget):
         app = QApplication.instance()
         if app is not None:
             app.removeEventFilter(self)
+        if self._wache is not None:
+            self._wache.stop()      # nicht weiterpollen, wenn nichts zu sehen ist
         super().hide()
 
     def eventFilter(self, obj, event) -> bool:
-        """Klick daneben oder Escape schliesst — ohne etwas zu waehlen."""
+        """Klick daneben oder Escape schliesst — ohne etwas zu waehlen.
+
+        Faengt nur, was FLEECH empfaengt. Der Normalfall ist ein Klick in eine
+        fremde Anwendung — dafuer siehe `_pruefe_fremdklick`.
+        """
         if not self.isVisible():
             return False
         if event.type() == QEvent.MouseButtonPress:
@@ -124,6 +133,61 @@ class ProfilePicker(QWidget):
         elif event.type() == QEvent.KeyPress and event.key() == Qt.Key_Escape:
             self.hide()
         return False
+
+    # -- Klick in eine FREMDE Anwendung --------------------------------------------
+    #
+    # Der eventFilter oben sieht davon nichts: Die Liste nimmt bewusst nie den
+    # Fokus (sonst waere das Textfeld weg, in das gleich eingefuegt werden soll),
+    # also gehen Klicks daneben direkt an die andere Anwendung und Qt erfaehrt es
+    # nie. Gemeldet als „bleibt die ganze Zeit dort, bis was gedrueckt wird".
+    #
+    # Bewusst KEIN Qt.Popup: Das wuerde zwar global schliessen, aber den Mausklick
+    # abfangen — man muesste zweimal klicken, und der erste Klick landete nicht
+    # dort, wo man hinwollte. Bewusst auch kein Maus-Hook: Ein kurzes Polling der
+    # Tastenzustaende reicht fuer ein Fenster, das Sekunden offen ist, und kommt
+    # ohne zusaetzlichen Thread aus.
+
+    _POLL_MS = 90          # unter der Wahrnehmungsschwelle, weit ueber dem Aufwand
+    _MAUSTASTEN = (0x01, 0x02, 0x04)   # links, rechts, mitte
+
+    def _starte_fremdklick_wache(self) -> None:
+        if sys.platform != "win32":
+            return          # X11: kein Aequivalent ohne zusaetzlichen Hook
+        if self._wache is None:
+            self._wache = QTimer(self)
+            self._wache.setInterval(self._POLL_MS)
+            self._wache.timeout.connect(self._pruefe_fremdklick)
+        # Beim Start einmal leer lesen: GetAsyncKeyState meldet mit dem
+        # Niederbit auch Druecke SEIT DEM LETZTEN AUFRUF. Ohne dieses Abholen
+        # wuerde die Liste am Klick sterben, der sie gerade geoeffnet hat.
+        self._gedrueckt()
+        self._wache.start()
+
+    @staticmethod
+    def _gedrueckt() -> bool:
+        import ctypes
+
+        user32 = ctypes.windll.user32
+        treffer = False
+        for taste in ProfilePicker._MAUSTASTEN:
+            if user32.GetAsyncKeyState(taste) & 0x0001:
+                treffer = True
+        return treffer
+
+    def _pruefe_fremdklick(self) -> None:
+        try:
+            if not self._gedrueckt():
+                return
+        except Exception:
+            log.debug("Maus-Abfrage fehlgeschlagen — Wache aus.", exc_info=True)
+            if self._wache is not None:
+                self._wache.stop()
+            return
+        # Auf der Liste selbst schliesst der Knopf-Klick ohnehin (mit Auswahl) —
+        # hier nur schliessen, wenn wirklich daneben geklickt wurde.
+        if not self.geometry().contains(QCursor.pos()):
+            log.debug("Profil-Liste geschlossen (Klick daneben).")
+            self.hide()
 
     def paintEvent(self, event) -> None:
         p = QPainter(self)

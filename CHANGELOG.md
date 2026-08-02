@@ -11,6 +11,19 @@ GitHub-Release-Notizen (`packaging/release.py`).
 
 ---
 
+## 4.10.1 — 2026-08-02 · nicht einzeln veröffentlicht
+
+Die Profil-Anzeige unter der Pille **überlappte sie**, wenn die Pille tief am
+unteren Bildschirmrand steht. Sie ist jetzt dieselbe Blase wie die
+Live-Transkription, nur unterhalb statt oberhalb — gleiches Aussehen, gleicher
+Abstand, keine eigene Positionsrechnung mehr, die abweichen kann.
+
+Die **Profil-Auswahlliste schließt jetzt bei einem Klick daneben**, auch wenn
+dieser in eine andere Anwendung geht. Vorher blieb sie stehen, bis man etwas
+auswählte oder Escape drückte: Die Liste nimmt bewusst nie den Fokus (sonst wäre
+das Textfeld weg, in das gleich eingefügt werden soll) — damit erfuhr Fleech von
+solchen Klicks gar nichts.
+
 ## 4.10.0 — 2026-08-02
 
 **Neue Seite „Apps"** — vierter Punkt in der Navigation. Links die Anwendungen,

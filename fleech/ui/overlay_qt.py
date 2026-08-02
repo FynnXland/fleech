@@ -405,84 +405,6 @@ def _round_button(kind: str, tooltip: str) -> QPushButton:
     return btn
 
 
-class ProfileBadge(QWidget):
-    """Kleine Kapsel NEBEN der Pille mit dem Namen des gewaehlten Profils.
-
-    Bewusst nur beim Umschalten sichtbar und danach wieder weg: Das Profil ist
-    eine Entscheidung, die man trifft und dann vergisst — eine Dauereinblendung
-    waere ein weiteres Element, das immer im Bild steht. Reine Anzeige,
-    klick-transparent, nimmt nie den Fokus.
-    """
-
-    SHOW_MS = 1800
-
-    def __init__(self):
-        super().__init__(
-            None,
-            Qt.FramelessWindowHint | Qt.Tool | Qt.WindowStaysOnTopHint
-            | Qt.WindowDoesNotAcceptFocus,
-        )
-        self.setAttribute(Qt.WA_ShowWithoutActivating)
-        self.setAttribute(Qt.WA_TranslucentBackground)
-        self.setAttribute(Qt.WA_TransparentForMouseEvents, True)
-        # Ohne eigenen Cursor zeigt Windows ueber diesem Fenster den „Anwendung
-        # startet"-Zeiger (Pfeil mit Kreisel) — sichtbar gemeldet. Der Zeiger haengt
-        # an der Fensterklasse, nicht an der Klickbarkeit.
-        self.setCursor(Qt.ArrowCursor)
-        self._label = QLabel(self)
-        self._label.setAlignment(Qt.AlignCenter)
-        self._label.setStyleSheet("color: #E8E8EC; font-size: 9.5pt; font-weight: 600;")
-        layout = QHBoxLayout(self)
-        layout.setContentsMargins(12, 7, 12, 7)
-        layout.addWidget(self._label)
-        self._timer = QTimer(self)
-        self._timer.setSingleShot(True)
-        self._timer.timeout.connect(self.hide)
-
-    def paintEvent(self, event) -> None:
-        p = QPainter(self)
-        p.setRenderHint(QPainter.Antialiasing)
-        p.setPen(Qt.NoPen)
-        p.setBrush(_BG)
-        r = self.rect()
-        p.drawRoundedRect(QRectF(r), r.height() / 2.0, r.height() / 2.0)
-
-    # Derselbe Abstand, den auch die Hover-Blasen unter der Pille halten
-    # (TranscriptCaption.show_above mit force_below) — die Kapsel sitzt damit
-    # genau auf deren Platz und nicht irgendwo dazwischen.
-    ABSTAND_PX = 10
-
-    def show_beside(self, pill: QRect, text: str) -> None:
-        """Mittig UNTER der Pille einblenden — immer, ohne Ausweichen nach oben.
-
-        Erst stand die Kapsel links daneben (dort sitzt ja der Punkt, der sie
-        ausloest) — im Betrieb war das aber unruhig: die Pille steht meist am
-        rechten Bildschirmrand, die Kapsel sprang je nach Namenslaenge weit nach
-        links weg. Unter der Pille und auf sie zentriert bleibt sie an einem festen,
-        vorhersagbaren Platz.
-
-        UNTEN ist Absicht und nicht verhandelbar: oberhalb der Pille laeuft die
-        Live-Transkription. Ein Ausweichen nach oben (frueher bei knappem Platz am
-        unteren Bildschirmrand) legte die Kapsel genau auf den mitlaufenden Text —
-        gemeldet als „ueberdeckt die Transkription". Bei wenig Platz rutscht sie
-        deshalb nur bis an den Bildschirmrand heran, aber nie auf die andere Seite.
-        """
-        self._label.setText(text)
-        self.adjustSize()
-        breite, hoehe = self.width(), self.height()
-        x = pill.center().x() - breite // 2
-        y = pill.bottom() + self.ABSTAND_PX
-        screen = QApplication.screenAt(pill.center()) or QApplication.primaryScreen()
-        if screen is not None:
-            rand = screen.availableGeometry()
-            x = max(rand.left() + 6, min(x, rand.right() - breite - 6))
-            y = min(y, rand.bottom() - hoehe - 6)
-        self.move(x, y)
-        self.show()
-        self.raise_()
-        self._timer.start(self.SHOW_MS)
-
-
 class TranscriptCaption(QWidget):
     """Dunkle Sprechblase ueber der Pille — zeigt kurz den erkannten Text bzw. im
     Bearbeiten-Modus einen Ziehen-Hinweis. Reine Anzeige (klick-transparent), klaut
@@ -575,6 +497,11 @@ class OverlayWindow(QWidget):
     profile_cycle_requested = Signal()  # Punkt geklickt — naechstes Profil
     pause_requested = Signal()    # ⏸ — Aufnahme anhalten/fortsetzen
 
+    # Wie lange der Profilname unter der Pille stehen bleibt. Kuerzer als die
+    # Transkript-Blase (4,2 s): Das Profil ist eine Bestaetigung dessen, was man
+    # gerade selbst getan hat — man liest es im Vorbeigehen, nicht zu Ende.
+    PROFIL_MS = 1800
+
     def __init__(self, settings: OverlaySettings, on_geometry_changed=None,
                  level_provider=lambda: 0.0):
         super().__init__(
@@ -593,7 +520,12 @@ class OverlayWindow(QWidget):
         # Live-Transkription, nur unterhalb der Pille (statt QToolTip, dessen Breite bei
         # umbrechendem Text nicht exakt zentrierbar ist).
         self._tip_caption = TranscriptCaption()
-        self._profile_badge = ProfileBadge()
+        # Profil-Anzeige: dieselbe Blase wie die Live-Transkription, nur
+        # unterhalb statt oberhalb. Vorher war das eine eigene Klasse mit eigener
+        # Positionsrechnung — deren Rand-Korrektur schob die Kapsel bei tief
+        # stehender Pille AUF die Pille (gemeldet). Eine Komponente, ein Abstand,
+        # ein Aussehen; die Seite ist der einzige Unterschied.
+        self._profile_caption = TranscriptCaption()
         self._caption_is_live = False  # zeigt die Blase gerade die Live-Vorschau?
         self._caption_is_status = False  # … oder einen Fortschritts-Hinweis?
         self._command_armed = False    # Signalwort in der Live-Vorschau erkannt
@@ -1185,7 +1117,7 @@ class OverlayWindow(QWidget):
             self.set_command_armed(False)  # Befehls-Optik endet mit der Aufnahme
             # Profil-Kapsel gehoert zur Auswahl, nicht zum Ergebnis: spaetestens
             # mit dem Zustandswechsel ist sie weg (zweites Netz neben dem Timer).
-            self._profile_badge.hide()
+            self._profile_caption.hide()
             # Pause endet IMMER mit der Aufnahme. Bliebe die Optik stehen, zeigte
             # die naechste Aufnahme einen Pausenknopf, der nichts pausiert hat.
             self.set_paused(False)
@@ -1236,7 +1168,10 @@ class OverlayWindow(QWidget):
         """Profilnamen kurz neben der Pille zeigen (nach dem Umschalten)."""
         if not name:
             return
-        self._profile_badge.show_beside(self.frameGeometry(), name)
+        self._profile_caption.show_above(
+            self.frameGeometry(), name,
+            force_below=True, duration_ms=self.PROFIL_MS,
+        )
 
     def set_paused(self, paused: bool) -> None:
         """Pausenzustand anzeigen: Knopf-Glyphe, ruhende Waveform, matte Pille.
