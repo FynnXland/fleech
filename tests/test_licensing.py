@@ -122,3 +122,90 @@ def test_state_unlimited_nur_bei_gueltig():
     assert not LicenseState(False).unlimited
     assert LicenseState(True).unlimited
     assert not LicenseState(True, expires="2030-01-01").unlimited
+
+
+# -- Dialog-Modus (die Datei „Schluessel erstellen.bat" ruft genau diesen Weg) ------
+
+
+@pytest.fixture
+def _issue_key(monkeypatch, paar):
+    """`issue_key` importierbar machen und auf ein Test-Schluesselpaar umbiegen."""
+    import sys
+    from pathlib import Path
+
+    privat, oeffentlich = paar
+    wurzel = Path(__file__).resolve().parent.parent
+    sys.path.insert(0, str(wurzel / "packaging"))
+    import issue_key
+
+    monkeypatch.setattr(issue_key, "_laden", lambda: privat)
+    monkeypatch.setattr(issue_key, "PUBLIC_KEY_HEX", oeffentlich)
+    # Die Zwischenablage im Test nicht anfassen — sie gehoert dem Menschen davor.
+    monkeypatch.setattr(issue_key, "_in_zwischenablage", lambda text: False)
+    return issue_key, oeffentlich
+
+
+def _dialog(issue_key, monkeypatch, capsys, eingaben):
+    it = iter(eingaben)
+    monkeypatch.setattr("builtins.input", lambda *_a: next(it))
+    code = issue_key._frage_interaktiv()
+    return code, capsys.readouterr().out
+
+
+def test_dialog_stellt_unbefristeten_schluessel_aus(_issue_key, monkeypatch, capsys):
+    issue_key, oeffentlich = _issue_key
+    code, aus = _dialog(issue_key, monkeypatch, capsys, ["Max Mustermann", ""])
+    assert code == 0
+    assert "unbefristet" in aus
+    schluessel = next(z for z in aus.splitlines() if z.startswith("FLEECH-1."))
+    zustand = verify(schluessel, oeffentlich)
+    assert zustand.ok and zustand.name == "Max Mustermann"
+
+
+def test_dialog_uebernimmt_umlaute_unveraendert(_issue_key, monkeypatch, capsys):
+    """Der Name steckt SIGNIERT im Schluessel — eine kaputte Konsolen-Kodierung
+    ergaebe einen Schluessel auf einen Namen, den niemand so schreibt."""
+    issue_key, oeffentlich = _issue_key
+    code, aus = _dialog(issue_key, monkeypatch, capsys, ["Jürgen Groß", ""])
+    schluessel = next(z for z in aus.splitlines() if z.startswith("FLEECH-1."))
+    assert code == 0
+    assert verify(schluessel, oeffentlich).name == "Jürgen Groß"
+
+
+def test_dialog_befristet_auf_tage(_issue_key, monkeypatch, capsys):
+    from datetime import timedelta
+
+    issue_key, oeffentlich = _issue_key
+    code, aus = _dialog(issue_key, monkeypatch, capsys, ["Max", "365"])
+    schluessel = next(z for z in aus.splitlines() if z.startswith("FLEECH-1."))
+    assert code == 0
+    zustand = verify(schluessel, oeffentlich)
+    assert zustand.ok
+    assert zustand.expires == (date.today() + timedelta(days=365)).isoformat()
+
+
+@pytest.mark.parametrize("eingaben,erwartet", [
+    ([""], "Kein Name"),                       # nichts eingetippt
+    (["   ", ], "Kein Name"),                  # nur Leerzeichen
+    (["Max", "bald"], "keine Anzahl Tage"),    # Wort statt Zahl
+    (["Max", "0"], "keine Anzahl Tage"),       # 0 Tage waere sofort abgelaufen
+    (["Max", "-5"], "keine Anzahl Tage"),
+])
+def test_dialog_bricht_bei_unsinn_ab_ohne_schluessel(_issue_key, monkeypatch, capsys,
+                                                    eingaben, erwartet):
+    """Lieber abbrechen als einen Schluessel ausstellen, der nicht gemeint war —
+    einmal verschickt bekommt man ihn nicht zurueck (es gibt keine Sperrliste)."""
+    issue_key, _oeffentlich = _issue_key
+    code, aus = _dialog(issue_key, monkeypatch, capsys, eingaben)
+    assert code == 1
+    assert erwartet in aus
+    assert "FLEECH-1." not in aus
+
+
+def test_dialog_meldet_fehlenden_signaturschluessel(_issue_key, monkeypatch, capsys):
+    issue_key, _oeffentlich = _issue_key
+    monkeypatch.setattr(issue_key, "_laden", lambda: None)
+    code, aus = _dialog(issue_key, monkeypatch, capsys, ["Max", ""])
+    assert code == 1
+    assert "Kein privater Signaturschluessel" in aus
+    assert "FLEECH-1." not in aus

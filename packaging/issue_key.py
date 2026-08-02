@@ -3,7 +3,11 @@
     python packaging/issue_key.py --init                 # einmalig: Schluesselpaar
     python packaging/issue_key.py "Max Mustermann"       # unbefristeter Schluessel
     python packaging/issue_key.py "Max" --days 365       # befristet
+    python packaging/issue_key.py --frage                # fragt nach Namen (Dialog)
     python packaging/issue_key.py --show-public          # oeffentlichen Teil zeigen
+
+Im Alltag reicht ein Doppelklick auf „Schluessel erstellen.bat" im Projektordner —
+die ruft `--frage` und legt den fertigen Schluessel in die Zwischenablage.
 
 Der PRIVATE Schluessel liegt bewusst AUSSERHALB des Projektordners:
 
@@ -19,6 +23,7 @@ diese eine Datei ist das ganze Geheimnis.
 
 from __future__ import annotations
 
+import shutil
 import sys
 from datetime import date, timedelta
 from pathlib import Path
@@ -69,10 +74,82 @@ def _erzeugen():
     return 0
 
 
+def _frage_interaktiv() -> int:
+    """Dialog-Modus fuer „Schluessel erstellen.bat" — Name eintippen, fertig.
+
+    Der Schluessel landet zusaetzlich in der Zwischenablage: Wer ihn aus einem
+    Konsolenfenster mit der Maus markiert, erwischt schnell ein Zeichen zu wenig,
+    und ein halber Schluessel scheitert beim Empfaenger ohne erkennbaren Grund.
+    """
+    print("=" * 68)
+    print("  Fleech — Lizenzschluessel ausstellen")
+    print("=" * 68)
+    print()
+    name = input("  Name der Person (z. B. Max Mustermann): ").strip()
+    if not name:
+        print("\n  Kein Name eingegeben — abgebrochen.")
+        return 1
+    roh = input("  Gueltig fuer wie viele Tage? (Enter = unbefristet): ").strip()
+    tage = 0
+    if roh:
+        if not roh.isdigit() or int(roh) <= 0:
+            print(f"\n  '{roh}' ist keine Anzahl Tage — abgebrochen.")
+            return 1
+        tage = int(roh)
+
+    privat = _laden()
+    if privat is None:
+        print(f"\n  Kein privater Signaturschluessel unter:\n    {KEY_PATH}")
+        print("  Ohne ihn lassen sich keine Schluessel ausstellen.")
+        return 1
+
+    ablauf = (date.today() + timedelta(days=tage)).isoformat() if tage else ""
+    schluessel = sign_payload(privat, name, expires=ablauf)
+    probe = verify(schluessel, PUBLIC_KEY_HEX)
+
+    print()
+    print("-" * 68)
+    print(f"  Lizenz fuer : {name}")
+    print(f"  Gueltigkeit : {'bis ' + ablauf if ablauf else 'unbefristet'}")
+    print(f"  Gegenprobe  : {'gueltig' if probe.ok else 'FEHLGESCHLAGEN — ' + probe.reason}")
+    print("-" * 68)
+    print()
+    print(schluessel)
+    print()
+    if not probe.ok:
+        print("  NICHT verschicken. Passt PUBLIC_KEY_HEX in fleech/licensing.py")
+        print("  zum privaten Schluessel?")
+        return 1
+    if _in_zwischenablage(schluessel):
+        print("  -> Der Schluessel liegt in der Zwischenablage (Strg+V zum Einfuegen).")
+    print("  Zusammen mit diesem Link verschicken:")
+    print("    https://github.com/FynnXland/fleech-releases/releases/latest")
+    return 0
+
+
+def _in_zwischenablage(text: str) -> bool:
+    import subprocess
+
+    try:
+        # `clip` liegt auf jedem Windows; unter Linux xclip, sonst still lassen.
+        if sys.platform == "win32":
+            befehl = ["clip"]
+        elif shutil.which("xclip"):
+            befehl = ["xclip", "-selection", "clipboard"]
+        else:
+            return False
+        subprocess.run(befehl, input=text.encode("utf-8"), check=True)
+        return True
+    except Exception:
+        return False
+
+
 def main() -> int:
     args = [a for a in sys.argv[1:]]
     if "--init" in args:
         return _erzeugen()
+    if "--frage" in args:
+        return _frage_interaktiv()
     if "--show-public" in args:
         privat = _laden()
         if privat is None:
