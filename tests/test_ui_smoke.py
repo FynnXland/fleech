@@ -3004,28 +3004,73 @@ def test_schnellwechsel_faellt_zurueck_statt_leer_zu_sein(qapp):
     assert DesktopApp.profile_names(fake) == ["Standard", "E-Mail"]
 
 
-def test_current_app_haelt_die_app_der_laufenden_aufnahme_fest(qapp):
+def test_current_app_haelt_die_app_der_laufenden_aufnahme_fest(qapp, monkeypatch):
     """Waehrend der Aufnahme zaehlt die App, in die eingefuegt wird — nicht die,
-    auf der die Maus zufaellig gerade steht. Sonst stuende in der Auswahlliste
+    auf der der Fokus zufaellig gerade steht. Sonst stuende in der Auswahlliste
     etwas anderes als das, wofuer das Diktat gilt."""
     import types
 
     from fleech.ui.desktop import DesktopApp
 
+    monkeypatch.setattr("fleech.ui.windowsfocus.foreground_now",
+                        lambda: ("explorer.exe", "Irgendein Fenster"))
     fake = types.SimpleNamespace(
         recorder=types.SimpleNamespace(recording=True),
         _record_app="claude.exe",
         notifier=types.SimpleNamespace(
-            context=types.SimpleNamespace(foreground_process="explorer.exe")),
+            context=types.SimpleNamespace(foreground_process="chrome.exe")),
     )
     assert DesktopApp.current_app(fake) == "claude.exe"
 
+    # Ohne Aufnahme zaehlt der FRISCHE Vordergrund, nicht der 3-s-Poll: Wer in
+    # eine App tabbt und sofort den Hotkey haelt, will deren Profile sehen.
     fake.recorder.recording = False
     assert DesktopApp.current_app(fake) == "explorer.exe"
 
-    # Kein Fokus-Kontext (Linux/fruehe Startphase) → leer, nie ein Absturz.
+    # Faellt die Sofortabfrage aus, traegt der Poll weiter.
+    monkeypatch.setattr("fleech.ui.windowsfocus.foreground_now", lambda: ("", ""))
+    assert DesktopApp.current_app(fake) == "chrome.exe"
+
+    # Auch ohne Fokus-Kontext (Linux/fruehe Startphase): leer, nie ein Absturz.
     fake.notifier = types.SimpleNamespace()
     assert DesktopApp.current_app(fake) == ""
+
+
+def test_aufnahmestart_haelt_den_frischen_vordergrund_fest(qapp, monkeypatch):
+    """Der Kern der Meldung: Tabben und sofort diktieren.
+
+    Der 3-s-Poll haette bis zu drei Sekunden lang die VORIGE App geliefert — der
+    Text landet dann im richtigen Fenster, aber im falschen Format.
+    """
+    import types
+
+    from fleech.ui.desktop import DesktopApp
+
+    monkeypatch.setattr("fleech.ui.windowsfocus.foreground_now",
+                        lambda: ("claude.exe", "Claude — neuer Chat"))
+    fake = types.SimpleNamespace(
+        _license_state=types.SimpleNamespace(ok=True),
+        controller=types.SimpleNamespace(stop_if_active=lambda: None),
+        focus=types.SimpleNamespace(
+            may_record=lambda math_mode=False: (True, ""),
+            on_recording_start=lambda: None),
+        notifier=types.SimpleNamespace(context=types.SimpleNamespace(
+            foreground_process="chrome.exe", foreground_title="Alt")),
+        settings=types.SimpleNamespace(
+            output=types.SimpleNamespace(restore_focus=False)),
+        pipeline=types.SimpleNamespace(
+            injector=types.SimpleNamespace(set_focus_target=lambda t: None)),
+        recorder=types.SimpleNamespace(start=lambda: None),
+        bus=types.SimpleNamespace(set_state=lambda *a: None),
+        sounds=types.SimpleNamespace(play=lambda n: None),
+    )
+    fake._license_ok = lambda: True
+    try:
+        DesktopApp._on_record_start(fake, "dictate")
+    except Exception:
+        pass                       # spaetere Schritte brauchen echte Bausteine
+    assert fake._record_app == "claude.exe"      # nicht chrome.exe aus dem Poll
+    assert fake._record_title == "Claude — neuer Chat"
 
 
 def test_apps_seite_pflegt_den_schnellwechsel(qapp, tmp_path, monkeypatch):

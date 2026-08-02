@@ -244,3 +244,60 @@ class FocusProbe:
         except Exception:
             pass
         return covers_monitor, name, title
+
+
+# Prozessname-Cache fuer die Sofort-Abfrage unten. Getrennt vom Cache der
+# FocusProbe: Die eine laeuft im 3-s-Poll, die andere im Hotkey-Pfad — ein
+# gemeinsamer Zustand waere eine Kopplung ohne Nutzen.
+_JETZT_CACHE: tuple = ()
+
+
+def foreground_now() -> tuple[str, str]:
+    """(Prozessname, Fenstertitel) des Vordergrundfensters — JETZT, ohne Poll.
+
+    Der 3-Sekunden-Poll (`FocusProbe`) ist fuer Ducking und Gaming-Erkennung
+    gedacht: Dort ist eine Sekunde Verzug egal. Fuer alles, was an einem
+    Tastendruck haengt, ist er zu traege — wer in eine App tabbt und sofort den
+    Hotkey nimmt, bekaeme das Profil der VORIGEN App. Genau so gemeldet: „wenn ich
+    nach Chrome tabbe, kann ich zwischen allen Chrome-Profilen wechseln, und wenn
+    ich wieder in Claude bin, immer noch die vier."
+
+    Fehler sind hier kein Ereignis: Wer den Vordergrund nicht kennt, faellt auf
+    „keine App" zurueck und damit auf die globale Profilauswahl.
+    """
+    global _JETZT_CACHE
+    if sys.platform != "win32":
+        try:
+            from . import x11tools
+
+            _voll, prozess, titel = x11tools.active_window_state()
+            return prozess or "", titel or ""
+        except Exception:
+            log.debug("X11-Sofortabfrage fehlgeschlagen.", exc_info=True)
+            return "", ""
+    try:
+        import ctypes
+        from ctypes import wintypes as wt
+
+        user32 = ctypes.windll.user32
+        hwnd = user32.GetForegroundWindow()
+        if not hwnd:
+            return "", ""
+        titel = _window_title(hwnd)
+        pid = wt.DWORD(0)
+        user32.GetWindowThreadProcessId(hwnd, ctypes.byref(pid))
+        if not pid.value:
+            return "", titel
+        # psutil.Process(...).name() kostet Syscalls; im Hotkey-Pfad wird die
+        # Abfrage in schneller Folge gestellt (Halten oeffnet die Liste, Loslassen
+        # schaltet weiter) und trifft dabei fast immer dasselbe Fenster.
+        if _JETZT_CACHE and _JETZT_CACHE[0] == hwnd and _JETZT_CACHE[1] == pid.value:
+            return _JETZT_CACHE[2], titel
+        import psutil
+
+        name = psutil.Process(pid.value).name()
+        _JETZT_CACHE = (hwnd, pid.value, name)
+        return name, titel
+    except Exception:
+        log.debug("Vordergrund-Sofortabfrage fehlgeschlagen.", exc_info=True)
+        return "", ""

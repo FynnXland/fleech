@@ -11,6 +11,25 @@ GitHub-Release-Notizen (`packaging/release.py`).
 
 ---
 
+## 4.10.2 — 2026-08-02 · nicht einzeln veröffentlicht
+
+**Das Profil folgt der App jetzt sofort.** Fleech fragte das Vordergrundfenster
+nur alle drei Sekunden ab — wer in eine App tabbte und gleich den Hotkey nahm,
+bekam bis zu drei Sekunden lang die Profile der vorigen App. Genau so gemeldet:
+„wenn ich nach Chrome tabbe, kann ich zwischen allen Chrome-Profilen wechseln,
+und wenn ich wieder in Claude bin, immer noch die vier."
+
+Der Drei-Sekunden-Takt bleibt, wo er hingehört (Lautstärke-Absenkung,
+Spiel-Erkennung). Alles, was an einem Tastendruck hängt, fragt jetzt direkt ab.
+
+Wichtiger noch als die Auswahlliste ist der **Aufnahmestart**: Von der App, die
+dort festgehalten wird, hängt ab, welches Profil den Text formt. Mit dem alten
+Takt konnte der Text im richtigen Fenster landen, aber im falschen Format.
+
+Während einer laufenden Aufnahme gilt unverändert die App, in der gestartet
+wurde — auch wenn man zwischendurch woanders hin wechselt. Dorthin kehrt der
+Cursor am Ende zurück, dort landet der Text.
+
 ## 4.10.1 — 2026-08-02 · nicht einzeln veröffentlicht
 
 Die Profil-Anzeige unter der Pille **überlappte sie**, wenn die Pille tief am

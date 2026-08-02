@@ -565,13 +565,17 @@ class DesktopApp:
             self.sounds.play("error")
             self.controller.stop_if_active()
             return
-        # Ziel-App fuer die Historie festhalten (die gerade fokussierte App ist das
-        # Paste-Ziel). Kontext ist vom 3-s-Poll frisch genug.
-        self._record_app = self.notifier.context.foreground_process or ""
-        # Fenstertitel dazu: Zweitkriterium der Profil-Zuordnung. Der 3-s-Poll ist
-        # dafuer frisch genug — der Titel wechselt beim Tab-Wechsel, nicht im
-        # Sekundentakt waehrend man zum Diktieren ansetzt.
-        self._record_title = getattr(
+        # Ziel-App + Titel JETZT festhalten, nicht aus dem 3-s-Poll: Der Text
+        # landet spaeter in genau diesem Fenster, und davon haengt ab, welches
+        # Profil ihn formt. Wer in eine App tabbt und sofort den Hotkey drueckt,
+        # bekaeme sonst bis zu drei Sekunden lang das Profil der VORIGEN App —
+        # gemeldet, und beim Einfuegen die teuerste Sorte Fehler: Der Text ist
+        # dann im richtigen Fenster, aber im falschen Format.
+        from .windowsfocus import foreground_now
+
+        prozess, titel = foreground_now()
+        self._record_app = prozess or (self.notifier.context.foreground_process or "")
+        self._record_title = titel or getattr(
             self.notifier.context, "foreground_title", "") or ""
         # Cursor-Rueckkehr: JETZT das Ziel-Feld merken (Fenster + Caret-Position),
         # damit der Text auch nach Wegklicken/Feldwechsel dort landet. Aus = None →
@@ -705,6 +709,14 @@ class DesktopApp:
             gemerkt = getattr(self, "_record_app", "")
             if gemerkt:
                 return gemerkt
+        # Ausserhalb der Aufnahme: frisch abfragen. Der 3-s-Poll haette hier
+        # dieselbe Verzoegerung wie oben — die Auswahlliste zeigte dann die
+        # Profile der App, aus der man gerade gekommen ist.
+        from .windowsfocus import foreground_now
+
+        prozess = foreground_now()[0]
+        if prozess:
+            return prozess
         try:
             return self.notifier.context.foreground_process or ""
         except Exception:
