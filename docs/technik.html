@@ -1,4 +1,4 @@
-<title>Fleech 5.1.0 — Technische Dokumentation</title>
+<title>Fleech 5.4.0 — Technische Dokumentation</title>
 
 <style>
   /* ---------------------------------------------------------------------
@@ -303,19 +303,19 @@
 <div class="huelle">
 
 <header class="kopf">
-  <div class="marke">Fleech 5.1.0 · Technische Dokumentation</div>
+  <div class="marke">Fleech 5.4.0 · Technische Dokumentation</div>
   <h1>Eine Diktier-App, die den Rechner nicht verlässt</h1>
   <p class="anriss">
     Taste halten, sprechen, loslassen — der Text landet im Feld, in dem der Cursor
-    steht. Dazwischen liegen Spracherkennung, ein lokales Sprachmodell und sieben
+    steht. Oder ganz ohne Taste: Startwort sagen, sprechen, aufhören. Dazwischen liegen Spracherkennung, ein lokales Sprachmodell und sieben
     Schutzschichten, die verhindern, dass etwas eingefügt wird, das
     <strong>niemand gesagt hat</strong>. Kein Cloud-Dienst, kein Konto, keine
     Internetverbindung im Betrieb.
   </p>
 
   <div class="kennzahlen">
-    <div class="kennzahl"><span class="wert">19.369</span><span class="was">Zeilen Programm</span></div>
-    <div class="kennzahl"><span class="wert">797</span><span class="was">Tests, grün</span></div>
+    <div class="kennzahl"><span class="wert">20.645</span><span class="was">Zeilen Programm</span></div>
+    <div class="kennzahl"><span class="wert">891</span><span class="was">Tests, grün</span></div>
     <div class="kennzahl"><span class="wert">1.190</span><span class="was">Diktate im Betrieb</span></div>
     <div class="kennzahl"><span class="wert">1,5 %</span><span class="was">Rückfall-Quote</span></div>
   </div>
@@ -729,8 +729,60 @@
 </section>
 
 <!-- ================================================================= -->
-<section id="aufbau">
+<section id="neu">
   <span class="h2-nummer">06</span>
+  <h2>Was seit 5.1.0 dazukam</h2>
+
+  <div class="raster zwei">
+    <div class="karte">
+      <h4>Freihand — ohne Taste · 5.3.0</h4>
+      <p>
+        Startwort sagen, sprechen, aufhören. Ein Gate aus zwei Stufen: Das billige
+        VAD hört auf Sprache überhaupt, das kleine Modell prüft nur dann auf das
+        Startwort. Gemessen: <strong>1,2 % Dauerlast</strong> eines Kerns, im
+        Leerlauf startet das Modell null Mal. Im Speicher liegen immer nur die
+        letzten zwei Sekunden.
+      </p>
+    </div>
+    <div class="karte">
+      <h4>Englisch · 5.4.0</h4>
+      <p>
+        Zwei der vier Kauderwelsch-Merkmale sind sprachgebunden — bei englischem
+        Diktat waren beide dauerhaft gesetzt, und zwei bedeuten Schnitt.
+        <strong>Jedes englische Diktat wäre gekürzt worden.</strong> Die Merkmale
+        spiegeln sich jetzt mit der Sprache.
+      </p>
+    </div>
+    <div class="karte">
+      <h4>Live-Vorschau · 5.2.0</h4>
+      <p>
+        Der Rohtext steht nach ~0,8 s in der Pille, während das Modell noch vier
+        Sekunden arbeitet. Die Statusmeldungen hängen an den echten Schritten,
+        nicht an einem geschätzten Balken.
+      </p>
+    </div>
+    <div class="karte">
+      <h4>Nachträglich ändern · 5.2.0</h4>
+      <p>
+        Rechtsklick im Verlauf → „Neu bereinigen als …". Setzt auf dem
+        <em>Rohtranskript</em> auf und läuft durch dieselben Guards. Ergebnis in
+        die Zwischenablage, nicht blind ins zuletzt benutzte Feld.
+      </p>
+    </div>
+  </div>
+
+  <div class="merk">
+    <p>
+      Ein Prompt für Englisch war nötig, und das wurde gemessen: Mit dem deutschen
+      Prompt hat das Modell englische Diktate <strong>ins Deutsche übersetzt</strong> —
+      ein bloßer Hinweis („answer in English") änderte daran nichts.
+    </p>
+  </div>
+</section>
+
+<!-- ================================================================= -->
+<section id="aufbau">
+  <span class="h2-nummer">07</span>
   <h2>Aufbau des Programms</h2>
 
   <div class="diagramm">
@@ -821,7 +873,7 @@
 
 <!-- ================================================================= -->
 <section id="daten">
-  <span class="h2-nummer">07</span>
+  <span class="h2-nummer">08</span>
   <h2>Was gespeichert wird</h2>
   <p>Alles unter <code>%APPDATA%\Fleech</code>, alles lokal, nichts verschlüsselt-versteckt.</p>
 
@@ -855,7 +907,7 @@
 
 <!-- ================================================================= -->
 <section id="weitergabe">
-  <span class="h2-nummer">08</span>
+  <span class="h2-nummer">09</span>
   <h2>Lizenz und Weitergabe</h2>
 
   <p>
@@ -905,7 +957,7 @@
 
 <!-- ================================================================= -->
 <section id="zahlen">
-  <span class="h2-nummer">09</span>
+  <span class="h2-nummer">10</span>
   <h2>Betriebsdaten</h2>
   <p>Gemessen, nicht geschätzt — aus 1.190 Diktaten im täglichen Gebrauch.</p>
 
@@ -923,6 +975,8 @@
         <tr><td>Schnelles Modell</td><td class="zahl">13 %</td><td>einfache Diktate</td></tr>
         <tr><td>Volle Bereinigung</td><td class="zahl">81 %</td><td>der Normalfall</td></tr>
         <tr><td>Rückfall auf Rohtext</td><td class="zahl">1,5 %</td><td>Guard hat gegriffen</td></tr>
+        <tr><td>Freihand-Dauerlast</td><td class="zahl">1,2 %</td><td>eines Kerns, im Leerlauf</td></tr>
+        <tr><td>Projekt-Gedächtnis</td><td class="zahl">0,6 ms</td><td>Abruf je Diktat</td></tr>
       </tbody>
     </table>
   </div>
@@ -939,9 +993,9 @@
 
 <footer>
   <p style="max-width:var(--lese)">
-    Fleech 5.1.0 · 19.369 Zeilen Programm, 11.120 Zeilen Tests · Python 3.11,
-    PySide6/Qt, faster-whisper, Ollama · Windows 11 und Linux/X11 ·
-    Stand 2. August 2026
+    Fleech 5.4.0 · 20.645 Zeilen Programm, 11.987 Zeilen Tests in 48 Dateien ·
+    Python 3.11, PySide6/Qt, faster-whisper, Ollama · Windows 11 und Linux/X11 ·
+    Stand 3. August 2026
   </p>
 </footer>
 

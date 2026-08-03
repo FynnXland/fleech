@@ -1,19 +1,21 @@
-# Fleech 5.1.0 — wie das Programm funktioniert
+# Fleech 5.4.0 — wie das Programm funktioniert
 
 > Diese Datei ist die **Lesefassung fürs Handy**: GitHub rendert sie samt
 > Diagrammen, auch in der App und auch im privaten Repository.
 > Zum Weitergeben und Offline-Lesen gibt es dieselbe Dokumentation als
-> [PDF](Fleech-Technik-5.1.0.pdf) und als [HTML](technik.html).
+> [PDF](Fleech-Technik-5.4.0.pdf) und als [HTML](technik.html).
 
 | | |
 |---|---|
-| **19.369** | Zeilen Programm |
-| **797** | Tests, grün |
+| **20.645** | Zeilen Programm |
+| **891** | Tests, grün |
 | **1.190** | Diktate im Betrieb |
 | **1,5 %** | Rückfall-Quote |
 
 Taste halten, sprechen, loslassen — der Text landet im Feld, in dem der Cursor
-steht. Dazwischen liegen Spracherkennung, ein lokales Sprachmodell und sieben
+steht. Oder ganz ohne Taste: Startwort sagen, sprechen, aufhören.
+
+Dazwischen liegen Spracherkennung, ein lokales Sprachmodell und sieben
 Schutzschichten, die verhindern, dass etwas eingefügt wird, das **niemand gesagt
 hat**. Kein Cloud-Dienst, kein Konto, keine Internetverbindung im Betrieb.
 
@@ -69,10 +71,10 @@ Text raus — nur eben der unbereinigte.
 |---|---|---|---|
 | 1 | **Aufnahme** — 16 kHz Mono, nur im Arbeitsspeicher. Senkt bei Bedarf die Lautstärke anderer Programme. | Taste gehalten | `audio.py`, `audiofocus.py` |
 | 2 | **Artefakt-Filter** — zu kurze Aufnahmen, Stille, struktureller Loopback-Schutz. | < 5 ms | `pipeline.py` |
-| 3 | **Spracherkennung** — auf der Grafikkarte, mit CPU-Rückfall. Bekommt vorab einen Priming-Satz aus Wörterbuch, Bausteinen und gelerntem Vokabular. | 810 ms Ø | `stt/faster_whisper_stt.py` |
+| 3 | **Spracherkennung** — auf der Grafikkarte, mit CPU-Rückfall. Bekommt vorab einen Priming-Satz aus Wörterbuch, Bausteinen und gelerntem Vokabular. Sprache je Profil: Deutsch, Englisch oder automatisch. | 810 ms Ø | `stt/faster_whisper_stt.py` |
 | 4 | **Modus-Routing** — Bereinigung, Befehl oder Formel. | < 1 ms | `routing.py` |
 | 5 | **Sprachmodell** — `gemma3:4b` über Ollama, lokal. Adaptives Routing: 3 % ganz ohne KI, 13 % schnell, 81 % voll. | 4,1 s Ø | `llm/client.py` |
-| 6 | **Die sieben Guards** — jede Ausgabe wird gegen das Gesprochene geprüft. | < 10 ms | `textutils.py` |
+| 6 | **Die sieben Guards** — jede Ausgabe wird gegen das Gesprochene geprüft; die sprachgebundenen Merkmale richten sich nach der Diktiersprache. | < 10 ms | `textutils.py` |
 | 7 | **Einfügen** — Zwischenablage + Strg+V, mit aktiver Prüfung statt blindem Warten. | ~50 ms | `injection.py` |
 
 ---
@@ -87,7 +89,7 @@ Rückfall-Quote bei 1,5 % liegt statt bei null.
 | Wortgetreue | Wortmenge vorher / nachher | Das Modell formulierte ganze Sätze um, die so nie gesagt wurden. |
 | Inflation | Ergänzungen am Satzende | Höfliche Schlussfloskeln, die niemand diktiert hatte. |
 | Wiederholungsfilter | ≥ 4 gleiche Wörter am Ende | Whisper-Schleifen bei Stille. Schwelle 4, weil „wirklich wirklich sehr sehr sehr gut" echt vorkam. |
-| Fremdsprach-Tail | Fremde Diakritika, englische Füller | „Seekers Odoo Time Go Go Go and Let me and or" — angehängt an ein deutsches Diktat. |
+| Fremdsprach-Tail | Fremde Diakritika, fremde Füllwörter | „Seekers Odoo Time Go Go Go and Let me and or" — angehängt an ein deutsches Diktat. Seit 5.4.0 spiegelt sich „fremd" mit der Diktiersprache. |
 | Kauderwelsch | Vier Signale, Schnitt ab zwei | Wortsalat, den die anderen drei durchließen. |
 | Meta-Präambel | „Hier ist der bereinigte Text:" | Das Modell kommentierte seine eigene Arbeit. |
 | Abschneide-Erkennung | Antwort am Kontextfenster abgebrochen | Lange Diktate endeten mitten im Satz. |
@@ -123,7 +125,126 @@ In einem KI-Chat sind das andere als in Word.
 
 ---
 
-## 5. Projekt-Gedächtnis (neu in 5.1.0)
+## 5. Freihand — diktieren ohne Taste (5.3.0)
+
+Startwort sagen, sprechen, aufhören. Kommt **zusätzlich** zum Hotkey und ist
+standardmäßig aus: Eine App, die ungefragt dauerhaft mithört, wäre ein
+Vertrauensbruch — auch wenn technisch nichts gespeichert wird.
+
+```mermaid
+flowchart LR
+    A["Mikrofon<br/>Dauerstrom"] --> B{"Stufe 1: VAD<br/>spricht überhaupt jemand?"}
+    B -->|nein · Regelfall| A
+    B -->|ja| C{"Stufe 2: Whisper tiny<br/>war es das Startwort?"}
+    C -->|nein| A
+    C -->|ja| D["Aufnahme läuft"]
+    D --> E{"2 s still?"}
+    E -->|nein| D
+    E -->|ja| F["Pipeline wie beim Hotkey"]
+```
+
+**Warum zwei Stufen.** Fertige Wake-Word-Engines (Porcupine, openWakeWord)
+erkennen nur *trainierte* Wörter — ein frei wählbares Startwort ist damit
+unmöglich. Frei wählbar geht nur über echte Spracherkennung, und die permanent
+laufen zu lassen wäre zu teuer. Also ein Gate: Das billige VAD hört auf Sprache
+überhaupt, das teure Modell läuft nur, wenn das anschlägt.
+
+| Messung | Wert |
+|---|---|
+| VAD-Dauerlast | 1–4 ms je Sekunde Audio |
+| Gesamtlast über 60 s Stille bzw. Rauschen | **1,2 % eines Kerns** |
+| `tiny` bei Stille/Rauschen gestartet | **0 ×** |
+| `tiny` je Prüfung (CPU, 2 s Audio) | 170 ms |
+| Ladezeit `tiny` | 0,8 s |
+
+Beide Stufen stecken bereits im Bundle (Silero-VAD kommt mit faster-whisper) —
+keine neue Abhängigkeit, kein Download. Das kleine Modell läuft bewusst auf der
+**CPU**: Die Grafikkarte gehört dem großen Modell, das gleich das eigentliche
+Diktat verarbeitet.
+
+**Was mit dem Ton passiert.** Im Speicher liegen immer nur die letzten zwei
+Sekunden, und sie überschreiben sich fortlaufend. Gesammelt wird erst ab dem
+erkannten Startwort. Das Startwort selbst landet nicht im Diktat — sonst stünde
+es am Anfang jedes Textes.
+
+Entscheidungen, die im Alltag zählen:
+
+- **Mindestabstand zwischen Prüfungen** — ohne ihn liefe `tiny` bei durchgehendem
+  Sprechen im Meeting permanent.
+- **Sperrzeit nach jeder Aktivierung**, damit der eigene Nachsatz nicht sofort
+  die nächste Aufnahme auslöst.
+- **Das Abbruchwort verwirft nur** — kein Neustart, sonst würde ein Versprecher
+  zur Endlosschleife.
+- **Ausschlussliste je Programm** für Spiele und Besprechungen: Dort ist Sprache
+  im Raum die Regel.
+- **Während einer Hotkey-Aufnahme pausiert Freihand** — zwei sammelnde Wege wären
+  zwei konkurrierende Diktate.
+
+Sichtbar ist der Zustand am Punkt der Pille (ruhiger Ring beim Lauschen, kein
+Blinken) und im Infobereich, wo ein Schnellschalter das Mithören sofort beendet.
+
+---
+
+## 6. Sprachen (5.4.0)
+
+Diktiersprache je Profil: Deutsch, Englisch oder automatisch erkennen.
+
+**Der eigentliche Fund saß im Kauderwelsch-Guard.** Zwei seiner vier Merkmale
+sind sprachgebunden — englische Füllwörter und *fehlende* deutsche. Bei einem
+englischen Diktat waren beide dauerhaft gesetzt, und zwei Merkmale bedeuten
+Schnitt: **Jedes englische Diktat wäre am Ende gekürzt worden.**
+
+Gelöst durch Spiegelung statt Abschaltung. Bei `"en"` gelten deutsche Füllwörter
+als fremd und fehlende englische als Signal; der Guard bleibt gleich streng und
+misst nur gegen die richtige Erwartung. Wiederholungsschleifen und fremde
+Diakritika zählen unverändert — echter Wortsalat wird auch bei englischer
+Erwartung erkannt.
+
+**Ein eigener Prompt war nötig, und das wurde gemessen:** Mit dem deutschen
+Cleanup-Prompt hat `gemma3` englische Diktate ins Deutsche *übersetzt*. Ein
+bloßer Zusatz („This dictation is in ENGLISH, answer in ENGLISH") änderte daran
+**nichts** — die 3000 Token auf Deutsch dominieren. Deshalb `prompts/cleanup-en.md`
+mit denselben Kernregeln.
+
+**Mischdiktate bleiben ganz.** „Ich habe den MCP-Server neu gestartet und das
+Deployment läuft" geht unverändert durch — es zählt der Anteil fremder Füllwörter,
+nicht das einzelne Fachwort. Umgekehrt bleiben deutsche Begriffe in englischen
+Diktaten stehen.
+
+Bei `auto` erkennt Whisper die Sprache selbst; für die Guards gilt dann Deutsch —
+ein falsch geratener Guard schneidet lieber nichts als zu viel.
+
+Die Oberfläche bleibt deutsch. Sie zu übersetzen würde die Pflege jeder künftigen
+Zeile verdoppeln, ohne dass ein Diktat dadurch besser wird.
+
+---
+
+## 7. Nachträglich ändern (5.2.0)
+
+Während die Bereinigung läuft, steht der **Rohtext schon in der Pille**: Die
+Erkennung ist nach ~0,8 s durch, das Sprachmodell braucht noch rund vier. Man
+liest bereits, während gearbeitet wird; die Statusmeldungen darunter hängen an
+den echten Schritten, nicht an einem geschätzten Balken.
+
+Falsches Profil erwischt? **Rechtsklick auf den Verlaufseintrag** → „Neu
+bereinigen als …". Das schickt das gespeicherte **Rohtranskript** noch einmal
+durch dieselbe Pipeline, inklusive aller Guards — nicht die bereits bereinigte
+Fassung, sonst triebe jeder Durchlauf den Text weiter vom Gesprochenen weg.
+
+Das Ergebnis landet in der **Zwischenablage**, nicht im ursprünglichen Feld: Wer
+im Verlauf rechtsklickt, steht im Fleech-Fenster; blind ins zuletzt benutzte Feld
+zu schreiben ist genau die Fehlerklasse, aus der die Cursor-Regeln stammen.
+
+**Die Prompts sind offen.** Auf der Profilseite zeigt „Prompt ansehen …", welche
+Anweisung das Modell bekommt, und lässt sie ändern. Eigene Fassungen liegen unter
+`%APPDATA%\Fleech\prompts` — nicht im Programmordner, der bei jedem Update
+gespiegelt wird. Der Werkszustand bleibt als Rücksetzpunkt. Die Sicherheitsregel
+zu den Text-Markern ergänzt Fleech notfalls selbst; sie lässt sich nicht
+wegkürzen.
+
+---
+
+## 8. Projekt-Gedächtnis (5.1.0)
 
 Fleech lernt aus dem, was es einfügt, die Fachbegriffe eines Zusammenhangs und
 gibt sie beim nächsten Diktat an die Erkennung weiter. Das überlebt Neustarts.
@@ -170,11 +291,12 @@ im Ranking von selbst zurück.
 
 ---
 
-## 6. Aufbau
+## 9. Aufbau
 
 ```mermaid
 flowchart TD
     HK["hotkey.py<br/>globale Tasten"] --> DT["ui/desktop.py<br/>Verdrahtung, Tray"]
+    FH["freihand.py<br/>Startwort-Lauscher"] --> DT
     DT --> PL["pipeline.py<br/>Orchestrierung"]
     PL --> RT["routing.py"]
     PL --> TU["textutils.py<br/>Guards"]
@@ -187,14 +309,15 @@ flowchart TD
 
 | Modul | Zeilen | Aufgabe |
 |---|---:|---|
-| `ui/main_window.py` | 2.732 | Vier Seiten: Home, Insights, Profile, Apps |
-| `ui/desktop.py` | 1.655 | Verdrahtung, Tray, Hotkeys, Lizenz, Updates |
-| `ui/overlay_qt.py` | 1.289 | Die Pille: Pegel, Text, Abbrechen/Fertig/Pause |
-| `ui/settings_window.py` | 1.219 | Einstellungen, Wörterbuch, Bausteine |
-| `pipeline.py` | 1.057 | Orchestrierung der Signalkette |
-| `textutils.py` | 843 | Guards, Wörterbuch, Priming |
-| `usersettings.py` | 756 | Einstellungen, atomar gespeichert |
+| `ui/main_window.py` | 2.970 | Vier Seiten: Home, Insights, Profile, Apps |
+| `ui/desktop.py` | 1.863 | Verdrahtung, Tray, Hotkeys, Lizenz, Updates, Freihand |
+| `ui/overlay_qt.py` | 1.363 | Die Pille: Pegel, Text, Abbrechen/Fertig/Pause |
+| `ui/settings_window.py` | 1.317 | Einstellungen, Wörterbuch, Bausteine |
+| `pipeline.py` | 1.139 | Orchestrierung der Signalkette |
+| `textutils.py` | 860 | Guards, Wörterbuch, Priming |
+| `usersettings.py` | 790 | Einstellungen, atomar gespeichert |
 | `formula.py` | 610 | Gesprochene Mathematik → LaTeX |
+| `freihand.py` | 400 | Lauscher, Zwei-Stufen-Gate |
 | `kontext.py` | 340 | Projekt-Gedächtnis |
 
 ### Qt-Fallen, die real aufgetreten sind
@@ -212,7 +335,7 @@ flowchart TD
 
 ---
 
-## 7. Was gespeichert wird
+## 10. Was gespeichert wird
 
 Alles unter `%APPDATA%\Fleech`, alles lokal.
 
@@ -233,7 +356,7 @@ Lizenzschlüssel. Jetzt: erst vollständig in eine Nebendatei, dann `fsync`, dan
 
 ---
 
-## 8. Lizenz und Weitergabe
+## 11. Lizenz und Weitergabe
 
 Zwei Repositories: der Quellcode **privat**, die Installationsdateien
 **öffentlich**. Klingt widersprüchlich, ist aber der Kern der Konstruktion.
@@ -258,7 +381,7 @@ Anleitung für Empfänger: [FUER-EMPFAENGER.md](FUER-EMPFAENGER.md).
 
 ---
 
-## 9. Betriebsdaten
+## 12. Betriebsdaten
 
 Gemessen, nicht geschätzt — aus 1.190 Diktaten im täglichen Gebrauch.
 
@@ -274,6 +397,8 @@ Gemessen, nicht geschätzt — aus 1.190 Diktaten im täglichen Gebrauch.
 | Schnelles Modell | 13 % | einfache Diktate |
 | Volle Bereinigung | 81 % | der Normalfall |
 | Rückfall auf Rohtext | 1,5 % | ein Guard hat gegriffen |
+| Freihand-Dauerlast | 1,2 % | eines Prozessorkerns, im Leerlauf |
+| Projekt-Gedächtnis | 0,6 ms | Abruf je Diktat |
 
 **Warum `gemma3:4b`.** An 15 echten Diktaten gegen `qwen3.5:9b` gemessen: 34 %
 schneller, halb so groß (3,3 GB) und dabei *wortgetreuer* — es ergänzt 0,014 statt
@@ -283,5 +408,6 @@ Grafikspeicher belegten.
 
 ---
 
-*Fleech 5.1.0 · 19.369 Zeilen Programm, 11.120 Zeilen Tests · Python 3.11,
-PySide6/Qt, faster-whisper, Ollama · Windows 11 und Linux/X11 · Stand 2. August 2026*
+*Fleech 5.4.0 · 20.645 Zeilen Programm, 11.987 Zeilen Tests in 48 Dateien ·
+Python 3.11, PySide6/Qt, faster-whisper, Ollama · Windows 11 und Linux/X11 ·
+Stand 3. August 2026*
