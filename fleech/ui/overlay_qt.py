@@ -300,6 +300,10 @@ class _StatusDot(QWidget):
         # „hoert zu" ist ein Dauerzustand, und etwas dauerhaft Blinkendes am
         # Bildschirmrand macht muerbe.
         self._lauscht = False
+        # Farbe des aktiven Profils. Leer = wie frueher, dezent grau: Wer keine
+        # Profile nutzt, soll keinen bunten Punkt bekommen, der etwas ankuendigt,
+        # das es bei ihm gar nicht gibt.
+        self._profil_farbe = ""
         self.setFixedSize(28, 28)
         self.setCursor(Qt.PointingHandCursor)
 
@@ -325,6 +329,18 @@ class _StatusDot(QWidget):
             self._mode = mode
             self.update()
 
+    def set_profile_color(self, farbe: str) -> None:
+        """Farbe des aktiven Profils — faerbt den RING, nicht die Fuellung.
+
+        Die Trennung ist der Kern: Der Ring sagt „welches Profil gilt", die
+        Fuellung sagt „ein Modus ist eingerastet". Beides auf die Fuellung zu
+        legen haette die zweite Aussage geloescht — man haette nicht mehr
+        unterschieden, ob KI-Prompting aktiv ist oder nur ein buntes Profil."""
+        farbe = str(farbe or "")
+        if farbe != self._profil_farbe:
+            self._profil_farbe = farbe
+            self.update()
+
     def set_lauscht(self, an: bool) -> None:
         if an != self._lauscht:
             self._lauscht = an
@@ -342,22 +358,43 @@ class _StatusDot(QWidget):
         p.setRenderHint(QPainter.Antialiasing)
         c = QPointF(self.width() / 2.0, self.height() / 2.0)
         r = min(self.width(), self.height()) * 0.22
-        accent = self._COLORS.get(self._mode)
-        if accent is not None:
-            glow = QColor(accent)
+        eingerastet = self._COLORS.get(self._mode)
+        # Die Profilfarbe faerbt, was ohnehin gezeichnet wird — sie ersetzt die
+        # Modus-Aussage nicht. Eingerastet fuellt weiterhin, nur eben passend zum
+        # Profil statt immer amber.
+        profil = QColor(self._profil_farbe) if self._profil_farbe else None
+        if profil is not None and not profil.isValid():
+            profil = None
+        if eingerastet is not None:
+            ton = profil or QColor(eingerastet)
+            glow = QColor(ton)
             glow.setAlpha(70)
             p.setPen(Qt.NoPen)
             p.setBrush(glow)
             p.drawEllipse(c, r * 1.9, r * 1.9)     # weicher Schein
-            p.setBrush(accent)
+            p.setBrush(ton)
             p.drawEllipse(c, r, r)                  # gefuellter Kern
+        elif profil is not None:
+            # Ruhezustand MIT Profil: kraeftiger Ring in Profilfarbe, innen leer.
+            # Nicht gefuellt, weil „gefuellt" fuer eingerastet reserviert bleibt —
+            # sonst waeren die beiden Zustaende nicht mehr zu unterscheiden.
+            ring = QColor(profil)
+            ring.setAlpha(255 if self._hover else 210)
+            p.setPen(QPen(ring, 2.0))
+            p.setBrush(Qt.NoBrush)
+            p.drawEllipse(c, r, r)
         else:
             p.setPen(QPen(_BAR if self._hover else _BAR_DIM, 1.5))
             p.setBrush(Qt.NoBrush)
-            p.drawEllipse(c, r, r)                  # dezenter Ring
-        if self._lauscht and accent is None:
+            p.drawEllipse(c, r, r)                  # dezenter Ring wie bisher
+        if self._lauscht and eingerastet is None:
             # Zweiter, weiterer Ring in Akzentfarbe: sichtbar genug, um „es hoert
             # mit" zu melden, ruhig genug, um dauerhaft dazustehen.
+            #
+            # Bleibt bewusst CYAN und nimmt NICHT die Profilfarbe an: „es hoert
+            # mit" ist eine Aussage ueber das Mikrofon, nicht ueber das Profil.
+            # Faerbte man ihn mit, waeren bei einem tuerkisen Profil beide Ringe
+            # gleich und die Freihand-Anzeige praktisch unsichtbar.
             ring = QColor(_ACCENT)
             ring.setAlpha(150)
             p.setPen(QPen(ring, 1.4))
@@ -760,6 +797,7 @@ class OverlayWindow(QWidget):
             mode = ""
         self._math_dot.set_mode(mode)
         latched = bool(mode)
+
         if latched and not self._edit_mode and self._effective_visibility() != "off":
             self.show()
         elif not latched and not self._edit_mode:
@@ -1217,6 +1255,14 @@ class OverlayWindow(QWidget):
         nur noch, wo er hingehoert: in Fenster und Log.
         """
         self._mode_line = text or ""
+
+    def set_profile_color(self, farbe: str) -> None:
+        """Farbe des aktiven Profils an den Punkt links durchreichen.
+
+        Dauerhaft sichtbar, anders als die Namens-Kapsel darunter: Die verschwindet
+        nach zwei Sekunden, der Ring bleibt. Genau das war der Wunsch — beim
+        Diktieren sehen, welches Profil greift, ohne etwas anzuklicken."""
+        self._math_dot.set_profile_color(farbe)
 
     def show_profile(self, name: str) -> None:
         """Profilnamen kurz neben der Pille zeigen (nach dem Umschalten)."""

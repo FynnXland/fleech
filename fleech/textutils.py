@@ -233,7 +233,45 @@ def collapse_trailing_repetitions(raw: str, min_repeats: int = 3,
             words = words[: len(words) - size * (reps - 1)]
             text = " ".join(words)
             break
+
+    # 3) INNERHALB eines Wortes: „G-G-G-G-G-G-…" ist EIN Token, die Ebenen oben
+    # sehen dort nur ein einziges Wort und greifen nicht. Real aufgetreten, als
+    # Freihand zwei Sekunden Mikrofonrauschen verarbeitete — das Ergebnis wurde
+    # ungefiltert ins Textfeld geschrieben.
+    text = " ".join(_entstottern(w) for w in text.split()).strip()
     return text.strip()
+
+
+# Ab welcher Laenge ein einzelnes Token ueberhaupt verdaechtig ist. Darunter gibt
+# es echte Woerter mit Wiederholung („Mississippi", „Bonbon").
+_STOTTER_MIN_LEN = 12
+_STOTTER_MIN_REPS = 4       # so oft muss dieselbe Gruppe hintereinander stehen
+_STOTTER_MAX_GRUPPE = 3     # laengere Gruppen sind eher echte Silben
+
+
+def _entstottern(wort: str) -> str:
+    """„G-G-G-G-G-G-G" → „G".  Nur bei eindeutigen Artefakten.
+
+    Bedingung ist absichtlich streng: Das Token muss lang sein UND fast
+    vollstaendig aus derselben kurzen Gruppe bestehen. „Mississippi" und
+    „Bonbon" bleiben damit unangetastet — sie sind zu kurz und wiederholen
+    ihre Gruppe nicht oft genug.
+    """
+    if len(wort) < _STOTTER_MIN_LEN:
+        return wort
+    for groesse in range(1, _STOTTER_MAX_GRUPPE + 1):
+        gruppe = wort[:groesse]
+        if not gruppe.strip("-–—.,;:"):
+            continue
+        reps = 0
+        i = 0
+        while wort.startswith(gruppe, i):
+            reps += 1
+            i += groesse
+        # Der Rest darf nur noch ein angebrochener Wiederholer sein
+        if reps >= _STOTTER_MIN_REPS and len(wort) - i <= groesse:
+            return gruppe.strip("-–—.,;:") or wort
+    return wort
 
 
 # Wortsalat-Schwanz: Schwellen an 1043 echten Diktaten kalibriert (siehe Docstring).

@@ -7,7 +7,7 @@
 
 from __future__ import annotations
 
-APP_VERSION = "5.4.0"  # 5.4.0: englische Diktate gleichwertig
+APP_VERSION = "5.5.0"  # 5.5.0: Farbe je Profil, sichtbar bis in die Pille
 
 
 def _read_build() -> str:

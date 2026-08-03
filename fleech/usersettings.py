@@ -626,6 +626,70 @@ PROFILE_FORMATS = [
 # Formate, die den Text ueber einen eigenen System-Prompt neu formulieren.
 REWRITING_FORMATS = ("summary", "email", "prompt")
 
+# Farbe je Profil — waehlbar, und JEDES Profil hat eine. Vorher trugen nur die
+# vier Format-Profile einen Punkt; Profile ohne Format blieben farblos, und in
+# der Liste sah es aus, als fehlte dort etwas.
+#
+# Die Palette ist bewusst kurz und auf den dunklen Grund abgestimmt: Alle Toene
+# liegen in aehnlicher Helligkeit, damit keiner heraussticht und keiner
+# verschwindet. Ein freier Farbwaehler waere schlechter — auf #16181C sind die
+# meisten Farben entweder unsichtbar oder grell.
+#
+# OHNE die Brand-Akzentfarbe #35C0D8. Die steht im ganzen Programm fuer
+# „ausgewaehlt"; als Profilfarbe gelesen wirkte ein Punkt darin wie eine
+# Markierung — das wurde bei den Format-Farben schon einmal genau so gemeldet.
+# Sie ist ausserdem die Farbe des Freihand-Rings an der Pille: Ein tuerkises
+# Profil haette dort zwei fast gleiche Ringe ergeben.
+PROFIL_FARBEN = [
+    ("#AA78F0", "Violett"),
+    ("#E8A13C", "Amber"),
+    ("#6E86C8", "Blau"),
+    ("#7FD1A6", "Gruen"),
+    ("#A8C86E", "Limette"),
+    ("#E08585", "Rot"),
+    ("#D982C0", "Pink"),
+    ("#9AA6B2", "Grau"),
+]
+
+# Reserviert und deshalb nicht waehlbar — siehe Kommentar oben.
+ACCENT_RESERVIERT = "#35C0D8"
+
+# Welche Farbe ein Format MITBRINGT, solange nichts eigenes gewaehlt wurde. Damit
+# sehen bestehende Installationen nach dem Update genau aus wie vorher.
+_FORMAT_FARBEN = {"math": "#AA78F0", "prompt": "#E8A13C",
+                  "email": "#6E86C8", "summary": "#7FD1A6"}
+
+
+def profile_color(item: dict) -> str:
+    """Die Farbe dieses Profils — immer eine, nie leer.
+
+    Drei Stufen, in dieser Reihenfolge:
+      1. selbst gewaehlt (`color`)
+      2. die Farbe des Ausgabeformats — so bleibt alles wie vorher, wer nie eine
+         Farbe waehlt, merkt vom Umbau nichts
+      3. aus dem Namen abgeleitet, stabil
+
+    Stufe 3 ist der Grund, warum kein Profil mehr farblos ist. Sie muss stabil
+    sein: Wuerde dieselbe Liste zweimal verschiedene Farben ergeben, waere der
+    Punkt keine Wiedererkennung, sondern Rauschen. Deshalb aus dem NAMEN und
+    nicht aus der Listenposition — Umsortieren darf nichts umfaerben.
+    """
+    if not isinstance(item, dict):
+        return PROFIL_FARBEN[-1][0]
+    gewaehlt = str(item.get("color", "") or "").strip()
+    if gewaehlt in {f for f, _ in PROFIL_FARBEN}:
+        return gewaehlt
+    vom_format = _FORMAT_FARBEN.get(profile_mode(item))
+    if vom_format:
+        return vom_format
+    name = str(item.get("name", "") or "")
+    if not name:
+        return PROFIL_FARBEN[-1][0]
+    # Ohne die Format-Farben, damit ein namensbasiertes Profil nicht zufaellig
+    # aussieht wie ein E-Mail- oder Formel-Profil.
+    frei = [f for f, _ in PROFIL_FARBEN if f not in _FORMAT_FARBEN.values()]
+    return frei[sum(name.encode("utf-8")) % len(frei)]
+
 
 def profile_mode(item: dict) -> str:
     """Ausgabeformat eines Profils: "" | "math" | "prompt" | "email" (exklusiv).

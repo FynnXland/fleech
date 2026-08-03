@@ -73,6 +73,11 @@ class StateBus(QObject):
     freihand_ereignis = Signal(str)
     # Lauschzustand fuer die Pille ("aus" | "lauscht" | "aufnahme").
     freihand_zustand = Signal(str)
+    # Freihand liess sich NICHT starten (Grund als Text). Eigenes Signal, weil der
+    # Aufbau in einem Hintergrund-Thread laeuft — von dort darf nichts direkt an
+    # Qt. Ohne diese Meldung blieb der Fehlschlag unsichtbar: Der Schalter stand
+    # auf an, es passierte nichts, und man sucht den Fehler beim Startwort.
+    freihand_fehler = Signal(str)
 
     def __init__(self):
         super().__init__()

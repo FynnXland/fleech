@@ -40,10 +40,15 @@ def test_startwort_wird_trotz_schreibweise_erkannt(gesprochen):
 
 
 @pytest.mark.parametrize("gesprochen", [
-    "Kimonos sind schön", "Ich mag Kimonoartiges", "Kimo no", "",
+    "Kimonos sind schön", "Ich mag Kimonoartiges", "",
 ])
 def test_teiltreffer_loesen_nicht_aus(gesprochen):
-    """Wortgrenzen sind Pflicht — sonst aktiviert jedes längere Wort mit."""
+    """Wortgrenzen sind Pflicht — sonst aktiviert jedes längere Wort mit.
+
+    „Kimo no" stand hier urspruenglich mit dabei und ist bewusst herausgenommen:
+    Die Messung an echter Stimme zeigte, dass das Pruefmodell „Kimono" GENAU SO
+    zerreisst. Es als Teiltreffer abzulehnen hiess, den haeufigsten Fall
+    abzulehnen — siehe test_reale_verstuemmelungen_aus_dem_protokoll."""
     assert not enthaelt_wort(gesprochen, "Kimono")
 
 
@@ -76,7 +81,9 @@ def test_stille_beendet_das_diktat():
     lau = _lauscher(text="Kimono")
     lau.verarbeite(block(1.0), jetzt=100.0)
     lau._erkenner = lambda a: "der eigentliche Diktattext"
-    lau._vad = lambda a: False
+    # Der EINGEHENDE Block ist still (beendet das Diktat), die GESAMMELTE
+    # Aufnahme enthaelt aber Sprache — sonst wird sie seit 5.5.0 verworfen.
+    lau._vad = lambda a: len(a) > 8000
     assert lau.verarbeite(block(0.5), jetzt=101.0) is None    # noch nicht lang genug
     assert lau.verarbeite(block(0.5), jetzt=103.5) is Ereignis.ENDE
     assert lau.zustand is Zustand.LAUSCHT
@@ -275,10 +282,287 @@ def test_ende_liefert_das_gesammelte_audio():
     gemeldet = []
     strom = FreihandStream(lau, lambda e, a: gemeldet.append((e, a)), samplerate=SR)
     strom._callback(block(1.0), 0, None, None)               # START
+    strom._callback(block(1.0), 0, None, None)               # Diktat sammeln
     lau._erkenner = lambda a: "der Diktattext"
-    lau._vad = lambda a: False
+    # Gesammeltes Audio enthaelt Sprache, der letzte Block nicht mehr.
+    lau._vad = lambda a: len(a) > 8000
     lau._letzte_sprache = -99                                 # Stille erzwingen
     strom._callback(block(0.5), 0, None, None)               # ENDE
     ereignis, audio = gemeldet[-1]
     assert ereignis is Ereignis.ENDE
     assert audio is not None and len(audio) > 0
+
+
+# -- Mehrdeutige Geraetenamen (real aufgetreten) -----------------------------------------
+
+
+def test_geraetename_wird_aufgeloest_statt_durchgereicht(monkeypatch):
+    """DER Grund, warum Freihand beim Nutzer nie lief.
+
+    Unter Windows meldet sich dasselbe Mikrofon einmal je Host-API. Ein Scarlett
+    Solo taucht viermal auf (MME, DirectSound, WASAPI, WDM-KS). Gibt man den
+    NAMEN an sounddevice, wirft es „Multiple input devices found" — der Strom
+    startet nie, und Freihand bleibt stumm aus, unabhaengig vom Startwort.
+
+    Der Hotkey-Weg loeste das laengst ueber `resolve_input_device`; hier fehlte es.
+    """
+    import types
+
+    from fleech import freihand as fh
+
+    geoeffnet = []
+
+    class FakeStream:
+        def __init__(self, **kw):
+            geoeffnet.append(kw.get("device"))
+            if isinstance(kw.get("device"), str):
+                raise ValueError(
+                    "Multiple input devices found for 'Mikrofon (Scarlett Solo USB)'")
+
+        def start(self):
+            pass
+
+    monkeypatch.setitem(
+        __import__("sys").modules, "sounddevice",
+        types.SimpleNamespace(InputStream=FakeStream),
+    )
+    # Der Name loest auf Index 18 auf (WASAPI) — wie es audio.py tut.
+    monkeypatch.setattr(fh_audio(), "resolve_input_device", lambda d: 18)
+
+    lau = _lauscher(text="")
+    strom = fh.FreihandStream(lau, lambda e, a: None,
+                              geraet="Mikrofon (Scarlett Solo USB)", samplerate=SR)
+    assert strom.start() is True
+    assert geoeffnet == [18], f"nicht aufgeloest — an sounddevice ging {geoeffnet}"
+
+
+def fh_audio():
+    from fleech import audio
+
+    return audio
+
+
+def test_defektes_wunschmikrofon_faellt_auf_den_standard_zurueck(monkeypatch):
+    """Ein abgezogenes Mikrofon soll Freihand nicht abschalten — der Hotkey-Weg
+    wuerde in derselben Lage ebenfalls weiterlaufen."""
+    import types
+
+    from fleech import freihand as fh
+
+    versuche = []
+
+    class FakeStream:
+        def __init__(self, **kw):
+            versuche.append(kw.get("device"))
+            if kw.get("device") is not None:
+                raise OSError("Geraet weg")
+
+        def start(self):
+            pass
+
+    monkeypatch.setitem(
+        __import__("sys").modules, "sounddevice",
+        types.SimpleNamespace(InputStream=FakeStream),
+    )
+    monkeypatch.setattr(fh_audio(), "resolve_input_device", lambda d: 7)
+
+    lau = _lauscher(text="")
+    strom = fh.FreihandStream(lau, lambda e, a: None, geraet="Weg.exe", samplerate=SR)
+    assert strom.start() is True
+    assert versuche == [7, None], "kein Rueckfall auf das Standardgeraet"
+
+
+def test_wenn_gar_nichts_geht_meldet_start_ehrlich_fehl(monkeypatch):
+    import types
+
+    from fleech import freihand as fh
+
+    class FakeStream:
+        def __init__(self, **kw):
+            raise OSError("kein Audio")
+
+        def start(self):
+            pass
+
+    monkeypatch.setitem(
+        __import__("sys").modules, "sounddevice",
+        types.SimpleNamespace(InputStream=FakeStream),
+    )
+    monkeypatch.setattr(fh_audio(), "resolve_input_device", lambda d: None)
+
+    lau = _lauscher(text="")
+    strom = fh.FreihandStream(lau, lambda e, a: None, samplerate=SR)
+    assert strom.start() is False
+    assert strom.laeuft is False
+
+
+def test_fehlschlag_wird_dem_nutzer_gemeldet():
+    """Vorher stand der Fehlschlag NUR im Log — der Schalter blieb an, nichts
+    passierte, und man sucht den Fehler beim Startwort."""
+    import types
+
+    from fleech.ui.desktop import DesktopApp
+
+    getoastet = []
+    tray_stand = []
+    fake = types.SimpleNamespace(
+        notifier=types.SimpleNamespace(
+            toast=lambda *a, **kw: getoastet.append(a)),
+        tray=types.SimpleNamespace(
+            set_freihand=lambda an, wort: tray_stand.append(an)),
+        settings=types.SimpleNamespace(
+            freihand=types.SimpleNamespace(startwort="Kimono")),
+    )
+    DesktopApp._on_freihand_fehler(fake, "Mikrofon liess sich nicht oeffnen")
+
+    assert getoastet, "keine sichtbare Meldung"
+    assert any("Freihand" in str(a) for a in getoastet[0])
+    assert tray_stand == [False], "Tray zeigt Freihand weiter als aktiv"
+
+
+# -- Hoerfehler des kleinen Modells (gemessen) -------------------------------------------
+
+
+@pytest.mark.parametrize("gehoert", [
+    "Kimunno",                      # REAL vom Modell geliefert, im Satz gesprochen
+    "Kimunno, schreibt das bitte auf.",
+    "Kimano", "Kimon", "kimunno",
+])
+def test_verunglueckte_startwoerter_loesen_trotzdem_aus(gehoert):
+    """Der Grund, warum Freihand im Alltag nicht ansprang.
+
+    Gemessen: Sagt man „Kimono" allein, versteht das kleine Modell „Kimono".
+    Sagt man „Kimono, schreib das bitte auf", wird daraus „Kimunno" — und der
+    exakte Wortvergleich schlug fehl. Freihand loeste nie aus, obwohl alles
+    richtig eingestellt war.
+    """
+    assert enthaelt_wort(gehoert, "Kimono")
+
+
+@pytest.mark.parametrize("gehoert", [
+    "Kimonos sind schön", "Ich mag Kimonoartiges",
+])
+def test_die_wortgrenzen_regel_bleibt(gehoert):
+    """Diese Faelle durften noch nie ausloesen, und daran aendert die Unschaerfe
+    nichts: Woerter, die mit dem GANZEN Startwort beginnen, sind eigene Woerter —
+    keine Hoerfehler. Genau diese Trennung macht die Toleranz vertretbar."""
+    assert not enthaelt_wort(gehoert, "Kimono")
+
+
+@pytest.mark.parametrize("gehoert", [
+    "Wir gehen ins Kino", "Das läuft in Mono", "Simon kommt später",
+    "Simone hat angerufen", "Domino spielen", "ein Kilo Mehl",
+    "die Kimme des Gewehrs", "Kimchi essen", "Kim ruft an",
+])
+def test_aehnliche_woerter_loesen_nicht_aus(gehoert):
+    """An echten Woertern kalibriert: „Kino", „Mono", „Simon" und „Simone" liegen
+    bei derselben Distanz wie der echte Hoerfehler „Kimunno". Die Distanz allein
+    reicht deshalb NICHT — erst zusammen mit gleichem Wortanfang trennt es."""
+    assert not enthaelt_wort(gehoert, "Kimono")
+
+
+def test_kurze_startwoerter_bekommen_keine_unschaerfe():
+    """Unter vier Zeichen laege jede Toleranz neben zu vielen echten Woertern."""
+    assert enthaelt_wort("Kim ruft an", "Kim")          # exakt weiterhin ja
+    assert not enthaelt_wort("Kind ruft", "Kim")
+    assert not enthaelt_wort("Kiel ist schön", "Kim")
+
+
+def test_unschaerfe_laesst_sich_abschalten():
+    assert enthaelt_wort("Kimunno", "Kimono") is True
+    assert enthaelt_wort("Kimunno", "Kimono", unscharf=False) is False
+
+
+def test_erkanntes_wird_protokolliert(caplog):
+    """Ohne diese Spur ist im Alltag nicht feststellbar, warum nichts passiert —
+    man sieht nur Stille und verdaechtigt das Startwort."""
+    import logging
+
+    lau = _lauscher(text="also Kimono jetzt")
+    with caplog.at_level(logging.INFO, logger="fleech.freihand"):
+        lau.verarbeite(block(1.0), jetzt=100.0)
+
+    zeilen = [r.getMessage() for r in caplog.records]
+    assert any("Kimono jetzt" in z for z in zeilen), \
+        f"das Gehoerte steht nicht im Protokoll: {zeilen}"
+    assert any("TREFFER" in z for z in zeilen)
+
+
+def test_auch_ein_nicht_treffer_wird_protokolliert(caplog):
+    import logging
+
+    lau = _lauscher(text="irgendein anderer Satz")
+    with caplog.at_level(logging.INFO, logger="fleech.freihand"):
+        lau.verarbeite(block(1.0), jetzt=100.0)
+
+    zeilen = [r.getMessage() for r in caplog.records]
+    assert any("kein Treffer" in z for z in zeilen), \
+        f"Fehlversuche bleiben unsichtbar: {zeilen}"
+
+
+# -- Was an der ECHTEN Stimme gemessen wurde ---------------------------------------------
+
+
+@pytest.mark.parametrize("gehoert", [
+    "Kimu", "Kimun.", "Kimu...", "Kimo no", "Kimo no.",
+])
+def test_reale_verstuemmelungen_aus_dem_protokoll(gehoert):
+    """Nicht ausgedacht — so stand es im Protokoll, als „Kimono" ins Mikrofon
+    gesprochen wurde. Das Modell SCHNEIDET ab („Kimu") und ZERREISST („Kimo no").
+
+    Die erste Kalibrierung lief gegen TTS-Stimmen, wo das Wort viel sauberer
+    ankam; sie war deshalb zu eng."""
+    assert enthaelt_wort(gehoert, "Kimono")
+
+
+@pytest.mark.parametrize("satz", [
+    "Ich schreibe gerade an dem neuen Bericht.",
+    "Wir waren im Kino und danach essen.",
+    "Simone kommt später dazu.",
+    "Mono oder Stereo ist mir egal.",
+    "Die Kommode steht im Flur.",
+    "Kim hat gestern angerufen.",
+    "Komm mal bitte her.",
+])
+def test_normale_saetze_loesen_weiterhin_nicht_aus(satz):
+    """Die erweiterte Toleranz darf nicht dazu fuehren, dass Freihand mitten im
+    Gespraech anspringt."""
+    assert not enthaelt_wort(satz, "Kimono")
+
+
+# -- Aufnahme ohne Sprache (real: „G-G-G-G-…") -------------------------------------------
+
+
+def test_aufnahme_ohne_sprache_wird_verworfen():
+    """Real passiert: Startwort gesagt, auf eine Reaktion gewartet — die Aufnahme
+    lief in die Stille. Aus zwei Sekunden Mikrofonrauschen halluzinierte Whisper
+    „G-G-G-G-G-…" und das landete im Textfeld."""
+    lau = _lauscher(text="Kimono")
+    lau.verarbeite(block(1.0), jetzt=100.0)          # START
+    lau._erkenner = lambda a: ""                      # nichts gesprochen
+    lau._vad = lambda a: False                        # VAD: keine Sprache
+    ereignis = lau.verarbeite(block(0.5), jetzt=103.5)
+    assert ereignis is Ereignis.ABBRUCH, "stilles Rauschen ging in die Pipeline"
+
+
+def test_zu_kurze_aufnahme_wird_verworfen():
+    lau = _lauscher(text="Kimono")
+    lau.verarbeite(block(1.0), jetzt=100.0)
+    lau._erkenner = lambda a: "ja"
+    lau._vad = lambda a: False
+    lau.verarbeite(block(0.2), jetzt=103.5)           # nur 0,2 s gesammelt
+    assert lau.statistik.verworfen == 1
+
+
+def test_echtes_diktat_geht_weiterhin_durch():
+    lau = _lauscher(text="Kimono")
+    lau.verarbeite(block(1.0), jetzt=100.0)
+    lau._erkenner = lambda a: "der eigentliche Diktattext"
+    # VAD meldet Sprache im gesammelten Audio → durchlassen
+    lau._vad = lambda a: len(a) > 8000
+    for t in (100.5, 101.0, 101.5):
+        lau.verarbeite(block(0.5), jetzt=t)
+    lau._vad = lambda a: len(a) > 8000
+    ereignis = lau.verarbeite(block(0.5), jetzt=104.5)
+    assert ereignis is Ereignis.ENDE
+    assert len(lau.aufnahme_audio()) > 0

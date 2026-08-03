@@ -177,6 +177,9 @@ def test_punkt_schaltet_reihum_durch_die_profile(qapp):
     fake.profile_names = lambda: DesktopApp.profile_names(fake)
     fake.active_profile_name = lambda: DesktopApp.active_profile_name(fake)
     fake._set_profile = lambda n: DesktopApp._set_profile(fake, n)
+    # Seit 5.5.0 faerbt _set_profile zusaetzlich den Ring an der Pille.
+    fake._melde_profilfarbe = lambda: DesktopApp._melde_profilfarbe(fake)
+    fake.overlay.set_profile_color = lambda farbe: None
     fake.settings.save = lambda: None
     DesktopApp.cycle_profile(fake)
     assert fake.settings.profiles.active == "Standard"
@@ -205,6 +208,9 @@ def test_profilwechsel_geht_auch_waehrend_der_aufnahme(qapp):
     fake.profile_names = lambda: DesktopApp.profile_names(fake)
     fake.active_profile_name = lambda: DesktopApp.active_profile_name(fake)
     fake._set_profile = lambda n: DesktopApp._set_profile(fake, n)
+    # Seit 5.5.0 faerbt _set_profile zusaetzlich den Ring an der Pille.
+    fake._melde_profilfarbe = lambda: DesktopApp._melde_profilfarbe(fake)
+    fake.overlay.set_profile_color = lambda farbe: None
     fake.settings.save = lambda: None
     DesktopApp.cycle_profile(fake)
     assert fake.settings.profiles.active == "E-Mail"

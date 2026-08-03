@@ -58,6 +58,11 @@ PRUEF_ABSTAND_S = 0.6
 # sonst loest das eigene „los geht's" direkt die naechste Aufnahme aus.
 SPERRE_NACH_START_S = 1.0
 
+# Kuerzere Aufnahmen gelten als Versehen und werden verworfen. Ein Diktat, das
+# sich lohnt, dauert laenger als eine halbe Sekunde — und Whisper halluziniert
+# aus kurzen Rauschfetzen zuverlaessig Unsinn.
+MIN_DIKTAT_S = 0.6
+
 
 class Zustand(Enum):
     AUS = "aus"              # Freihand abgeschaltet oder App ausgeschlossen
@@ -82,16 +87,107 @@ def normalisiere(text: str) -> str:
     return re.sub(r"[^\w\s]", " ", text)
 
 
-def enthaelt_wort(text: str, wort: str) -> bool:
+def _abstand(a: str, b: str) -> int:
+    """Levenshtein-Distanz. Klein genug, um sie nicht als Abhaengigkeit zu holen."""
+    if a == b:
+        return 0
+    if not a or not b:
+        return max(len(a), len(b))
+    vorher = list(range(len(b) + 1))
+    for i, ca in enumerate(a, 1):
+        jetzt = [i]
+        for j, cb in enumerate(b, 1):
+            jetzt.append(min(vorher[j] + 1, jetzt[j - 1] + 1,
+                             vorher[j - 1] + (ca != cb)))
+        vorher = jetzt
+    return vorher[-1]
+
+
+# Wie weit darf das Gehoerte vom Startwort abweichen? An echten Ausgaben des
+# kleinen Modells kalibriert: Es lieferte fuer „Kimono" unter anderem „Kimunno".
+# Bei Distanz 2 liegen aber auch „Kino", „Mono", „Simon" und „Simone" — deshalb
+# reicht die Distanz allein NICHT. Erst zusammen mit gleichem Wortanfang trennt
+# es sauber (gemessen: 15 von 16 Faellen richtig, kein Fehlalarm).
+_MAX_ABSTAND = 2
+_GLEICHER_ANFANG = 3
+# Laengenfenster 2, NICHT 1. Der erste Entwurf stand auf 1 — kalibriert an
+# TTS-Stimmen, wo „Kimono" sauber als „Kimono" oder „Kimunno" ankam. An einer
+# echten Stimme ueber ein echtes Mikrofon sieht es anders aus: Im Protokoll
+# standen „Kimu", „Kimun", „Kimo no" und „Gimo". Das Modell SCHNEIDET das Wort
+# ab, es verfaelscht es nicht nur — und abgeschnittene Fassungen sind kuerzer
+# als 1 Zeichen Unterschied.
+#
+# Der Preis: „Kimo" zaehlt jetzt als Treffer. Das ist richtig so — es ist eine
+# zerrissene Fassung des Startworts, kein fremdes Wort. Aehnliche Alltagswoerter
+# bleiben draussen, weil zusaetzlich der Wortanfang stimmen muss: „Kino" (kin),
+# „Mono" (mon) und „Simon" (sim) scheitern daran.
+_MAX_LAENGEN_DIFF = 2
+# Zu kurze Fetzen bleiben aussen vor: Unter vier Zeichen traegt der
+# Anfangsvergleich nicht mehr — „Kim" laege dann neben „Kind" und „Kiel".
+_MIN_GEHOERT = 4
+# Beim abgeschnittenen Wort wird gegen den gleichlangen ANFANG verglichen — dort
+# ist nur ein Fehler erlaubt, sonst faengt „Kimme" mit ein.
+_MAX_ABSCHNITT_FEHLER = 1
+
+
+def _klingt_wie(gehoert: str, ziel: str) -> bool:
+    """Ist `gehoert` eine verunglueckte Fassung von `ziel`?
+
+    NICHT bei Woertern, die mit dem vollstaendigen Startwort BEGINNEN: „Kimonos"
+    und „Kimonoartiges" sind eigene Woerter, keine Hoerfehler — das war schon
+    immer so und bleibt so. Genau diese Regel macht die Unschaerfe vertretbar.
+    """
+    if gehoert == ziel:
+        return True
+    if gehoert.startswith(ziel):
+        return False                      # Flexion/Zusammensetzung → anderes Wort
+    if len(gehoert) < _MIN_GEHOERT:
+        return False
+    if gehoert[:_GLEICHER_ANFANG] != ziel[:_GLEICHER_ANFANG]:
+        # Der Wortanfang muss sitzen. Das ist die Bedingung, die „Kino", „Mono"
+        # und „Simon" draussen haelt — sie liegen distanzmaessig genauso nah.
+        return False
+    # a) verfaelscht: „Kimunno", „Kimano" — aehnliche Laenge, wenige Fehler
+    if (abs(len(gehoert) - len(ziel)) <= _MAX_LAENGEN_DIFF
+            and _abstand(gehoert, ziel) <= _MAX_ABSTAND):
+        return True
+    # b) ABGESCHNITTEN: „Kimu", „Kimo". Das Modell bricht bei undeutlicher
+    # Aussprache mitten im Wort ab — real im Protokoll. Solche Fetzen haben zum
+    # ganzen Wort eine grosse Distanz (kimu→kimono = 3), zum gleichlangen ANFANG
+    # aber fast keine (kimu→kimo = 1). Deshalb dagegen vergleichen.
+    if len(gehoert) < len(ziel):
+        return _abstand(gehoert, ziel[:len(gehoert)]) <= _MAX_ABSCHNITT_FEHLER
+    return False
+
+
+def enthaelt_wort(text: str, wort: str, unscharf: bool = True) -> bool:
     """Kommt `wort` als eigenstaendiges Wort in `text` vor?
 
     Wortgrenzen sind Pflicht: Ein Startwort „Kimono" darf nicht in „Kimonos"
     oder mitten in einem laengeren Wort anschlagen.
+
+    `unscharf` faengt zusaetzlich Hoerfehler des kleinen Pruefmodells ab. Das ist
+    kein Feinschliff, sondern noetig: Gemessen machte es aus „Kimono" im Satz
+    „Kimunno" — der exakte Vergleich schlug fehl, und Freihand loeste nie aus,
+    obwohl alles richtig eingestellt war.
     """
     wort = normalisiere(wort).strip()
     if not wort:
         return False
-    return re.search(rf"(?<!\w){re.escape(wort)}(?!\w)", normalisiere(text)) is not None
+    normaler_text = normalisiere(text)
+    if re.search(rf"(?<!\w){re.escape(wort)}(?!\w)", normaler_text) is not None:
+        return True
+    if not unscharf or len(wort) < 4:
+        # Unter vier Zeichen ist jede Toleranz zu gross — „Kim" laege dann neben
+        # „Kind", „Kim" und „Kiel".
+        return False
+    woerter = normaler_text.split()
+    if any(_klingt_wie(w, wort) for w in woerter):
+        return True
+    # Zerrissene Schreibweise: Das Modell setzt bei unklarer Aussprache gern eine
+    # Luecke mitten ins Wort — real gemessen „Kimo no" fuer „Kimono". Deshalb
+    # zusaetzlich benachbarte Wortpaare zusammengezogen pruefen.
+    return any(_klingt_wie(a + b, wort) for a, b in zip(woerter, woerter[1:]))
 
 
 @dataclass
@@ -258,8 +354,35 @@ class Lauscher:
             log.info("Freihand: Abbruchwort erkannt — verworfen.")
             self._nach_diktat(jetzt)
             return Ereignis.ABBRUCH
+        # War ueberhaupt etwas drin? Real passiert: Man sagt das Startwort und
+        # wartet, ob Fleech reagiert — dabei laeuft die Aufnahme in die Stille.
+        # Das Ergebnis waren zwei Sekunden Mikrofonrauschen, aus denen Whisper
+        # „G-G-G-G-G-G-…" halluzinierte und einfuegte. Das VAD ist ohnehin da.
+        if not self._hat_inhalt():
+            self.statistik.verworfen += 1
+            log.info("Freihand: Aufnahme ohne Sprache — verworfen (%.1f s).",
+                     len(self.aufnahme_audio()) / float(self.samplerate or SAMPLERATE))
+            self._nach_diktat(jetzt)
+            return Ereignis.ABBRUCH
         self._nach_diktat(jetzt)
         return Ereignis.ENDE
+
+    def _hat_inhalt(self) -> bool:
+        """Enthaelt die gesammelte Aufnahme genug echte Sprache?
+
+        Bewusst mit demselben VAD, das schon Stufe 1 macht: Ein zweiter, eigener
+        Schwellenwert waere eine zweite Stellschraube, die irgendwann anders
+        eingestellt ist als die erste.
+        """
+        # `_aufnahme` ist eine LISTE von Bloecken — `aufnahme_audio()` fuegt sie
+        # zusammen. Direkt darauf zu messen zaehlte Bloecke statt Samples.
+        audio = self.aufnahme_audio()
+        if audio is None or not len(audio):
+            return False
+        rate = float(self.samplerate or SAMPLERATE)
+        if len(audio) / rate < MIN_DIKTAT_S:
+            return False
+        return self._ist_sprache(audio)
 
     def _nach_diktat(self, jetzt: float) -> None:
         """Zurueck ins Lauschen. Das Diktat holt der Aufrufer vorher ab.
@@ -287,10 +410,20 @@ class Lauscher:
         if self._erkenner is None or not len(audio):
             return ""
         try:
-            return self._erkenner(audio) or ""
+            text = self._erkenner(audio) or ""
         except Exception:
             log.debug("Startwort-Erkennung fehlgeschlagen.", exc_info=True)
             return ""
+        # DIAGNOSE: Ohne diese Zeile ist nicht feststellbar, warum Freihand nicht
+        # ausloest — man sieht nur, dass nichts passiert, und verdaechtigt das
+        # Startwort. Genau daran ist die erste Fehlersuche gescheitert. Auf INFO,
+        # weil es je Pruefung hoechstens einmal pro Sekunde anfaellt und im
+        # Zweifelsfall die einzige Spur ist.
+        if text:
+            wort = self.einstellungen.startwort
+            log.info("Freihand hoerte: %r  (Startwort %r: %s)", text, wort,
+                     "TREFFER" if enthaelt_wort(text, wort) else "kein Treffer")
+        return text
 
 
 # -- Die zwei Stufen als echte Implementierung -----------------------------------------
@@ -312,20 +445,34 @@ def baue_vad(schwelle: float = 0.5):
     return hat_sprache
 
 
-def baue_erkenner(modell_groesse: str = "tiny", sprache: str = "de"):
+def baue_erkenner(modell_groesse: str = "tiny", sprache: str = "de",
+                  startwort: str = ""):
     """Kleines Whisper-Modell fuer das Startwort. Rueckgabe: callable(audio) -> str.
 
     BEWUSST AUF DER CPU: Die Grafikkarte gehoert dem grossen Modell, das gleich
     das eigentliche Diktat verarbeiten soll. `beam_size=1` — es geht nur um die
     Frage, ob ein bestimmtes Wort gefallen ist, nicht um schoene Saetze.
+
+    `startwort` wird dem Modell als `initial_prompt` vorgesagt — derselbe Weg,
+    den die Pipeline fuers Woerterbuch nutzt. Gemessen bringt das zweierlei: Das
+    Wort wird zuverlaessiger getroffen (aus „Kimo no" wurde „Kimono"), und die
+    Pruefung wird SCHNELLER, weil das Modell weniger raet (350 → 226 ms).
+
+    Die naheliegende Sorge — das Modell koennte das vorgesagte Wort in beliebiges
+    Gerede hineinhoeren — wurde geprueft: an zwoelf normalen Saetzen plus
+    Rauschen und Stille null Fehlalarme. Das ABBRUCHWORT wird bewusst NICHT
+    mitgegeben; dort trat in derselben Messung ein Fehltreffer auf („Apfel"
+    wurde zu „Abbrechen").
     """
     from faster_whisper import WhisperModel
 
     modell = WhisperModel(modell_groesse, device="cpu", compute_type="int8")
+    prompt = f"{startwort.strip()}." if startwort and startwort.strip() else None
 
     def erkenne(audio: np.ndarray) -> str:
         segmente, _info = modell.transcribe(
             audio, language=sprache, beam_size=1, vad_filter=False,
+            initial_prompt=prompt,
         )
         return " ".join(s.text for s in segmente).strip()
 
@@ -366,20 +513,46 @@ class FreihandStream:
         try:
             import sounddevice as sd
 
-            self._stream = sd.InputStream(
-                samplerate=self.samplerate, channels=1, dtype="float32",
-                device=self._geraet, blocksize=int(self.BLOCK_S * self.samplerate),
-                callback=self._callback,
-            )
+            # Den Geraetenamen AUFLOESEN statt ihn durchzureichen. Unter Windows
+            # meldet dasselbe Mikrofon sich einmal je Host-API — ein Scarlett Solo
+            # taucht als MME, DirectSound, WASAPI und WDM-KS auf. sounddevice
+            # weigert sich dann mit „Multiple input devices found" und der Strom
+            # startet NIE: Freihand blieb stumm aus, unabhaengig vom Startwort.
+            #
+            # Der Hotkey-Weg (audio.Recorder) macht das laengst richtig; hier fehlte
+            # es. Bewusst dieselbe Funktion und keine zweite Auflösung, damit die
+            # beiden Wege nicht wieder auseinanderlaufen.
+            from .audio import resolve_input_device
+
+            geraet = resolve_input_device(self._geraet)
+            self._stream = self._oeffne(sd, geraet)
             self._stream.start()
         except Exception:
-            log.exception("Freihand-Strom nicht startbar — Modus bleibt aus.")
-            self._stream = None
-            return False
+            # Zweiter Versuch auf dem Systemstandard. Ein defektes oder abgezogenes
+            # Wunschmikrofon soll Freihand nicht abschalten — der Hotkey-Weg wuerde
+            # in derselben Lage ebenfalls weiterlaufen.
+            log.warning("Freihand-Strom mit %r nicht startbar — versuche Standardgeraet.",
+                        self._geraet, exc_info=True)
+            try:
+                import sounddevice as sd
+
+                self._stream = self._oeffne(sd, None)
+                self._stream.start()
+            except Exception:
+                log.exception("Freihand-Strom nicht startbar — Modus bleibt aus.")
+                self._stream = None
+                return False
         self.lauscher.start_lauschen()
         log.info("Freihand-Strom laeuft (Startwort %r).",
                  self.lauscher.einstellungen.startwort)
         return True
+
+    def _oeffne(self, sd, geraet):
+        return sd.InputStream(
+            samplerate=self.samplerate, channels=1, dtype="float32",
+            device=geraet, blocksize=int(self.BLOCK_S * self.samplerate),
+            callback=self._callback,
+        )
 
     def stop(self) -> None:
         strom, self._stream = self._stream, None

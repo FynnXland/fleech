@@ -17,7 +17,9 @@ from PySide6.QtWidgets import (
 )
 
 from ...history import HistoryStore
-from ...usersettings import PROFILE_FORMATS, UserSettings
+from ...usersettings import (
+    PROFIL_FARBEN, PROFILE_FORMATS, UserSettings, profile_color,
+)
 from ..dialogs import PromptDialog
 from ..theme import (
     ACCENT, BORDER_HAIRLINE, CARD, MUTED, NAV_ACTIVE_BG, ROW_HOVER, SIDEBAR, TEXT,
@@ -216,6 +218,38 @@ class ProfilesPage(QWidget):
         self._prompt_btn.clicked.connect(self._prompt_bearbeiten)
         detail_box.addWidget(self._prompt_btn)
 
+        # Farbe des Profils — die Wiedererkennung in der Liste UND am Punkt der
+        # Pille. Eine Reihe zum Antippen statt eines Aufklappmenues: Es sind acht
+        # Werte, und die Farbe selbst IST die Beschriftung.
+        detail_box.addWidget(_section(
+            "Farbe", "Der Punkt vor dem Namen — und der Ring am linken Knopf der "
+            "Pille, solange dieses Profil aktiv ist. So sieht man beim Diktieren, "
+            "welches Profil gerade greift, ohne hinzuklicken.",
+        ))
+        self._farb_reihe = QWidget()
+        farb_lay = QHBoxLayout(self._farb_reihe)
+        farb_lay.setContentsMargins(0, 2, 0, 4)
+        farb_lay.setSpacing(8)
+        self._farb_knoepfe = []
+        for wert, bezeichnung in PROFIL_FARBEN:
+            knopf = QPushButton()
+            knopf.setCheckable(True)
+            knopf.setCursor(Qt.PointingHandCursor)
+            knopf.setFixedSize(24, 24)
+            knopf.setToolTip(bezeichnung)
+            knopf.setProperty("farbe", wert)
+            knopf.setStyleSheet(self._farb_knopf_qss(wert, False))
+            # WICHTIG (CLAUDE.md, Referenzzyklus-Crash): nur den reinen Wert
+            # fangen, niemals `self` — ein Lambda mit self als Attribut eines
+            # Kind-Widgets baut einen Zyklus, und die Widgets sterben dann per GC
+            # in undefinierter Reihenfolge.
+            _wert = wert
+            knopf.clicked.connect(lambda _=False, w=_wert: self._farbe_gewaehlt(w))
+            farb_lay.addWidget(knopf)
+            self._farb_knoepfe.append(knopf)
+        farb_lay.addStretch(1)
+        detail_box.addWidget(self._farb_reihe)
+
         self._quick_cb = QCheckBox("Im Schnellwechsel zeigen")
         self._quick_cb.setCursor(Qt.PointingHandCursor)
         self._quick_cb.setStyleSheet(apply_chevrons(cb_style))
@@ -403,11 +437,10 @@ class ProfilesPage(QWidget):
                 continue
             item = QListWidgetItem(name)
             item.setData(Qt.UserRole, index)
-            # Modus-Slot direkt in der Liste sichtbar machen (Design-System):
-            # farbiger Punkt in der Modus-Farbe vor dem Namen.
-            mode = profile_mode(profile)
-            if mode in self._MODE_DOT_COLORS:
-                item.setIcon(self._mode_dot_icon(self._MODE_DOT_COLORS[mode]))
+            # JEDES Profil bekommt seinen Punkt. Vorher trugen nur die vier
+            # Format-Profile einen, und in der Liste sah es aus, als fehle bei
+            # den anderen etwas — gemeldet genau so.
+            item.setIcon(self._mode_dot_icon(profile_color(profile)))
             self._profiles_list.addItem(item)
         self._loading = False
         if self._profiles_list.count():
@@ -423,10 +456,12 @@ class ProfilesPage(QWidget):
             self._detail_title.setText("")
             self._detail_title.setEnabled(False)
             self._profile_command_combo.setCurrentIndex(0)
+            self._refresh_farb_reihe(None)
             self._loading = False
             return
         self._detail_title.setEnabled(True)
         self._detail_title.setText(profile.get("name", "Profil"))
+        self._refresh_farb_reihe(profile)
         from ...usersettings import profile_mode
 
         from ...usersettings import profile_command_mode
@@ -593,3 +628,43 @@ class ProfilesPage(QWidget):
             del items[row]   # das Standardprofil ist nicht loeschbar
             self._save()
             self._refresh_profiles()
+
+    # -- Farbe des Profils ------------------------------------------------------------
+
+    @staticmethod
+    def _farb_knopf_qss(farbe: str, gewaehlt: bool) -> str:
+        """Runder Farbknopf. Gewaehlt = heller Ring aussen herum.
+
+        Der Ring liegt AUSSEN und faerbt nicht die Flaeche: Waere die Auswahl ein
+        Haken oder eine Aufhellung, wuerde man die Farbe selbst nicht mehr richtig
+        sehen — und genau die soll man ja beurteilen."""
+        rand = ("border: 2px solid #E8E8EC;" if gewaehlt
+                else "border: 1px solid rgba(255,255,255,0.10);")
+        return (f"QPushButton {{ background: {farbe}; border-radius: 12px; {rand} }}"
+                f"QPushButton:hover {{ border: 2px solid rgba(232,232,236,0.55); }}")
+
+    def _farbe_gewaehlt(self, farbe: str) -> None:
+        if self._loading:
+            return
+        profile = self._current_profile()
+        if profile is None:
+            return
+        profile["color"] = farbe
+        self._save()
+        self._refresh_profiles(keep_row=True)
+        # Die Pille zeigt den Ring des AKTIVEN Profils — hat man gerade dessen
+        # Farbe geaendert, soll das sofort sichtbar sein und nicht erst beim
+        # naechsten Profilwechsel.
+        self._on_changed("profiles")
+
+    def _refresh_farb_reihe(self, profile: dict | None) -> None:
+        """Markiert den Knopf der aktuellen Farbe.
+
+        Ohne gesetztes `color` ist das die Farbe, die das Profil ohnehin traegt
+        (aus Format oder Name) — der Punkt in der Liste und die Markierung hier
+        zeigen dann dasselbe, was sonst wie ein Fehler aussaehe."""
+        aktuell = profile_color(profile) if profile else ""
+        for knopf in self._farb_knoepfe:
+            wert = knopf.property("farbe")
+            knopf.setChecked(wert == aktuell)
+            knopf.setStyleSheet(self._farb_knopf_qss(wert, wert == aktuell))

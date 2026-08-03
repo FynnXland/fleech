@@ -11,6 +11,79 @@ GitHub-Release-Notizen (`packaging/release.py`).
 
 ---
 
+## 5.5.0 — 2026-08-03
+
+**Jedes Profil hat jetzt eine Farbe — und du wählst sie aus.** Bisher trugen nur
+vier Profile einen farbigen Punkt (E-Mail, KI-Prompt, Formeln, Stichpunkte); bei
+allen anderen blieb die Stelle davor leer, als würde etwas fehlen. Jetzt hat
+jedes Profil seinen Punkt, und auf der Profilseite steht unter dem Ausgabeformat
+eine Reihe mit acht Farben zum Antippen.
+
+Wer nie eine Farbe wählt, merkt vom Umbau nichts: Die vier bekannten Profile
+sehen aus wie vorher, alle übrigen bekommen eine feste Farbe aus ihrem Namen —
+dieselbe bei jedem Start, auch wenn du die Liste umsortierst.
+
+**Die Farbe ist beim Diktieren sichtbar.** Der runde Knopf links an der Pille —
+der, mit dem du das Profil durchschaltest — trägt jetzt einen Ring in der Farbe
+des aktiven Profils. Damit siehst du im Vorbeischauen, welches Profil gerade
+greift, ohne etwas anzuklicken.
+
+Die übrigen Anzeigen am selben Knopf bleiben unterscheidbar: Ein **gefüllter**
+Punkt heißt weiterhin „KI-Prompting ist eingerastet" (jetzt in der Profilfarbe
+statt immer amber), der zweite, weitere Ring bleibt türkis für „Freihand hört
+mit", und der kleine Punkt unten rechts weiterhin für den gemerkten Diktat-Kontext.
+Sind Profile global ausgeschaltet, bleibt der Ring grau wie bisher.
+
+**Freihand startet jetzt auch mit einem USB-Mikrofon.** Windows meldet dasselbe
+Mikrofon einmal je Audio-Schnittstelle — ein Scarlett Solo taucht viermal auf.
+Freihand konnte sich nicht entscheiden und startete gar nicht: Der Schalter stand
+auf an, aber es wurde nie zugehört, unabhängig vom gewählten Startwort. Der
+Hotkey-Weg war davon nie betroffen, deshalb fiel es nicht sofort auf.
+
+Zwei Dinge geändert: Freihand wählt das Gerät jetzt genauso aus wie die normale
+Aufnahme, und wenn das Wunschmikrofon nicht geht, wird das Standardgerät
+genommen, statt aufzugeben. **Und falls es doch einmal scheitert, siehst du es
+jetzt** — vorher stand das nur im Protokoll, während der Schalter weiter auf „an"
+stand.
+
+**Das Startwort wird auch erkannt, wenn du gleich weitersprichst.** Das kleine
+Prüfmodell versteht „Kimono" zuverlässig, wenn das Wort allein steht — sagt man
+„Kimono, schreib das bitte auf", macht es daraus „Kimunno". Der Vergleich war
+exakt, also passierte nichts. Er verzeiht jetzt kleine Hörfehler.
+
+Wortgrenzen gelten unverändert: „Kimonos" und „Kimonoartiges" lösen weiterhin
+nicht aus, ebenso wenig ähnlich klingende Alltagswörter wie „Kino", „Mono",
+„Simon" oder „Domino" — die Toleranz ist an echten Modellausgaben kalibriert.
+
+**Und Fleech schreibt jetzt mit, was es gehört hat.** Im Protokoll steht bei
+jeder Prüfung, welches Wort verstanden wurde und ob es als Startwort zählte.
+Ohne das war nicht feststellbar, warum nichts passiert — man verdächtigt sein
+Startwort und probiert andere aus, obwohl es daran gar nicht liegt.
+
+**Das Startwort wird jetzt auch dann erkannt, wenn es undeutlich ankommt.** An
+einer echten Stimme über ein echtes Mikrofon gemessen: Aus „Kimono" macht das
+Prüfmodell je nach Aussprache „Kimu", „Kimun", „Kimo no" oder „Gimo" — es
+schneidet das Wort ab oder zerreißt es. Der Vergleich erkennt beide Fälle jetzt.
+Ähnlich klingende Alltagswörter bleiben draußen: „Kino", „Mono", „Simon",
+„Simone", „Domino", „Kimme" und „Kimchi" lösen weiterhin nicht aus.
+
+Zusätzlich bekommt das Prüfmodell dein Startwort vorab gesagt — derselbe
+Kniff, den Fleech beim Wörterbuch nutzt. Das trifft besser **und** ist schneller
+(350 → 226 ms je Prüfung).
+
+**Kein Kauderwelsch mehr, wenn nach dem Startwort nichts kommt.** Sagt man das
+Startwort und wartet erst einmal ab, lief die Aufnahme bisher in die Stille — und
+aus zwei Sekunden Mikrofonrauschen machte die Erkennung ein „G-G-G-G-G-…", das
+im Textfeld landete. Solche Aufnahmen werden jetzt verworfen. Und falls doch
+einmal so ein Muster durchkommt, fängt es eine neue Prüfung ab: Sie erkennt
+Wiederholungen **innerhalb** eines Wortes, was bisher niemand geprüft hat.
+
+> **Tipp zum Startwort:** Mehrsilbig und im Alltag selten. Kurze Allerweltswörter
+> funktionieren schlecht — „Apfel" versteht das kleine Modell je nach Aussprache
+> als „Achtung", „Abflö" oder „Applaus".
+
+---
+
 ## 5.4.0 — 2026-08-03
 
 **Englisch diktieren.** Pro Profil einstellbar — Deutsch, Englisch oder

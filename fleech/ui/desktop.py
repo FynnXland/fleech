@@ -170,6 +170,7 @@ class DesktopApp:
         self.bus.reprocessed.connect(self._on_reprocessed)
         self.bus.freihand_ereignis.connect(self._on_freihand)
         self.bus.freihand_zustand.connect(self.overlay.set_freihand)
+        self.bus.freihand_fehler.connect(self._on_freihand_fehler)
         self.bus.preview_text.connect(self._on_preview_text)
         self.bus.dictionary_suggestion.connect(self._on_dictionary_suggestion)
         self.bus.update_ready.connect(self._on_update_ready)
@@ -226,6 +227,9 @@ class DesktopApp:
         except Exception:
             log.debug("Tray-Text nicht setzbar.", exc_info=True)
         self._starte_freihand()
+        # Ring am Punkt gleich beim Start faerben — sonst bliebe er bis zum
+        # ersten Profilwechsel grau, obwohl laengst ein Profil gilt.
+        self._melde_profilfarbe()
         # LLM vorladen + warmhalten (Ollama entlaedt sonst nach 5 min; erstes Diktat
         # zahlte ~8 s Modell-Ladezeit — im Log real gemessen: 12,9 s Cleanup kalt
         # vs. 4,8 s warm). Der Timer-Tick respektiert advanced.llm_keep_warm:
@@ -803,6 +807,31 @@ class DesktopApp:
             self.overlay.show_profile(anzeige)
         except Exception:
             log.debug("Profil-Anzeige fehlgeschlagen.", exc_info=True)
+        self._melde_profilfarbe()
+
+    def _melde_profilfarbe(self) -> None:
+        """Farbe des aktiven Profils an den Punkt der Pille geben.
+
+        Defensiv gekapselt: Der Punkt ist reine Anzeige. Ginge hier etwas schief,
+        duerfte das niemals das Diktieren aufhalten — der Aufruf haengt an
+        Profilwechsel und Einstellungsaenderung, also an Wegen, die mitten im
+        Arbeiten laufen."""
+        try:
+            from ..usersettings import profile_color
+
+            aktiv = self.active_profile_name()
+            treffer = next(
+                (i for i in (self.settings.profiles.items or [])
+                 if isinstance(i, dict) and str(i.get("name", "")) == aktiv),
+                None,
+            )
+            # Profile global aus = kein bunter Ring: Er wuerde etwas anzeigen,
+            # das gerade gar nicht greift.
+            farbe = (profile_color(treffer)
+                     if treffer is not None and self.settings.profiles.enabled else "")
+            self.overlay.set_profile_color(farbe)
+        except Exception:
+            log.debug("Profilfarbe konnte nicht gesetzt werden.", exc_info=True)
 
     # -- Profil-Hotkey: tippen = weiterschalten, halten = Auswahlliste --------------
 
@@ -1187,6 +1216,10 @@ class DesktopApp:
     # ---------------------------------------------------------- Settings-Reaktionen --
 
     def _on_setting_changed(self, section: str) -> None:
+        if section == "profiles":
+            # Farbe oder aktives Profil geaendert — der Ring an der Pille zeigt
+            # sonst noch die alte Farbe, bis man das naechste Mal umschaltet.
+            self._melde_profilfarbe()
         if section == "overlay":
             self.overlay.apply_settings()
             if self.settings.overlay.live_preview and self._preview_model is None:
@@ -1488,7 +1521,10 @@ class DesktopApp:
                         ausgeschlossene_apps=tuple(s.ausgeschlossene_apps or ()),
                     ),
                     vad=baue_vad(),
-                    erkenner=baue_erkenner(sprache=self.settings.general.language),
+                    erkenner=baue_erkenner(
+                        sprache=self.settings.general.language,
+                        startwort=s.startwort,
+                    ),
                 )
                 self._freihand = FreihandStream(
                     lauscher, self._freihand_ereignis,
@@ -1496,9 +1532,20 @@ class DesktopApp:
                 )
                 if self._freihand.start():
                     self.bus.freihand_zustand.emit("lauscht")
-            except Exception:
+                else:
+                    # SICHTBAR machen. Vorher stand der Fehlschlag nur im Log:
+                    # Der Schalter blieb an, der Punkt zeigte „lauscht" nie, und
+                    # es gab keinen Hinweis, warum nichts passiert — man haelt
+                    # dann das Startwort fuer das Problem und probiert andere aus.
+                    self._freihand = None
+                    self.bus.freihand_zustand.emit("aus")
+                    self.bus.freihand_fehler.emit(
+                        "Mikrofon liess sich nicht oeffnen")
+            except Exception as fehler:
                 log.exception("Freihand-Modus nicht startbar.")
                 self._freihand = None
+                self.bus.freihand_zustand.emit("aus")
+                self.bus.freihand_fehler.emit(str(fehler) or "unbekannter Fehler")
 
         threading.Thread(target=bauen, daemon=True).start()
 
@@ -1703,6 +1750,30 @@ class DesktopApp:
         self._update_dialog.show()
         self._update_dialog.raise_()
         self._update_dialog.activateWindow()
+
+    def _on_freihand_fehler(self, grund: str) -> None:
+        """UI-Thread: Freihand liess sich nicht starten — das muss man SEHEN.
+
+        Der Aufbau laeuft im Hintergrund-Thread, deshalb kommt die Meldung ueber
+        den StateBus hier an. Vorher landete so ein Fehlschlag nur im Log: Der
+        Schalter stand auf an, der Punkt zeigte nie „lauscht", und nichts sagte
+        warum — man sucht den Fehler dann beim Startwort und probiert andere aus,
+        obwohl das Mikrofon nie geoeffnet wurde.
+        """
+        log.warning("Freihand nicht gestartet: %s", grund)
+        try:
+            self.notifier.toast(
+                "background_info", "Freihand konnte nicht starten",
+                "Das Mikrofon liess sich nicht öffnen. Prüfe die Mikrofon-Auswahl "
+                "in den Einstellungen.",
+                bypass_cooldown=True,
+            )
+        except Exception:
+            log.debug("Freihand-Fehlermeldung nicht zeigbar.", exc_info=True)
+        try:
+            self.tray.set_freihand(False, self.settings.freihand.startwort)
+        except Exception:
+            log.debug("Tray-Text nicht setzbar.", exc_info=True)
 
     def _quit(self) -> None:
         self._stoppe_freihand()

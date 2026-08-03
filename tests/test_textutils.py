@@ -1,3 +1,5 @@
+import pytest
+
 from fleech.textutils import (
     classify_complexity, is_trivial_utterance, strip_wrapping_quotes,
 )
@@ -360,3 +362,34 @@ def test_leerer_text_bleibt_leer():
 
     assert spoken_symbols("") == ""
     assert spoken_symbols(None) is None
+
+
+def test_stotter_token_wird_eingedampft():
+    """„G-G-G-G-G-…" ist EIN Token — die Wort- und Satzebene des Filters sehen
+    dort nur ein einziges Wort und greifen nicht. Real aufgetreten, als Freihand
+    zwei Sekunden Mikrofonrauschen verarbeitete; der Unsinn landete im Textfeld.
+    """
+    from fleech.textutils import collapse_trailing_repetitions
+
+    murks = "-".join("G" * 60)
+    assert collapse_trailing_repetitions(murks) == "G"
+    assert collapse_trailing_repetitions("la" * 30) == "la"
+
+
+@pytest.mark.parametrize("wort", [
+    "Mississippi", "Bonbon", "Hawaii", "Kaffeeersatz", "Schifffahrt",
+    "Donaudampfschifffahrt", "Tomatensalat", "Bananenbrot",
+])
+def test_echte_woerter_bleiben_unangetastet(wort):
+    """Die Bedingung ist streng gehalten: lang UND fast vollstaendig aus
+    derselben kurzen Gruppe. Sonst wuerde sie echte Woerter zerlegen."""
+    from fleech.textutils import collapse_trailing_repetitions
+
+    assert collapse_trailing_repetitions(wort) == wort
+
+
+def test_normaler_satz_bleibt_ganz():
+    from fleech.textutils import collapse_trailing_repetitions
+
+    satz = "Das ist ein ganz normaler Satz mit Bonbon und Mississippi darin."
+    assert collapse_trailing_repetitions(satz) == satz
