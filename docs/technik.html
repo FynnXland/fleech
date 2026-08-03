@@ -1,0 +1,948 @@
+<title>Fleech 5.1.0 — Technische Dokumentation</title>
+
+<style>
+  /* ---------------------------------------------------------------------
+     Palette = das Design-System der App selbst (fleech/ui/main_window.py).
+     Die Doku soll aussehen wie das Programm, das sie beschreibt.
+     --------------------------------------------------------------------- */
+  :root {
+    --grund:      #16181C;
+    --karte:      #1C1F25;
+    --karte-hoch: #22262E;
+    --rand:       #2B3038;
+    --haarlinie:  #23272F;
+    --text:       #E8E8EC;
+    --gedaempft:  #8A8A92;
+    --akzent:     #35C0D8;
+    --akzent-tief:#1B6A78;
+
+    /* Semantische Farben — exakt die Modus-Punkte aus der App. */
+    --mathe:      #AA78F0;
+    --prompt:     #E8A13C;
+    --email:      #6E86C8;
+    --stich:      #7FD1A6;
+    --warn:       #E8A13C;
+
+    --serif: "Charter", "Bitstream Charter", "Sitka Text", Georgia, "Times New Roman", serif;
+    --sans: "Segoe UI", system-ui, -apple-system, "Helvetica Neue", sans-serif;
+    --mono: "Cascadia Mono", "Consolas", "SF Mono", "Roboto Mono", ui-monospace, monospace;
+
+    --breite: 68rem;
+    --lese: 34rem;
+  }
+
+  @media (prefers-color-scheme: light) {
+    :root {
+      --grund: #F7F7F5;  --karte: #FFFFFF;  --karte-hoch: #FFFFFF;
+      --rand: #DEDEDA;   --haarlinie: #E8E8E4;
+      --text: #1A1C20;   --gedaempft: #62656C;
+      --akzent: #0C7C8E; --akzent-tief: #A8DDE6;
+      --mathe: #6D3FB0;  --prompt: #9A5F0C; --email: #3D539A; --stich: #2E7A54;
+      --warn: #9A5F0C;
+    }
+  }
+  :root[data-theme="light"] {
+    --grund: #F7F7F5;  --karte: #FFFFFF;  --karte-hoch: #FFFFFF;
+    --rand: #DEDEDA;   --haarlinie: #E8E8E4;
+    --text: #1A1C20;   --gedaempft: #62656C;
+    --akzent: #0C7C8E; --akzent-tief: #A8DDE6;
+    --mathe: #6D3FB0;  --prompt: #9A5F0C; --email: #3D539A; --stich: #2E7A54;
+    --warn: #9A5F0C;
+  }
+  :root[data-theme="dark"] {
+    --grund: #16181C;  --karte: #1C1F25;  --karte-hoch: #22262E;
+    --rand: #2B3038;   --haarlinie: #23272F;
+    --text: #E8E8EC;   --gedaempft: #8A8A92;
+    --akzent: #35C0D8; --akzent-tief: #1B6A78;
+    --mathe: #AA78F0;  --prompt: #E8A13C; --email: #6E86C8; --stich: #7FD1A6;
+    --warn: #E8A13C;
+  }
+
+  * { box-sizing: border-box; }
+
+  body {
+    margin: 0;
+    background: var(--grund);
+    color: var(--text);
+    font-family: var(--serif);
+    font-size: 17px;
+    line-height: 1.62;
+    -webkit-text-size-adjust: 100%;
+  }
+
+  .huelle { max-width: var(--breite); margin: 0 auto; padding: 0 1.25rem 6rem; }
+
+  /* -- Kopf ------------------------------------------------------------- */
+  header.kopf {
+    padding: 3.5rem 0 2.5rem;
+    border-bottom: 1px solid var(--haarlinie);
+    margin-bottom: 2.5rem;
+  }
+  .marke {
+    font-family: var(--sans);
+    font-size: 0.7rem; letter-spacing: 0.18em; text-transform: uppercase;
+    color: var(--akzent); font-weight: 600; margin-bottom: 1rem;
+  }
+  h1 {
+    font-family: var(--sans);
+    font-size: clamp(2.1rem, 7vw, 3.4rem);
+    line-height: 1.05; letter-spacing: -0.025em; font-weight: 650;
+    margin: 0 0 1rem; text-wrap: balance;
+  }
+  .anriss {
+    max-width: var(--lese); color: var(--gedaempft);
+    font-size: 1.06rem; margin: 0 0 2rem;
+  }
+  .anriss strong { color: var(--text); font-weight: 600; }
+
+  /* Kennzahlen-Band */
+  .kennzahlen {
+    display: grid; grid-template-columns: repeat(2, 1fr); gap: 1px;
+    background: var(--haarlinie); border: 1px solid var(--haarlinie);
+    border-radius: 10px; overflow: hidden;
+  }
+  @media (min-width: 44rem) { .kennzahlen { grid-template-columns: repeat(4, 1fr); } }
+  .kennzahl { background: var(--karte); padding: 1rem 1.1rem; }
+  .kennzahl .wert {
+    font-family: var(--sans); font-size: 1.55rem; font-weight: 620;
+    letter-spacing: -0.02em; font-variant-numeric: tabular-nums; display: block;
+  }
+  .kennzahl .was {
+    font-family: var(--sans); font-size: 0.72rem; color: var(--gedaempft);
+    letter-spacing: 0.04em; margin-top: 0.15rem; display: block;
+  }
+
+  /* -- Abschnitte -------------------------------------------------------- */
+  section { padding: 3rem 0 0; scroll-margin-top: 1rem; }
+  h2 {
+    font-family: var(--sans);
+    font-size: clamp(1.35rem, 4vw, 1.8rem); font-weight: 640;
+    letter-spacing: -0.02em; margin: 0 0 0.4rem; text-wrap: balance;
+  }
+  .h2-nummer {
+    font-family: var(--mono); font-size: 0.72rem; color: var(--akzent);
+    letter-spacing: 0.1em; display: block; margin-bottom: 0.5rem;
+  }
+  h3 {
+    font-family: var(--sans); font-size: 1.02rem; font-weight: 620;
+    margin: 2rem 0 0.5rem; letter-spacing: -0.01em;
+  }
+  h4 {
+    font-family: var(--sans); font-size: 0.78rem; font-weight: 650;
+    text-transform: uppercase; letter-spacing: 0.09em; color: var(--gedaempft);
+    margin: 1.5rem 0 0.5rem;
+  }
+  p { max-width: var(--lese); margin: 0 0 1rem; }
+  .weit { max-width: none; }
+  a { color: var(--akzent); text-underline-offset: 3px; }
+  a:focus-visible, summary:focus-visible {
+    outline: 2px solid var(--akzent); outline-offset: 3px; border-radius: 3px;
+  }
+  code {
+    font-family: var(--mono); font-size: 0.86em;
+    background: var(--karte-hoch); padding: 0.1em 0.36em;
+    border-radius: 4px; border: 1px solid var(--haarlinie);
+  }
+  ul, ol { max-width: var(--lese); padding-left: 1.15rem; margin: 0 0 1rem; }
+  li { margin-bottom: 0.45rem; }
+  li::marker { color: var(--gedaempft); }
+
+  /* -- Signalkette (das Leitmotiv) --------------------------------------- */
+  .kette { list-style: none; padding: 0; margin: 1.5rem 0 0; max-width: none; }
+  .stufe {
+    display: grid; grid-template-columns: 2.4rem 1fr; gap: 0.9rem;
+    padding: 1.1rem 0; border-top: 1px solid var(--haarlinie);
+    margin: 0;
+  }
+  .stufe:last-child { border-bottom: 1px solid var(--haarlinie); }
+  .stufe-nr {
+    font-family: var(--mono); font-size: 0.78rem; color: var(--akzent);
+    padding-top: 0.28rem; font-variant-numeric: tabular-nums;
+  }
+  .stufe-kopf {
+    font-family: var(--sans); font-weight: 620; font-size: 1rem;
+    display: flex; flex-wrap: wrap; align-items: baseline; gap: 0.55rem;
+    margin-bottom: 0.3rem;
+  }
+  .stufe p { margin: 0 0 0.5rem; font-size: 0.97rem; }
+  .stufe p:last-child { margin-bottom: 0; }
+  .dauer {
+    font-family: var(--mono); font-size: 0.72rem; color: var(--gedaempft);
+    border: 1px solid var(--rand); border-radius: 999px; padding: 0.05rem 0.5rem;
+    font-variant-numeric: tabular-nums;
+  }
+  .modul {
+    font-family: var(--mono); font-size: 0.72rem; color: var(--gedaempft);
+  }
+
+  /* -- Karten ------------------------------------------------------------ */
+  .raster {
+    display: grid; gap: 0.9rem; margin: 1.25rem 0;
+    grid-template-columns: 1fr;
+  }
+  @media (min-width: 40rem) { .raster.zwei { grid-template-columns: 1fr 1fr; } }
+  @media (min-width: 52rem) { .raster.drei { grid-template-columns: repeat(3, 1fr); } }
+  .karte {
+    background: var(--karte); border: 1px solid var(--haarlinie);
+    border-radius: 10px; padding: 1.1rem 1.2rem;
+  }
+  .karte h4 { margin-top: 0; }
+  .karte p, .karte ul { max-width: none; font-size: 0.94rem; margin-bottom: 0; }
+
+  /* Profil-Punkt in der echten Modus-Farbe */
+  .punkt {
+    width: 0.6rem; height: 0.6rem; border-radius: 50%;
+    display: inline-block; flex: none;
+  }
+  .p-mathe  { background: var(--mathe); }
+  .p-prompt { background: var(--prompt); }
+  .p-email  { background: var(--email); }
+  .p-stich  { background: var(--stich); }
+  .p-std    { background: var(--gedaempft); }
+
+  /* -- Tabellen ---------------------------------------------------------- */
+  .tabellenrahmen {
+    overflow-x: auto; margin: 1.25rem 0;
+    border: 1px solid var(--haarlinie); border-radius: 10px;
+  }
+  table { border-collapse: collapse; width: 100%; font-size: 0.9rem; }
+  th, td {
+    text-align: left; padding: 0.62rem 0.85rem;
+    border-bottom: 1px solid var(--haarlinie); vertical-align: top;
+  }
+  th {
+    font-family: var(--sans); font-size: 0.72rem; font-weight: 650;
+    text-transform: uppercase; letter-spacing: 0.07em; color: var(--gedaempft);
+    background: var(--karte); white-space: nowrap;
+  }
+  tbody tr:last-child td { border-bottom: none; }
+  td.zahl { font-family: var(--mono); font-variant-numeric: tabular-nums; white-space: nowrap; }
+  td.pfad { font-family: var(--mono); font-size: 0.82rem; white-space: nowrap; }
+
+  /* -- Merksatz ---------------------------------------------------------- */
+  .merk {
+    border-left: 2px solid var(--akzent);
+    padding: 0.15rem 0 0.15rem 1.1rem;
+    margin: 1.5rem 0; max-width: var(--lese);
+    color: var(--text);
+  }
+  .merk p { margin: 0; }
+  .merk.warnung { border-left-color: var(--warn); }
+
+
+  /* -- Flussdiagramme in reinem CSS ------------------------------------- */
+  .fluss { display: flex; flex-direction: column; gap: 0; margin: 0; }
+  .fluss-reihe {
+    display: flex; flex-wrap: wrap; gap: 0.5rem; align-items: stretch;
+  }
+  .knoten {
+    background: var(--karte-hoch); border: 1px solid var(--rand);
+    border-radius: 8px; padding: 0.6rem 0.8rem; flex: 1 1 8rem;
+    font-family: var(--sans); font-size: 0.86rem; line-height: 1.35;
+  }
+  .knoten b { display: block; font-weight: 620; }
+  .knoten span { color: var(--gedaempft); font-size: 0.78rem; }
+  .knoten.akzent { border-color: var(--akzent-tief); }
+  .knoten.warn { border-color: var(--warn); }
+  .pfeil {
+    color: var(--gedaempft); font-family: var(--mono); font-size: 0.8rem;
+    text-align: center; padding: 0.3rem 0; letter-spacing: 0.1em;
+  }
+  .verzweigung {
+    display: grid; gap: 0.5rem; grid-template-columns: 1fr;
+  }
+  @media (min-width: 34rem) { .verzweigung { grid-template-columns: repeat(3, 1fr); } }
+  .zweig-marke {
+    font-family: var(--mono); font-size: 0.68rem; color: var(--akzent);
+    letter-spacing: 0.06em; display: block; margin-bottom: 0.25rem;
+  }
+
+  /* -- Diagramm ---------------------------------------------------------- */
+  .diagramm {
+    background: var(--karte); border: 1px solid var(--haarlinie);
+    border-radius: 10px; padding: 1rem; margin: 1.5rem 0;
+    overflow-x: auto;
+  }
+  .diagramm pre.mermaid { margin: 0; background: none; border: none; }
+  .bildunter {
+    font-family: var(--sans); font-size: 0.78rem; color: var(--gedaempft);
+    margin: 0.5rem 0 0; max-width: var(--lese);
+  }
+
+  /* -- Aufklappbares ----------------------------------------------------- */
+  details {
+    border: 1px solid var(--haarlinie); border-radius: 10px;
+    background: var(--karte); margin: 0.6rem 0; overflow: hidden;
+  }
+  summary {
+    font-family: var(--sans); font-weight: 600; font-size: 0.95rem;
+    padding: 0.85rem 1.1rem; cursor: pointer; list-style: none;
+    display: flex; justify-content: space-between; align-items: center; gap: 1rem;
+  }
+  summary::-webkit-details-marker { display: none; }
+  summary::after {
+    content: "+"; font-family: var(--mono); color: var(--akzent);
+    font-size: 1.1rem; flex: none;
+  }
+  details[open] summary::after { content: "–"; }
+  details .inhalt { padding: 0 1.1rem 1.1rem; }
+  details .inhalt > :last-child { margin-bottom: 0; }
+
+  /* -- Fuss -------------------------------------------------------------- */
+  footer {
+    margin-top: 4rem; padding-top: 1.5rem;
+    border-top: 1px solid var(--haarlinie);
+    font-family: var(--sans); font-size: 0.82rem; color: var(--gedaempft);
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    * { animation: none !important; transition: none !important; }
+  }
+</style>
+
+<div class="huelle">
+
+<header class="kopf">
+  <div class="marke">Fleech 5.1.0 · Technische Dokumentation</div>
+  <h1>Eine Diktier-App, die den Rechner nicht verlässt</h1>
+  <p class="anriss">
+    Taste halten, sprechen, loslassen — der Text landet im Feld, in dem der Cursor
+    steht. Dazwischen liegen Spracherkennung, ein lokales Sprachmodell und sieben
+    Schutzschichten, die verhindern, dass etwas eingefügt wird, das
+    <strong>niemand gesagt hat</strong>. Kein Cloud-Dienst, kein Konto, keine
+    Internetverbindung im Betrieb.
+  </p>
+
+  <div class="kennzahlen">
+    <div class="kennzahl"><span class="wert">19.369</span><span class="was">Zeilen Programm</span></div>
+    <div class="kennzahl"><span class="wert">797</span><span class="was">Tests, grün</span></div>
+    <div class="kennzahl"><span class="wert">1.190</span><span class="was">Diktate im Betrieb</span></div>
+    <div class="kennzahl"><span class="wert">1,5 %</span><span class="was">Rückfall-Quote</span></div>
+  </div>
+</header>
+
+<!-- ================================================================= -->
+<section id="idee">
+  <span class="h2-nummer">01</span>
+  <h2>Die Grundidee</h2>
+
+  <p>
+    Sprechen ist etwa dreimal so schnell wie Tippen. Der Haken: Gesprochenes
+    <em>klingt</em> nicht wie geschriebener Text. Man setzt an, korrigiert sich,
+    wiederholt, sagt „ähm". Eine reine Spracherkennung liefert genau das —
+    unbrauchbar für alles, was jemand lesen soll.
+  </p>
+  <p>
+    Fleech schiebt deshalb ein Sprachmodell dazwischen, das aufräumt. Und weil das
+    Modell prinzipiell auch <em>erfinden</em> kann, steht dahinter eine Kette von
+    Prüfungen, die jede Ausgabe gegen das gesprochene Original hält.
+  </p>
+
+  <div class="merk">
+    <p>
+      Die Leitfrage des ganzen Programms: <strong>Steht am Ende das da, was
+      gesagt wurde?</strong> Im Zweifel wird der Rohtext eingefügt, nicht die
+      schönere Fassung.
+    </p>
+  </div>
+
+  <h3>Was daraus folgt</h3>
+  <div class="raster zwei">
+    <div class="karte">
+      <h4>Lokal, nicht aus Prinzip</h4>
+      <p>
+        Diktate enthalten Passwörter, Krankmeldungen, Gehälter. Cloud-Erkennung
+        hieße, das an einen Dienst zu geben. Der Cloud-Pfad wurde mit 3.6.0
+        ersatzlos entfernt — es gibt keinen Schalter, der ihn zurückholt.
+      </p>
+    </div>
+    <div class="karte">
+      <h4>Wortgetreu vor schön</h4>
+      <p>
+        Das Modell darf glätten, nicht umschreiben. Ein Guard vergleicht die
+        Wortmenge vorher/nachher; wer mehr ergänzt als erlaubt, dessen Ausgabe
+        wird verworfen.
+      </p>
+    </div>
+  </div>
+</section>
+
+<!-- ================================================================= -->
+<section id="kette">
+  <span class="h2-nummer">02</span>
+  <h2>Die Signalkette</h2>
+  <p>
+    Ein Diktat durchläuft immer dieselben Stufen. Die Zeiten sind Mittelwerte aus
+    1.190 echten Diktaten auf einer RTX 4070.
+  </p>
+
+  <div class="diagramm">
+  <div class="fluss">
+    <div class="fluss-reihe">
+      <div class="knoten"><b>Mikrofon</b><span>16 kHz Mono, nur im RAM</span></div>
+      <div class="knoten"><b>Artefakt-Filter</b><span>Stille, Loopback</span></div>
+      <div class="knoten akzent"><b>Spracherkennung</b><span>Whisper large-v3-turbo</span></div>
+    </div>
+    <div class="pfeil">▼ &nbsp; Modus-Routing</div>
+    <div class="verzweigung">
+      <div class="knoten"><span class="zweig-marke">STANDARD</span><b>Bereinigung</b><span>gemma3:4b</span></div>
+      <div class="knoten"><span class="zweig-marke">SAFE-WORD</span><b>Befehl</b><span>ersetzen, löschen</span></div>
+      <div class="knoten"><span class="zweig-marke">FORMEL</span><b>Parser</b><span>ohne Modell</span></div>
+    </div>
+    <div class="pfeil">▼</div>
+    <div class="fluss-reihe">
+      <div class="knoten akzent"><b>Die sieben Guards</b><span>prüfen jede Ausgabe gegen das Gesprochene</span></div>
+    </div>
+    <div class="fluss-reihe" style="margin-top:0.5rem">
+      <div class="knoten"><span class="zweig-marke">BESTEHT &nbsp;98,5 %</span><b>Text einfügen</b><span>Zwischenablage + Strg+V</span></div>
+      <div class="knoten warn"><span class="zweig-marke" style="color:var(--warn)">FÄLLT DURCH &nbsp;1,5 %</span><b>Rohtext einfügen</b><span>lieber unbereinigt als erfunden</span></div>
+    </div>
+    <div class="pfeil">▼</div>
+    <div class="fluss-reihe">
+      <div class="knoten"><b>Verlauf + Projekt-Gedächtnis</b><span>lokal, abschaltbar</span></div>
+    </div>
+  </div>
+    <p class="bildunter">
+      Der wichtigste Zweig ist der rechte unten: Scheitert die Bereinigung, geht
+      trotzdem Text raus — nur eben der unbereinigte.
+    </p>
+  </div>
+
+  <ol class="kette">
+    <li class="stufe">
+      <div class="stufe-nr">01</div>
+      <div>
+        <div class="stufe-kopf">Aufnahme <span class="dauer">Taste gehalten</span></div>
+        <p>
+          16 kHz Mono, gepuffert im Arbeitsspeicher — nie auf die Festplatte. Bei
+          Bedarf senkt Fleech die Lautstärke anderer Programme („Ducking"), damit
+          Musik nicht ins Mikrofon läuft.
+        </p>
+        <p class="modul">fleech/audio.py · fleech/audiofocus.py</p>
+      </div>
+    </li>
+    <li class="stufe">
+      <div class="stufe-nr">02</div>
+      <div>
+        <div class="stufe-kopf">Artefakt-Filter <span class="dauer">&lt; 5 ms</span></div>
+        <p>
+          Zu kurze Aufnahmen und reine Stille werden verworfen, bevor irgendetwas
+          rechnet. Ein struktureller Loopback-Schutz erkennt, wenn Fleech seine
+          eigene Ausgabe wieder hört.
+        </p>
+        <p class="modul">fleech/pipeline.py</p>
+      </div>
+    </li>
+    <li class="stufe">
+      <div class="stufe-nr">03</div>
+      <div>
+        <div class="stufe-kopf">Spracherkennung <span class="dauer">810 ms Ø</span></div>
+        <p>
+          <code>faster-whisper large-v3-turbo</code> auf der Grafikkarte. Fehlt
+          CUDA, fällt es automatisch auf den Prozessor zurück — langsamer, aber es
+          läuft.
+        </p>
+        <p>
+          Vorab bekommt die Erkennung einen <strong>Priming-Satz</strong>: das
+          persönliche Wörterbuch, Baustein-Kürzel, das Safe-Word und seit 5.1.0 das
+          <a href="#gedaechtnis">gelernte Fachvokabular</a>. Damit kommt
+          „MCP-Server" als MCP-Server an und nicht als „MCP Server".
+        </p>
+        <p class="modul">fleech/stt/faster_whisper_stt.py</p>
+      </div>
+    </li>
+    <li class="stufe">
+      <div class="stufe-nr">04</div>
+      <div>
+        <div class="stufe-kopf">Modus-Routing <span class="dauer">&lt; 1 ms</span></div>
+        <p>
+          Drei Wege: <strong>Bereinigung</strong> (der Normalfall),
+          <strong>Befehl</strong> (ein gesprochenes Safe-Word macht die Äußerung
+          zur Anweisung) oder <strong>Formel</strong> (gesprochene Mathematik wird
+          zu LaTeX).
+        </p>
+        <p class="modul">fleech/routing.py</p>
+      </div>
+    </li>
+    <li class="stufe">
+      <div class="stufe-nr">05</div>
+      <div>
+        <div class="stufe-kopf">Sprachmodell <span class="dauer">4,1 s Ø</span></div>
+        <p>
+          <code>gemma3:4b</code> über Ollama, lokal. Ein adaptives Routing schickt
+          triviale Diktate an einem großen Modelldurchlauf vorbei: 3 % laufen ganz
+          ohne KI, 13 % über den schnellen Weg, 81 % über die volle Bereinigung.
+        </p>
+        <p>
+          Formeln entstehen in einem <strong>deterministischen Parser</strong>,
+          nicht im Modell — bei Mathematik ist Raten keine Option.
+        </p>
+        <p class="modul">fleech/llm/client.py · fleech/formula.py</p>
+      </div>
+    </li>
+    <li class="stufe">
+      <div class="stufe-nr">06</div>
+      <div>
+        <div class="stufe-kopf">Die sieben Guards <span class="dauer">&lt; 10 ms</span></div>
+        <p>
+          Jede Modellausgabe wird geprüft, bevor sie eingefügt wird.
+          <a href="#guards">Einzeln beschrieben weiter unten.</a> Fällt sie durch,
+          kommt der Rohtext — gemessene Quote: 1,5 %.
+        </p>
+        <p class="modul">fleech/textutils.py · fleech/pipeline.py</p>
+      </div>
+    </li>
+    <li class="stufe">
+      <div class="stufe-nr">07</div>
+      <div>
+        <div class="stufe-kopf">Einfügen <span class="dauer">~50 ms</span></div>
+        <p>
+          Über die Zwischenablage plus simuliertes Strg+V — der einzige Weg, der in
+          jedem Windows-Programm funktioniert. Der vorherige Inhalt wird
+          wiederhergestellt. Fleech prüft aktiv, ob die Zwischenablage wirklich
+          gesetzt wurde, statt blind zu warten.
+        </p>
+        <p class="modul">fleech/injection.py · fleech/ui/focusrestore.py</p>
+      </div>
+    </li>
+  </ol>
+</section>
+
+<!-- ================================================================= -->
+<section id="guards">
+  <span class="h2-nummer">03</span>
+  <h2>Die sieben Guards</h2>
+  <p>
+    Jeder einzelne entstand aus einem realen Vorfall. Sie sind der Grund, warum die
+    Rückfall-Quote bei 1,5 % liegt statt bei null: Wenn Fleech unsicher ist,
+    entscheidet es sich für den Rohtext.
+  </p>
+
+  <div class="tabellenrahmen">
+    <table>
+      <thead>
+        <tr><th>Guard</th><th>Prüft</th><th>Entstanden aus</th></tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td>Wortgetreue</td>
+          <td>Wortmenge vorher / nachher</td>
+          <td>Das Modell formulierte ganze Sätze um, die so nie gesagt wurden.</td>
+        </tr>
+        <tr>
+          <td>Inflation</td>
+          <td>Ergänzungen am Satzende</td>
+          <td>Höfliche Schlussfloskeln, die niemand diktiert hatte.</td>
+        </tr>
+        <tr>
+          <td>Wiederholungs&shy;filter</td>
+          <td>≥ 4 gleiche Wörter am Ende</td>
+          <td>Whisper-Schleifen bei Stille. Schwelle 4, weil „wirklich wirklich sehr sehr sehr gut" echt vorkam.</td>
+        </tr>
+        <tr>
+          <td>Fremdsprach-Tail</td>
+          <td>Fremde Diakritika, englische Füller</td>
+          <td>„Seekers Odoo Time Go Go Go and Let me and or" — angehängt an ein deutsches Diktat.</td>
+        </tr>
+        <tr>
+          <td>Kauderwelsch</td>
+          <td>Vier Signale, Schnitt ab zwei</td>
+          <td>Wortsalat am Diktatende, den die anderen drei Filter durchließen.</td>
+        </tr>
+        <tr>
+          <td>Meta-Präambel</td>
+          <td>„Hier ist der bereinigte Text:"</td>
+          <td>Das Modell kommentierte seine eigene Arbeit.</td>
+        </tr>
+        <tr>
+          <td>Abschneide-Erkennung</td>
+          <td>Antwort am Kontextfenster abgebrochen</td>
+          <td>Lange Diktate endeten mitten im Satz. Dann: Rohtext statt halber Satz.</td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+
+  <div class="merk warnung">
+    <p>
+      <strong>Warum <code>num_ctx</code> Pflicht ist:</strong> Ollama lädt Modelle
+      immer mit 4096 Token Kontext, egal was das Modell könnte — und der
+      OpenAI-Aufsatz ignoriert jede Option dagegen. Allein der
+      Bereinigungs-Prompt belegt ~3000 Token. Fleech spricht deshalb bei lokalem
+      Ollama dessen eigene <code>/api/chat</code> mit <code>options.num_ctx</code>
+      an.
+    </p>
+  </div>
+</section>
+
+<!-- ================================================================= -->
+<section id="profile">
+  <span class="h2-nummer">04</span>
+  <h2>Profile und Apps</h2>
+  <p>
+    Ein Profil bestimmt, <em>was</em> aus dem Diktat wird. Dieselben gesprochenen
+    Informationen werden je nach Profil zu einer Mail, zu einem KI-Prompt oder zu
+    einer Stichpunktliste.
+  </p>
+
+  <div class="raster zwei">
+    <div class="karte">
+      <h4><span class="punkt p-std"></span> Standard</h4>
+      <p>Bereinigter Text, so wie gesprochen. Nur die Sprechweise fällt weg.</p>
+    </div>
+    <div class="karte">
+      <h4><span class="punkt p-email"></span> E-Mail</h4>
+      <p>Anrede, Absätze, Grußformel, gehobenerer Ton. Der Absendername kommt als
+         Nachrichten-Kontext, nicht in den System-Prompt.</p>
+    </div>
+    <div class="karte">
+      <h4><span class="punkt p-prompt"></span> KI-Prompt</h4>
+      <p>Zieht Wiederholungen zusammen, dampft Herleitungen ein. Gemessen:
+         92 gesprochene Wörter → 70, ohne eine Anforderung zu verlieren.</p>
+    </div>
+    <div class="karte">
+      <h4><span class="punkt p-stich"></span> Stichpunkte</h4>
+      <p>Jede genannte Sache ein Punkt. <strong>Keine Zusammenfassung</strong> —
+         weggelassen wird nichts, nur die Sprechweise verschwindet.</p>
+    </div>
+  </div>
+
+  <h3>Die Apps-Seite</h3>
+  <p>
+    Die Zuordnung steht dort, wo die Frage entsteht: bei der Anwendung. Drei
+    Spalten — welche Programme es gibt, welches Profil dort automatisch gilt, und
+    zwischen welchen der Profil-Hotkey dort überhaupt wechselt.
+  </p>
+  <p>
+    In einem KI-Chat sind das andere als in Word: Statt durch acht Profile zu
+    tippen, wechselt man dort nur zwischen zweien. Feinere Regeln greifen auf den
+    Fenstertitel, sodass derselbe Editor mit Code und mit Notizen verschieden
+    behandelt wird.
+  </p>
+
+  <div class="merk">
+    <p>
+      Während einer laufenden Aufnahme gilt die App, in der <em>gestartet</em>
+      wurde — auch wenn man zwischendurch wechselt. Dorthin kehrt der Cursor
+      zurück, dort landet der Text.
+    </p>
+  </div>
+</section>
+
+<!-- ================================================================= -->
+<section id="gedaechtnis">
+  <span class="h2-nummer">05</span>
+  <h2>Projekt-Gedächtnis <span style="font-family:var(--mono);font-size:0.7rem;color:var(--akzent);vertical-align:middle;">NEU IN 5.1.0</span></h2>
+
+  <p>
+    Fleech lernt aus dem, was es einfügt, die Fachbegriffe eines Zusammenhangs und
+    gibt sie beim nächsten Diktat an die Erkennung weiter. Das überlebt Neustarts.
+  </p>
+
+  <div class="diagramm">
+  <div class="fluss">
+    <div class="fluss-reihe">
+      <div class="knoten"><b>Eingefügter Text</b><span>der bereinigte, nicht das Rohtranskript</span></div>
+      <div class="knoten"><b>Begriffe extrahieren</b><span>Binnenversalien, Ziffern, Punkte</span></div>
+    </div>
+    <div class="pfeil">▼</div>
+    <div class="fluss-reihe">
+      <div class="knoten akzent"><b>kontext.db</b><span>je App und Titel-Segment</span></div>
+    </div>
+    <div class="pfeil">▲ &nbsp; beim nächsten Diktat</div>
+    <div class="fluss-reihe">
+      <div class="knoten"><span class="zweig-marke">SPEZIFISCH</span><b>Fenster-Segmente</b><span>„Fleech", „Analysis II"</span></div>
+      <div class="knoten"><span class="zweig-marke">GRUNDSTOCK</span><b>App-weit</b><span>was überall in dieser App gilt</span></div>
+    </div>
+    <div class="pfeil">▼</div>
+    <div class="fluss-reihe">
+      <div class="knoten akzent"><b>Priming-Satz an Whisper</b><span>max. 25 Begriffe, 0,6 ms</span></div>
+    </div>
+  </div>
+    <p class="bildunter">
+      Zwei Ebenen: Was im konkreten Fenster gilt, steht vorn; darunter der Bestand
+      des ganzen Programms.
+    </p>
+  </div>
+
+  <h3>Was als Fachbegriff zählt</h3>
+  <p>
+    Drei harte Signale, an 1.189 echten Diktaten kalibriert: Binnenversalien
+    (<code>MCP-Server</code>, <code>PySide6</code>), eine Ziffer im Wort
+    (<code>gemma3</code>, <code>x_3</code>) oder ein Punkt im Wortinneren
+    (<code>share.finland.xyz</code>).
+  </p>
+
+  <details>
+    <summary>Ein Ansatz, der gemessen und verworfen wurde</summary>
+    <div class="inhalt">
+      <p>
+        Naheliegend wäre: „Was nur in dieser App vorkommt, ist projektspezifisch."
+        An den echten Daten lieferte das <code>Wahrscheinlichkeit</code>,
+        <code>Waffe</code>, <code>Abend</code> — gewöhnliche Wörter, die zufällig
+        nur in einem Fenster fielen.
+      </p>
+      <p>
+        Solche Wörter zu primen macht die Erkennung <strong>schlechter</strong>,
+        weil es Whisper in ihre Richtung zieht. Der Ansatz flog raus.
+      </p>
+    </div>
+  </details>
+
+  <details>
+    <summary>Warum die Titel-Segmente und nicht der ganze Titel</summary>
+    <div class="inhalt">
+      <p>
+        Ein Fenstertitel lautet etwa <code>pipeline.py - Fleech - Visual Studio
+        Code</code>. Der ganze Titel als Schlüssel wäre wertlos — jede Datei ein
+        eigener Kontext. Der Prozessname allein wäre zu grob.
+      </p>
+      <p>
+        Deshalb wird der Titel zerlegt und jeder Begriff unter jedem Segment
+        gespeichert. Was stabil bleibt (das Projekt), sammelt über viele Diktate
+        viel; was wechselt (der Dateiname), fällt im Ranking von selbst zurück.
+        Niemand muss raten, welches Segment das Projekt ist.
+      </p>
+    </div>
+  </details>
+
+  <div class="merk">
+    <p>
+      <strong>Es geht kein Inhalt an die KI.</strong> Eine Projekt-Zusammenfassung
+      im Prompt wäre mächtiger, würde aber jedes Diktat verlangsamen und dem Modell
+      Material geben, aus dem es ergänzen kann — genau die Halluzinationen, gegen
+      die die sieben Guards stehen. Vokabular kann nichts erfinden.
+    </p>
+  </div>
+
+  <div class="tabellenrahmen">
+    <table>
+      <thead><tr><th>Vorgang</th><th>Kosten</th><th>Wann</th></tr></thead>
+      <tbody>
+        <tr><td>Begriffe abrufen</td><td class="zahl">0,6 ms</td><td>vor der Erkennung</td></tr>
+        <tr><td>Lernen</td><td class="zahl">3,1 ms</td><td>nach dem Einfügen</td></tr>
+        <tr><td>Erstbefüllung</td><td class="zahl">3,7 s</td><td>einmalig, im Hintergrund</td></tr>
+        <tr><td>Speicher</td><td class="zahl">116 KB</td><td>bei 1.190 Diktaten</td></tr>
+      </tbody>
+    </table>
+  </div>
+</section>
+
+<!-- ================================================================= -->
+<section id="aufbau">
+  <span class="h2-nummer">06</span>
+  <h2>Aufbau des Programms</h2>
+
+  <div class="diagramm">
+  <div class="fluss">
+    <div class="fluss-reihe">
+      <div class="knoten"><span class="zweig-marke">EINGABE</span><b>hotkey.py</b><span>globale Tasten, Maustasten</span></div>
+      <div class="knoten"><span class="zweig-marke">VERDRAHTUNG</span><b>ui/desktop.py</b><span>Tray, Lizenz, Updates</span></div>
+    </div>
+    <div class="pfeil">▼</div>
+    <div class="fluss-reihe">
+      <div class="knoten akzent"><b>pipeline.py</b><span>Orchestrierung der Signalkette</span></div>
+    </div>
+    <div class="pfeil">▼</div>
+    <div class="verzweigung">
+      <div class="knoten"><b>routing.py</b><span>Modus-Erkennung</span></div>
+      <div class="knoten"><b>textutils.py</b><span>Guards, Wörterbuch</span></div>
+      <div class="knoten"><b>formula.py</b><span>Mathematik</span></div>
+      <div class="knoten"><b>kontext.py</b><span>Gedächtnis</span></div>
+      <div class="knoten"><b>document.py</b><span>Diktat-Puffer</span></div>
+      <div class="knoten"><b>injection.py</b><span>Einfügen</span></div>
+    </div>
+    <div class="pfeil">▼ &nbsp; nur über Qt-Signale</div>
+    <div class="fluss-reihe">
+      <div class="knoten"><b>ui/overlay_qt.py</b><span>die Pille</span></div>
+      <div class="knoten"><b>ui/main_window.py</b><span>Home · Insights · Profile · Apps</span></div>
+      <div class="knoten"><b>ui/settings_window.py</b><span>Einstellungen</span></div>
+    </div>
+  </div>
+    <p class="bildunter">
+      Der letzte Pfeil ist der kritische: Alles zwischen Worker-Threads und
+      Oberfläche läuft über Qt-Signale — direkter Zugriff hat die App
+      reproduzierbar eingefroren.
+    </p>
+  </div>
+
+  <div class="tabellenrahmen">
+    <table>
+      <thead><tr><th>Modul</th><th>Zeilen</th><th>Aufgabe</th></tr></thead>
+      <tbody>
+        <tr><td class="pfad">ui/main_window.py</td><td class="zahl">2.732</td><td>Vier Seiten: Home, Insights, Profile, Apps</td></tr>
+        <tr><td class="pfad">ui/desktop.py</td><td class="zahl">1.655</td><td>Verdrahtung, Tray, Hotkeys, Lizenz, Updates</td></tr>
+        <tr><td class="pfad">ui/overlay_qt.py</td><td class="zahl">1.289</td><td>Die Pille: Pegel, Text, Abbrechen/Fertig/Pause</td></tr>
+        <tr><td class="pfad">ui/settings_window.py</td><td class="zahl">1.219</td><td>Einstellungen, Wörterbuch, Bausteine</td></tr>
+        <tr><td class="pfad">pipeline.py</td><td class="zahl">1.057</td><td>Orchestrierung der Signalkette</td></tr>
+        <tr><td class="pfad">textutils.py</td><td class="zahl">843</td><td>Guards, Wörterbuch, Priming</td></tr>
+        <tr><td class="pfad">usersettings.py</td><td class="zahl">756</td><td>Einstellungen, atomar gespeichert</td></tr>
+        <tr><td class="pfad">formula.py</td><td class="zahl">610</td><td>Gesprochene Mathematik → LaTeX</td></tr>
+        <tr><td class="pfad">kontext.py</td><td class="zahl">340</td><td>Projekt-Gedächtnis</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <h3>Qt-Fallen, die real aufgetreten sind</h3>
+  <div class="raster zwei">
+    <div class="karte">
+      <h4>Referenzzyklus-Crash</h4>
+      <p>
+        Ein Lambda, das <code>self</code> fängt und im Kind-Widget liegt, baut
+        einen Python-Zyklus. Widgets sterben dann per Garbage Collection in
+        undefinierter Reihenfolge — sporadische Zugriffsverletzungen, deren
+        Absturzort nie die Ursache ist.
+      </p>
+    </div>
+    <div class="karte">
+      <h4>Timer auf fremden Threads</h4>
+      <p>
+        <code>QTimer</code> ist auf einem Nicht-Qt-Thread wirkungslos. Der
+        Profil-Hotkey kommt vom Tastatur-Listener — die Anzeige blieb deshalb ewig
+        stehen, und das Halten funktionierte nie.
+      </p>
+    </div>
+    <div class="karte">
+      <h4>Widgets im falschen Thread</h4>
+      <p>
+        Der Lizenz-Dialog wurde im Listener-Thread <em>gebaut</em>, nicht nur
+        gezeigt. Die App fror komplett ein. Beides läuft jetzt über den Signal-Bus.
+      </p>
+    </div>
+    <div class="karte">
+      <h4>Zeilennummer ≠ Datenindex</h4>
+      <p>
+        Mit einem Suchfeld ist Zeile 0 nicht mehr Profil 0. Wer die Zeilennummer
+        als Index nimmt, benennt stillschweigend das falsche Profil um.
+      </p>
+    </div>
+  </div>
+</section>
+
+<!-- ================================================================= -->
+<section id="daten">
+  <span class="h2-nummer">07</span>
+  <h2>Was gespeichert wird</h2>
+  <p>Alles unter <code>%APPDATA%\Fleech</code>, alles lokal, nichts verschlüsselt-versteckt.</p>
+
+  <div class="tabellenrahmen">
+    <table>
+      <thead><tr><th>Datei</th><th>Inhalt</th><th>Lebensdauer</th></tr></thead>
+      <tbody>
+        <tr><td class="pfad">settings.json</td><td>Hotkeys, Profile, Wörterbuch, Lizenz</td><td>dauerhaft</td></tr>
+        <tr><td class="pfad">settings.json.bak</td><td>die letzte gute Fassung</td><td>bei jedem Speichern erneuert</td></tr>
+        <tr><td class="pfad">history.db</td><td>Diktate für Home und Insights</td><td>abschaltbar, löschbar</td></tr>
+        <tr><td class="pfad">kontext.db</td><td>gelerntes Fachvokabular</td><td>90 Tage ohne Treffer</td></tr>
+        <tr><td class="pfad">fleech.log</td><td>Diagnose</td><td>rollierend</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <h3>Warum atomar gespeichert wird</h3>
+  <p>
+    Bis 4.9.1 kürzte das Speichern die Datei erst auf null und schrieb dann neu.
+    Traf ein hartes Beenden genau diesen Moment, blieb eine leere Datei zurück —
+    und das Laden fiel still auf die Vorgaben, die der nächste Speichervorgang
+    zementierte. Weg waren Hotkeys, Profile und der Lizenzschlüssel.
+  </p>
+  <p>
+    Jetzt: erst vollständig in eine Nebendatei, dann <code>fsync</code>, dann
+    <code>os.replace</code> — atomar. Es gibt nur die alte <em>oder</em> die neue
+    Fassung, nie etwas dazwischen. Die vorherige bleibt als Sicherung liegen, aus
+    der sich Fleech selbst heilt.
+  </p>
+</section>
+
+<!-- ================================================================= -->
+<section id="weitergabe">
+  <span class="h2-nummer">08</span>
+  <h2>Lizenz und Weitergabe</h2>
+
+  <p>
+    Zwei Repositories: der Quellcode privat, die Installationsdateien öffentlich.
+    Klingt widersprüchlich, ist aber der Kern der Konstruktion.
+  </p>
+
+  <div class="raster zwei">
+    <div class="karte">
+      <h4>Warum die Installer öffentlich sind</h4>
+      <p>
+        Nur so kommt die Update-Prüfung ohne Zugriffstoken aus. Ein Token in einer
+        ausgelieferten Programmdatei wäre mit <code>strings</code> in Sekunden
+        auslesbar — und gäbe Lesezugriff auf den gesamten Quellcode.
+      </p>
+    </div>
+    <div class="karte">
+      <h4>Warum das trotzdem trägt</h4>
+      <p>
+        Wer Fleech <em>benutzen</em> darf, entscheidet ein Ed25519-signierter
+        Schlüssel. Die App kennt nur den öffentlichen Teil — damit lässt sich
+        prüfen, niemals unterschreiben.
+      </p>
+    </div>
+  </div>
+
+  <p>
+    Die Sperre sitzt <strong>vor dem Mikrofon</strong>, nicht in der Pipeline: Ohne
+    gültigen Schlüssel wird gar nichts erst aufgenommen. Geprüft wird offline; der
+    Name steht mitsigniert im Schlüssel.
+  </p>
+
+  <div class="merk warnung">
+    <p>
+      <strong>Ehrlich benannt:</strong> Eine lokale Prüfung lässt sich
+      herauspatchen. Sie verhindert das Weiterreichen an Dritte, nicht das Reverse
+      Engineering. Ein anderes Verfahren gibt es für lokal laufende Software nicht.
+    </p>
+  </div>
+
+  <p>
+    Updates laufen gegen das öffentliche Repository, mit SHA-256-Prüfung gegen die
+    Release-Notizen. Passt die Summe nicht, wird die Datei verworfen. Bei
+    Weiterleitungen wird der Authorization-Header entfernt und die Zielhost geprüft.
+  </p>
+</section>
+
+<!-- ================================================================= -->
+<section id="zahlen">
+  <span class="h2-nummer">09</span>
+  <h2>Betriebsdaten</h2>
+  <p>Gemessen, nicht geschätzt — aus 1.190 Diktaten im täglichen Gebrauch.</p>
+
+  <div class="tabellenrahmen">
+    <table>
+      <thead><tr><th>Kennzahl</th><th>Wert</th><th>Anmerkung</th></tr></thead>
+      <tbody>
+        <tr><td>Diktate</td><td class="zahl">1.190</td><td>über rund vier Wochen</td></tr>
+        <tr><td>Wörter</td><td class="zahl">95.858</td><td>etwa das 3,5-Fache von „Der alte Mann und das Meer"</td></tr>
+        <tr><td>Sprechzeit</td><td class="zahl">15,2 h</td><td>Ø 46 s je Diktat</td></tr>
+        <tr><td>Sprechtempo</td><td class="zahl">105 WPM</td><td>etwa dreimal Tippgeschwindigkeit</td></tr>
+        <tr><td>Erkennung</td><td class="zahl">810 ms</td><td>warm, auf der Grafikkarte</td></tr>
+        <tr><td>Bereinigung</td><td class="zahl">4,1 s</td><td>Ø über alle Routing-Stufen</td></tr>
+        <tr><td>Ohne KI</td><td class="zahl">3 %</td><td>trivial — direkt eingefügt</td></tr>
+        <tr><td>Schnelles Modell</td><td class="zahl">13 %</td><td>einfache Diktate</td></tr>
+        <tr><td>Volle Bereinigung</td><td class="zahl">81 %</td><td>der Normalfall</td></tr>
+        <tr><td>Rückfall auf Rohtext</td><td class="zahl">1,5 %</td><td>Guard hat gegriffen</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <h3>Warum gemma3:4b</h3>
+  <p>
+    An 15 echten Diktaten gegen <code>qwen3.5:9b</code> gemessen: 34 % schneller,
+    halb so groß (3,3 GB) und dabei <em>wortgetreuer</em> — es ergänzt 0,014 statt
+    0,021 eigene Wörter je Diktat. Das zweite, kleine Modell entfiel: Es brachte
+    0,1 Sekunden und kostete Treue, während zwei Modelle dauerhaft 8,5 GB
+    Grafikspeicher belegten.
+  </p>
+</section>
+
+<footer>
+  <p style="max-width:var(--lese)">
+    Fleech 5.1.0 · 19.369 Zeilen Programm, 11.120 Zeilen Tests · Python 3.11,
+    PySide6/Qt, faster-whisper, Ollama · Windows 11 und Linux/X11 ·
+    Stand 2. August 2026
+  </p>
+</footer>
+
+</div>
