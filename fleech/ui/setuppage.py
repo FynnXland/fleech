@@ -23,7 +23,7 @@ from PySide6.QtWidgets import (
 )
 
 from ..provisioning import SetupRunner, build_steps
-from .main_window import ACCENT, BORDER_HAIRLINE, CARD, MUTED, TEXT, style_button
+from .theme import ACCENT, BORDER_HAIRLINE, CARD, MUTED, TEXT, style_button
 
 log = logging.getLogger(__name__)
 

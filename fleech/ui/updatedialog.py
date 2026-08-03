@@ -21,7 +21,7 @@ from PySide6.QtWidgets import (
 )
 
 from ..usersettings import SETTINGS_DIR
-from .main_window import ACCENT, BORDER_HAIRLINE, CARD, MUTED, TEXT, style_button
+from .theme import ACCENT, BORDER_HAIRLINE, CARD, MUTED, TEXT, style_button
 from .updates import download_update, install_update, update_token
 
 log = logging.getLogger(__name__)

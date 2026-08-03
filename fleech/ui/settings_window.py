@@ -25,10 +25,11 @@ from ..usersettings import (
     apply_toast_level, overlay_compactness, toast_level,
 )
 from . import autostart
-from .main_window import (
+from .theme import (
     ACCENT, ACCENT_DIM, BORDER_HAIRLINE, CARD, MUTED, NAV_ACTIVE_BG, ROW_HOVER,
-    SIDEBAR, TEXT, TRACK, HelpBadge, button_qss, style_button,
+    SIDEBAR, TEXT, TRACK, button_qss, style_button,
 )
+from .widgets import HelpBadge
 
 log = logging.getLogger(__name__)
 
@@ -607,10 +608,26 @@ class SettingsPanel(QWidget):
     # ---------------------------------------------------------------------- Seiten --
 
     def _build_pages(self) -> None:
-        self._hotkey_fields = {}
-        s = self.settings
+        """Die neun Seiten der Einstellungen aufbauen — je Seite eine Methode.
 
-        # Allgemein
+        Stand 5.4.0 war das EINE Funktion mit 674 Zeilen. Sie liess sich sauber
+        trennen, weil jede Seite mit `self._page()` neu anfaengt und keine lokale
+        Variable ueber eine Seitengrenze hinweg lebt.
+        """
+        self._hotkey_fields = {}
+        self._page_allgemein()
+        self._page_aufnahme()
+        self._page_audiofokus()
+        self._page_overlay()
+        self._page_sounds()
+        self._page_benachrichtigungen()
+        self._page_ausgabe()
+        self._page_textersetzung()
+        self._page_advanced()
+
+    def _page_allgemein(self) -> None:
+        """Allgemein — Autostart, Sprache, Name, Verlauf."""
+        s = self.settings
         _, form = self._page()
         form.addRow("", _hint(
             "Grundlegendes: Start mit Windows, Sprache, dein Name und der lokale Verlauf."
@@ -684,6 +701,10 @@ class SettingsPanel(QWidget):
         form.addRow("", self._cards_hint)
 
         # Aufnahme
+
+    def _page_aufnahme(self) -> None:
+        """Aufnahme — Hotkeys, Mikrofon, Freihand."""
+        s = self.settings
         _, form = self._page()
         form.addRow("", _hint(
             "Wie du das Diktat auslöst — und welches Mikrofon genutzt wird."
@@ -791,6 +812,10 @@ class SettingsPanel(QWidget):
         )
 
         # Audio-Fokus
+
+    def _page_audiofokus(self) -> None:
+        """Audio-Fokus — Ducking und Capture-Guard."""
+        s = self.settings
         _, form = self._page()
         form.addRow("", _hint(
             "Macht andere Apps (Musik, Videos) während der Aufnahme leiser — für ein "
@@ -814,6 +839,10 @@ class SettingsPanel(QWidget):
                      hint_text="Wie laut andere Apps beim Aufnehmen bleiben. 0 % = stumm.")
 
         # Overlay
+
+    def _page_overlay(self) -> None:
+        """Overlay — Groesse, Position, Verhalten der Pille."""
+        s = self.settings
         _, form = self._page()
         form.addRow("", _hint(
             "Die kleine Pille am Bildschirmrand: Sichtbarkeit, Größe, Ränder und Position."
@@ -927,6 +956,10 @@ class SettingsPanel(QWidget):
         form.addRow(label_w, edit_row)
 
         # Sounds
+
+    def _page_sounds(self) -> None:
+        """Sounds."""
+        s = self.settings
         _, form = self._page()
         form.addRow("", _hint(
             "Fleechs eigene Töne für Start, Stopp, eingefügten Text und Fehler."
@@ -950,6 +983,10 @@ class SettingsPanel(QWidget):
                         lambda v, k=key: setattr(s.sounds, k, v), tip)
 
         # Benachrichtigungen (Windows Focus Assist, Toasts, Gaming)
+
+    def _page_benachrichtigungen(self) -> None:
+        """Benachrichtigungen — Tray, Toast, Overlay."""
+        s = self.settings
         _, form = self._page()
         f = s.focus
         form.addRow("", _hint(
@@ -1013,6 +1050,10 @@ class SettingsPanel(QWidget):
         form.addRow(label_w, buttons)
 
         # Ausgabe
+
+    def _page_ausgabe(self) -> None:
+        """Ausgabe — wie der Text ins Feld kommt."""
+        s = self.settings
         _, form = self._page()
         form.addRow("", _hint(
             "Wie stark die KI dein Diktat glättet — pro App feiner steuerbar im Tab "
@@ -1067,6 +1108,10 @@ class SettingsPanel(QWidget):
         form.addRow(label_w, trigger)
 
         # Wörterbuch — Fachbegriffe/Eigennamen fuer Erkennung + Korrektur
+
+    def _page_textersetzung(self) -> None:
+        """Textersetzung — Woerterbuch, Bausteine, Kontext."""
+        s = self.settings
         _, form = self._page()
         form.addRow("", _hint(
             "Eigene Begriffe, die die Spracherkennung kennen soll — eine Zeile pro Eintrag."
@@ -1160,6 +1205,10 @@ class SettingsPanel(QWidget):
         ))
 
         # Advanced
+
+    def _page_advanced(self) -> None:
+        """Advanced — Modelle, Warmhaltung, Diagnose."""
+        s = self.settings
         _, form = self._page()
         form.addRow("", _hint(
             "Technische Schalter — die Standardwerte passen für die meisten."

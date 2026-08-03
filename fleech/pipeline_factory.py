@@ -27,7 +27,7 @@ _FORMAT_PROMPT_FILES = {"email": "email", "summary": "summary"}
 
 
 def _load_format_prompts(config: AppConfig) -> dict:
-    """{Format: System-Prompt}. Fehlende Datei = Format faellt auf Cleanup zurueck.
+    r"""{Format: System-Prompt}. Fehlende Datei = Format faellt auf Cleanup zurueck.
 
     Defensiv, weil ein aelterer Benutzer-Prompt-Ordner (%APPDATA%\Fleech\prompts)
     die neuen Dateien nicht hat — das darf den Start nie reissen."""

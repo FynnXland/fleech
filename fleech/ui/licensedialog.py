@@ -19,7 +19,7 @@ from PySide6.QtWidgets import (
 )
 
 from ..licensing import check, verify
-from .main_window import ACCENT, BORDER_HAIRLINE, CARD, MUTED, TEXT, style_button
+from .theme import ACCENT, BORDER_HAIRLINE, CARD, MUTED, TEXT, style_button
 
 log = logging.getLogger(__name__)
 

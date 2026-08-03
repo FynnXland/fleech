@@ -22,7 +22,7 @@ from PySide6.QtWidgets import (
 )
 
 from .chevron import apply_chevrons
-from .main_window import (
+from .theme import (
     ACCENT, BORDER_HAIRLINE, CARD, MUTED, TEXT, button_qss, style_button,
 )
 

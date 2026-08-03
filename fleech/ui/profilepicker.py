@@ -22,7 +22,7 @@ from PySide6.QtGui import QCursor, QPainter
 from PySide6.QtWidgets import QApplication, QPushButton, QVBoxLayout, QWidget
 
 from ..usersettings import APP_STANDARD
-from .main_window import ACCENT, BORDER_HAIRLINE, MUTED, TEXT
+from .theme import ACCENT, BORDER_HAIRLINE, MUTED, TEXT
 
 log = logging.getLogger(__name__)
 
