@@ -314,8 +314,8 @@
   </p>
 
   <div class="kennzahlen">
-    <div class="kennzahl"><span class="wert">20.645</span><span class="was">Zeilen Programm</span></div>
-    <div class="kennzahl"><span class="wert">891</span><span class="was">Tests, grün</span></div>
+    <div class="kennzahl"><span class="wert">20.848</span><span class="was">Zeilen Programm</span></div>
+    <div class="kennzahl"><span class="wert">931</span><span class="was">Tests, grün</span></div>
     <div class="kennzahl"><span class="wert">1.190</span><span class="was">Diktate im Betrieb</span></div>
     <div class="kennzahl"><span class="wert">1,5 %</span><span class="was">Rückfall-Quote</span></div>
   </div>
@@ -771,6 +771,22 @@
     </div>
   </div>
 
+  <div class="karte" style="margin-top:1.5rem">
+    <h4>Die Oberfläche ist geschichtet · nach 5.4.0</h4>
+    <p>
+      Vier Seiten, vier Dialoge und fünfzehn Widgets lagen in einer Datei mit
+      2.970 Zeilen. Schlimmer als die Länge war die Richtung: Sechs Module zogen
+      ihre <strong>Farben aus dem Hauptfenster</strong> — der Update-Dialog
+      importierte es, nur um eine Kartenfarbe zu kennen.
+    </p>
+    <p style="margin-top:.6rem">
+      Heute: <code>theme</code> → <code>widgets</code> → <code>dialogs</code> →
+      <code>pages/</code> → <code>main_window</code> → <code>desktop</code>.
+      Ein Test hält fest, dass <code>theme</code> nichts aus der App importiert,
+      keine Seite ihr Fenster kennt und keine Importzyklen entstehen.
+    </p>
+  </div>
+
   <div class="merk">
     <p>
       Ein Prompt für Englisch war nötig, und das wurde gemessen: Mit dem deutschen
@@ -993,7 +1009,7 @@
 
 <footer>
   <p style="max-width:var(--lese)">
-    Fleech 5.4.0 · 20.645 Zeilen Programm, 11.987 Zeilen Tests in 48 Dateien ·
+    Fleech 5.4.0 · 20.848 Zeilen Programm in 70 Dateien, 12.140 Zeilen Tests ·
     Python 3.11, PySide6/Qt, faster-whisper, Ollama · Windows 11 und Linux/X11 ·
     Stand 3. August 2026
   </p>

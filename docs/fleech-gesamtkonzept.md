@@ -1406,57 +1406,104 @@ Sprechen** geladen, was die Ladezeit größtenteils verdeckt.
 
 ### 14.1 Modulkarte
 
+70 Dateien, rund 20.800 Zeilen. Der Kern ist bewusst klein geschnitten; die
+Oberfläche ist der größte Block, weil sie am meisten Fälle abdecken muss.
+
 ```
 fleech/
 ├── __main__.py          Einstiegspunkt, CLI-Argumente, Logging
-├── app.py               CLI-Modus (Terminal, Tk-Overlay)
-├── config.py            config.yaml + .env + ENV-Overrides → AppConfig
-├── usersettings.py      settings.json (alle UI-Einstellungen)
+├── app.py               Engine-Verdrahtung ohne GUI
+├── config.py            config.yaml + ENV-Overrides → AppConfig
+├── usersettings.py      settings.json — atomar geschrieben, mit .bak-Heilung
+├── version.py           eine Stelle für die Versionsnummer
 │
-├── audio.py             Recorder: Mikrofon, Pegel, Sample-genaue Position
-├── recording_control.py Hold-/Toggle-Logik (UI-unabhängig, testbar)
-├── hotkey.py            HotkeyManager: Tasten, Maus, Modifier, Entprellung
+├── audio.py             Recorder: Mikrofon, Pegel, sample-genaue Position
+├── recording_control.py Halten/Umschalten — UI-unabhängig, testbar
+├── hotkey.py            Tasten, Maus, Modifier, Entprellung
+├── freihand.py          Diktieren ohne Taste: VAD → tiny → Aufnahme
 │
 ├── pipeline.py          ▶ Orchestrierung der gesamten Verarbeitung
 ├── pipeline_factory.py  baut die Pipeline aus Config + Settings
-├── routing.py           Modus-Erkennung
+├── routing.py           Modus-Erkennung auf dem Rohtranskript
 ├── commands.py          Befehls-JSON, Plausibilitäts- und Löschguards
-├── mathmode.py          Formel-Hilfen, LaTeX-Bereinigung
-├── textutils.py         Komplexität, Wörterbuch, Delimiter, Ähnlichkeit
-├── document.py          DocumentTracker: was habe ich selbst eingefügt?
-├── prompts.py           Prompt-Dateien laden
+├── formula.py           gesprochene Mathematik → LaTeX (Parser, kein Modell)
+├── snippets.py          Text-Bausteine
+├── textutils.py         die sieben Guards, Wörterbuch, Priming
+├── document.py          was habe ich selbst eingefügt?
+├── kontext.py           Projekt-Gedächtnis: Fachbegriffe je App und Titel
+├── prompts.py           Prompt-Dateien laden (Nutzerfassung bevorzugt)
 │
-├── injection.py         Text einfügen (Clipboard + Strg+V)
-├── clipboard.py         Zwischenablage (Windows/Linux)
-├── audiofocus.py        Ducking, Loopback-Sperre, Mikrofonpegel
+├── injection.py         Text einfügen (Clipboard + Strg+V, serialisiert)
+├── clipboard.py         Zwischenablage — eine Nahtstelle für beide Systeme
+├── audiofocus.py        Ducking, Loopback-Erkennung, Mikrofonpegel
 ├── history.py           SQLite-Verlauf und Statistiken
 ├── overlay.py           Live-Vorschau (Streaming)
+├── milestones.py        „das 2,3-Fache von Goethes Faust"
 │
-├── platformpaths.py     Wo liegen Einstellungen, Log, Datenbank?
-├── singleinstance.py    Nur eine Instanz
+├── licensing.py         Ed25519-Signatur, offline geprüft
+├── provisioning.py      Kaltstart-Einrichtung
+├── ollama_setup.py      Ollama erkennen und auf Wunsch installieren
+├── selftest.py          Audio-Selbsttest
+├── pipelinetest.py      Pipeline-Selbsttest gegen Fixture-WAVs
+│
+├── platformpaths.py     wo liegen Einstellungen, Log, Datenbank?
+├── singleinstance.py    nur eine Instanz
 ├── resources.py         Assets/Prompts im Bundle finden
 ├── portaudio_bootstrap.py  Audio-Bibliothek unter Linux finden
 │
-├── stt/                 faster_whisper_stt.py (lokal, einziger Weg)
-├── llm/client.py        OpenAI-kompatibler Client, Ollama-Warmhaltung
+├── stt/                 faster_whisper_stt.py (lokal, einziger Weg) + base.py
+├── llm/client.py        Ollamas /api/chat mit num_ctx, Warmhaltung
 └── ui/
     ├── desktop.py       ▶ DesktopApp: verdrahtet alles
-    ├── main_window.py   Hauptfenster: Home, Insights, Profile
-    ├── settings_window.py  Einstellungs-Panel (11 Sektionen)
+    ├── theme.py         Design-Token und Button-Stile — die unterste Schicht
+    ├── widgets.py       wiederverwendbare Bausteine (Karten, Suchfeld, Gauge)
+    ├── dialogs.py       Prompt, Transkript-Detail, Wort-Detail, Wörterbuch
+    ├── main_window.py   das Fenstergerüst: Sidebar, Seitenwechsel, Geometrie
+    ├── pages/           je Seite eine Datei
+    │   ├── home.py          Begrüßung, Verlauf, Kurz-Statistik
+    │   ├── insights.py      Kennzahlen aus der eigenen Historie
+    │   ├── apps.py          welches Profil greift in welchem Programm
+    │   └── profiles.py      Format, Stil, Sprache, Zuordnung
+    ├── settings_window.py  Einstellungs-Panel (neun Seiten)
     ├── overlay_qt.py    die Pille + Sprechblasen
     ├── state.py         StateBus (thread-sichere Signale)
     ├── tray.py          Tray-Icon und -Menü
     ├── sounds.py        synthetisierte Töne
     ├── notifications.py Banner-/Ton-/Overlay-Politik
+    ├── onboarding.py    Einführung beim Erststart
+    ├── setuppage.py     Einrichtungs-Seite der Einführung
+    ├── licensedialog.py Schlüssel eintragen
+    ├── updatedialog.py  Update-Dialog
+    ├── updates.py       Feed prüfen, laden, Prüfsumme, installieren
+    ├── profilepicker.py Profil-Auswahl am Mauszeiger
     ├── windowsfocus.py  Vollbild-/Spiel-/DND-Erkennung (Windows)
     ├── x11tools.py      dasselbe für Linux/X11
     ├── focusrestore.py  Cursor-Rückkehr
     ├── autostart.py     Autostart-Eintrag verwalten
     ├── hotkey_recorder.py  Tastenkombination aufnehmen
-    ├── updates.py       Versions-Feed prüfen
     ├── titlebar.py      dunkle Titelleiste
-    └── chevron.py       gezeichnete Pfeil-/Haken-Icons
+    └── chevron.py       gezeichnete Pfeil-Icons
 ```
+
+**Die Schichtung der Oberfläche** ist erst nach 5.4.0 entstanden und die einzige
+Stelle, an der die Reihenfolge wirklich zählt:
+
+```
+theme (Farben, ohne jede Abhängigkeit)
+  └─ widgets (Bausteine)
+       └─ dialogs
+            └─ pages/ (die vier Seiten)
+                 └─ main_window (Gerüst)
+                      └─ desktop (verdrahtet alles)
+```
+
+Vorher lagen Seiten, Dialoge und Widgets zusammen in `main_window.py` (2970
+Zeilen), und **sechs andere Module zogen ihre Farben von dort** — `updatedialog`
+importierte das Hauptfenster, nur um eine Kartenfarbe zu kennen. Damit hing halb
+die Oberfläche an der Wurzel des Abhängigkeitsbaums. Heute hängen sie an
+`theme.py`, das selbst nichts aus der App importiert. Ein Test wacht darüber,
+dass es dabei bleibt (`tests/test_ui_struktur.py`) — samt Prüfung, dass die
+Oberfläche **keine Importzyklen** enthält.
 
 ### 14.2 Threads und Zustand
 

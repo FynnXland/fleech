@@ -7,8 +7,8 @@
 
 | | |
 |---|---|
-| **20.645** | Zeilen Programm |
-| **891** | Tests, grün |
+| **20.848** | Zeilen Programm |
+| **931** | Tests, grün |
 | **1.190** | Diktate im Betrieb |
 | **1,5 %** | Rückfall-Quote |
 
@@ -37,7 +37,7 @@ die jede Ausgabe gegen das gesprochene Original hält.
 
 **Lokal, nicht aus Prinzip.** Diktate enthalten Passwörter, Krankmeldungen,
 Gehälter. Cloud-Erkennung hieße, das an einen Dienst zu geben. Der Cloud-Pfad
-wurde mit 3.6.0 ersatzlos entfernt — es gibt keinen Schalter, der ihn zurückholt.
+wurde mit 3.0.0 ersatzlos entfernt — es gibt keinen Schalter, der ihn zurückholt.
 
 **Wortgetreu vor schön.** Das Modell darf glätten, nicht umschreiben. Ein Guard
 vergleicht die Wortmenge vorher/nachher; wer mehr ergänzt als erlaubt, dessen
@@ -67,15 +67,33 @@ flowchart TD
 Der wichtigste Zweig ist der rechte: Scheitert die Bereinigung, geht trotzdem
 Text raus — nur eben der unbereinigte.
 
-| # | Stufe | Dauer | Modul |
-|---|---|---|---|
-| 1 | **Aufnahme** — 16 kHz Mono, nur im Arbeitsspeicher. Senkt bei Bedarf die Lautstärke anderer Programme. | Taste gehalten | `audio.py`, `audiofocus.py` |
-| 2 | **Artefakt-Filter** — zu kurze Aufnahmen, Stille, struktureller Loopback-Schutz. | < 5 ms | `pipeline.py` |
-| 3 | **Spracherkennung** — auf der Grafikkarte, mit CPU-Rückfall. Bekommt vorab einen Priming-Satz aus Wörterbuch, Bausteinen und gelerntem Vokabular. Sprache je Profil: Deutsch, Englisch oder automatisch. | 810 ms Ø | `stt/faster_whisper_stt.py` |
-| 4 | **Modus-Routing** — Bereinigung, Befehl oder Formel. | < 1 ms | `routing.py` |
-| 5 | **Sprachmodell** — `gemma3:4b` über Ollama, lokal. Adaptives Routing: 3 % ganz ohne KI, 13 % schnell, 81 % voll. | 4,1 s Ø | `llm/client.py` |
-| 6 | **Die sieben Guards** — jede Ausgabe wird gegen das Gesprochene geprüft; die sprachgebundenen Merkmale richten sich nach der Diktiersprache. | < 10 ms | `textutils.py` |
-| 7 | **Einfügen** — Zwischenablage + Strg+V, mit aktiver Prüfung statt blindem Warten. | ~50 ms | `injection.py` |
+**1 · Aufnahme** — 16 kHz Mono, nur im Arbeitsspeicher. Senkt bei Bedarf die
+Lautstärke anderer Programme.
+*Taste gehalten · `audio.py`, `audiofocus.py`*
+
+**2 · Artefakt-Filter** — zu kurze Aufnahmen, Stille, struktureller
+Loopback-Schutz.
+*< 5 ms · `pipeline.py`*
+
+**3 · Spracherkennung** — auf der Grafikkarte, mit CPU-Rückfall. Bekommt vorab
+einen Priming-Satz aus Wörterbuch, Bausteinen und gelerntem Vokabular. Sprache je
+Profil: Deutsch, Englisch oder automatisch.
+*810 ms Ø · `stt/faster_whisper_stt.py`*
+
+**4 · Modus-Routing** — Bereinigung, Befehl oder Formel.
+*< 1 ms · `routing.py`*
+
+**5 · Sprachmodell** — `gemma3:4b` über Ollama, lokal. Adaptives Routing: 3 %
+ganz ohne KI, 13 % schnell, 81 % voll.
+*4,1 s Ø · `llm/client.py`*
+
+**6 · Die sieben Guards** — jede Ausgabe wird gegen das Gesprochene geprüft; die
+sprachgebundenen Merkmale richten sich nach der Diktiersprache.
+*< 10 ms · `textutils.py`*
+
+**7 · Einfügen** — Zwischenablage + Strg+V, mit aktiver Prüfung statt blindem
+Warten.
+*~50 ms · `injection.py`*
 
 ---
 
@@ -84,15 +102,28 @@ Text raus — nur eben der unbereinigte.
 Jeder einzelne entstand aus einem realen Vorfall. Sie sind der Grund, warum die
 Rückfall-Quote bei 1,5 % liegt statt bei null.
 
-| Guard | Prüft | Entstanden aus |
-|---|---|---|
-| Wortgetreue | Wortmenge vorher / nachher | Das Modell formulierte ganze Sätze um, die so nie gesagt wurden. |
-| Inflation | Ergänzungen am Satzende | Höfliche Schlussfloskeln, die niemand diktiert hatte. |
-| Wiederholungsfilter | ≥ 4 gleiche Wörter am Ende | Whisper-Schleifen bei Stille. Schwelle 4, weil „wirklich wirklich sehr sehr sehr gut" echt vorkam. |
-| Fremdsprach-Tail | Fremde Diakritika, fremde Füllwörter | „Seekers Odoo Time Go Go Go and Let me and or" — angehängt an ein deutsches Diktat. Seit 5.4.0 spiegelt sich „fremd" mit der Diktiersprache. |
-| Kauderwelsch | Vier Signale, Schnitt ab zwei | Wortsalat, den die anderen drei durchließen. |
-| Meta-Präambel | „Hier ist der bereinigte Text:" | Das Modell kommentierte seine eigene Arbeit. |
-| Abschneide-Erkennung | Antwort am Kontextfenster abgebrochen | Lange Diktate endeten mitten im Satz. |
+**Wortgetreue** — vergleicht die Wortmenge vorher und nachher.
+*Das Modell formulierte ganze Sätze um, die so nie gesagt wurden.*
+
+**Inflation** — Ergänzungen am Satzende.
+*Höfliche Schlussfloskeln, die niemand diktiert hatte.*
+
+**Wiederholungsfilter** — ≥ 4 gleiche Wörter am Ende.
+*Whisper-Schleifen bei Stille. Schwelle 4, weil „wirklich wirklich sehr sehr sehr
+gut" echt vorkam.*
+
+**Fremdsprach-Tail** — fremde Diakritika, fremde Füllwörter.
+*„Seekers Odoo Time Go Go Go and Let me and or" — angehängt an ein deutsches
+Diktat. Seit 5.4.0 spiegelt sich „fremd" mit der Diktiersprache.*
+
+**Kauderwelsch** — vier Signale, Schnitt ab zwei.
+*Wortsalat, den die anderen drei durchließen.*
+
+**Meta-Präambel** — „Hier ist der bereinigte Text:".
+*Das Modell kommentierte seine eigene Arbeit.*
+
+**Abschneide-Erkennung** — Antwort am Kontextfenster abgebrochen.
+*Lange Diktate endeten mitten im Satz.*
 
 > **Warum `num_ctx` Pflicht ist:** Ollama lädt Modelle immer mit 4096 Token
 > Kontext, egal was das Modell könnte — und der OpenAI-Aufsatz ignoriert jede
@@ -132,7 +163,7 @@ standardmäßig aus: Eine App, die ungefragt dauerhaft mithört, wäre ein
 Vertrauensbruch — auch wenn technisch nichts gespeichert wird.
 
 ```mermaid
-flowchart LR
+flowchart TD
     A["Mikrofon<br/>Dauerstrom"] --> B{"Stufe 1: VAD<br/>spricht überhaupt jemand?"}
     B -->|nein · Regelfall| A
     B -->|ja| C{"Stufe 2: Whisper tiny<br/>war es das Startwort?"}
@@ -250,7 +281,7 @@ Fleech lernt aus dem, was es einfügt, die Fachbegriffe eines Zusammenhangs und
 gibt sie beim nächsten Diktat an die Erkennung weiter. Das überlebt Neustarts.
 
 ```mermaid
-flowchart LR
+flowchart TD
     A["Eingefügter Text<br/>der bereinigte"] --> B["Begriffe extrahieren"]
     B --> C[("kontext.db")]
     C --> D["Fenster-Segmente<br/>spezifisch"]
@@ -309,16 +340,46 @@ flowchart TD
 
 | Modul | Zeilen | Aufgabe |
 |---|---:|---|
-| `ui/main_window.py` | 2.970 | Vier Seiten: Home, Insights, Profile, Apps |
 | `ui/desktop.py` | 1.863 | Verdrahtung, Tray, Hotkeys, Lizenz, Updates, Freihand |
+| `ui/settings_window.py` | 1.366 | Einstellungen — neun Seiten, je eine Methode |
 | `ui/overlay_qt.py` | 1.363 | Die Pille: Pegel, Text, Abbrechen/Fertig/Pause |
-| `ui/settings_window.py` | 1.317 | Einstellungen, Wörterbuch, Bausteine |
 | `pipeline.py` | 1.139 | Orchestrierung der Signalkette |
 | `textutils.py` | 860 | Guards, Wörterbuch, Priming |
-| `usersettings.py` | 790 | Einstellungen, atomar gespeichert |
+| `usersettings.py` | 799 | Einstellungen, atomar gespeichert |
 | `formula.py` | 610 | Gesprochene Mathematik → LaTeX |
-| `freihand.py` | 400 | Lauscher, Zwei-Stufen-Gate |
+| `ui/pages/profiles.py` | 595 | Profilseite |
+| `ui/pages/insights.py` | 534 | Kennzahlen |
+| `ui/pages/apps.py` | 497 | Anwendungen |
+| `ui/widgets.py` | 430 | Bausteine der Oberfläche |
+| `freihand.py` | 425 | Lauscher, Zwei-Stufen-Gate |
+| `ui/main_window.py` | 365 | Fenstergerüst: Sidebar, Seitenwechsel |
 | `kontext.py` | 340 | Projekt-Gedächtnis |
+| `ui/pages/home.py` | 329 | Startseite |
+| `ui/dialogs.py` | 347 | Die vier Dialoge |
+| `ui/theme.py` | 74 | Farben und Button-Stile |
+
+### Wie die Oberfläche geschichtet ist
+
+Bis 5.4.0 lagen vier Seiten, vier Dialoge und fünfzehn Widgets zusammen in
+`main_window.py` — 2.970 Zeilen. Schlimmer als die Länge war die Richtung: Sechs
+Module zogen ihre **Farben aus dem Hauptfenster**. Der Update-Dialog importierte
+das Hauptfenster, nur um eine Kartenfarbe zu kennen. Damit hing halb die
+Oberfläche an der Wurzel.
+
+```mermaid
+flowchart TD
+    T["theme.py<br/>Farben · ohne Abhängigkeit"] --> W["widgets.py<br/>Bausteine"]
+    W --> D["dialogs.py"]
+    D --> P["pages/<br/>Home · Insights · Apps · Profile"]
+    P --> M["main_window.py<br/>Gerüst"]
+    M --> DT["desktop.py<br/>verdrahtet alles"]
+    T -.-> S["settings_window · updatedialog<br/>licensedialog · onboarding …"]
+```
+
+Ein Test hält das fest: `theme.py` darf nichts aus der App importieren, keine
+Seite darf das Fenster kennen, und die Oberfläche muss **frei von Importzyklen**
+bleiben. Dazu eine Grenze von 200 Zeilen je Funktion — vorher steckten allein in
+`_build_pages` 674.
 
 ### Qt-Fallen, die real aufgetreten sind
 
@@ -408,6 +469,6 @@ Grafikspeicher belegten.
 
 ---
 
-*Fleech 5.4.0 · 20.645 Zeilen Programm, 11.987 Zeilen Tests in 48 Dateien ·
+*Fleech 5.4.0 · 20.848 Zeilen Programm in 70 Dateien, 12.140 Zeilen Tests in 49 Dateien ·
 Python 3.11, PySide6/Qt, faster-whisper, Ollama · Windows 11 und Linux/X11 ·
 Stand 3. August 2026*

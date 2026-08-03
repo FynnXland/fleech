@@ -9,9 +9,11 @@ Rechner. Fleech lebt im System-Tray; Fenster schließen minimiert dorthin, beend
 Fleech schreibt in **jedes** Textfeld, weil es nicht in Anwendungen hineingreift,
 sondern über die Zwischenablage und ein simuliertes `Strg+V` einfügt.
 
-> Ausführliche Gesamtdarstellung — Konzept, alle Funktionen, alle Einstellungen, die
-> Oberfläche und die technische Umsetzung:
-> [docs/fleech-gesamtkonzept.md](docs/fleech-gesamtkonzept.md)
+> **Dokumentation:** [docs/](docs/) — dort steht, was es gibt und was wofür
+> gedacht ist. Der schnellste Einstieg ist
+> [docs/TECHNIK.md](docs/TECHNIK.md) (~15 Minuten, mit Diagrammen, rendert auch
+> auf dem Handy); die vollständige Fassung mit jeder Funktion und jeder
+> Einstellung ist [docs/fleech-gesamtkonzept.md](docs/fleech-gesamtkonzept.md).
 
 ## Was daran anders ist
 
