@@ -81,13 +81,22 @@ class TrayController:
         self._record_action.triggered.connect(actions["toggle_recording"])
         self._overlay_action = QAction("Overlay ein/aus")
         self._overlay_action.triggered.connect(actions["toggle_overlay"])
+        # Freihand-Schnellschalter: Wer merkt, dass er gerade nicht mitgehoert
+        # haben will, muss das mit EINEM Griff beenden koennen — ohne die
+        # Einstellungen zu oeffnen und ohne zu suchen.
+        self._freihand_action = QAction("Freihand: aus")
+        if actions.get("toggle_freihand"):
+            self._freihand_action.triggered.connect(actions["toggle_freihand"])
+        else:
+            self._freihand_action.setVisible(False)
         settings_action = QAction("Einstellungen …")
         settings_action.triggered.connect(actions["open_settings"])
         reload_action = QAction("Neu laden")
         reload_action.triggered.connect(actions["reload"])
         quit_action = QAction("Beenden")
         quit_action.triggered.connect(actions["quit"])
-        for a in (self._record_action, self._overlay_action, settings_action):
+        for a in (self._record_action, self._overlay_action,
+                  self._freihand_action, settings_action):
             menu.addAction(a)
         menu.addSeparator()
         menu.addAction(self._update_action)
@@ -105,6 +114,13 @@ class TrayController:
             lambda reason: open_main() if reason == QSystemTrayIcon.Trigger else None
         )
         self.tray.show()
+
+    def set_freihand(self, an: bool, startwort: str = "") -> None:
+        """Menuetext dem Zustand anpassen — „Freihand: an (Kimono)" sagt in einem
+        Blick, ob gelauscht wird und worauf."""
+        self._freihand_action.setText(
+            f"Freihand: an ({startwort})" if an and startwort
+            else ("Freihand: an" if an else "Freihand: aus"))
 
     def set_state(self, state: AppState) -> None:
         self.tray.setIcon(self._icons[state])

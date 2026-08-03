@@ -210,3 +210,75 @@ def test_statistik_zaehlt_mit():
     assert lau.statistik.aktivierungen == 1
     assert lau.statistik.pruefungen == 1
     assert "1 Aktivierungen" in lau.statistik.als_text()
+
+
+# -- Verdrahtung in der App ------------------------------------------------------------
+
+
+def test_einstellungen_haben_vernuenftige_vorgaben():
+    """Standardmäßig AUS: Eine App, die ungefragt dauerhaft mithört, wäre ein
+    Vertrauensbruch — auch wenn technisch nichts gespeichert wird."""
+    from fleech.usersettings import UserSettings
+
+    f = UserSettings().freihand
+    assert f.aktiv is False
+    assert f.startwort and len(f.startwort) >= 5     # mehrsilbig
+    assert 1.0 <= f.stille_s <= 4.0
+
+
+def test_der_strom_pausiert_statt_zu_sammeln():
+    """Zwei gleichzeitig sammelnde Wege wären zwei konkurrierende Diktate."""
+    from fleech.freihand import FreihandStream
+
+    lau = _lauscher(text="Kimono")
+    ereignisse = []
+    strom = FreihandStream(lau, lambda e, a: ereignisse.append(e), samplerate=SR)
+    strom.pausiere(True)
+    strom._callback(block(1.0), 0, None, None)
+    assert ereignisse == []
+
+    strom.pausiere(False)
+    strom._callback(block(1.0), 0, None, None)
+    assert ereignisse == [Ereignis.START]
+
+
+def test_pausieren_setzt_den_zustand_zurueck():
+    """Ein halb gefüllter Ringpuffer aus der Zeit davor wäre beim Fortsetzen ein
+    falscher Bezugspunkt."""
+    from fleech.freihand import FreihandStream
+
+    lau = _lauscher(text="")
+    strom = FreihandStream(lau, lambda e, a: None, samplerate=SR)
+    strom._callback(block(1.5), 0, None, None)
+    assert len(lau._ring) > 0
+    strom.pausiere(True)
+    assert len(lau._ring) == 0
+
+
+def test_fehler_im_audio_thread_reisst_nichts_mit():
+    """Der Callback läuft im Audio-Thread — eine Ausnahme dort würde den Strom
+    stilllegen und wäre nirgends sichtbar."""
+    from fleech.freihand import FreihandStream
+
+    lau = _lauscher(text="Kimono")
+    def kaputt(e, a):
+        raise RuntimeError("UI weg")
+
+    strom = FreihandStream(lau, kaputt, samplerate=SR)
+    strom._callback(block(1.0), 0, None, None)     # darf nicht werfen
+
+
+def test_ende_liefert_das_gesammelte_audio():
+    from fleech.freihand import FreihandStream
+
+    lau = _lauscher(text="Kimono")
+    gemeldet = []
+    strom = FreihandStream(lau, lambda e, a: gemeldet.append((e, a)), samplerate=SR)
+    strom._callback(block(1.0), 0, None, None)               # START
+    lau._erkenner = lambda a: "der Diktattext"
+    lau._vad = lambda a: False
+    lau._letzte_sprache = -99                                 # Stille erzwingen
+    strom._callback(block(0.5), 0, None, None)               # ENDE
+    ereignis, audio = gemeldet[-1]
+    assert ereignis is Ereignis.ENDE
+    assert audio is not None and len(audio) > 0

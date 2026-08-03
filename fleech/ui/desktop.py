@@ -114,6 +114,7 @@ class DesktopApp:
         self.tray = TrayController({
             "toggle_recording": lambda: self.controller.start_via_ui("dictate"),
             "toggle_overlay": self._toggle_overlay,
+            "toggle_freihand": self.toggle_freihand,
             "open_home": lambda: self.window.open_page("home"),
             "open_settings": self._open_settings,
             "reload": self._reload,
@@ -164,6 +165,8 @@ class DesktopApp:
         self.bus.transcript_ready.connect(self.overlay.show_transcript)
         self.bus.raw_ready.connect(self.overlay.show_raw_preview)
         self.bus.reprocessed.connect(self._on_reprocessed)
+        self.bus.freihand_ereignis.connect(self._on_freihand)
+        self.bus.freihand_zustand.connect(self.overlay.set_freihand)
         self.bus.preview_text.connect(self._on_preview_text)
         self.bus.dictionary_suggestion.connect(self._on_dictionary_suggestion)
         self.bus.update_ready.connect(self._on_update_ready)
@@ -212,6 +215,14 @@ class DesktopApp:
         self.hotkeys.start()
 
         threading.Thread(target=self._warm_up, daemon=True).start()
+        self._freihand = None
+        self._freihand_audio = None
+        try:
+            self.tray.set_freihand(self.settings.freihand.aktiv,
+                                   self.settings.freihand.startwort)
+        except Exception:
+            log.debug("Tray-Text nicht setzbar.", exc_info=True)
+        self._starte_freihand()
         # LLM vorladen + warmhalten (Ollama entlaedt sonst nach 5 min; erstes Diktat
         # zahlte ~8 s Modell-Ladezeit — im Log real gemessen: 12,9 s Cleanup kalt
         # vs. 4,8 s warm). Der Timer-Tick respektiert advanced.llm_keep_warm:
@@ -563,6 +574,9 @@ class DesktopApp:
             return
         if message:
             log.warning(message)
+        strom = getattr(self, "_freihand", None)
+        if strom is not None:
+            strom.pausiere(True)     # nie zwei sammelnde Wege gleichzeitig
         try:
             self.recorder.start()
         except Exception:
@@ -609,6 +623,9 @@ class DesktopApp:
 
     def _on_record_stop(self, kind: str) -> None:
         self._last_dictation = time.monotonic()  # haelt das Smart-Warm-Fenster offen
+        strom = getattr(self, "_freihand", None)
+        if strom is not None:
+            strom.pausiere(False)
         self._stop_preview()
         threading.Thread(target=self.focus.on_recording_stop, daemon=True).start()
         audio = self.recorder.stop()
@@ -1421,6 +1438,122 @@ class DesktopApp:
         # auch im Spiel oder bei „Nicht stoeren" (dieselbe Regel wie Start/Stopp).
         self.notifier.sound("stop" if self.recorder.paused else "start")
 
+    # -- Freihand-Modus (F1) -----------------------------------------------------------
+
+    def _starte_freihand(self) -> None:
+        """Dauerlauschen aufbauen — im Hintergrund, weil tiny geladen werden muss.
+
+        Standardmaessig aus: Eine App, die ungefragt dauerhaft mithoert, waere ein
+        Vertrauensbruch, auch wenn technisch nichts gespeichert wird.
+        """
+        if not self.settings.freihand.aktiv:
+            return
+
+        def bauen():
+            try:
+                from ..freihand import (
+                    Einstellungen, FreihandStream, Lauscher, baue_erkenner, baue_vad,
+                )
+
+                s = self.settings.freihand
+                lauscher = Lauscher(
+                    Einstellungen(
+                        aktiv=True, startwort=s.startwort,
+                        abbruchwort=s.abbruchwort, stille_s=s.stille_s,
+                        ausgeschlossene_apps=tuple(s.ausgeschlossene_apps or ()),
+                    ),
+                    vad=baue_vad(),
+                    erkenner=baue_erkenner(sprache=self.settings.general.language),
+                )
+                self._freihand = FreihandStream(
+                    lauscher, self._freihand_ereignis,
+                    geraet=self.settings.recording.microphone,
+                )
+                if self._freihand.start():
+                    self.bus.freihand_zustand.emit("lauscht")
+            except Exception:
+                log.exception("Freihand-Modus nicht startbar.")
+                self._freihand = None
+
+        threading.Thread(target=bauen, daemon=True).start()
+
+    def _stoppe_freihand(self) -> None:
+        strom = getattr(self, "_freihand", None)
+        if strom is not None:
+            strom.stop()
+        self._freihand = None
+        self.bus.freihand_zustand.emit("aus")
+
+    def toggle_freihand(self) -> None:
+        """Schnellschalter (Tray/Hotkey): sofort aufhoeren mitzuhoeren.
+
+        Der Nutzer muss das Lauschen jederzeit mit einem Griff beenden koennen —
+        ohne Einstellungen zu oeffnen und ohne zu suchen.
+        """
+        an = not self.settings.freihand.aktiv
+        self.settings.freihand.aktiv = an
+        self.settings.save()
+        try:
+            self.tray.set_freihand(an, self.settings.freihand.startwort)
+        except Exception:
+            log.debug("Tray-Text nicht aktualisierbar.", exc_info=True)
+        if an:
+            self._starte_freihand()
+            self._flash_status("Freihand an — sag „%s“" % self.settings.freihand.startwort)
+        else:
+            self._stoppe_freihand()
+            self._flash_status("Freihand aus")
+
+    def _freihand_ereignis(self, ereignis, audio) -> None:
+        """AUDIO-THREAD! Nur weiterreichen — alles andere gehoert in den UI-Thread."""
+        if audio is not None and len(audio):
+            self._freihand_audio = audio
+        self.bus.freihand_ereignis.emit(ereignis.value)
+
+    def _on_freihand(self, ereignis: str) -> None:
+        """UI-Thread: auf ein Freihand-Ereignis reagieren."""
+        if ereignis == "start":
+            if not self._freihand_erlaubt():
+                return
+            self.bus.freihand_zustand.emit("aufnahme")
+            self.bus.set_state(AppState.LISTENING)
+            self.notifier.sound("start")
+            prozess, titel = self._freihand_ziel()
+            self._record_app, self._record_title = prozess, titel
+            return
+        if ereignis == "abbruch":
+            self._freihand_audio = None
+            self.bus.freihand_zustand.emit("lauscht")
+            self.bus.set_state(AppState.IDLE)
+            self._flash_status("Verworfen")
+            return
+        # ENDE: wie ein normales Diktat weiterverarbeiten.
+        audio, self._freihand_audio = getattr(self, "_freihand_audio", None), None
+        self.bus.freihand_zustand.emit("lauscht")
+        if audio is None or not len(audio):
+            self.bus.set_state(AppState.IDLE)
+            return
+        self.notifier.sound("stop")
+        self.bus.set_state(AppState.PROCESSING)
+        threading.Thread(target=self._process, args=(audio,), daemon=True).start()
+
+    def _freihand_ziel(self):
+        from .windowsfocus import foreground_now
+
+        return foreground_now()
+
+    def _freihand_erlaubt(self) -> bool:
+        """In dieser App lauschen? Spiele und Meetings stehen auf der Sperrliste."""
+        strom = getattr(self, "_freihand", None)
+        if strom is None:
+            return False
+        prozess = self._freihand_ziel()[0]
+        if not strom.lauscher.app_erlaubt(prozess):
+            log.info("Freihand in %s ausgeschlossen — Aktivierung verworfen.", prozess)
+            self.bus.freihand_zustand.emit("lauscht")
+            return False
+        return True
+
     # -- Lizenz ----------------------------------------------------------------------
 
     def _license_ok(self) -> bool:
@@ -1547,6 +1680,7 @@ class DesktopApp:
         self._update_dialog.activateWindow()
 
     def _quit(self) -> None:
+        self._stoppe_freihand()
         self.controller.stop_if_active()
         self.settings.save()
         self.hotkeys.stop()

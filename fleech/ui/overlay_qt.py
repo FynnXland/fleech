@@ -296,6 +296,10 @@ class _StatusDot(QWidget):
         # reine Information.
         self._session = False
         self._session_readonly = False
+        # Freihand lauscht: ein ruhig atmender Ring um den Punkt. Kein Blinken —
+        # „hoert zu" ist ein Dauerzustand, und etwas dauerhaft Blinkendes am
+        # Bildschirmrand macht muerbe.
+        self._lauscht = False
         self.setFixedSize(28, 28)
         self.setCursor(Qt.PointingHandCursor)
 
@@ -319,6 +323,11 @@ class _StatusDot(QWidget):
     def set_mode(self, mode: str) -> None:
         if mode != self._mode:
             self._mode = mode
+            self.update()
+
+    def set_lauscht(self, an: bool) -> None:
+        if an != self._lauscht:
+            self._lauscht = an
             self.update()
 
     def set_session(self, active: bool, readonly: bool = False) -> None:
@@ -346,6 +355,14 @@ class _StatusDot(QWidget):
             p.setPen(QPen(_BAR if self._hover else _BAR_DIM, 1.5))
             p.setBrush(Qt.NoBrush)
             p.drawEllipse(c, r, r)                  # dezenter Ring
+        if self._lauscht and accent is None:
+            # Zweiter, weiterer Ring in Akzentfarbe: sichtbar genug, um „es hoert
+            # mit" zu melden, ruhig genug, um dauerhaft dazustehen.
+            ring = QColor(_ACCENT)
+            ring.setAlpha(150)
+            p.setPen(QPen(ring, 1.4))
+            p.setBrush(Qt.NoBrush)
+            p.drawEllipse(c, r * 1.75, r * 1.75)
         self._paint_session_badge(p, c, r)
 
     def _paint_session_badge(self, p, c: QPointF, r: float) -> None:
@@ -532,6 +549,9 @@ class OverlayWindow(QWidget):
         # Statuszeile UNTER den Text gehaengt statt ihn zu ersetzen — sonst waere
         # der Gewinn wieder weg, kaum dass er da war.
         self._roh_vorschau = ""
+        # Freihand: "aus" | "lauscht" | "aufnahme". Muss SICHTBAR sein — wer nicht
+        # erkennen kann, ob mitgehoert wird, kann dem Modus nicht vertrauen.
+        self._freihand = "aus"
         self._command_armed = False    # Signalwort in der Live-Vorschau erkannt
         self._prompt_latched = False   # KI-Prompting-Latch aktiv (exklusiv zu Mathe)
         self._paused = False           # Aufnahme angehalten (Pause-Knopf)
@@ -1206,6 +1226,26 @@ class OverlayWindow(QWidget):
             self.frameGeometry(), name,
             force_below=True, duration_ms=self.PROFIL_MS,
         )
+
+    def set_freihand(self, zustand: str) -> None:
+        """Lauschzustand anzeigen. Der Punkt links traegt es mit.
+
+        Bewusst am vorhandenen Status-Punkt statt an einem neuen Element: Die
+        Pille ist klein, und ein zweites Symbol fuer „hoert zu" waere genau die
+        Sorte Dauer-Einblendung, die hier schon zweimal entfernt wurde.
+        """
+        if zustand == self._freihand:
+            return
+        self._freihand = zustand
+        self._math_dot.set_lauscht(zustand == "lauscht")
+        self._math_dot.setToolTip(
+            "Freihand: hört auf das Startwort" if zustand == "lauscht"
+            else self._dot_tooltip_base)
+        # Der Punkt ist sonst nur bei aktivem Modus sichtbar — beim Lauschen muss
+        # er es auch sein, sonst waere der Zustand unsichtbar.
+        if zustand == "lauscht":
+            self._math_dot.show()
+        self.update()
 
     def set_paused(self, paused: bool) -> None:
         """Pausenzustand anzeigen: Knopf-Glyphe, ruhende Waveform, matte Pille.

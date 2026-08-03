@@ -108,6 +108,27 @@ class RecordingSettings:
 
 
 @dataclass
+class FreihandSettings:
+    """Diktieren ohne Taste: Startwort sagen, sprechen, aufhoeren.
+
+    Kommt ZUSAETZLICH zum Hotkey, ersetzt ihn nie. Standardmaessig aus — eine App,
+    die ungefragt dauerhaft mithoert, waere ein Vertrauensbruch, auch wenn technisch
+    nichts gespeichert wird.
+    """
+
+    aktiv: bool = False
+    # Mehrsilbig und im Deutschen selten: Die Lehre aus „Redax" → „Kimono". Ein
+    # kurzes Alltagswort loest im Gespraech staendig versehentlich aus.
+    startwort: str = "Kimono"
+    abbruchwort: str = "Abbrechen"
+    # Wie lange Stille ein Diktat beendet (1–4 s, siehe freihand.Einstellungen).
+    stille_s: float = 2.0
+    # Prozessnamen, in denen NICHT gelauscht wird. Spiele und Meeting-Werkzeuge
+    # gehoeren hierher: Dort ist Sprache im Raum die Regel.
+    ausgeschlossene_apps: list = field(default_factory=list)
+
+
+@dataclass
 class AudioFocusSettings:
     mode: str = "soft_duck"     # pure_mic | soft_duck | hard_focus
     # Restlautstaerke fremder Apps waehrend der Aufnahme (0 = stumm, 1 = unveraendert).
@@ -638,6 +659,7 @@ class UserSettings:
     interface: InterfaceSettings = field(default_factory=InterfaceSettings)
     recording: RecordingSettings = field(default_factory=RecordingSettings)
     audio_focus: AudioFocusSettings = field(default_factory=AudioFocusSettings)
+    freihand: FreihandSettings = field(default_factory=FreihandSettings)
     math: MathSettings = field(default_factory=MathSettings)
     overlay: OverlaySettings = field(default_factory=OverlaySettings)
     sounds: SoundSettings = field(default_factory=SoundSettings)

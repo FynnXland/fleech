@@ -476,6 +476,59 @@ class SettingsPanel(QWidget):
         form.addRow(label_w, edit)
         return edit
 
+    def _text_field(self, form, label, current, section, setter, hint_text=""):
+        """Einzeiliges Textfeld. Speichert debounced wie die Listen-Editoren —
+        bei jedem Tastendruck zu schreiben waere unnoetiger Plattenzugriff."""
+        feld = QLineEdit(str(current or ""))
+        feld.setStyleSheet(
+            f"QLineEdit {{ background: {CARD}; color: {TEXT};"
+            f"  border: 1px solid {BORDER_HAIRLINE}; border-radius: 8px;"
+            f"  padding: 6px 10px; font-size: 9.5pt; }}"
+            f"QLineEdit:focus {{ border-color: {ACCENT}; }}")
+        timer = QTimer(self)
+        timer.setSingleShot(True)
+        timer.setInterval(800)
+
+        def schreiben():
+            setter(feld.text().strip())
+            self._changed(section)
+
+        timer.timeout.connect(schreiben)
+        feld.textChanged.connect(lambda _t: timer.start())
+        feld.editingFinished.connect(lambda: (timer.stop(), schreiben()))
+        label_w, _ = self._row_label(label, hint_text)
+        form.addRow(label_w, feld)
+        return feld
+
+    def _spin(self, form, label, current, lo, hi, section, setter, hint_text=""):
+        """Kommazahl mit Grenzen (Sekunden). Die Grenzen sind hart: Was ausserhalb
+        liegt, wuerde die Zustandsmaschine ohnehin zurechtstutzen — dann soll man
+        es gar nicht erst eingeben koennen."""
+        from PySide6.QtWidgets import QDoubleSpinBox
+
+        from .chevron import apply_chevrons
+
+        box = QDoubleSpinBox()
+        box.setRange(float(lo), float(hi))
+        box.setSingleStep(0.5)
+        box.setDecimals(1)
+        box.setSuffix(" s")
+        box.setValue(float(current or lo))
+        box.setStyleSheet(apply_chevrons(
+            f"QDoubleSpinBox {{ background: {CARD}; color: {TEXT};"
+            f"  border: 1px solid {BORDER_HAIRLINE}; border-radius: 8px;"
+            f"  padding: 5px 8px; font-size: 9.5pt; }}"
+            f"QDoubleSpinBox::up-button, QDoubleSpinBox::down-button {{"
+            f"  width: 16px; border: none; background: transparent; }}"
+            f"QDoubleSpinBox::up-arrow {{ image: url(__CHEV_UP__);"
+            f"  width: 9px; height: 9px; }}"
+            f"QDoubleSpinBox::down-arrow {{ image: url(__CHEV_DOWN__);"
+            f"  width: 9px; height: 9px; }}"))
+        box.valueChanged.connect(lambda v: (setter(float(v)), self._changed(section)))
+        label_w, _ = self._row_label(label, hint_text)
+        form.addRow(label_w, box)
+        return box
+
     def _slider(self, form, label, current, section, setter, lo=0, hi=100, hint_text=""):
         s = QSlider(Qt.Horizontal)
         s.setRange(lo, hi)
@@ -676,6 +729,51 @@ class SettingsPanel(QWidget):
                       "aufgezeichnet, du kannst also frei sprechen. Nochmal drücken "
                       "setzt dasselbe Diktat fort. Auch als Knopf in der Pille.",
         )
+        # -- Freihand: diktieren ohne Taste (F1) ---------------------------------
+        # Bewusst HIER, direkt unter den Hotkeys: Es ist der zweite Weg, eine
+        # Aufnahme zu starten — wer nach „wie beginne ich" sucht, schaut hier.
+        f = s.freihand
+        form.addRow("", _hint(
+            "— Freihand —  Startwort sagen, sprechen, aufhören. Kommt zusätzlich "
+            "zum Hotkey, ersetzt ihn nicht."
+        ))
+        self._freihand_cb = self._check(
+            form, "Freihand", f.aktiv, "freihand",
+            lambda v: setattr(f, "aktiv", v),
+            hint_text="Fleech hört dauerhaft auf das Startwort. Ein sparsamer "
+                      "Sprach-Erkenner läuft dafür mit (~1 % CPU); Audio wird nie "
+                      "gespeichert, erst ab dem Startwort überhaupt gesammelt. "
+                      "Wirkt nach einem Neustart von Fleech.",
+        )
+        self._text_field(
+            form, "Startwort", f.startwort, "freihand",
+            lambda v: setattr(f, "startwort", v),
+            hint_text="Mehrsilbig und im Alltag selten — sonst löst es im Gespräch "
+                      "ständig versehentlich aus. „Kimono“ hat sich bewährt.",
+        )
+        self._text_field(
+            form, "Abbruchwort", f.abbruchwort, "freihand",
+            lambda v: setattr(f, "abbruchwort", v),
+            hint_text="Fällt dieses Wort im Diktat, wird verworfen statt eingefügt. "
+                      "Es startet bewusst KEINE neue Aufnahme — sonst würde ein "
+                      "Versprecher zur Endlosschleife.",
+        )
+        self._spin(
+            form, "Sprechpause bis Ende", f.stille_s, 1.0, 4.0, "freihand",
+            lambda v: setattr(f, "stille_s", v),
+            hint_text="So lange still = Diktat fertig. Kürzer schneidet Denkpausen "
+                      "ab, länger lässt dich warten.",
+        )
+        self._lines_editor(
+            form, "Nicht lauschen in", f.ausgeschlossene_apps, "freihand",
+            lambda lines: setattr(f, "ausgeschlossene_apps", lines),
+            placeholder="Teams.exe\nDiscord.exe\ncs2.exe",
+            hint_text="Programme, in denen Freihand ruht — ein Prozessname je "
+                      "Zeile. Für Spiele und Besprechungen: Dort ist Sprache im "
+                      "Raum die Regel, und eine Fehlauslösung fällt mitten hinein.",
+            height=80,
+        )
+
         mics = [(None, "Systemstandard")] + [(name, name) for name in self._list_microphones()]
         self._combo(
             form, "Mikrofon", mics, s.recording.microphone, "microphone",

@@ -68,6 +68,11 @@ class StateBus(QObject):
     # gehoert deshalb in einen Worker-Thread — das Ergebnis muss ueber ein Signal
     # zurueck, sonst faende die Zwischenablage im falschen Thread statt.
     reprocessed = Signal(str, str)
+    # Freihand-Ereignis (Name des Ereignisses). Kommt aus dem AUDIO-Thread — dort
+    # darf nichts mit Qt passieren, deshalb der Umweg ueber dieses Signal.
+    freihand_ereignis = Signal(str)
+    # Lauschzustand fuer die Pille ("aus" | "lauscht" | "aufnahme").
+    freihand_zustand = Signal(str)
 
     def __init__(self):
         super().__init__()

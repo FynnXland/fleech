@@ -330,3 +330,96 @@ def baue_erkenner(modell_groesse: str = "tiny", sprache: str = "de"):
         return " ".join(s.text for s in segmente).strip()
 
     return erkenne
+
+
+class FreihandStream:
+    """Dauer-Mikrofonstrom, der den Lauscher fuettert.
+
+    BEWUSST EIN EIGENER STROM statt eines Umbaus am `Recorder`: Der ist der
+    erprobte Pfad fuer jedes normale Diktat, und das Briefing sagt ausdruecklich,
+    dass Freihand dazukommt und nichts ersetzt. Ein Fehler hier darf den Hotkey-Weg
+    nicht mitreissen.
+
+    Solange eine normale Aufnahme laeuft, PAUSIERT dieser Strom (`pausiere`) —
+    zwei gleichzeitig sammelnde Wege waeren nicht nur doppelte Last, sondern
+    zwei konkurrierende Diktate.
+    """
+
+    BLOCK_S = 0.2      # Groesse der Bloecke, die der Lauscher bekommt
+
+    def __init__(self, lauscher: Lauscher, on_ereignis, geraet=None,
+                 samplerate: int = SAMPLERATE):
+        self.lauscher = lauscher
+        self._on_ereignis = on_ereignis      # callable(Ereignis, audio|None)
+        self._geraet = geraet
+        self.samplerate = samplerate
+        self._stream = None
+        self._pausiert = False
+
+    @property
+    def laeuft(self) -> bool:
+        return self._stream is not None
+
+    def start(self) -> bool:
+        if self._stream is not None:
+            return True
+        try:
+            import sounddevice as sd
+
+            self._stream = sd.InputStream(
+                samplerate=self.samplerate, channels=1, dtype="float32",
+                device=self._geraet, blocksize=int(self.BLOCK_S * self.samplerate),
+                callback=self._callback,
+            )
+            self._stream.start()
+        except Exception:
+            log.exception("Freihand-Strom nicht startbar — Modus bleibt aus.")
+            self._stream = None
+            return False
+        self.lauscher.start_lauschen()
+        log.info("Freihand-Strom laeuft (Startwort %r).",
+                 self.lauscher.einstellungen.startwort)
+        return True
+
+    def stop(self) -> None:
+        strom, self._stream = self._stream, None
+        self.lauscher.stop_lauschen()
+        if strom is None:
+            return
+        try:
+            strom.stop()
+            strom.close()
+        except Exception:
+            log.debug("Freihand-Strom liess sich nicht sauber schliessen.",
+                      exc_info=True)
+        log.info("Freihand-Strom beendet.")
+
+    def pausiere(self, an: bool) -> None:
+        """Waehrend einer normalen Aufnahme oder in ausgeschlossenen Apps."""
+        if an != self._pausiert:
+            log.debug("Freihand %s.", "pausiert" if an else "hoert wieder")
+        self._pausiert = an
+        if an:
+            # Zustand zuruecksetzen: Ein halb gefuellter Ringpuffer aus der Zeit
+            # davor waere beim Fortsetzen ein falscher Bezugspunkt.
+            self.lauscher.start_lauschen()
+
+    def _callback(self, indata, frames, time_info, status) -> None:
+        """Audio-Thread! Hier NICHTS Schweres und NICHTS mit Qt.
+
+        Die Zustandsmaschine ist reine Rechnung (VAD + gelegentlich tiny) und
+        laeuft deshalb direkt hier. Das Ereignis geht sofort an den Aufrufer, der
+        es in seinen eigenen Thread bringt.
+        """
+        if self._pausiert or status is not None and getattr(status, "input_overflow", False):
+            return
+        try:
+            block = np.asarray(indata, dtype=np.float32).reshape(-1)
+            ereignis = self.lauscher.verarbeite(block)
+            if ereignis is None:
+                return
+            audio = (self.lauscher.aufnahme_audio()
+                     if ereignis is Ereignis.ENDE else None)
+            self._on_ereignis(ereignis, audio)
+        except Exception:
+            log.exception("Freihand-Verarbeitung fehlgeschlagen.")

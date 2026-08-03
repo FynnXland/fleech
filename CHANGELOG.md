@@ -11,7 +11,31 @@ GitHub-Release-Notizen (`packaging/release.py`).
 
 ---
 
-## 5.2.0 — in Arbeit
+## 5.3.0 — 2026-08-03
+
+**Diktieren ohne Taste.** Startwort sagen, sprechen, aufhören — der Text steht da.
+Kein Klick, kein Tastendruck. Der Hotkey bleibt unverändert; Freihand kommt
+dazu und ist **standardmäßig aus**.
+
+Einzustellen unter *Einstellungen → Aufnahme*: Startwort (Vorgabe „Kimono" —
+mehrsilbig und im Alltag selten, sonst löst es im Gespräch ständig aus),
+Abbruchwort, wie lange Stille ein Diktat beendet (1–4 s) und in welchen
+Programmen gar nicht gelauscht wird. Für Spiele und Besprechungen ist Letzteres
+wichtig: Dort ist Sprache im Raum die Regel.
+
+Im Infobereich steht ein **Schnellschalter** — wer merkt, dass er gerade nicht
+mitgehört haben will, beendet es mit einem Griff. Solange gelauscht wird, trägt
+der Punkt an der Pille einen ruhigen Ring: Ob mitgehört wird, muss man sehen
+können.
+
+**Was dabei mit dem Ton passiert:** Ein sparsamer Sprach-Erkenner läuft mit und
+prüft nur, *ob überhaupt jemand spricht* — gemessene Dauerlast rund 1 % eines
+Prozessorkerns. Erst wenn das anschlägt, sieht ein kleines Modell nach, ob das
+Startwort gefallen ist. Gespeichert wird nichts: Im Speicher liegen immer nur die
+letzten zwei Sekunden, und die überschreiben sich fortlaufend. Gesammelt wird
+erst ab dem erkannten Startwort.
+
+## 5.2.0 — 2026-08-03
 
 **Der Text steht sofort da.** Die Erkennung ist nach knapp einer Sekunde durch,
 die Bereinigung braucht danach noch rund vier. In dieser Lücke stand bisher
