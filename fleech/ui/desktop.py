@@ -869,6 +869,10 @@ class DesktopApp:
                 prompt_mode=prompt_active,
                 output_format=output_format,
                 suppress_command=suppress_command,
+                # Beim Aufnahmestart festgehalten, nicht der aktuelle Fokus: Das
+                # Vokabular gehoert zu dem Fenster, in das der Text auch geht.
+                app=getattr(self, "_record_app", ""),
+                window_title=getattr(self, "_record_title", ""),
             )
         except Exception:
             log.exception("Pipeline-Fehler.")

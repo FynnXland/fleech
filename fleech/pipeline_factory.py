@@ -57,6 +57,24 @@ def build_pipeline(config: AppConfig, settings: UserSettings, injector=None,
     # Absendername fuer die E-Mail-Signatur (Einstellungen → Allgemein).
     pipeline.author_name = settings.general.display_name
     pipeline.status_callback = status
+    # Projekt-Gedaechtnis (fleech/kontext.py). Die Erstbefuellung aus dem Verlauf
+    # laeuft im HINTERGRUND: An 1189 Diktaten gemessen 3,7 s — im Start waere das
+    # eine spuerbare Verzoegerung fuer etwas, das erst beim naechsten Diktat zaehlt.
+    pipeline.kontext_lernen = bool(
+        getattr(settings.advanced, "kontext_lernen", True))
+    if pipeline.kontext is not None and pipeline.kontext_lernen:
+        import threading
+
+        def _fuellen():
+            try:
+                from .kontext import erstbefuellung
+
+                erstbefuellung(pipeline.kontext)
+            except Exception:
+                log.debug("Erstbefuellung des Gedaechtnisses fehlgeschlagen.",
+                          exc_info=True)
+
+        threading.Thread(target=_fuellen, daemon=True).start()
     return pipeline
 
 

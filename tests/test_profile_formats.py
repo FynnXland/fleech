@@ -158,8 +158,8 @@ def test_schnellwechsel_zeigt_nur_gewaehlte_profile():
     items = [{"name": "Standard", "default": True},
              {"name": "E-Mail", "mode": "email"},
              {"name": "Selten", "quick": False},
-             {"name": "Zusammenfassen", "mode": "summary"}]
-    assert quickswitch_profiles(items) == ["Standard", "E-Mail", "Zusammenfassen"]
+             {"name": "Stichpunkte", "mode": "summary"}]
+    assert quickswitch_profiles(items) == ["Standard", "E-Mail", "Stichpunkte"]
 
 
 def test_ohne_feld_ist_ein_profil_dabei():

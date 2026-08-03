@@ -237,6 +237,63 @@ class SettingsPanel(QWidget):
             self._loading = False
         self._refresh_priming_hint()
 
+    # -- Projekt-Gedaechtnis (fleech/kontext.py) ---------------------------------------
+
+    def _kontext_speicher(self):
+        """Eigene Verbindung fuer die Anzeige — die Pipeline laeuft in einem
+        anderen Thread, und SQLite-Verbindungen gehoeren dem, der sie oeffnet."""
+        try:
+            from ..kontext import KontextSpeicher
+
+            return KontextSpeicher()
+        except Exception:
+            log.debug("Gedaechtnis nicht lesbar.", exc_info=True)
+            return None
+
+    def _on_kontext_toggled(self, an: bool) -> None:
+        self.settings.advanced.kontext_lernen = bool(an)
+        self._changed("output")
+        self._refresh_kontext_zeile()
+
+    def _refresh_kontext_zeile(self) -> None:
+        """Was gelernt wurde, in einer Zeile — sonst waere es eine Blackbox und
+        man saehe nie, warum ein Wort ploetzlich anders geschrieben wird."""
+        label = getattr(self, "_kontext_zeile", None)
+        if label is None:
+            return
+        if not getattr(self.settings.advanced, "kontext_lernen", True):
+            label.setText("Aus — es wird nichts gelernt und nichts verwendet.")
+            return
+        speicher = self._kontext_speicher()
+        if speicher is None:
+            label.setText("")
+            return
+        kontexte = speicher.kontexte()
+        if not kontexte:
+            label.setText("Noch nichts gelernt — das kommt mit den ersten Diktaten.")
+            return
+        apps = {a for a, _seg, _n in kontexte}
+        begriffe = sum(n for _a, seg, n in kontexte if seg == "")
+        # Die drei groessten mit Beispielen: abstrakte Zahlen sagen wenig, ein
+        # „claude.exe: MCP-Server, Design-System" beantwortet die Frage sofort.
+        zeilen = []
+        for app in sorted(apps)[:3]:
+            beispiele = speicher.priming_begriffe(app, limit=4)
+            if beispiele:
+                zeilen.append(f"{app}: {', '.join(beispiele)}")
+        text = f"{begriffe} Begriffe in {len(apps)} Programmen"
+        if zeilen:
+            text += " — " + " · ".join(zeilen)
+        label.setText(text)
+
+    def _kontext_vergessen(self) -> None:
+        speicher = self._kontext_speicher()
+        if speicher is None:
+            return
+        anzahl = speicher.vergiss()
+        log.info("Projekt-Gedaechtnis geleert (%d Eintraege).", anzahl)
+        self._refresh_kontext_zeile()
+
     def _refresh_priming_hint(self) -> None:
         """„X von Y Begriffen aktiv geprimt" — nur zeigen, wenn das Limit greift."""
         from ..textutils import parse_dictionary, primed_terms
@@ -941,6 +998,30 @@ class SettingsPanel(QWidget):
                       "holt den Vorschlag zurück.",
             height=90,
         )
+
+        # Projekt-Gedaechtnis: gelerntes Fachvokabular je App/Fenster. Bewusst
+        # HIER, direkt unter dem Woerterbuch: Es ist dieselbe Sache, nur
+        # automatisch — beides primt die Erkennung. Wer sucht, warum ein Wort
+        # anders geschrieben wird, schaut an einer Stelle.
+        self._kontext_cb = self._check(
+            form, "Gedächtnis", getattr(s.advanced, "kontext_lernen", True),
+            "output", self._on_kontext_toggled,
+            hint_text="Gelerntes Fachvokabular als Erkennungs-Hinweis. "
+                      "Aus = weder lernen noch verwenden.",
+        )
+        form.addRow("", _hint(
+            "Fleech merkt sich je Programm und Fenster die Fachbegriffe, die dort "
+            "vorkommen (alles mit Binnenversalien, Ziffern oder Punkten — "
+            "„MCP-Server“, „PySide6“, „x_3“), und gibt sie beim nächsten Diktat "
+            "als Hinweis an die Erkennung. Nur Schreibweisen: Der Inhalt geht nie "
+            "an die KI, das Diktat wird dadurch nicht langsamer."
+        ))
+        self._kontext_zeile = _hint("")
+        form.addRow("", self._kontext_zeile)
+        vergessen = style_button(QPushButton("Gelerntes vergessen"), "ghost")
+        vergessen.clicked.connect(self._kontext_vergessen)
+        form.addRow("", vergessen)
+        self._refresh_kontext_zeile()
 
         # Bausteine — gesprochenes Kuerzel fuegt einen festen Textblock ein.
         # BEWUSST auf derselben Seite wie das Woerterbuch (v3.12.0, aus einem

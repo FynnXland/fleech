@@ -11,6 +11,38 @@ GitHub-Release-Notizen (`packaging/release.py`).
 
 ---
 
+## 5.1.0 — 2026-08-02
+
+**Fleech merkt sich deine Fachbegriffe.** Je Programm und Fenster lernt es die
+Wörter mit, die dort vorkommen — `MCP-Server`, `PySide6`, `Cauchy-Schwarz-Ungleichung`, `x_3` — und gibt sie beim nächsten Diktat als Hinweis an die
+Erkennung. Genau die Begriffe, an denen sich Whisper sonst verhört, kommen damit
+richtig geschrieben an. Das überlebt jeden Neustart.
+
+**Der Bestand wird sofort genutzt:** Beim ersten Start nach dem Update lernt
+Fleech einmalig aus deinem bisherigen Verlauf, statt bei null anzufangen. Läuft
+im Hintergrund, der Start verzögert sich nicht.
+
+Zwei Ebenen, ohne dass du etwas anlegen musst: Was im konkreten Fenster gilt,
+steht vorn; darunter der Bestand des ganzen Programms. Der Fenstertitel wird dafür
+in seine Teile zerlegt — was stabil bleibt (das Projekt), sammelt viel; was
+wechselt (der Dateiname), fällt von selbst zurück.
+
+**Was NICHT passiert:** Es geht kein Inhalt an die KI. Eine mitgegebene
+Projekt-Zusammenfassung wäre mächtiger, würde aber jedes Diktat verlangsamen und
+der KI Material geben, aus dem sie ergänzen kann — genau die Halluzinationen,
+gegen die vier Filter stehen. Vokabular kann nichts erfinden: Es verschiebt nur
+die Wahrscheinlichkeit, ein tatsächlich gesprochenes Wort richtig zu schreiben.
+Gemessen: 0,6 ms je Diktat.
+
+Unter **Einstellungen → Ausgabe** steht, was gelernt wurde („76 Begriffe in 7
+Programmen — claude.exe: GitHub, MCP-Server …"), dazu ein Schalter und
+„Gelerntes vergessen".
+
+**Umbenannt:** Das Profil „Zusammenfassen" heißt jetzt **„Stichpunkte"** — wie
+das Format, das es erzeugt. Der alte Name versprach eine Zusammenfassung, während
+der Prompt seit 4.10.0 das Gegenteil tut (nichts weglassen, nur die Sprechweise
+aufräumen).
+
 ## 5.0.0 — 2026-08-02
 
 **Die erste Fassung, die für jemand anderen gebaut ist.** Technisch bricht nichts

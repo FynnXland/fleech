@@ -369,6 +369,11 @@ class OutputSettings:
 @dataclass
 class AdvancedSettings:
     debug_logging: bool = False
+    # Projekt-Gedaechtnis (fleech/kontext.py): Fachbegriffe je App/Fenster lernen
+    # und beim naechsten Diktat als Erkennungs-Hinweis mitgeben. Kostet keine
+    # spuerbare Zeit (0,6 ms Abruf) und beeinflusst nur die Schreibweise erkannter
+    # Woerter, nie den Inhalt — deshalb standardmaessig an.
+    kontext_lernen: bool = True
     # Leer = GitHub-Releases des Projekts (Standardweg). Eine eigene URL zeigt auf
     # einen JSON-Feed {"version", "url", "sha256"} — siehe fleech/ui/updates.py.
     update_feed_url: str = ""
@@ -432,7 +437,7 @@ def _default_profiles() -> list:
         # Der leisere Bruder des KI-Prompts: nur destillieren, keine Rolle und
         # keinen Kontext erfinden. Fuer Zuruf an eine KI oft der bessere Weg —
         # dort steht der Kontext ohnehin schon im Gespraech.
-        {"name": "Zusammenfassen", "intervention": "standard", "tags": [], "apps": [],
+        {"name": "Stichpunkte", "intervention": "standard", "tags": [], "apps": [],
          "mode": "summary", "command": "off"},
     ]
 
@@ -602,7 +607,7 @@ class ProfilesSettings:
     # E-Mail-Profil arbeitet, will nach einem Neustart nicht stillschweigend wieder
     # normal diktieren — genau das faellt erst am fertigen Text auf.
     active: str = ""
-    # Schnellwechsel je App: {"claude.exe": ["KI-Prompt", "Zusammenfassen"]}.
+    # Schnellwechsel je App: {"claude.exe": ["KI-Prompt", "Stichpunkte"]}.
     # Fehlt eine App (Normalfall), gelten die global freigegebenen Profile — alte
     # settings.json laufen dadurch unveraendert weiter, keine Migration.
     #

@@ -142,6 +142,18 @@ class Pipeline:
         # Kommt aus Einstellungen → Allgemein → Anzeigename.
         self.author_name = ""
         self.tracker = tracker if tracker is not None else DocumentTracker()
+        # Projekt-Gedaechtnis: gelerntes Fachvokabular je App/Fenster. Optional —
+        # faellt die Datei aus, diktiert Fleech unveraendert weiter, nur ohne den
+        # Priming-Vorteil.
+        try:
+            from .kontext import KontextSpeicher
+
+            self.kontext = KontextSpeicher()
+        except Exception:
+            log.warning("Projekt-Gedaechtnis nicht verfuegbar — Priming entfaellt.",
+                        exc_info=True)
+            self.kontext = None
+        self.kontext_lernen = True     # von pipeline_factory aus den Settings
         self.intervention = intervention
         self.strong_addendum = strong_addendum
         # Automatische Formel-Erkennung: gesprochene Mathe-Ausdrücke werden beim
@@ -219,7 +231,8 @@ class Pipeline:
                 intervention_override: str | None = None,
                 style_hints: list | None = None, force_command: bool = False,
                 prompt_mode: bool = False, suppress_command: bool = False,
-                output_format: str = "") -> str:
+                output_format: str = "", app: str = "",
+                window_title: str = "") -> str:
         """Verarbeitet ein Segment. Rueckgabe fuer die UI (Status/Sounds):
         "ok" | "fallback" (Ergebnis eingefuegt, aber ueber einen Fehler-Fallback) |
         "empty" | "too_short" | "error"
@@ -235,7 +248,18 @@ class Pipeline:
         output_format: Ausgabeformat des aktiven Profils ("email" | "prompt" | "").
         Wie prompt_mode, nur allgemein: das Diktat wird ueber einen eigenen
         System-Prompt in eine andere Textsorte gebracht (E-Mail, KI-Prompt).
+        app / window_title: Ziel-Anwendung und Fenstertitel beim Aufnahmestart.
+        Nur fuer das Projekt-Gedaechtnis (`fleech/kontext.py`): Daraus kommt das
+        gelernte Fachvokabular fuer das Whisper-Priming, und dorthin wird nach
+        dem Einfuegen zurueckgelernt.
         """
+        # Ziel fuer das Projekt-Gedaechtnis merken: `_inject_append` ist der EINE
+        # Ort, an dem Text wirklich beim Nutzer landet (es gibt mehrere Wege
+        # dorthin), kennt App und Titel aber nicht. `process` laeuft global
+        # serialisiert — dieser Zustand kann sich nicht mit einem zweiten Lauf
+        # ueberschneiden.
+        self._ziel_app = app
+        self._ziel_fenster = window_title
         self.last_error_kind = ""
         self.last_raw = ""
         self.last_injected = ""
@@ -261,6 +285,11 @@ class Pipeline:
             # Baustein-Kuerzel sind kurze Kunstwoerter im Redefluss — ohne Priming
             # verhoert sich Whisper genau dort ("Bau Stein Signatur").
             hints.append(self._snippet_prompt)
+        gelernt = self._kontext_begriffe(app, window_title)
+        if gelernt:
+            # NACH dem Woerterbuch: Das ist von Hand gepflegt und damit praeziser
+            # als alles Gelernte — bei knappem Kontextfenster soll es vorn stehen.
+            hints.append("Fachbegriffe: " + ", ".join(gelernt) + ".")
         if self.trigger_word and not suppress_command:
             # Das Signalwort ist ein Kunst-/Fremdwort — Whisper darauf primen,
             # sonst wird es je nach Stimme unzuverlaessig erkannt. Ist der
@@ -976,11 +1005,53 @@ class Pipeline:
 
     # ------------------------------------------------------------------------------
 
+    # -- Projekt-Gedaechtnis (fleech/kontext.py) --------------------------------------
+
+    def _kontext_begriffe(self, app: str, titel: str) -> list:
+        """Gelernte Fachbegriffe fuer diese App/dieses Fenster.
+
+        Laeuft im Hotkey-Pfad, direkt vor der Transkription — gemessen 0,6 ms.
+        Ein Fehler hier darf das Diktat nie aufhalten: ohne Priming wird der Text
+        etwas schlechter erkannt, ohne Diktat gar nicht.
+        """
+        if self.kontext is None or not app or not self.kontext_lernen:
+            return []
+        # Der initial_prompt hat bei Whisper ein hartes Limit (~224 Token, halbes
+        # Kontextfenster). Woerterbuch, Bausteine und Signalwort teilen es sich
+        # mit den gelernten Begriffen — wer viel Vokabular pflegt, soll dadurch
+        # nicht das Handgepflegte verlieren, das praeziser ist. Gemessen: 25
+        # gelernte Begriffe ~90 Token, ein volles Woerterbuch (60) ~130.
+        gepflegt = len(self._vocab_prompt) // 12 if self._vocab_prompt else 0
+        platz = max(8, 25 - max(0, gepflegt - 20))
+        try:
+            return self.kontext.priming_begriffe(app, titel, limit=platz)
+        except Exception:
+            log.debug("Kontext-Priming fehlgeschlagen.", exc_info=True)
+            return []
+
+    def _kontext_lernen(self, app: str, titel: str, text: str) -> None:
+        """Nach dem Einfuegen zuruecklernen — mit dem BEREINIGTEN Text.
+
+        Bewusst nicht mit dem Rohtranskript: Woerterbuch und Sprachmodell haben
+        die Schreibweise dann bereits korrigiert, und geprimt werden soll die
+        richtige. Sonst lernte Fleech seine eigenen Hoerfehler.
+        """
+        if self.kontext is None or not app or not text or not self.kontext_lernen:
+            return
+        try:
+            self.kontext.lerne(app, titel, text)
+        except Exception:
+            log.debug("Kontext-Lernen fehlgeschlagen.", exc_info=True)
+
     def _inject_append(self, text: str) -> None:
         if not text:
             return
         injected = self.tracker.separator() + text
         self.injector.inject(injected)
         self.tracker.record_append(injected)
+        # Erst nach dem Einfuegen lernen: Was nie beim Nutzer ankam (verworfen,
+        # abgebrochen, Fehler), soll auch das Vokabular nicht praegen.
+        self._kontext_lernen(getattr(self, "_ziel_app", ""),
+                             getattr(self, "_ziel_fenster", ""), text)
         self.last_injected = (self.last_injected + " " + text).strip()
         log.info("Eingefuegt: %s", text)

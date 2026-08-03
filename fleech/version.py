@@ -7,7 +7,7 @@
 
 from __future__ import annotations
 
-APP_VERSION = "5.0.0"  # 5.0.0: erste Fassung zur Weitergabe
+APP_VERSION = "5.1.0"  # 5.1.0: Projekt-Gedaechtnis — gelerntes Fachvokabular
 
 
 def _read_build() -> str:
