@@ -772,6 +772,19 @@ class SettingsPanel(QWidget):
             hint_text="Mehrsilbig und im Alltag selten — sonst löst es im Gespräch "
                       "ständig versehentlich aus. „Kimono“ hat sich bewährt.",
         )
+        self._combo(
+            form, "Genauigkeit", [
+                ("tiny", "Schnell (schwache Rechner)"),
+                ("base", "Ausgewogen — empfohlen"),
+                ("small", "Genau (langsamer)"),
+            ],
+            getattr(f, "modell", "base") or "base", "freihand",
+            lambda v: setattr(f, "modell", v),
+            hint_text="Wie genau auf das Startwort gehört wird. „Schnell“ überhört "
+                      "es je nach Aussprache („Kimono“ wurde als „Kimu“ verstanden); "
+                      "„Genau“ braucht rund 1,5 Sekunden je Prüfung. Wirkt nach "
+                      "einem Neustart von Fleech.",
+        )
         self._text_field(
             form, "Abbruchwort", f.abbruchwort, "freihand",
             lambda v: setattr(f, "abbruchwort", v),

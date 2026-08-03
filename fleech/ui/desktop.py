@@ -107,7 +107,10 @@ class DesktopApp:
         self.overlay = OverlayWindow(
             self.settings.overlay,
             on_geometry_changed=self.settings.save,
-            level_provider=lambda: self.recorder.level,  # late-bound (Mic-Wechsel!)
+            # late-bound (Mic-Wechsel!) und BEIDE Aufnahmewege: Beim Freihand-
+            # Diktat laeuft der Recorder nicht, sein Pegel bleibt 0 — die Pille
+            # zeigte dort eine tote Linie, obwohl aufgenommen wurde.
+            level_provider=lambda: max(self.recorder.level, self._freihand_level()),
         )
         self.overlay.cancel_requested.connect(self._cancel_recording)
         self.overlay.finish_requested.connect(lambda: self.controller.stop_if_active())
@@ -338,7 +341,7 @@ class DesktopApp:
             model = self._ensure_preview_model()
             if self._preview is None:
                 self._preview = PreviewStreamer(
-                    snapshot_fn=lambda: self.recorder.snapshot(),
+                    snapshot_fn=self._laufendes_audio,
                     transcribe_fn=model.transcribe_segments,
                     on_text=self.bus.preview_text.emit,  # Signal = thread-sicher zur UI
                     samplerate=self.config.audio.samplerate,
@@ -1522,6 +1525,7 @@ class DesktopApp:
                     ),
                     vad=baue_vad(),
                     erkenner=baue_erkenner(
+                        modell_groesse=getattr(s, "modell", "base") or "base",
                         sprache=self.settings.general.language,
                         startwort=s.startwort,
                     ),
@@ -1592,15 +1596,22 @@ class DesktopApp:
             self.notifier.sound("start")
             prozess, titel = self._freihand_ziel()
             self._record_app, self._record_title = prozess, titel
+            # Live-Vorschau auch hier: Sie hing bisher nur am Hotkey-Weg, beim
+            # Freihand-Diktat blieb die Pille stumm und man wusste bis zum Ende
+            # nicht, ob etwas ankommt.
+            if self.settings.overlay.live_preview:
+                self._start_preview_async()
             return
         if ereignis == "abbruch":
             self._freihand_audio = None
+            self._stop_preview()
             self.bus.freihand_zustand.emit("lauscht")
             self.bus.set_state(AppState.IDLE)
             self._flash_status("Verworfen")
             return
         # ENDE: wie ein normales Diktat weiterverarbeiten.
         audio, self._freihand_audio = getattr(self, "_freihand_audio", None), None
+        self._stop_preview()
         self.bus.freihand_zustand.emit("lauscht")
         if audio is None or not len(audio):
             self.bus.set_state(AppState.IDLE)
@@ -1750,6 +1761,40 @@ class DesktopApp:
         self._update_dialog.show()
         self._update_dialog.raise_()
         self._update_dialog.activateWindow()
+
+    def _laufendes_audio(self):
+        """Bisher aufgenommenes Audio — egal ob per Hotkey oder per Freihand.
+
+        Die Live-Vorschau hing allein am Recorder. Beim Freihand-Diktat laeuft der
+        nicht, sie blieb deshalb leer: Man sah beim Sprechen nichts und wusste bis
+        zum Ende nicht, ob ueberhaupt etwas ankommt.
+        """
+        import numpy as _np
+
+        eigenes = self.recorder.snapshot()
+        if eigenes is not None and len(eigenes):
+            return eigenes
+        strom = getattr(self, "_freihand", None)
+        lauscher = getattr(strom, "lauscher", None)
+        if lauscher is None:
+            return eigenes
+        try:
+            return lauscher.aufnahme_audio()
+        except Exception:
+            log.debug("Freihand-Audio fuer die Vorschau nicht lesbar.", exc_info=True)
+            return _np.zeros(0, dtype=_np.float32)
+
+    def _freihand_level(self) -> float:
+        """Eingangspegel des Freihand-Stroms, 0.0 wenn er nicht laeuft.
+
+        Wird aus dem Zeichentakt der Pille aufgerufen (mehrmals je Sekunde) und
+        muss deshalb billig und still sein — ein Fehler hier duerfte niemals die
+        Anzeige stoppen."""
+        strom = getattr(self, "_freihand", None)
+        try:
+            return float(getattr(strom, "level", 0.0) or 0.0)
+        except Exception:
+            return 0.0
 
     def _on_freihand_fehler(self, grund: str) -> None:
         """UI-Thread: Freihand liess sich nicht starten — das muss man SEHEN.

@@ -521,6 +521,10 @@ def test_preview_streamer_start_stop_wiring(qapp, monkeypatch):
         config=types.SimpleNamespace(audio=types.SimpleNamespace(samplerate=16000)),
         _preview=None, _preview_gen=0,
         _ensure_preview_model=lambda: types.SimpleNamespace(transcribe_segments=lambda a: []),
+        # Seit 5.5.0 zieht die Vorschau ihr Audio ueber `_laufendes_audio` —
+        # damit sie auch beim Freihand-Diktat etwas sieht, wo der Recorder
+        # gar nicht laeuft.
+        _laufendes_audio=lambda: None,
     )
 
     import threading as _threading

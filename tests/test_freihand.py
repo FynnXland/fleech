@@ -81,11 +81,15 @@ def test_stille_beendet_das_diktat():
     lau = _lauscher(text="Kimono")
     lau.verarbeite(block(1.0), jetzt=100.0)
     lau._erkenner = lambda a: "der eigentliche Diktattext"
-    # Der EINGEHENDE Block ist still (beendet das Diktat), die GESAMMELTE
-    # Aufnahme enthaelt aber Sprache — sonst wird sie seit 5.5.0 verworfen.
-    lau._vad = lambda a: len(a) > 8000
-    assert lau.verarbeite(block(0.5), jetzt=101.0) is None    # noch nicht lang genug
-    assert lau.verarbeite(block(0.5), jetzt=103.5) is Ereignis.ENDE
+    # Zwei Sekunden reden, damit die Aufnahme laenger ist als das VAD-Fenster.
+    lau._vad = lambda a: True
+    for i in range(10):
+        lau.verarbeite(block(0.2), jetzt=100.2 + i * 0.2)
+    # Jetzt Stille: Das 1,0-s-FENSTER gilt als still, die GESAMTE Aufnahme
+    # (2 s) enthaelt aber Sprache — sonst wuerde sie als leer verworfen.
+    lau._vad = lambda a: len(a) > int(1.5 * SR)
+    assert lau.verarbeite(block(0.5), jetzt=102.6) is None    # noch nicht lang genug
+    assert lau.verarbeite(block(0.5), jetzt=105.0) is Ereignis.ENDE
     assert lau.zustand is Zustand.LAUSCHT
 
 
@@ -282,10 +286,11 @@ def test_ende_liefert_das_gesammelte_audio():
     gemeldet = []
     strom = FreihandStream(lau, lambda e, a: gemeldet.append((e, a)), samplerate=SR)
     strom._callback(block(1.0), 0, None, None)               # START
-    strom._callback(block(1.0), 0, None, None)               # Diktat sammeln
+    for _ in range(3):
+        strom._callback(block(1.0), 0, None, None)           # 3 s Diktat sammeln
     lau._erkenner = lambda a: "der Diktattext"
-    # Gesammeltes Audio enthaelt Sprache, der letzte Block nicht mehr.
-    lau._vad = lambda a: len(a) > 8000
+    # Fenster (1 s) gilt als still, die Gesamtaufnahme (3 s) hat Inhalt.
+    lau._vad = lambda a: len(a) > int(1.5 * SR)
     lau._letzte_sprache = -99                                 # Stille erzwingen
     strom._callback(block(0.5), 0, None, None)               # ENDE
     ereignis, audio = gemeldet[-1]
@@ -558,11 +563,218 @@ def test_echtes_diktat_geht_weiterhin_durch():
     lau = _lauscher(text="Kimono")
     lau.verarbeite(block(1.0), jetzt=100.0)
     lau._erkenner = lambda a: "der eigentliche Diktattext"
-    # VAD meldet Sprache im gesammelten Audio → durchlassen
-    lau._vad = lambda a: len(a) > 8000
-    for t in (100.5, 101.0, 101.5):
-        lau.verarbeite(block(0.5), jetzt=t)
-    lau._vad = lambda a: len(a) > 8000
-    ereignis = lau.verarbeite(block(0.5), jetzt=104.5)
+    lau._vad = lambda a: True                       # es wird geredet
+    for i in range(10):
+        lau.verarbeite(block(0.2), jetzt=100.2 + i * 0.2)
+    # Fenster still, Gesamtaufnahme hat Inhalt → durchlassen
+    lau._vad = lambda a: len(a) > int(1.5 * SR)
+    ereignis = lau.verarbeite(block(0.5), jetzt=105.0)
     assert ereignis is Ereignis.ENDE
     assert len(lau.aufnahme_audio()) > 0
+
+
+# -- Die Aufnahme darf nicht nach 2 Sekunden abbrechen ------------------------------------
+
+
+def test_vad_bekommt_ein_fenster_nicht_nur_einen_block():
+    """DER Grund, warum jedes Freihand-Diktat exakt 2,0 s lang war.
+
+    Silero verlangt `min_speech_duration_ms=200` — genau die Blocklaenge des
+    Stroms. Gemessen meldete es auf einem einzelnen 0,2-s-Block in 0 % der Faelle
+    Sprache, ab 1,0 s in 100 %. Damit lief die Stille-Uhr durch, obwohl geredet
+    wurde, und alles nach den ersten zwei Sekunden fehlte.
+    """
+    gesehen = []
+
+    lau = _lauscher(text="Kimono")
+    lau.verarbeite(block(1.0), jetzt=100.0)          # START
+    lau._vad = lambda a: gesehen.append(len(a)) or True
+    for i in range(8):
+        lau.verarbeite(block(0.2), jetzt=100.2 + i * 0.2)
+
+    assert gesehen, "das VAD wurde waehrend der Aufnahme gar nicht gefragt"
+    groesstes = max(gesehen)
+    assert groesstes > int(0.2 * SR), (
+        f"VAD sieht nur {groesstes/SR:.1f} s — auf so wenig meldet Silero nie Sprache")
+
+
+def test_langes_diktat_wird_nicht_abgeschnitten():
+    """Wer nach dem Startwort zehn Sekunden redet, will zehn Sekunden Text."""
+    lau = _lauscher(text="Kimono")
+    lau.verarbeite(block(1.0), jetzt=100.0)
+    lau._erkenner = lambda a: "der Diktattext"
+    lau._vad = lambda a: True                        # es wird durchgehend geredet
+
+    jetzt = 100.2
+    for _ in range(50):                              # 10 Sekunden
+        assert lau.verarbeite(block(0.2), jetzt=jetzt) is None, \
+            "Aufnahme endete mitten im Reden"
+        jetzt += 0.2
+    assert len(lau.aufnahme_audio()) / SR > 9.0
+
+
+# -- Pegel fuer die Pille ------------------------------------------------------------------
+
+
+def test_pegel_nur_waehrend_der_aufnahme():
+    """Die Pille zeigte beim Freihand-Diktat eine tote Wellenlinie — ihr Pegel
+    kommt vom Recorder, und der laeuft hier nicht.
+
+    Beim blossen Lauschen bleibt der Pegel 0: Eine zappelnde Pille wuerde „es
+    wird aufgenommen" behaupten, obwohl nur gewartet wird."""
+    from fleech.freihand import FreihandStream
+
+    lau = _lauscher(text="")
+    strom = FreihandStream(lau, lambda e, a: None, samplerate=SR)
+    laut = (np.ones(int(0.2 * SR), dtype=np.float32) * 0.3)
+
+    strom._callback(laut, 0, None, None)             # nur lauschen
+    assert strom.level == 0.0
+
+    lau.zustand = Zustand.AUFNAHME
+    strom._callback(laut, 0, None, None)
+    assert strom.level > 0.2, "kein Pegel waehrend der Aufnahme"
+
+
+def test_desktop_nimmt_den_hoeheren_pegel():
+    import types
+
+    from fleech.ui.desktop import DesktopApp
+
+    fake = types.SimpleNamespace(_freihand=types.SimpleNamespace(level=0.42))
+    assert DesktopApp._freihand_level(fake) == pytest.approx(0.42)
+
+    fake2 = types.SimpleNamespace(_freihand=None)
+    assert DesktopApp._freihand_level(fake2) == 0.0
+
+    kaputt = types.SimpleNamespace(_freihand=types.SimpleNamespace(level="Unsinn"))
+    assert DesktopApp._freihand_level(kaputt) == 0.0
+
+
+# -- Modellwahl ----------------------------------------------------------------------------
+
+
+def test_modell_ist_einstellbar_und_steht_auf_base():
+    """tiny verstand „Kimono" je nach Aussprache als „Kimu" oder „Gimo" und
+    „Apfel" als „Achtung" — base traf beides."""
+    from fleech.usersettings import UserSettings
+
+    assert UserSettings().freihand.modell == "base"
+
+
+def test_modellwahl_ueberlebt_das_speichern(tmp_path, monkeypatch):
+    import fleech.usersettings as us
+
+    pfad = tmp_path / "settings.json"
+    monkeypatch.setattr(us, "SETTINGS_PATH", pfad)
+    s = us.UserSettings()
+    s.freihand.modell = "small"
+    s.save(pfad)
+    assert us.UserSettings.load(pfad).freihand.modell == "small"
+
+
+# -- Der Puffer von sounddevice wird wiederverwendet --------------------------------------
+
+
+def test_bloecke_werden_kopiert_nicht_referenziert():
+    """DER Bug, der Freihand die Diktate gekostet hat.
+
+    sounddevice reicht in jedem Callback DENSELBEN Puffer herein und ueberschreibt
+    ihn danach. Wer ihn nur referenziert, sammelt n-mal denselben Block ein. Weil
+    die Aufnahme bei Stille endet, war dieser letzte Block still — das Diktat kam
+    leer an. Wo doch etwas ankam, ergab derselbe Block aneinandergereiht ein
+    periodisches Signal: daher „T-T-T-T-…" und „G-G-G-G-…" im Textfeld.
+
+    Dieser Test bildet die Wiederverwendung nach: EIN Puffer, der zwischen den
+    Callbacks seinen Inhalt wechselt.
+    """
+    from fleech.freihand import FreihandStream
+
+    lau = _lauscher(text="Kimono")
+    strom = FreihandStream(lau, lambda e, a: None, samplerate=SR)
+
+    puffer = np.zeros(int(0.2 * SR), dtype=np.float32)   # DER wiederverwendete Puffer
+    for _ in range(6):                                    # Ringpuffer fuellen (>0,8 s)
+        strom._callback(puffer, 0, None, None)
+    assert lau.zustand is Zustand.AUFNAHME, "Startwort wurde nicht erkannt"
+
+    for wert in (0.1, 0.2, 0.3, 0.4):
+        puffer[:] = wert                                  # sounddevice ueberschreibt
+        strom._callback(puffer, 0, None, None)
+    puffer[:] = 0.0                                       # letzter Block: Stille
+
+    audio = lau.aufnahme_audio()
+    werte = {round(float(v), 3) for v in np.unique(audio)}
+    assert werte >= {0.1, 0.2, 0.3, 0.4}, (
+        f"Aufnahme enthaelt nicht alle Bloecke, nur {sorted(werte)} — "
+        f"die Bloecke wurden referenziert statt kopiert")
+
+
+def test_aufnahme_ueberlebt_das_ueberschreiben_des_puffers():
+    """Kurzfassung derselben Falle: Nach dem Callback darf das Ueberschreiben des
+    Puffers die bereits gesammelten Daten nicht mehr veraendern."""
+    from fleech.freihand import FreihandStream
+
+    lau = _lauscher(text="Kimono")
+    strom = FreihandStream(lau, lambda e, a: None, samplerate=SR)
+    puffer = np.zeros(int(0.2 * SR), dtype=np.float32)
+    for _ in range(6):
+        strom._callback(puffer, 0, None, None)           # START
+    assert lau.zustand is Zustand.AUFNAHME
+
+    puffer[:] = 0.5
+    strom._callback(puffer, 0, None, None)
+    vorher = lau.aufnahme_audio().copy()
+    puffer[:] = -0.9                                      # sounddevice schreibt neu
+    assert np.array_equal(lau.aufnahme_audio(), vorher), \
+        "das Ueberschreiben des Puffers hat die Aufnahme veraendert"
+
+
+# -- Live-Vorschau beim Freihand-Diktat ----------------------------------------------------
+
+
+def test_vorschau_findet_auch_das_freihand_audio():
+    """Die Live-Vorschau hing allein am Recorder. Beim Freihand-Diktat laeuft der
+    nicht — die Pille blieb stumm, und man wusste bis zum Ende nicht, ob
+    ueberhaupt etwas ankommt."""
+    import types
+
+    from fleech.ui.desktop import DesktopApp
+
+    leer = np.zeros(0, dtype=np.float32)
+    diktat = np.ones(1600, dtype=np.float32) * 0.2
+
+    fake = types.SimpleNamespace(
+        recorder=types.SimpleNamespace(snapshot=lambda: leer),
+        _freihand=types.SimpleNamespace(
+            lauscher=types.SimpleNamespace(aufnahme_audio=lambda: diktat)),
+    )
+    assert len(DesktopApp._laufendes_audio(fake)) == 1600
+
+
+def test_hotkey_audio_hat_vorrang():
+    """Laeuft eine normale Aufnahme, gilt deren Audio — nie ein Rest aus einem
+    frueheren Freihand-Diktat."""
+    import types
+
+    from fleech.ui.desktop import DesktopApp
+
+    eigenes = np.ones(800, dtype=np.float32)
+    fremdes = np.ones(9999, dtype=np.float32)
+    fake = types.SimpleNamespace(
+        recorder=types.SimpleNamespace(snapshot=lambda: eigenes),
+        _freihand=types.SimpleNamespace(
+            lauscher=types.SimpleNamespace(aufnahme_audio=lambda: fremdes)),
+    )
+    assert len(DesktopApp._laufendes_audio(fake)) == 800
+
+
+def test_vorschau_ohne_freihand_bleibt_wie_bisher():
+    import types
+
+    from fleech.ui.desktop import DesktopApp
+
+    leer = np.zeros(0, dtype=np.float32)
+    fake = types.SimpleNamespace(
+        recorder=types.SimpleNamespace(snapshot=lambda: leer), _freihand=None)
+    assert len(DesktopApp._laufendes_audio(fake)) == 0

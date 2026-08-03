@@ -63,6 +63,12 @@ SPERRE_NACH_START_S = 1.0
 # aus kurzen Rauschfetzen zuverlaessig Unsinn.
 MIN_DIKTAT_S = 0.6
 
+# Wie viel Audio das VAD waehrend der AUFNAHME beurteilt. Gemessen: Auf einem
+# einzelnen 0,2-s-Block meldet Silero NIE Sprache (0 %), ab 0,8 s sind es 98,6 %,
+# ab 1,0 s volle 100 % — bei null Fehlalarmen auf Rauschen. Der Wert entscheidet,
+# ob ein Diktat weiterlaufen darf oder nach `stille_s` abgeschnitten wird.
+VAD_FENSTER_S = 1.0
+
 
 class Zustand(Enum):
     AUS = "aus"              # Freihand abgeschaltet oder App ausgeschlossen
@@ -340,7 +346,19 @@ class Lauscher:
 
     def _nimm_auf(self, block: np.ndarray, jetzt: float):
         self._aufnahme.append(block)
-        if self._ist_sprache(block):
+        # Das VAD bekommt ein FENSTER, nicht den einzelnen Block. Gemessen:
+        #
+        #   Fensterlaenge   Sprache erkannt (bei laufender Rede)
+        #   0,2 s (= 1 Block)     0,0 %      <- so war es
+        #   0,8 s                98,6 %
+        #   1,0 s               100,0 %
+        #
+        # Silero verlangt `min_speech_duration_ms=200` — genau die Blocklaenge.
+        # Auf einem einzelnen Block meldete es deshalb NIE Sprache, die Stille-Uhr
+        # lief durch, und jede Aufnahme endete nach exakt `stille_s`. Im Protokoll
+        # war jedes Freihand-Diktat 2,0 s lang: Alles, was der Nutzer danach sagte,
+        # fehlte — und aus dem Rauschen wurde „T-T-T-T-…".
+        if self._ist_sprache(self._sprach_fenster()):
             self._letzte_sprache = jetzt
             return None
         if jetzt - self._letzte_sprache < self.einstellungen.stille_s:
@@ -366,6 +384,27 @@ class Lauscher:
             return Ereignis.ABBRUCH
         self._nach_diktat(jetzt)
         return Ereignis.ENDE
+
+    def _sprach_fenster(self) -> np.ndarray:
+        """Die letzten Sekunden der laufenden Aufnahme — Material fuers VAD.
+
+        Der Preis fuer das groessere Fenster: Die Stille-Erkennung wird um bis zu
+        eine Fensterlaenge traeger, weil am Ende noch Sprache im Fenster steht.
+        Das ist der richtige Handel — lieber eine Sekunde spaeter fertig als ein
+        Diktat, das nach zwei Sekunden abgeschnitten wird.
+        """
+        if not self._aufnahme:
+            return np.zeros(0, dtype=np.float32)
+        rate = int(self.samplerate or SAMPLERATE)
+        noetig = int(VAD_FENSTER_S * rate)
+        gesammelt = []
+        laenge = 0
+        for block in reversed(self._aufnahme):
+            gesammelt.append(block)
+            laenge += len(block)
+            if laenge >= noetig:
+                break
+        return np.concatenate(list(reversed(gesammelt)))[-noetig:]
 
     def _hat_inhalt(self) -> bool:
         """Enthaelt die gesammelte Aufnahme genug echte Sprache?
@@ -502,6 +541,10 @@ class FreihandStream:
         self.samplerate = samplerate
         self._stream = None
         self._pausiert = False
+        # Aktueller Eingangspegel (RMS). Die Pille zeigte beim Freihand-Diktat
+        # eine tote Wellenlinie: Ihr Pegel kommt vom Recorder, und der laeuft
+        # hier gar nicht — es gab schlicht niemanden, der ihn speist.
+        self.level = 0.0
 
     @property
     def laeuft(self) -> bool:
@@ -587,7 +630,25 @@ class FreihandStream:
         if self._pausiert or status is not None and getattr(status, "input_overflow", False):
             return
         try:
-            block = np.asarray(indata, dtype=np.float32).reshape(-1)
+            # `.copy()` ist PFLICHT, nicht Vorsicht: sounddevice reicht immer
+            # denselben Puffer herein und ueberschreibt ihn beim naechsten
+            # Callback. `np.asarray` kopiert nicht, wenn Typ und Form passen —
+            # die gesammelten Bloecke zeigten also alle auf denselben Speicher,
+            # und die fertige „Aufnahme" war n-mal der LETZTE Block.
+            #
+            # Weil die Aufnahme bei Stille endet, war dieser letzte Block still:
+            # Das Diktat kam leer an und wurde als „ohne Sprache" verworfen. Und
+            # wo doch etwas ankam, ergab derselbe Block aneinandergereiht ein
+            # periodisches Signal — daher die „T-T-T-T-…" und „G-G-G-G-…" im
+            # Textfeld. `audio.Recorder` macht die Kopie seit jeher.
+            block = np.array(indata, dtype=np.float32).reshape(-1)
+            # Pegel fuer die Wellenlinie in der Pille. Nur waehrend der Aufnahme —
+            # beim blossen Lauschen soll die Pille nicht zappeln, das waere die
+            # falsche Aussage („es wird aufgenommen").
+            if self.lauscher.zustand is Zustand.AUFNAHME and len(block):
+                self.level = float(np.sqrt(np.mean(np.square(block))))
+            else:
+                self.level = 0.0
             ereignis = self.lauscher.verarbeite(block)
             if ereignis is None:
                 return

@@ -78,6 +78,29 @@ im Textfeld landete. Solche Aufnahmen werden jetzt verworfen. Und falls doch
 einmal so ein Muster durchkommt, fängt es eine neue Prüfung ab: Sie erkennt
 Wiederholungen **innerhalb** eines Wortes, was bisher niemand geprüft hat.
 
+**Das Diktat kommt jetzt vollständig an.** Der schwerste Fehler steckte tief: Die
+Audio-Bibliothek reicht bei jeder Lieferung denselben Speicher herein und
+überschreibt ihn danach — Freihand merkte sich nur einen Verweis darauf. Am Ende
+enthielt die „Aufnahme" deshalb vielfach denselben letzten Schnipsel. Weil die
+Aufnahme bei Stille endet, war dieser Schnipsel still: Das Diktat kam leer an.
+Und wo doch etwas ankam, ergab derselbe Schnipsel aneinandergereiht einen
+gleichförmigen Ton — daher das „T-T-T-T-…" und „G-G-G-G-…" im Textfeld.
+
+**Die Aufnahme läuft, solange du redest.** Bisher war nach exakt zwei Sekunden
+Schluss, egal wie lange du sprachst. Die Sprech-Erkennung beurteilte nur
+Fünftelsekunden-Häppchen, und darauf meldet sie nie Sprache — gemessen in 0 % der
+Fälle, gegenüber 100 % bei einer Sekunde. Die Stille-Uhr lief also durch, obwohl
+geredet wurde.
+
+**Die Pille zeigt beim Freihand-Diktat wieder den Pegel** und die Live-Vorschau
+läuft auch dort. Beides hing bisher am Tasten-Weg; beim Freihand-Diktat blieb die
+Pille tot, und man wusste bis zum Schluss nicht, ob überhaupt etwas ankommt.
+
+**Genauigkeit einstellbar** (Einstellungen → Aufnahme): Schnell, **Ausgewogen**
+(neue Vorgabe) oder Genau. Das bisherige schnelle Modell verstand „Kimono" je
+nach Aussprache als „Kimu" oder „Gimo" und „Apfel" als „Achtung"; die
+ausgewogene Stufe trifft beides.
+
 > **Tipp zum Startwort:** Mehrsilbig und im Alltag selten. Kurze Allerweltswörter
 > funktionieren schlecht — „Apfel" versteht das kleine Modell je nach Aussprache
 > als „Achtung", „Abflö" oder „Applaus".

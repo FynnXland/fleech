@@ -121,6 +121,15 @@ class FreihandSettings:
     # kurzes Alltagswort loest im Gespraech staendig versehentlich aus.
     startwort: str = "Kimono"
     abbruchwort: str = "Abbrechen"
+    # Welches Modell das Startwort prueft. Vorgabe ist „base" und nicht mehr
+    # „tiny": An echter Stimme gemessen verstand tiny „Kimono" je nach Aussprache
+    # als „Kimu", „Gimo" oder „Kimo no" und „Apfel" als „Achtung" — base traf
+    # beides. Der Preis sind ~450 statt ~230 ms je Pruefung, und die faellt nur
+    # an, wenn das VAD ueberhaupt Sprache meldet.
+    #
+    # „tiny" bleibt waehlbar fuer schwache Rechner, „small" fuer schwierige
+    # Aussprache oder laute Umgebung (dort aber ~1,5 s je Pruefung).
+    modell: str = "base"
     # Wie lange Stille ein Diktat beendet (1–4 s, siehe freihand.Einstellungen).
     stille_s: float = 2.0
     # Prozessnamen, in denen NICHT gelauscht wird. Spiele und Meeting-Werkzeuge
