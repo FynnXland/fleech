@@ -204,6 +204,9 @@ class HistoryStore:
         with self._connect() as con:
             con.row_factory = sqlite3.Row
             rows = con.execute(
+                # Bewusst OHNE `raw`: Die Liste zeigt 50 Eintraege, der Rohtext
+                # wird nur fuer den Einzelfall gebraucht (Detailansicht,
+                # Nachbearbeitung) — dafuer gibt es `raw_text(id)`.
                 "SELECT id, ts, cleaned, app, mode, words FROM dictations "
                 "ORDER BY ts DESC LIMIT ?", (limit,),
             ).fetchall()

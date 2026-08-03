@@ -146,7 +146,8 @@ class DesktopApp:
             },
         )
         self.window = MainWindow(
-            self.settings, self.store, panel, self._on_window_closed_to_tray
+            self.settings, self.store, panel, self._on_window_closed_to_tray,
+            on_reprocess=self._reprocess_entry,
         )
         self.bus.history_changed.connect(self.window.refresh_data)
 
@@ -161,6 +162,8 @@ class DesktopApp:
         self.bus.tail_dropped.connect(self.overlay.show_dropped_tail)
         self.bus.injection_fallback.connect(self.overlay.flash_fallback)
         self.bus.transcript_ready.connect(self.overlay.show_transcript)
+        self.bus.raw_ready.connect(self.overlay.show_raw_preview)
+        self.bus.reprocessed.connect(self._on_reprocessed)
         self.bus.preview_text.connect(self._on_preview_text)
         self.bus.dictionary_suggestion.connect(self._on_dictionary_suggestion)
         self.bus.update_ready.connect(self._on_update_ready)
@@ -267,6 +270,9 @@ class DesktopApp:
         # status: laengere Zwischenschritte gehen ueber den Bus an die Pille
         # (thread-sicher via Queued Connection — der Aufruf kommt aus dem Worker).
         self.pipeline = build_pipeline(cfg, s, status=self.bus.progress.emit)
+        # Rohtranskript direkt in die Pille — der Weg ueber den Bus ist Pflicht,
+        # die Pipeline laeuft im Worker-Thread.
+        self.pipeline.raw_callback = self.bus.raw_ready.emit
         # Cursor-Rueckkehr: Restorer in den Injector einhaengen (plattformabhaengig,
         # damit injection.py portabel bleibt). Das Ziel-Feld wird pro Aufnahme gesetzt.
         from .focusrestore import restore_focus_target
@@ -1060,6 +1066,49 @@ class DesktopApp:
         except Exception:
             log.exception("Automatisches Absenden fehlgeschlagen — Text steht im Feld.")
             self._flash_status("Absenden fehlgeschlagen")
+
+    # -- Nachbearbeitung aus dem Verlauf (F3) ------------------------------------------
+
+    def _reprocess_entry(self, roh: str, fmt: str, name: str) -> None:
+        """Ein gespeichertes Diktat neu bereinigen lassen. Laeuft im Worker-Thread.
+
+        Das Ergebnis geht in die ZWISCHENABLAGE. Wer im Verlauf rechtsklickt, steht
+        im Fleech-Fenster — das urspruengliche Zielfeld ist laengst nicht mehr
+        fokussiert. Blind dorthin zu schreiben ist genau die Fehlerklasse, aus der
+        die Cursor-Regeln stammen (einmal 2701 Zeichen fremder Text geloescht).
+        """
+        if self._process_lock.locked():
+            self._flash_status("Ein Diktat läuft noch")
+            return
+
+        def arbeit():
+            with self._process_lock:
+                self.bus.progress.emit(f"Neu bereinigen als {name} …")
+                try:
+                    text = self.pipeline.reprocess(roh, fmt)
+                except Exception:
+                    log.exception("Nachbearbeitung fehlgeschlagen.")
+                    text = ""
+                self.bus.reprocessed.emit(text, name)
+
+        threading.Thread(target=arbeit, daemon=True).start()
+
+    def _on_reprocessed(self, text: str, name: str) -> None:
+        """UI-Thread: Ergebnis in die Zwischenablage und Rueckmeldung geben."""
+        if not text:
+            self._flash_status(f"{name} fehlgeschlagen — Text unverändert")
+            return
+        try:
+            from PySide6.QtWidgets import QApplication
+
+            QApplication.clipboard().setText(text)
+        except Exception:
+            log.exception("Zwischenablage nicht beschreibbar.")
+            self._flash_status("Zwischenablage nicht erreichbar")
+            return
+        log.info("Neu bereinigt als %s (%d Zeichen) — in der Zwischenablage.",
+                 name, len(text))
+        self._flash_status(f"{name} kopiert — Strg+V zum Einfügen")
 
     def _flash_status(self, text: str) -> None:
         """Kurze Rueckmeldung ueber die Pille — thread-sicher ueber den StateBus."""

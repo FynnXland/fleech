@@ -11,6 +11,34 @@ GitHub-Release-Notizen (`packaging/release.py`).
 
 ---
 
+## 5.2.0 — in Arbeit
+
+**Der Text steht sofort da.** Die Erkennung ist nach knapp einer Sekunde durch,
+die Bereinigung braucht danach noch rund vier. In dieser Lücke stand bisher
+nichts — jetzt erscheint das Rohtranskript sofort in der Pille und wird später
+durch die fertige Fassung ersetzt. Man liest bereits, während das Modell arbeitet.
+
+**Die Statuszeile sagt, was gerade passiert** — „Bereinige …", „E-Mail wird
+formuliert …", „Füge ein …". Die Meldungen hängen an den echten Schritten, nicht
+an einem geschätzten Fortschrittsbalken. Steht schon ein Rohtext, tritt die Stufe
+darunter, statt ihn zu verdrängen.
+
+**Falsches Profil erwischt? Rechtsklick genügt.** Im Verlauf öffnet ein
+Rechtsklick ein Menü: „Neu bereinigen als …" schickt das gespeicherte
+**Rohtranskript** noch einmal durch die Pipeline — als E-Mail, als Stichpunkte,
+als KI-Prompt. Kein neues Diktat nötig. Dazu Text und Rohtext kopieren.
+
+Das Ergebnis landet in der **Zwischenablage**, nicht im ursprünglichen Textfeld:
+Wer im Verlauf rechtsklickt, steht im Fleech-Fenster — blind ins zuletzt benutzte
+Feld zu schreiben ist genau die Fehlerklasse, aus der die Cursor-Regeln stammen.
+
+**Die Prompts sind offen.** Auf der Profilseite zeigt „Prompt ansehen …", welche
+Anweisung das Sprachmodell bei diesem Ausgabeformat bekommt — und lässt sie
+ändern. Eigene Fassungen liegen neben dem Programm und überleben Updates; der
+Werkszustand bleibt daneben und ist per Knopf wieder herstellbar. Die
+Sicherheitsregel zu den Text-Markern ergänzt Fleech notfalls selbst; sie lässt
+sich nicht wegkürzen.
+
 ## 5.1.0 — 2026-08-02
 
 **Fleech merkt sich deine Fachbegriffe.** Je Programm und Fenster lernt es die

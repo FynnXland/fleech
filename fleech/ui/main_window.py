@@ -595,6 +595,111 @@ class StreakCalendar(QWidget):
             day += _dt.timedelta(days=1)
 
 
+class PromptDialog(QDialog):
+    """Den System-Prompt hinter einem Ausgabeformat ansehen und aendern.
+
+    Bis 5.1.0 war er eine Blackbox: Man sah, DASS „E-Mail" anders formuliert, aber
+    nicht wonach. Wer das Ergebnis verschieben will, musste raten.
+
+    Eigene Fassungen landen in %APPDATA%\Fleech\prompts — NICHT im Programmordner,
+    der bei jedem Update gespiegelt wird. Der Werkszustand bleibt daneben liegen und
+    ist per Knopf jederzeit wieder herstellbar.
+    """
+
+    gespeichert = Signal()
+
+    def __init__(self, name: str, parent=None):
+        super().__init__(parent)
+        self._name = name
+        self.setWindowTitle(f"Prompt · {name}.md")
+        self.resize(680, 620)
+        self.setStyleSheet(f"QDialog {{ background: {BG}; }}")
+
+        from ..config import load_config
+        from ..prompts import prompt_text
+
+        try:
+            self._prompts_dir = load_config().prompts_dir
+        except Exception:
+            log.debug("Config nicht ladbar — Werkspfad geraten.", exc_info=True)
+            from pathlib import Path
+
+            self._prompts_dir = Path("prompts")
+        text, eigen = prompt_text(self._prompts_dir, name)
+
+        outer = QVBoxLayout(self)
+        outer.setContentsMargins(20, 16, 20, 14)
+        outer.setSpacing(8)
+
+        kopf = QLabel(f"SYSTEM-PROMPT · {name.upper()}.MD"
+                      + ("  ·  EIGENE FASSUNG" if eigen else "  ·  WERKSZUSTAND"))
+        kopf.setStyleSheet(
+            f"color: {ACCENT if eigen else MUTED}; font-size: 9pt;"
+            f" font-weight: 600; letter-spacing: 0.5px;")
+        outer.addWidget(kopf)
+
+        hinweis = QLabel(
+            "Das ist die Anweisung, die das Sprachmodell bei diesem Ausgabeformat "
+            "bekommt. Änderungen wirken ab dem nächsten Diktat. Die Sicherheitsregel "
+            "zu den Text-Markern ergänzt Fleech notfalls selbst — sie lässt sich "
+            "nicht wegkürzen.")
+        hinweis.setWordWrap(True)
+        hinweis.setStyleSheet(f"color: {MUTED}; font-size: 8.5pt;")
+        outer.addWidget(hinweis)
+
+        self._edit = QTextEdit()
+        self._edit.setPlainText(text)
+        self._edit.setStyleSheet(
+            f"QTextEdit {{ background: {CARD}; color: {TEXT};"
+            f"  border: 1px solid {BORDER_HAIRLINE}; border-radius: 8px;"
+            f"  padding: 10px; font-family: Consolas, monospace; font-size: 9.5pt; }}")
+        outer.addWidget(self._edit, 1)
+
+        self._meldung = QLabel("")
+        self._meldung.setStyleSheet(f"color: {MUTED}; font-size: 8.5pt;")
+        outer.addWidget(self._meldung)
+
+        knoepfe = QHBoxLayout()
+        knoepfe.setSpacing(8)
+        zurueck = style_button(QPushButton("Auf Werkszustand zurücksetzen"), "ghost")
+        zurueck.setEnabled(eigen)
+        zurueck.clicked.connect(self._zuruecksetzen)
+        knoepfe.addWidget(zurueck)
+        knoepfe.addStretch(1)
+        schliessen = style_button(QPushButton("Schließen"), "ghost")
+        schliessen.clicked.connect(self.close)
+        knoepfe.addWidget(schliessen)
+        speichern = style_button(QPushButton("Speichern"), "primary")
+        speichern.clicked.connect(self._speichern)
+        knoepfe.addWidget(speichern)
+        outer.addLayout(knoepfe)
+        self._zurueck_btn = zurueck
+
+    def _speichern(self) -> None:
+        from ..prompts import save_user_prompt
+
+        text = self._edit.toPlainText()
+        if not text.strip():
+            self._meldung.setText("Leer speichern geht nicht — nutze „Zurücksetzen“.")
+            return
+        if save_user_prompt(self._name, text):
+            self._meldung.setText("Gespeichert. Gilt ab dem nächsten Diktat.")
+            self._zurueck_btn.setEnabled(True)
+            self.gespeichert.emit()
+        else:
+            self._meldung.setText("Konnte nicht gespeichert werden — siehe Protokoll.")
+
+    def _zuruecksetzen(self) -> None:
+        from ..prompts import prompt_text, save_user_prompt
+
+        save_user_prompt(self._name, "")
+        werk, _eigen = prompt_text(self._prompts_dir, self._name)
+        self._edit.setPlainText(werk)
+        self._meldung.setText("Werkszustand wiederhergestellt.")
+        self._zurueck_btn.setEnabled(False)
+        self.gespeichert.emit()
+
+
 class TranscriptDetailDialog(QDialog):
     """Zeigt einen Verlaufseintrag vollstaendig (nicht abgeschnitten) und laesst den
     Text in die Zwischenablage kopieren — z. B. um ein Diktat nachzuholen, das im
@@ -722,6 +827,10 @@ class HistoryEntryRow(QFrame):
     verschluckt seinen Klick (Qt liefert das Event dem Button, nicht dem Parent)."""
 
     clicked = Signal()
+    # Rechtsklick — der Aufrufer haengt daran das Kontextmenue (Nachbearbeitung).
+    # Als Signal statt fest verdrahtetem Menue: Die Zeile weiss nichts von Profilen
+    # und Pipeline, sie meldet nur, dass jemand rechts geklickt hat.
+    context_requested = Signal(object)      # QPoint (global)
 
     def __init__(self, entry: dict, on_delete):
         super().__init__()
@@ -765,6 +874,12 @@ class HistoryEntryRow(QFrame):
         row.addWidget(text_label, 1)
         row.addWidget(del_btn)
 
+    def mousePressEvent(self, event) -> None:
+        if event.button() == Qt.RightButton:
+            self.context_requested.emit(event.globalPosition().toPoint())
+            return
+        super().mousePressEvent(event)
+
     def enterEvent(self, event) -> None:
         super().enterEvent(event)
         self._del_btn.show()
@@ -783,11 +898,15 @@ class HistoryEntryRow(QFrame):
 
 
 class HomePage(QWidget):
-    def __init__(self, settings: UserSettings, store: HistoryStore, on_change=None):
+    def __init__(self, settings: UserSettings, store: HistoryStore, on_change=None,
+                 on_reprocess=None):
         super().__init__()
         self.settings = settings
         self.store = store
         self._on_change = on_change  # nach Einzel-Loeschung: Insights mitziehen
+        # Nachbearbeitung: callable(rohtext, format, profilname). Die Seite kennt
+        # die Pipeline nicht — sie reicht nur weiter, was der Nutzer gewaehlt hat.
+        self._on_reprocess = on_reprocess
 
         outer = QVBoxLayout(self)
         outer.setContentsMargins(20, 18, 20, 18)
@@ -908,7 +1027,84 @@ class HomePage(QWidget):
     def _entry_row(self, entry: dict) -> QFrame:
         row = HistoryEntryRow(entry, self._delete_entry)
         row.clicked.connect(lambda: self._open_entry(entry))
+        # `entry` ist ein reines Dict ohne Qt-Bezug — hier entsteht kein
+        # Referenzzyklus (anders als bei einem Lambda, das ein Widget faengt).
+        row.context_requested.connect(
+            lambda pos, e=entry: self._entry_menu(e, pos))
         return row
+
+    def _entry_menu(self, entry: dict, pos) -> None:
+        """Rechtsklick auf einen Verlaufseintrag → Menue bauen und oeffnen."""
+        self._baue_eintrag_menue(entry).exec(pos)
+
+    def _baue_eintrag_menue(self, entry: dict):
+        """Das Kontextmenue eines Verlaufseintrags — gebaut, aber nicht geoeffnet.
+
+        Getrennt vom Oeffnen, weil `QMenu.exec` eine eigene Event-Loop startet:
+        Im Test liesse sich das nur durch Patchen der C++-Methode umgehen, und das
+        haengt zuverlaessig. Bauen und Zeigen zu trennen macht den Inhalt pruefbar,
+        ohne irgendetwas zu faelschen.
+
+        Der haeufigste Fall dahinter: falsches Profil erwischt. Statt neu zu
+        diktieren wird das gespeicherte ROHTRANSKRIPT noch einmal durch die
+        Pipeline geschickt — inklusive aller Guards.
+        """
+        from PySide6.QtWidgets import QMenu
+
+        from ..usersettings import PROFILE_FORMATS, profile_mode
+
+        menu = QMenu(self)
+        menu.setStyleSheet(
+            f"QMenu {{ background: {SIDEBAR}; color: {TEXT};"
+            f"  border: 1px solid {TRACK}; border-radius: 8px; padding: 4px; }}"
+            f"QMenu::item {{ padding: 6px 22px 6px 12px; border-radius: 5px; }}"
+            f"QMenu::item:selected {{ background: {NAV_ACTIVE_BG}; color: {ACCENT}; }}"
+            f"QMenu::separator {{ height: 1px; background: {TRACK}; margin: 4px 8px; }}")
+
+        neu_menu = menu.addMenu("Neu bereinigen als …")
+        neu_menu.setStyleSheet(menu.styleSheet())
+        # Angeboten werden die Ausgabeformate, nicht die Profilnamen: Zwei Profile
+        # mit demselben Format ergaeben denselben Text — das waere eine Auswahl
+        # ohne Unterschied.
+        formate = [(wert, name) for wert, name in PROFILE_FORMATS if wert != "math"]
+        for wert, name in formate:
+            aktion = neu_menu.addAction(name)
+            aktion.triggered.connect(
+                lambda _c=False, w=wert, n=name: self._reprocess(entry, w, n))
+
+        menu.addSeparator()
+        kopieren = menu.addAction("Text kopieren")
+        kopieren.triggered.connect(lambda: self._kopiere(entry["cleaned"]))
+        roh_kopieren = menu.addAction("Rohtext kopieren")
+        roh_kopieren.triggered.connect(
+            lambda: self._kopiere(self.store.raw_text(entry["id"]) or entry["cleaned"]))
+        menu.addSeparator()
+        loeschen = menu.addAction("Eintrag löschen")
+        loeschen.triggered.connect(lambda: self._delete_entry(entry["id"]))
+        return menu
+
+    def _kopiere(self, text: str) -> None:
+        if not text:
+            return
+        QApplication.clipboard().setText(text)
+        log.info("In die Zwischenablage kopiert (%d Zeichen).", len(text))
+
+    def _reprocess(self, entry: dict, fmt: str, name: str) -> None:
+        """Rohtranskript neu bereinigen lassen. Das Ergebnis geht in die
+        ZWISCHENABLAGE, nicht ins Zielfeld.
+
+        Bewusst so: Wer im Verlauf rechtsklickt, steht im Fleech-Fenster — das
+        urspruengliche Zielfeld ist laengst nicht mehr fokussiert, und blind dorthin
+        zu schreiben ist genau die Fehlerklasse, aus der die Cursor-Regeln stammen.
+        """
+        if self._on_reprocess is None:
+            return
+        roh = self.store.raw_text(entry["id"]) or ""
+        if not roh.strip():
+            log.info("Kein Rohtranskript zu Eintrag %s — Nachbearbeitung entfaellt.",
+                     entry["id"])
+            return
+        self._on_reprocess(roh, fmt, name)
 
     def _open_entry(self, entry: dict) -> None:
         # Nicht-modal (.show statt .exec) — schliesst bei Klick daneben. Referenz
@@ -2132,6 +2328,11 @@ class ProfilesPage(QWidget):
             self._on_profile_format_changed
         )
         detail_box.addWidget(self._profile_format_combo)
+        # Der Prompt hinter dem Format — sichtbar und aenderbar. Bis 5.1.0 war er
+        # eine Blackbox: Man sah, DASS ein Profil anders formuliert, aber nie warum.
+        self._prompt_btn = style_button(QPushButton("Prompt ansehen …"), "ghost")
+        self._prompt_btn.clicked.connect(self._prompt_bearbeiten)
+        detail_box.addWidget(self._prompt_btn)
 
         self._quick_cb = QCheckBox("Im Schnellwechsel zeigen")
         self._quick_cb.setCursor(Qt.PointingHandCursor)
@@ -2364,6 +2565,7 @@ class ProfilesPage(QWidget):
         self._profile_format_combo.setCurrentIndex(
             formate.index(fmt) if fmt in formate else 0
         )
+        self._aktualisiere_prompt_knopf(fmt)
         from ..usersettings import profile_in_quickswitch
 
         self._quick_cb.setChecked(profile_in_quickswitch(profile))
@@ -2408,6 +2610,41 @@ class ProfilesPage(QWidget):
             profile["command"] = self._profile_command_combo.currentData()
             self._save()
 
+
+    # -- Prompt hinter dem Ausgabeformat (F4a) -----------------------------------------
+
+    # Format → Prompt-Datei. „Formeln" fehlt bewusst: Der Formel-Parser arbeitet
+    # deterministisch ohne Modell, es gibt dort keinen Prompt zum Ansehen.
+    _FORMAT_PROMPTS = {"": "cleanup", "summary": "summary", "email": "email",
+                       "prompt": "prompt_engineer"}
+
+    def _aktualisiere_prompt_knopf(self, fmt: str) -> None:
+        datei = self._FORMAT_PROMPTS.get(fmt or "")
+        self._prompt_btn.setEnabled(bool(datei))
+        if not datei:
+            self._prompt_btn.setText("Kein Prompt (Formeln laufen ohne Modell)")
+            return
+        from ..prompts import user_prompt_path
+
+        eigen = user_prompt_path(datei).is_file()
+        self._prompt_btn.setText(
+            "Prompt bearbeiten  ·  eigene Fassung" if eigen else "Prompt ansehen …")
+
+    def _prompt_bearbeiten(self) -> None:
+        from ..usersettings import profile_mode
+
+        profile = self._current_profile()
+        if profile is None:
+            return
+        datei = self._FORMAT_PROMPTS.get(profile_mode(profile) or "")
+        if not datei:
+            return
+        # Referenz halten, sonst raeumt der GC den Dialog sofort wieder ab.
+        self._prompt_dialog = PromptDialog(datei, self)
+        self._prompt_dialog.gespeichert.connect(
+            lambda: (self._aktualisiere_prompt_knopf(profile_mode(profile)),
+                     self._on_changed("prompts")))
+        self._prompt_dialog.show()
 
     def _on_rename_profile(self) -> None:
         if self._loading:
@@ -2480,7 +2717,7 @@ class MainWindow(QMainWindow):
     PAGE_KEYS = ("home", "insights", "profiles", "apps", "settings")
 
     def __init__(self, settings: UserSettings, store: HistoryStore,
-                 settings_panel: QWidget, on_close_to_tray):
+                 settings_panel: QWidget, on_close_to_tray, on_reprocess=None):
         super().__init__()
         self.settings = settings
         self._on_close_to_tray = on_close_to_tray
@@ -2594,7 +2831,8 @@ class MainWindow(QMainWindow):
 
         # -- Seiten ----------------------------------------------------------------
         self._stack = QStackedWidget()
-        self.home = HomePage(settings, store, on_change=self._on_history_edited)
+        self.home = HomePage(settings, store, on_change=self._on_history_edited,
+                             on_reprocess=on_reprocess)
         self.insights = InsightsPage(store, on_add_rule=self._add_dictionary_rule,
                                      settings=settings,
                                      on_ignored=self._reload_dictionary_editor)

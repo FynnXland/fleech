@@ -528,6 +528,10 @@ class OverlayWindow(QWidget):
         self._profile_caption = TranscriptCaption()
         self._caption_is_live = False  # zeigt die Blase gerade die Live-Vorschau?
         self._caption_is_status = False  # … oder einen Fortschritts-Hinweis?
+        # Rohtranskript, solange die Bereinigung laeuft. Steht es, wird die
+        # Statuszeile UNTER den Text gehaengt statt ihn zu ersetzen — sonst waere
+        # der Gewinn wieder weg, kaum dass er da war.
+        self._roh_vorschau = ""
         self._command_armed = False    # Signalwort in der Live-Vorschau erkannt
         self._prompt_latched = False   # KI-Prompting-Latch aktiv (exklusiv zu Mathe)
         self._paused = False           # Aufnahme angehalten (Pause-Knopf)
@@ -981,6 +985,7 @@ class OverlayWindow(QWidget):
         # darf diese Blase nicht als haengengebliebene Vorschau wieder verstecken.
         self._caption_is_live = False
         self._caption_is_status = False   # Endtranskript loest die Fortschritts-Blase ab
+        self._roh_vorschau = ""           # ab jetzt gilt die bereinigte Fassung
         clipped = text if len(text) <= 240 else text[:240].rsplit(" ", 1)[0] + " …"
         # Formel-Hinweis anhaengen: Wurde eine Formel GERATEN (die gesprochene
         # Fassung liess mehrere Lesarten zu), steht das direkt unter dem Text —
@@ -1004,6 +1009,30 @@ class OverlayWindow(QWidget):
                           if (self._fallback_active or warned) else None),
         )
 
+    ROH_MAX = 240
+
+    def show_raw_preview(self, text: str) -> None:
+        """Rohtranskript zeigen, sobald die Erkennung durch ist (~0,8 s).
+
+        Die Bereinigung braucht danach noch rund vier Sekunden. Bis dahin stand
+        hier nichts — jetzt liest man bereits, waehrend das Modell arbeitet.
+        `show_transcript` loest die Blase spaeter durch die fertige Fassung ab.
+        """
+        if self._edit_mode or not text or not self.settings.show_transcript:
+            return
+        self._roh_vorschau = (text if len(text) <= self.ROH_MAX
+                              else text[:self.ROH_MAX].rsplit(" ", 1)[0] + " …")
+        self._caption_is_live = False
+        self._caption_is_status = True
+        self._zeige_roh_mit_status("Bereinige …")
+
+    def _zeige_roh_mit_status(self, status: str) -> None:
+        """Rohtext oben, aktuelle Stufe darunter — eine Blase, zwei Ebenen."""
+        text = self._roh_vorschau
+        if status:
+            text = f"{text}\n\n{status}" if text else status
+        self._caption.show_above(self.frameGeometry(), text, sticky=True)
+
     def show_progress(self, text: str) -> None:
         """Laengeren Zwischenschritt ueber der Pille anzeigen ("Modell wird geladen …").
 
@@ -1014,11 +1043,16 @@ class OverlayWindow(QWidget):
             return
         self._caption_is_live = False
         self._caption_is_status = True
+        # Steht schon ein Rohtext, ERSETZT die Stufe ihn nicht — sie tritt darunter.
+        if self._roh_vorschau:
+            self._zeige_roh_mit_status(text)
+            return
         self._caption.show_above(self.frameGeometry(), text, sticky=True)
 
     def _clear_status_caption(self) -> None:
         if self._caption_is_status:
             self._caption_is_status = False
+            self._roh_vorschau = ""
             self._caption.hide()
 
     def flash_fallback(self) -> None:

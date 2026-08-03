@@ -231,7 +231,9 @@ def test_gelernt_wird_erst_nach_dem_einfuegen(speicher):
                                       record_append=lambda t: None),
         injector=types.SimpleNamespace(inject=lambda t: None),
         last_injected="",
+        status_callback=None,
     )
+    fake._status = lambda text: None
     fake._kontext_lernen = lambda a, ti, tx: Pipeline._kontext_lernen(fake, a, ti, tx)
     for _ in range(MIN_TREFFER):
         Pipeline._inject_append(fake, "Der MCP-Server läuft")

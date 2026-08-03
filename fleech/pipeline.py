@@ -162,6 +162,10 @@ class Pipeline:
         # Optionales Callable(str): meldet laengere Zwischenschritte an die UI
         # ("Formel wird berechnet …"). None = niemand hoert zu (CLI/Tests).
         self.status_callback = None
+        # Rohtranskript melden, sobald die Erkennung durch ist. Getrennt vom
+        # Status-Callback, weil es kein Fortschritts-TEXT ist, sondern der Inhalt:
+        # Die Oberflaeche zeigt ihn, bis die bereinigte Fassung ihn abloest.
+        self.raw_callback = None
         self.last_error_kind = ""  # "" | "quota" | "provider" — fuer UI-Toasts
         # Fuer die Historie (Home/Insights): was ist beim letzten process() passiert?
         self.last_raw = ""
@@ -311,6 +315,9 @@ class Pipeline:
         if not raw:
             return "empty"
         self.last_raw = raw
+        # Ab hier steht der Text — die Bereinigung dauert noch rund vier Sekunden.
+        # Wer schon lesen kann, waehrend das Modell arbeitet, wartet gefuehlt nicht.
+        self._melde_roh(raw)
 
         # Vor Kontext-Zugriff: Puffer verwerfen, falls das Ziel-Fenster gewechselt hat.
         self.tracker.sync_window()
@@ -393,6 +400,7 @@ class Pipeline:
         Guards wieder zu Text. Das Modell sieht den Baustein-Inhalt nie und kann ihn
         deshalb weder umformulieren noch als Halluzination missverstehen.
         """
+        self._status("Bereinige …")
         # Formeln ZUERST und ohne Modell: Was der Parser sicher uebersetzen kann,
         # wird zu einem Platzhalter — das Sprachmodell bekommt die Formel damit nie
         # zu sehen und kann sie weder umschreiben noch als „erfundene Woerter"
@@ -854,16 +862,30 @@ class Pipeline:
         return ""
 
     def _handle_format(self, raw: str, fmt: str) -> bool:
-        """Diktat in ein Ausgabeformat umformulieren (E-Mail, KI-Prompt …).
+        """Diktat in ein Ausgabeformat umformulieren und EINFUEGEN.
 
-        True = eingefuegt; False = Aufrufer faehrt normales Cleanup. Bewusst KEIN
-        Grounding-Guard: eine Mail weicht legitim stark vom Rohtext ab — der Schutz
-        vor leerer oder kaputter Ausgabe reicht hier."""
+        True = eingefuegt; False = Aufrufer faehrt normales Cleanup."""
+        text = self._format_text(raw, fmt)
+        if not text:
+            return False
+        self._inject_append(self._finalize(text))
+        return True
+
+    def _format_text(self, raw: str, fmt: str) -> str:
+        """Rohtext → umformulierte Fassung. "" = nicht moeglich (Aufrufer faellt
+        auf normales Cleanup zurueck).
+
+        Getrennt vom Einfuegen, weil die Nachbearbeitung („Neu bereinigen als …")
+        denselben Weg braucht, das Ergebnis aber NICHT sofort einfuegt — dort
+        entscheidet erst der Nutzer, wohin es geht.
+
+        Bewusst KEIN Grounding-Guard: eine Mail weicht legitim stark vom Rohtext
+        ab — der Schutz vor leerer oder kaputter Ausgabe reicht hier."""
         system = self._format_prompt_for(fmt)
         if not system:
             log.warning("Ausgabeformat %r ohne System-Prompt (prompts/%s.md fehlt?).",
                         fmt, fmt)
-            return False
+            return ""
         t0 = time.perf_counter()
         self._status({"email": "E-Mail wird formuliert …",
                       "summary": "Stichpunkte werden gebildet …"}.get(
@@ -878,16 +900,15 @@ class Pipeline:
             reply = self.cleanup_llm.complete(system, user)
         except Exception as exc:
             log.warning("Ausgabeformat %r fehlgeschlagen (%s).", fmt, exc)
-            return False
+            return ""
         text = strip_wrapping_quotes(reply or "").strip()
         if not text:
             log.warning("Ausgabeformat %r lieferte nichts — Cleanup-Fallback.", fmt)
-            return False
+            return ""
         self.last_llm_ms = int((time.perf_counter() - t0) * 1000)
         log.info("Ausgabeformat %s (%.2f s): %d Zeichen.",
                  fmt, time.perf_counter() - t0, len(text))
-        self._inject_append(self._finalize(text))
-        return True
+        return text
 
     def _handle_prompt_engineer(self, raw: str) -> bool:
         """Diktat → professionell strukturierter Prompt (Rolle/Kontext/Aufgabe/
@@ -1007,6 +1028,50 @@ class Pipeline:
 
     # -- Projekt-Gedaechtnis (fleech/kontext.py) --------------------------------------
 
+    # -- Nachbearbeitung (F3) ----------------------------------------------------------
+
+    def reprocess(self, raw: str, output_format: str = "") -> str:
+        """Ein bereits erkanntes Diktat NEU bereinigen. Rueckgabe: der neue Text
+        ("" = fehlgeschlagen). Fuegt bewusst NICHTS ein — das entscheidet der Aufrufer.
+
+        Setzt auf dem ROHTRANSKRIPT auf, nie auf einer bereits bereinigten Fassung:
+        Bereinigtes noch einmal zu bereinigen treibt den Text mit jedem Durchlauf
+        weiter vom Gesprochenen weg, und genau das soll die Funktion verhindern.
+
+        Serialisiert wird beim AUFRUFER (`desktop._process_lock`) — dort liegt das
+        Lock, das auch echte Diktate in Reihe haelt. Zwei Laeufe gleichzeitig wuerden
+        sonst denselben DocumentTracker beschreiben.
+
+        Es laeuft dieselbe Verarbeitung wie beim Diktat — inklusive aller Guards.
+        Kein Sonderweg: Was am Ende herauskommt, muss denselben Pruefungen genuegen
+        wie das Original, sonst waere die Nachbearbeitung ein Loch in der
+        Schutzarchitektur.
+        """
+        raw = (raw or "").strip()
+        if not raw:
+            return ""
+        try:
+            if output_format in REWRITING_FORMATS:
+                text = self._format_text(raw, output_format)
+                if not text:
+                    # Format gescheitert → normales Cleanup, nichts geht verloren.
+                    text, _fb = self._cleanup(raw)
+            else:
+                text, _fb = self._cleanup(raw)
+            return self._finalize(text) if text else ""
+        except Exception:
+            log.exception("Nachbearbeitung fehlgeschlagen.")
+            return ""
+
+    def _melde_roh(self, raw: str) -> None:
+        """Rohtranskript an die Oberflaeche geben (Fehler hier halten nichts auf)."""
+        if self.raw_callback is None or not raw:
+            return
+        try:
+            self.raw_callback(raw)
+        except Exception:
+            log.debug("Rohtext-Vorschau fehlgeschlagen.", exc_info=True)
+
     def _kontext_begriffe(self, app: str, titel: str) -> list:
         """Gelernte Fachbegriffe fuer diese App/dieses Fenster.
 
@@ -1046,6 +1111,7 @@ class Pipeline:
     def _inject_append(self, text: str) -> None:
         if not text:
             return
+        self._status("Füge ein …")
         injected = self.tracker.separator() + text
         self.injector.inject(injected)
         self.tracker.record_append(injected)

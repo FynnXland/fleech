@@ -59,6 +59,15 @@ class StateBus(QObject):
     # Pille direkt von dort umzufaerben ist derselbe Thread-Fehler wie oben, nur
     # leiser — er crasht sporadisch statt sofort.
     paused_changed = Signal(bool)
+    # Rohtranskript, sobald die Erkennung fertig ist (~0,8 s) — also LANGE bevor
+    # die Bereinigung durch ist (~4 s). Wer schon lesen kann, waehrend das Modell
+    # arbeitet, wartet gefuehlt nicht mehr. Wird spaeter von `transcript_ready`
+    # (der fertigen Fassung) abgeloest.
+    raw_ready = Signal(str)
+    # Ergebnis einer Nachbearbeitung (Text, Formatname). Der Lauf haengt am LLM und
+    # gehoert deshalb in einen Worker-Thread — das Ergebnis muss ueber ein Signal
+    # zurueck, sonst faende die Zwischenablage im falschen Thread statt.
+    reprocessed = Signal(str, str)
 
     def __init__(self):
         super().__init__()
