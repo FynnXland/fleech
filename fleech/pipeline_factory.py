@@ -56,6 +56,13 @@ def build_pipeline(config: AppConfig, settings: UserSettings, injector=None,
     pipeline.format_prompts = _load_format_prompts(config)
     # Absendername fuer die E-Mail-Signatur (Einstellungen → Allgemein).
     pipeline.author_name = settings.general.display_name
+    # Englischer Cleanup-Prompt (optional): fehlt er, bleibt es beim deutschen.
+    try:
+        pipeline.cleanup_prompt_en = load_prompt(config.prompts_dir, "cleanup-en")
+    except FileNotFoundError:
+        log.debug("prompts/cleanup-en.md fehlt — englische Diktate laufen ueber "
+                  "den deutschen Prompt.")
+    pipeline.sprache = settings.general.language or "de"
     pipeline.status_callback = status
     # Projekt-Gedaechtnis (fleech/kontext.py). Die Erstbefuellung aus dem Verlauf
     # laeuft im HINTERGRUND: An 1189 Diktaten gemessen 3,7 s — im Start waere das

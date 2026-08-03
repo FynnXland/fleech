@@ -128,6 +128,12 @@ class Pipeline:
         self.adaptive = adaptive
         self.injector = injector
         self.cleanup_prompt = cleanup_prompt
+        # Eigener Prompt fuer englisches Diktat. LIVE GEMESSEN und deshalb noetig:
+        # Mit dem deutschen Prompt uebersetzte gemma3 englischen Text ins Deutsche
+        # — und ein blosser Zusatz („answer in English") aenderte daran nichts, der
+        # 3000-Token-Prompt auf Deutsch dominiert. Fehlt die Datei, laeuft alles wie
+        # bisher, nur eben mit dem deutschen Prompt.
+        self.cleanup_prompt_en = ""
         self.trigger_word = trigger_word
         self.command_llm = command_llm
         self.command_prompt = command_prompt
@@ -166,6 +172,10 @@ class Pipeline:
         # Status-Callback, weil es kein Fortschritts-TEXT ist, sondern der Inhalt:
         # Die Oberflaeche zeigt ihn, bis die bereinigte Fassung ihn abloest.
         self.raw_callback = None
+        # Diktiersprache ("de" | "en" | "" = automatisch erkennen). Steuert die
+        # Erkennung, den sprachgebundenen Teil der Guards und die Zielsprache der
+        # umformulierenden Formate.
+        self.sprache = "de"
         self.last_error_kind = ""  # "" | "quota" | "provider" — fuer UI-Toasts
         # Fuer die Historie (Home/Insights): was ist beim letzten process() passiert?
         self.last_raw = ""
@@ -510,6 +520,8 @@ class Pipeline:
             return raw.strip(), False
 
         system = self.cleanup_prompt
+        if self.sprache.startswith("en") and self.cleanup_prompt_en:
+            system = self.cleanup_prompt_en
         if intervention == "strong" and self.strong_addendum:
             system = f"{system}\n\n{self.strong_addendum}"
         if self.auto_latex:
@@ -634,7 +646,11 @@ class Pipeline:
         # unterlaeuft — lateinische Schrift, kurze Woerter, kein sauberer Loop
         # („… seekers Odoo Time Go Go Go Go and Let me and or"). Bewertet mehrere
         # Merkmale zugleich und schneidet erst bei zweien.
-        rest3, dropped3 = strip_gibberish_tail(cleaned)
+        # Sprachbewusst: Zwei der vier Merkmale sind sprachgebunden. Ohne den
+        # Parameter waeren sie bei englischem Diktat dauerhaft gesetzt — und zwei
+        # Merkmale bedeuten Schnitt, also waere JEDES englische Diktat gekuerzt
+        # worden.
+        rest3, dropped3 = strip_gibberish_tail(cleaned, self.sprache)
         if dropped3:
             log.warning("STT-Wortsalat am Ende verworfen (%d Woerter): %s",
                         len(dropped3.split()), dropped3[:160])

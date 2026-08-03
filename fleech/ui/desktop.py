@@ -75,7 +75,9 @@ def overrides_from(item: dict):
     Profil-Tests bauen die App als schlankes Fake nach — eine Methode mehr waere
     dort jedes Mal eine Zeile Attrappe.
     """
-    from ..usersettings import ProfileOverrides, profile_command_mode, profile_mode
+    from ..usersettings import (
+        ProfileOverrides, profile_command_mode, profile_mode, profile_sprache,
+    )
 
     mode = str(item.get("intervention", "")).lower()
     tags = [str(t).strip() for t in item.get("tags", []) if str(t).strip()]
@@ -85,6 +87,7 @@ def overrides_from(item: dict):
         mode_slot=profile_mode(item),
         command=profile_command_mode(item),
         auto_send=bool(item.get("auto_send", False)),
+        sprache=profile_sprache(item),
     )
 
 
@@ -884,6 +887,10 @@ class DesktopApp:
             suppress_command = not prof.command_allowed(
                 self.settings.output.command_enabled
             )
+            # Diktiersprache: Profil schlaegt Einstellung. Sie steuert dreierlei —
+            # die Erkennung, den sprachgebundenen Teil der Guards und die
+            # Zielsprache der umformulierenden Formate.
+            self._setze_sprache(prof.sprache or self.settings.general.language)
             result = self.pipeline.process(
                 audio, self.config.audio.samplerate,
                 intervention_override=override,
@@ -1437,6 +1444,24 @@ class DesktopApp:
         # Ueber den Notifier, nicht direkt am SoundPlayer vorbei: sonst piepst es
         # auch im Spiel oder bei „Nicht stoeren" (dieselbe Regel wie Start/Stopp).
         self.notifier.sound("stop" if self.recorder.paused else "start")
+
+    def _setze_sprache(self, sprache: str) -> None:
+        """Diktiersprache fuer diesen Durchlauf setzen.
+
+        "auto" heisst: Whisper erkennt selbst (`language=None`). Fuer die Guards
+        gilt dann Deutsch als Erwartung — das ist die Sprache, in der hier real
+        diktiert wird, und ein falsch geratener Guard schneidet lieber nichts als
+        zu viel.
+        """
+        sprache = (sprache or "de").lower()
+        stt = "" if sprache == "auto" else sprache
+        try:
+            self.config.stt.language = stt
+            if getattr(self.pipeline, "stt", None) is not None:
+                self.pipeline.stt.cfg.language = stt
+        except Exception:
+            log.debug("STT-Sprache nicht setzbar.", exc_info=True)
+        self.pipeline.sprache = "de" if sprache == "auto" else sprache
 
     # -- Freihand-Modus (F1) -----------------------------------------------------------
 

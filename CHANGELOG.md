@@ -11,6 +11,32 @@ GitHub-Release-Notizen (`packaging/release.py`).
 
 ---
 
+## 5.4.0 — 2026-08-03
+
+**Englisch diktieren.** Pro Profil einstellbar — Deutsch, Englisch oder
+automatisch erkennen. Die Erkennung, die Schutzfilter und die Bereinigung
+richten sich danach.
+
+**Der Filter gegen Wortsalat kann jetzt beide Sprachen.** Zwei seiner vier
+Merkmale waren sprachgebunden: englische Füllwörter und fehlende deutsche. Bei
+einem englischen Diktat waren beide immer gesetzt — und zwei Merkmale bedeuten
+Schnitt. Jedes englische Diktat wäre am Ende gekürzt worden. Die Merkmale
+spiegeln sich jetzt mit der Sprache; der Filter bleibt gleich streng, er misst
+nur gegen die richtige Erwartung.
+
+**Mischdiktate bleiben ganz.** Deutsche Sätze mit englischen Fachbegriffen
+(„der MCP-Server", „das Deployment") laufen unverändert durch — es zählt der
+Anteil, nicht das einzelne Wort. Umgekehrt bleiben in englischen Diktaten
+deutsche Begriffe stehen.
+
+**Eigener Prompt für Englisch.** Gemessen: Mit dem deutschen Prompt hat das
+Modell englische Diktate ins Deutsche *übersetzt*, und ein bloßer Hinweis
+(„answer in English") änderte daran nichts. Es gibt deshalb `prompts/cleanup-en.md`
+— mit denselben Regeln, allen voran der wichtigsten: nah am Gesprochenen bleiben.
+
+Die Oberfläche bleibt auf Deutsch. Sie zu übersetzen würde die Pflege jeder
+künftigen Zeile verdoppeln, ohne dass ein Diktat dadurch besser wird.
+
 ## 5.3.0 — 2026-08-03
 
 **Diktieren ohne Taste.** Startwort sagen, sprechen, aufhören — der Text steht da.

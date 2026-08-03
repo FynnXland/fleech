@@ -7,7 +7,7 @@
 
 from __future__ import annotations
 
-APP_VERSION = "5.3.0"  # 5.3.0: Freihand — diktieren ohne Taste
+APP_VERSION = "5.4.0"  # 5.4.0: englische Diktate gleichwertig
 
 
 def _read_build() -> str:

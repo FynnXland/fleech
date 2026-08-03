@@ -495,6 +495,10 @@ class ProfileOverrides:
     # BEWUSST je Profil und BEWUSST aus als Standard: In einem KI-Chat spart es den
     # Handgriff, in einer E-Mail waere es ein Versehen mit Folgen.
     auto_send: bool = False
+    # Diktiersprache dieses Profils ("" = wie Einstellungen). Steuert die
+    # Erkennung, den sprachgebundenen Teil der Guards und die Zielsprache der
+    # umformulierenden Formate.
+    sprache: str = ""
 
     def command_allowed(self, global_enabled: bool) -> bool:
         """Darf in diesem Kontext ein GESPROCHENES Safe-Word Befehle ausloesen?
@@ -548,6 +552,12 @@ def quickswitch_for_app(items: list, app_quick: dict, app: str) -> list:
     return gefiltert or alle
 
 
+def profile_sprache(item: dict) -> str:
+    """Diktiersprache eines Profils: "" (wie Einstellungen) | "de" | "en" | "auto"."""
+    wert = str((item or {}).get("sprache", "") or "").lower()
+    return wert if wert in {"de", "en", "auto"} else ""
+
+
 def profile_command_mode(item: dict) -> str:
     """Safe-Word-Schalter eines Profils: "" (wie Einstellungen) | "on" | "off"."""
     value = str(item.get("command", "") or "").lower()
@@ -595,6 +605,17 @@ def app_rule_matches(entry, process: str, title: str) -> bool:
 # Ausgabeformate eines Profils: WAS aus dem Diktat wird, nicht nur wie stark
 # geglaettet wird. Ein Diktat ist je nach Ziel etwas anderes — dieselbe Aeusserung
 # gehoert in einer Mail anders formuliert als in einem KI-Chat.
+# Diktiersprachen. "" = automatisch erkennen (Whisper kann das) — sinnvoll fuer
+# wechselnde Sprachen, kostet aber Genauigkeit bei kurzen Diktaten, weil die
+# Erkennung dann selbst raten muss.
+PROFILE_SPRACHEN = [
+    ("", "Wie Einstellungen"),
+    ("de", "Deutsch"),
+    ("en", "Englisch"),
+    ("auto", "Automatisch erkennen"),
+]
+
+
 PROFILE_FORMATS = [
     ("", "Diktat (Standard)"),
     ("summary", "Stichpunkte"),

@@ -412,8 +412,19 @@ _GIBBERISH_MAX_TAIL = 60       # weiter zurueck als 60 Woerter wird nie geschnit
 _GIBBERISH_ENGLISCH_ANTEIL = 0.35
 
 
-def _gibberish_signale(segment: str) -> int:
-    """Wie viele Artefakt-Merkmale trägt dieser Abschnitt? (0–4)"""
+def _gibberish_signale(segment: str, sprache: str = "de") -> int:
+    """Wie viele Artefakt-Merkmale trägt dieser Abschnitt? (0–4)
+
+    `sprache` ist die Sprache, in der DIKTIERT wurde. Zwei der vier Signale sind
+    sprachgebunden, und ohne diesen Parameter waeren sie bei englischem Diktat
+    beide dauerhaft gesetzt: englische Fuellwoerter (erwartbar) und fehlende
+    deutsche Fuellwoerter (ebenso erwartbar). Zwei Signale bedeuten Schnitt —
+    JEDES englische Diktat waere abgeschnitten worden.
+
+    Gespiegelt statt abgeschaltet: Bei "en" gelten DEUTSCHE Fuellwoerter als
+    fremd und FEHLENDE englische als Signal. Der Guard bleibt damit gleich stark,
+    er misst nur gegen die richtige Erwartung.
+    """
     woerter = [w.strip(".,!?;:„“\"'()").lower() for w in segment.split()]
     woerter = [w for w in woerter if w]
     if not woerter:
@@ -430,15 +441,21 @@ def _gibberish_signale(segment: str) -> int:
         best = max(best, lauf)
     if best >= 4:
         signale += 1
-    englisch = sum(1 for w in woerter if w in _ENGLISCHE_FUELLER)
-    if englisch / len(woerter) >= _GIBBERISH_ENGLISCH_ANTEIL:
+    # Erwartete Sprache ↔ fremde Sprache. Bei "en" tauschen die Rollen.
+    if (sprache or "de").lower().startswith("en"):
+        eigene, fremde = _ENGLISCHE_FUELLER, _DEUTSCHE_FUELLER
+    else:
+        eigene, fremde = _DEUTSCHE_FUELLER, _ENGLISCHE_FUELLER
+
+    fremdanteil = sum(1 for w in woerter if w in fremde) / len(woerter)
+    if fremdanteil >= _GIBBERISH_ENGLISCH_ANTEIL:
         signale += 1
-    if len(woerter) >= 5 and not any(w in _DEUTSCHE_FUELLER for w in woerter):
+    if len(woerter) >= 5 and not any(w in eigene for w in woerter):
         signale += 1
     return signale
 
 
-def strip_gibberish_tail(raw: str) -> tuple[str, str]:
+def strip_gibberish_tail(raw: str, sprache: str = "de") -> tuple[str, str]:
     """Fremdsprachigen Wortsalat am Textende abschneiden — (Text, Entferntes).
 
     Vorgehen: Satzweise von hinten. Der letzte Satz mit ZWEI Merkmalen ist der Anker;
@@ -459,7 +476,7 @@ def strip_gibberish_tail(raw: str) -> tuple[str, str]:
         woerter_im_schwanz += len(saetze[i].split())
         if woerter_im_schwanz > _GIBBERISH_MAX_TAIL:
             break
-        if _gibberish_signale(saetze[i]) >= 2:
+        if _gibberish_signale(saetze[i], sprache) >= 2:
             anker = i
             break
     if anker < 0:
@@ -472,7 +489,7 @@ def strip_gibberish_tail(raw: str) -> tuple[str, str]:
     schnitt = anker
     while schnitt > 0:
         davor = saetze[schnitt - 1]
-        stark = (_gibberish_signale(davor) >= 2
+        stark = (_gibberish_signale(davor, sprache) >= 2
                  or _FREMDE_DIAKRITIKA.search(davor) is not None)
         if not stark:
             break
