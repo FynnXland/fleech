@@ -29,7 +29,7 @@ DB_PATH = SETTINGS_DIR / "history.db"
 
 # Deutsche Funktions-/Fuellwoerter — fuer "Haeufigste Woerter" ausgeblendet, sonst
 # dominieren Artikel/Pronomen jede Rangliste bedeutungslos (bewusst eigenstaendig
-# von den Korrektur-Markern in textutils.py, andere Aufgabe: Frequenz statt Erkennung).
+# von den Korrektur-Markern in textfilter.py, andere Aufgabe: Frequenz statt Erkennung).
 STOPWORDS_DE = frozenset("""
 der die das den dem des ein eine einen einem einer eines
 und oder aber doch dass daß wenn weil also wie was wer wo wann warum

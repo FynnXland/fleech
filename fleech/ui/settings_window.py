@@ -297,7 +297,7 @@ class SettingsPanel(QWidget):
 
     def _refresh_priming_hint(self) -> None:
         """„X von Y Begriffen aktiv geprimt" — nur zeigen, wenn das Limit greift."""
-        from ..textutils import parse_dictionary, primed_terms
+        from ..dictionary import parse_dictionary, primed_terms
 
         label = getattr(self, "_priming_hint", None)
         if label is None:

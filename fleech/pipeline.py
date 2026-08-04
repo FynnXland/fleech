@@ -25,17 +25,34 @@ from .snippets import (
     parse_snippets, restore_snippets, snippet_initial_prompt,
 )
 from .textutils import (
-    TRANSCRIPT_CLOSE, TRANSCRIPT_OPEN, added_ratio, apply_dictionary,
-    spoken_symbols,
+    TRANSCRIPT_CLOSE,
+    TRANSCRIPT_OPEN,
+    strip_wrapping_quotes,
+    wrap_transcript,
+)
+from .textfilter import (
+    added_ratio,
     classify_complexity,
-    collapse_trailing_repetitions, content_words, has_self_correction,
-    latex_blocks_implausible, parse_dictionary, primed_terms,
+    collapse_trailing_repetitions,
+    content_words,
+    has_self_correction,
+    latex_blocks_implausible,
     meaning_flipped,
-    replacement_overlap, strip_foreign_tail, strip_hallucinated_tail, strip_latex_blocks,
-    strip_meta_preamble,
+    replacement_overlap,
+    strip_foreign_tail,
     strip_gibberish_tail,
-    strip_wrapping_quotes, trim_unsupported_tail, verbatim_ratio,
-    vocab_initial_prompt, wrap_transcript,
+    strip_hallucinated_tail,
+    strip_latex_blocks,
+    strip_meta_preamble,
+    trim_unsupported_tail,
+    verbatim_ratio,
+)
+from .dictionary import (
+    apply_dictionary,
+    parse_dictionary,
+    primed_terms,
+    spoken_symbols,
+    vocab_initial_prompt,
 )
 
 # Grounding = Anteil der Cleanup-Ausgabe-Woerter, die im Roh-Transkript vorkommen.

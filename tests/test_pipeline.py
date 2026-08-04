@@ -112,7 +112,7 @@ def test_appended_sentence_is_trimmed():
 def test_first_sentence_is_never_trimmed():
     """Auch wenn die Ausgabe insgesamt schwach gestuetzt ist, bleibt mindestens ein
     Satz stehen — der globale Grounding-Guard ist fuer den Totalfall zustaendig."""
-    from fleech.textutils import trim_unsupported_tail
+    from fleech.textfilter import trim_unsupported_tail
 
     text, removed = trim_unsupported_tail("Völlig anderer Inhalt hier.", VERBATIM_RAW)
     assert removed == 0 and text == "Völlig anderer Inhalt hier."
@@ -121,7 +121,7 @@ def test_first_sentence_is_never_trimmed():
 def test_formula_sentences_are_never_trimmed():
     """LaTeX teilt naturgemaess keine Woerter mit dem gesprochenen Text — ein
     Formel-Satz am Ende darf nie als „erfunden" verworfen werden."""
-    from fleech.textutils import trim_unsupported_tail
+    from fleech.textfilter import trim_unsupported_tail
 
     cleaned = "Der Server ist offline gewesen. Die Formel lautet $x^2+1$."
     text, removed = trim_unsupported_tail(cleaned, "der server ist offline gewesen")
@@ -180,7 +180,7 @@ def test_self_correction_gets_milder_verbatim_threshold():
 def test_verbatim_guard_ignores_filler_and_selfcorrection():
     """Fuellwoerter und die zurueckgenommene Fassung einer Selbstkorrektur duerfen
     legitim wegfallen — das darf den Guard nicht ausloesen."""
-    from fleech.textutils import verbatim_ratio
+    from fleech.textfilter import verbatim_ratio
 
     raw = ("der server ist down seit heute morgen warte nein seit gestern abend und "
            "wir arbeiten dran")
@@ -224,7 +224,7 @@ def test_auto_latex_rejects_implausible_block_count():
 
 
 def test_strip_latex_blocks_and_density_rule():
-    from fleech.textutils import latex_blocks_implausible, strip_latex_blocks
+    from fleech.textfilter import latex_blocks_implausible, strip_latex_blocks
 
     rest, blocks = strip_latex_blocks("Die Ableitung von $x^2$ ist $2x$ hier.")
     assert blocks == 2
@@ -240,7 +240,7 @@ def test_strip_latex_blocks_and_density_rule():
 def test_whisper_repetition_loop_is_collapsed():
     """Whisper haengt auf auslaufendem Audio denselben Satz dutzendfach an (real im
     Log beobachtet) — das ist ein Artefakt und wird auf EINE Nennung gekuerzt."""
-    from fleech.textutils import collapse_trailing_repetitions
+    from fleech.textfilter import collapse_trailing_repetitions
 
     raw = "Okay, das schicke ich dir rüber. " + "Das war's. " * 12
     assert collapse_trailing_repetitions(raw) == "Okay, das schicke ich dir rüber. Das war's."
@@ -262,7 +262,7 @@ def test_hallucinated_tail_is_dropped():
     wiederholt ein Fachwort verstreut, mit Sprachwechseln dazwischen. Kein
     Teilstueck wiederholt sich unmittelbar, also greift der Schleifen-Guard nicht.
     """
-    from fleech.textutils import strip_hallucinated_tail
+    from fleech.textfilter import strip_hallucinated_tail
 
     raw = ("Aber ja, da weiß ich wohl der Fehler, aber kannst du es selber in meiner "
            "Datei einmal korrigieren? Am besten in perfekter Klausulnotation zu dem "
@@ -285,7 +285,7 @@ def test_hallucination_guard_spares_real_speech():
     Mindestwortlaenge wuerde der Guard hier zuschlagen und Gesagtes loeschen —
     besonders schlimm beim Mathe-Diktat, wo "minus" naturgemaess dicht steht.
     """
-    from fleech.textutils import strip_hallucinated_tail
+    from fleech.textfilter import strip_hallucinated_tail
 
     echt = [
         # Mathematik: "minus" 4x in einem Satz — voellig normal.
@@ -338,7 +338,7 @@ def test_clean_dictation_reports_no_dropped_tail():
 def test_hallucination_guard_keeps_short_dictation_whole():
     """Bleibt zu wenig echter Text stehen, wird NICHT geschnitten — dann ist das
     ganze Diktat Ausschuss und der Nutzer soll das sehen statt einen Rest."""
-    from fleech.textutils import strip_hallucinated_tail
+    from fleech.textfilter import strip_hallucinated_tail
 
     cleaned, dropped = strip_hallucinated_tail("Klausulnotation " * 9)
     assert dropped == ""
@@ -1011,7 +1011,7 @@ def test_fremdsprachiger_schwanz_wird_verworfen():
     dominantes Wort. Der sichere Marker ist die fremde SCHRIFT: Kyrillisch oder
     Koreanisch in einem deutschen Diktat kann nur geraten sein.
     """
-    from fleech.textutils import strip_foreign_tail
+    from fleech.textfilter import strip_foreign_tail
 
     raw = ("Analysiere das dir vorliegende Plugin. Es ist ein Minecraft-Bot, der auf "
            "einem Server läuft. Gib mir praxisnahe Anweisungen, was ich zu tun habe. "
@@ -1030,7 +1030,7 @@ def test_griechische_buchstaben_bleiben_unangetastet():
     """DIE Fehlalarm-Gefahr: α, β und λ stehen regelmäßig in Formeln. Griechisch
     ist deshalb bewusst NICHT in der Zeichenliste — ein Mathe-Diktat darf nie
     beschnitten werden."""
-    from fleech.textutils import strip_foreign_tail
+    from fleech.textfilter import strip_foreign_tail
 
     for text in (
         "Die Ableitung von e hoch λ x ist λ mal e hoch λ x, das gilt für alle x.",
@@ -1045,7 +1045,7 @@ def test_griechische_buchstaben_bleiben_unangetastet():
 def test_fremdschrift_schneidet_nicht_wenn_zu_wenig_bleibt():
     """Ist praktisch das ganze Diktat Ausschuss, wird NICHT beschnitten — dann soll
     der Nutzer sehen, was passiert ist, statt einen sinnlosen Rest zu bekommen."""
-    from fleech.textutils import strip_foreign_tail
+    from fleech.textfilter import strip_foreign_tail
 
     cleaned, dropped = strip_foreign_tail("Кто это ладно 진짜 was")
     assert dropped == ""
@@ -1073,7 +1073,7 @@ def test_verlorene_verneinung_wird_erkannt():
     """Die Lücke aus dem Gutachten: Das Modell dreht die AUSSAGE, ohne fremde Wörter
     einzuführen. Wortüberlappung und Wortgetreue bleiben hoch — alle bisherigen
     Schichten sind blind dafür."""
-    from fleech.textutils import meaning_flipped
+    from fleech.textfilter import meaning_flipped
 
     raw = "die miete ist im januar noch nicht überwiesen"
     assert meaning_flipped(raw, "Die Miete ist im Januar noch nicht überwiesen.") == ""
@@ -1083,7 +1083,7 @@ def test_verlorene_verneinung_wird_erkannt():
 def test_verlorene_zahl_wird_erkannt():
     """Real aus dem Verlauf: „Heute ist der 6.7." wurde zu „der 6., oder der 7.?" —
     und in einem anderen Diktat verschwanden zwei Geldbeträge ersatzlos."""
-    from fleech.textutils import meaning_flipped
+    from fleech.textfilter import meaning_flipped
 
     raw = "die rechnung über 22,60 euro ist noch offen"
     assert meaning_flipped(raw, "Die Rechnung über 22,60 Euro ist noch offen.") == ""

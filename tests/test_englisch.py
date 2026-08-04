@@ -12,7 +12,7 @@ import types
 import pytest
 
 from fleech.pipeline import Pipeline
-from fleech.textutils import _gibberish_signale, strip_gibberish_tail
+from fleech.textfilter import _gibberish_signale, strip_gibberish_tail
 
 EN = ("This is a normal English dictation about the new feature. I want to explain "
       "how it works and why we need it right now.")

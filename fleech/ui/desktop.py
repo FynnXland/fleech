@@ -361,7 +361,7 @@ class DesktopApp:
         """Zaehlt, welche Woerterbuch-Begriffe tatsaechlich im eingefuegten Text
         vorkamen. Daraus entscheidet sich, welche Begriffe ueber dem 60er-Limit
         ins Whisper-Priming kommen — die genutzten statt der zufaellig obersten."""
-        from ..textutils import find_terms_in_text
+        from ..dictionary import find_terms_in_text
 
         try:
             hits = find_terms_in_text(text, self.pipeline.vocab_terms)
@@ -382,7 +382,7 @@ class DesktopApp:
         pro Diktat, abgelehnte Paare werden nie erneut gefragt."""
         import re as _re
 
-        from ..textutils import find_dictionary_candidates
+        from ..dictionary import find_dictionary_candidates
 
         try:
             candidates = find_dictionary_candidates(

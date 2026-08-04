@@ -7,9 +7,9 @@ import logging
 import re
 from dataclasses import dataclass
 
-# Die Wort-Ueberlappungs-Helfer sind generische Textwerkzeuge und liegen deshalb in
-# textutils; hier re-exportiert, weil Aufrufer sie historisch von commands importieren.
-from .textutils import content_words, replacement_overlap  # noqa: F401
+# Die Wort-Ueberlappungs-Helfer gehoeren zu den Cleanup-Guards und liegen deshalb in
+# textfilter; hier re-exportiert, weil Aufrufer sie historisch von commands importieren.
+from .textfilter import content_words, replacement_overlap  # noqa: F401
 
 log = logging.getLogger(__name__)
 

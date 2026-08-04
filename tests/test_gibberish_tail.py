@@ -7,7 +7,7 @@ NICHT anfassen, auch nicht bei Betonungswiederholungen oder englischen Fachwört
 
 import pytest
 
-from fleech.textutils import strip_gibberish_tail
+from fleech.textfilter import strip_gibberish_tail
 
 ECHTER_TEXT = (
     "Deswegen wäre vielleicht cool, wenn man ab einem gewissen Punkt im Projekt das "
@@ -65,7 +65,7 @@ def test_zu_wenig_echter_text_wird_nicht_angefasst():
 def test_dotless_i_matcht_kein_normales_i():
     """Regressions-Schutz: mit re.IGNORECASE fiel das türkische „ı" mit „I"
     zusammen — dadurch galt jedes Wort mit einem i als fremdsprachig."""
-    from fleech.textutils import _FREMDE_DIAKRITIKA
+    from fleech.textfilter import _FREMDE_DIAKRITIKA
 
     for wort in ("damit", "nicht", "ist", "wir", "Diktat", "IMMER"):
         assert not _FREMDE_DIAKRITIKA.search(wort), wort
@@ -73,7 +73,7 @@ def test_dotless_i_matcht_kein_normales_i():
 
 def test_vier_gleiche_woerter_noetig_nicht_drei():
     """„sehr sehr sehr" ist Betonung, „Go Go Go Go" ist eine Schleife."""
-    from fleech.textutils import _gibberish_signale
+    from fleech.textfilter import _gibberish_signale
 
     assert _gibberish_signale("sehr sehr sehr gut") < 2
     assert _gibberish_signale("Go Go Go Go and me or") >= 2

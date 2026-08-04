@@ -344,3 +344,23 @@ def test_recorder_wunschrate_bleibt_ohne_fallback(monkeypatch):
     assert r._capture_rate == 16000
     r._callback(np.zeros((1600, 1), dtype=np.float32), 1600, None, None)
     assert r.stop().size == 1600
+
+
+def test_session_kind_detection(monkeypatch):
+    """Wayland soll benannt werden koennen, statt Funktionen still ausfallen zu lassen."""
+    import fleech.platformpaths as pp
+
+    monkeypatch.setattr(pp.sys, "platform", "linux")
+    monkeypatch.setattr(pp.os, "environ", {"WAYLAND_DISPLAY": "wayland-0"})
+    assert pp.session_kind() == "wayland"
+    monkeypatch.setattr(pp.os, "environ", {"XDG_SESSION_TYPE": "Wayland"})
+    assert pp.session_kind() == "wayland"
+    monkeypatch.setattr(pp.os, "environ", {"DISPLAY": ":0"})
+    assert pp.session_kind() == "x11"
+    monkeypatch.setattr(pp.os, "environ", {})
+    assert pp.session_kind() == "unknown"
+    monkeypatch.setattr(pp.sys, "platform", "win32")
+    assert pp.session_kind() == "windows"
+
+
+# -- Aufblaeh-Erkennung (added_ratio, v2.1.0) --------------------------------------
