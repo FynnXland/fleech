@@ -5,7 +5,7 @@ Stil-Tags, Ausgabeformat, Sprache, Safe-Word) plus die Frage, WANN er gilt — p
 Prozessname und optionaler Titel-Bedingung (`app_rule_matches`) oder von Hand ueber
 den Schnellwechsel.
 
-Lag bis 5.6.0 mitten in usersettings.py. Dort war es der groesste zusammenhaengende
+Lag bis 5.5.1 mitten in usersettings.py. Dort war es der groesste zusammenhaengende
 Block und das einzige Thema mit eigener Logik statt blosser Feldablage — der Rest
 der Datei sind Dataclasses mit Vorgabewerten.
 

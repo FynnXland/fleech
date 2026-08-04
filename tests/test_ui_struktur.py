@@ -227,7 +227,7 @@ def test_keine_funktion_waechst_ins_unermessliche():
 def test_die_einstellungsseiten_sind_je_ein_modul():
     """Eine Seite, ein Modul in `ui/settings/` — und jedes bietet `build(panel)`.
 
-    Bis 5.6.0 war je Seite eine Methode in settings_window.py; die Datei kam damit
+    Bis 5.5.1 war je Seite eine Methode in settings_window.py; die Datei kam damit
     auf 1379 Zeilen. Der Test prueft weiter dasselbe: dass keine Seite ohne eigenen
     Ort dazukommt und die Navigation nicht mehr Eintraege hat als es Seiten gibt."""
     from fleech.ui import settings as seiten

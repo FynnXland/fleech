@@ -1,6 +1,6 @@
 """Rahmen um den LLM-Call: Transkript als Datenblock einpacken, Antwort auspacken.
 
-Was frueher noch hier lag, ist seit 5.6.0 aufgeteilt — die Datei hiess „Texthelfer",
+Was frueher noch hier lag, ist seit 5.5.1 aufgeteilt — die Datei hiess „Texthelfer",
 enthielt aber die halbe Qualitaetssicherung der Pipeline:
 - `textfilter.py`  — Halluzinations-Guards (erfundene Ergaenzungen, Wortsalat, Sinnumkehr)
 - `dictionary.py`  — persoenliches Woerterbuch (Priming, Ersetzung, Vorschlaege)

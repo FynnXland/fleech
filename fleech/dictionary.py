@@ -4,7 +4,7 @@ Zwei Wirkpfade gegen systematisch falsch erkannte Fachbegriffe und Eigennamen �
 Priming vor der Erkennung, Ersetzung nach der Erkennung — plus die Auto-Erkennung
 wahrscheinlicher Fehlschreibungen, aus der Vorschlaege fuers Woerterbuch entstehen.
 
-Lag bis 5.6.0 in textutils.py. Der Name verdeckte, dass hier eine eigene Funktion
+Lag bis 5.5.1 in textutils.py. Der Name verdeckte, dass hier eine eigene Funktion
 mit eigenem Zustand (Nutzungszaehler, Ignorier-Liste) steckt und nicht Texthelfer.
 """
 
@@ -13,15 +13,10 @@ from __future__ import annotations
 import re
 
 
-# -- Persoenliches Woerterbuch ----------------------------------------------------------
-#
-# Zwei Wirkpfade gegen systematisch falsch erkannte Fachbegriffe/Eigennamen:
-# 1. Vokabular-Priming: bekannte Begriffe als Whisper-initial_prompt (Erkennung).
-# 2. Deterministische Ersetzung: "falsch => richtig" auf dem fertigen Text
-#    (greift auch, wenn Whisper den Begriff bereits falsch geschrieben hat).
 # Eintraege kommen als rohe Zeilen aus dem Settings-UI:
-#   "Begriff"            → nur Vokabular-Priming
-#   "falsch => richtig"  → Priming (richtig) + Ersetzungsregel
+#   "Begriff"            → nur Vokabular-Priming (wirkt VOR der Erkennung)
+#   "falsch => richtig"  → Priming (richtig) + Ersetzungsregel auf dem fertigen Text
+#                          (greift auch, wenn Whisper den Begriff schon falsch schrieb)
 
 _DICT_MAX_PROMPT_TERMS = 60  # initial_prompt klein halten (Whisper-Kontextfenster)
 

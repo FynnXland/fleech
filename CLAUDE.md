@@ -48,12 +48,39 @@ Provider/Modelle/Prompts sind in `config.yaml` + `prompts/` konfigurierbar
 - `fleech/pipeline.py` — Orchestrierung; `pipeline_factory.py` baut sie aus Config+Settings.
 - `fleech/commands.py` — Safe-Word-Befehle (JSON-Parsing, Plausibilitäts-/Lösch-Guards).
 - `fleech/routing.py` — Modus-Erkennung, `text_before_trigger`, `split_command_continuation`.
-- `fleech/mathmode.py`, `textutils.py`, `document.py` — Formeln, Textutils/Wörterbuch, Diktat-Puffer.
+- `fleech/textfilter.py` — **Qualitäts-Guards der Pipeline**: erfundene Ergänzungen,
+  Wortsalat, fremde Schrift, Sinnumkehr. Kern-Fachlogik, keine Helfer-Sammlung.
+- `fleech/dictionary.py` — persönliches Wörterbuch (Priming, Ersetzung, Vorschläge).
+- `fleech/textutils.py` — nur noch der Rahmen um den LLM-Call (Transkript einpacken/auspacken).
+- `fleech/mathmode.py`, `document.py` — Formeln, Diktat-Puffer.
+- `fleech/profiles.py` — App-Profile: Regeln (Prozess + Titel), Farben, Schnellwechsel.
 - `fleech/usersettings.py` — `%APPDATA%\Fleech\settings.json` (Dataclasses, additive Migration).
+  Importiert `profiles`, **nie umgekehrt**.
 - `fleech/history.py` — SQLite-Verlauf (`history.db`), Stats für Insights.
-- `fleech/ui/` — `desktop.py` (App/Wiring/Theme), `main_window.py` (Home/Insights/Profile),
-  `settings_window.py`, `overlay_qt.py` (die Pille), `state.py` (StateBus-Signale),
-  `titlebar.py`, `chevron.py`, `focusrestore.py`, `windowsfocus.py`, `notifications.py`.
+- `fleech/ui/` — `desktop.py` (Aufbau, Aufnahme-Lebenszyklus, Hotkeys, Verdrahtung),
+  `main_window.py` (Fenstergerüst), `settings_window.py` (Panel + Widget-Bauer),
+  `overlay_qt.py` (die Pille), `state.py` (StateBus-Signale), `theme.py`, `widgets.py`,
+  `dialogs.py`, `titlebar.py`, `chevron.py`, `focusrestore.py`, `windowsfocus.py`,
+  `notifications.py`.
+- `fleech/ui/pages/` — die vier Seiten des Hauptfensters (home, insights, apps, profiles).
+- `fleech/ui/settings/` — die neun Einstellungsseiten, je Seite ein `build(panel)`.
+- `fleech/ui/desktopapp/` — die Teilgebiete von `DesktopApp` als **Mixins**: `profil`,
+  `freihand`, `modelle`, `nachbereitung`, `lizenz`, `lebenszyklus`.
+
+**Wenn du etwas Neues hinzufügst, leg es an den passenden Ort, nicht dorthin, wo
+gerade Platz ist.** Genau daraus sind die Monolithen entstanden — `main_window.py`
+hatte 2970 Zeilen, `desktop.py` 1979, `settings_window.py` 1379. Die Testsuite wacht
+inzwischen darüber (`tests/test_ui_struktur.py`, `tests/test_kernstruktur.py`):
+Obergrenzen je Datei, Richtung der Abhängigkeiten, und dass ein Teil nie sein Ganzes
+importiert. **Reißt eine Grenze, erhöhe nicht die Zahl** — gib dem neuen Thema einen
+eigenen Ort.
+
+**Namenskonvention (bewusst gemischt):** Fachbegriffe der Domäne stehen auf Deutsch
+(`freihand`, `kontext`, `profil`, `nachbereitung`, `_melde_profilfarbe`), technische
+Infrastruktur auf Englisch (`pipeline`, `injection`, `history`, `StateBus`). Grund: Die
+App ist deutschsprachig, ihre Fachbegriffe haben keine natürliche englische Entsprechung
+(„Freihand" ist nicht „freehand"). Halte dich daran, statt bei jeder neuen Datei neu zu
+entscheiden.
 
 ## Lieferpflichten — wie DU (Claude) abzuliefern hast
 

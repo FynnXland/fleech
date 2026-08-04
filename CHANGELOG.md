@@ -11,6 +11,23 @@ GitHub-Release-Notizen (`packaging/release.py`).
 
 ---
 
+## 5.5.1 — 2026-08-05
+
+*Nicht einzeln veröffentlicht.*
+
+**Für dich ändert sich nichts — das ist der Punkt.** Diese Version räumt nur den
+Code auf: Die fünf größten Dateien waren über die Zeit zu Sammelbecken geworden
+(eine davon mit 1979 Zeilen und 89 Funktionen in einem Stück). Sie sind jetzt
+nach Themen aufgeteilt. Keine Funktion ist dazugekommen, keine verschwunden,
+keine Einstellung hat sich verschoben.
+
+Der Nutzen ist mittelbar, aber real: Änderungen an einer Ecke von Fleech können
+seltener eine andere Ecke umstoßen, und neue Sachen sind schneller gebaut. Damit
+das so bleibt, wacht die Testsuite jetzt auch über die Aufteilung selbst — wenn
+eine Datei wieder zum Sammelbecken wird, schlägt sie Alarm.
+
+---
+
 ## 5.5.0 — 2026-08-03
 
 **Jedes Profil hat jetzt eine Farbe — und du wählst sie aus.** Bisher trugen nur
