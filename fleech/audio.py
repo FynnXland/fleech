@@ -44,6 +44,31 @@ def list_pulse_sources() -> list[str]:
     return names
 
 
+def list_input_devices() -> list[str]:
+    """Waehlbare Mikrofone als Anzeigenamen — fuer Einstellungen und Onboarding.
+
+    Best-Effort: Eine leere Liste ist ein akzeptables Ergebnis, ein Absturz beim
+    Oeffnen der Einstellungen waere keins."""
+    # Linux: echte Mikrofone von PipeWire listen (rohe ALSA-hw-Geraete sind dort
+    # exklusiv belegt und wuerden nur tote Auswahl-Eintraege erzeugen).
+    if sys.platform.startswith("linux"):
+        try:
+            return list_pulse_sources()
+        except Exception:
+            log.exception("PipeWire-Quellen nicht abfragbar — falle auf sounddevice zurueck.")
+    try:
+        import sounddevice as sd
+
+        names = []
+        for dev in sd.query_devices():
+            if dev["max_input_channels"] > 0 and dev["name"] not in names:
+                names.append(dev["name"])
+        return names
+    except Exception:
+        log.exception("Audio-Geraete nicht abfragbar.")
+        return []
+
+
 def _linux_resolve_source(device_name: str):
     """Wunsch-Mikrofon (Anzeigename/Source-Name) → PULSE_SOURCE + pulse-Device.
 

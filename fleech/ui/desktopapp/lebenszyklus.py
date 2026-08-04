@@ -12,10 +12,19 @@ from __future__ import annotations
 
 import logging
 import os
+import sys
 
 from PySide6.QtWidgets import QApplication
 
+from ...audio import list_input_devices
+
 log = logging.getLogger(__name__)
+
+# Name des lokalen IPC-Kanals. Ueber ihn weckt ein Zweitstart die laufende Instanz,
+# und `packaging/stop_fleech.py` bittet sie, sich selbst zu beenden — der einzige
+# ordentliche Weg, Fleech zu stoppen (ein hartes Kill kann einen laufenden
+# settings.save() treffen).
+IPC_NAME = "Fleech.ipc"
 
 
 class LebenszyklusMixin:

@@ -18,7 +18,7 @@ from PySide6.QtCore import QTimer
 from PySide6.QtWidgets import QApplication
 
 from ..app import DictationApp
-from ..audio import Recorder
+from ..audio import Recorder, list_input_devices
 from ..config import load_config
 from ..hotkey import HotkeyManager, HotkeySpec
 from ..recording_control import RecordingController
@@ -36,32 +36,13 @@ from .desktopapp import (
     FreihandMixin, LebenszyklusMixin, LizenzUpdateMixin, ModelleMixin,
     NachbereitungMixin, ProfilMixin,
 )
+# Der Name des IPC-Kanals gehoert zum Server (desktopapp/lebenszyklus.py). Hier
+# re-exportiert, weil `packaging/stop_fleech.py` ihn von `fleech.ui.desktop` holt —
+# und weil `_wake_running_instance()` unten die Gegenstelle ist.
+from .desktopapp.lebenszyklus import IPC_NAME  # noqa: F401
 from .windowsfocus import FocusProbe
 
 log = logging.getLogger(__name__)
-
-
-def list_input_devices() -> list[str]:
-    # Linux: echte Mikrofone von PipeWire listen (rohe ALSA-hw-Geraete sind dort
-    # exklusiv belegt und wuerden nur tote Auswahl-Eintraege erzeugen).
-    if sys.platform.startswith("linux"):
-        try:
-            from ..audio import list_pulse_sources
-
-            return list_pulse_sources()
-        except Exception:
-            log.exception("PipeWire-Quellen nicht abfragbar — falle auf sounddevice zurueck.")
-    try:
-        import sounddevice as sd
-
-        names = []
-        for dev in sd.query_devices():
-            if dev["max_input_channels"] > 0 and dev["name"] not in names:
-                names.append(dev["name"])
-        return names
-    except Exception:
-        log.exception("Audio-Geraete nicht abfragbar.")
-        return []
 
 
 class DesktopApp(
@@ -868,9 +849,6 @@ class DesktopApp(
 
 
 
-
-
-IPC_NAME = "Fleech.ipc"
 
 
 def _wake_running_instance() -> bool:

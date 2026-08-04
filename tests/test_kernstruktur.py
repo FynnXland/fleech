@@ -93,6 +93,47 @@ def test_der_kern_kennt_die_oberflaeche_nicht():
                 assert False, f"{datei.name} importiert aus der Oberflaeche: {k.module}"
 
 
+def test_kein_name_ist_beim_verschieben_zurueckgeblieben():
+    """Faengt den teuersten Fehler beim Aufteilen von Dateien.
+
+    Beim Umzug von `_start_ipc_server` nach `desktopapp/lebenszyklus.py` blieb die
+    Konstante `IPC_NAME` in `desktop.py` zurueck. Kein Test schlug an — die Methode
+    laeuft nur beim echten Start —, und die App meldete den NameError still ins Log:
+    „Zweitstart oeffnet kein Fenster". Genau so verschwinden Funktionen unbemerkt.
+
+    Geprueft wird bewusst grob: Kommt ein geladener Name IRGENDWO in der Datei als
+    Zuweisung, Argument, Import oder Definition vor? Das findet keine
+    Scope-Fehler, aber jeden Namen, der beim Verschieben nicht mitgekommen ist —
+    und genau darum geht es hier."""
+    import builtins
+
+    fehler = []
+    for datei in sorted(KERN.rglob("*.py")):
+        baum = ast.parse(datei.read_text(encoding="utf-8"))
+        gebunden = set(dir(builtins)) | {"__file__", "__name__", "__doc__"}
+        for k in ast.walk(baum):
+            if isinstance(k, (ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef)):
+                gebunden.add(k.name)
+            elif isinstance(k, ast.Name) and isinstance(k.ctx, (ast.Store, ast.Del)):
+                gebunden.add(k.id)
+            elif isinstance(k, ast.arg):
+                gebunden.add(k.arg)
+            elif isinstance(k, (ast.Import, ast.ImportFrom)):
+                for a in k.names:
+                    gebunden.add((a.asname or a.name).split(".")[0])
+            elif isinstance(k, (ast.Global, ast.Nonlocal)):
+                gebunden.update(k.names)
+            elif isinstance(k, ast.ExceptHandler) and k.name:
+                gebunden.add(k.name)
+        for k in ast.walk(baum):
+            if isinstance(k, ast.Name) and isinstance(k.ctx, ast.Load):
+                if k.id not in gebunden:
+                    rel = datei.relative_to(KERN.parent).as_posix()
+                    fehler.append(f"{rel}:{k.lineno} {k.id}")
+
+    assert not fehler, "Unbekannte Namen:\n  " + "\n  ".join(sorted(set(fehler)))
+
+
 def test_die_pipeline_haengt_nicht_an_den_einstellungen():
     """Die Pipeline bekommt Werte gereicht, sie holt sie nicht. Deshalb steht
     REWRITING_FORMATS dort bewusst ein zweites Mal — kein Versehen, sondern der
