@@ -1,0 +1,247 @@
+"""Erststart: Onboarding-Assistent und Einrichtungsseite (Ollama/Modelle).
+
+Teil der Qt-Smoke-Tests (offscreen, siehe conftest.py): Widgets bauen, Zustaende
+schalten, Persistenz-Callbacks pruefen. Keine Optik-Pruefung.
+"""
+
+import pytest
+
+pytest.importorskip("PySide6")
+
+
+def _onboarding(settings=None, changed=None, mics=None):
+    from fleech.ui.onboarding import OnboardingDialog
+    from fleech.usersettings import UserSettings
+
+    settings = settings or UserSettings()
+    return OnboardingDialog(
+        settings, lambda: mics if mics is not None else ["Mikrofon (USB)"],
+        on_changed=(changed.append if changed is not None else None),
+        audio=False,                       # kein echter Pegel-Stream in Tests
+    ), settings
+
+def test_onboarding_navigation_und_abschluss(qapp, monkeypatch):
+    from fleech.usersettings import UserSettings
+
+    monkeypatch.setattr(UserSettings, "save", lambda self, path=None: None)
+    dlg, settings = _onboarding()
+    assert not settings.general.onboarding_done
+    assert dlg._stack.count() == 5
+    assert not dlg._back_btn.isEnabled()          # Seite 1: kein Zurueck
+
+    for _ in range(4):
+        dlg._go_next()
+    assert dlg._stack.currentIndex() == 4
+    assert dlg._next_btn.text() == "Los geht's"
+    assert dlg._skip_btn.isHidden() or not dlg._skip_btn.isVisible()
+
+    dlg._go_next()                                # letzter Klick = Abschluss
+    assert settings.general.onboarding_done is True
+
+def test_onboarding_x_und_ueberspringen_setzen_das_flag(qapp, monkeypatch):
+    """Jeder Weg hinaus setzt das Flag — der Wizard darf nie zum Wiedergaenger werden."""
+    from fleech.usersettings import UserSettings
+
+    monkeypatch.setattr(UserSettings, "save", lambda self, path=None: None)
+    dlg, settings = _onboarding()
+    dlg.reject()                                  # Esc/X
+    assert settings.general.onboarding_done is True
+
+    dlg2, settings2 = _onboarding()
+    dlg2._skip_btn.click()                        # "Ueberspringen"
+    assert settings2.general.onboarding_done is True
+
+def test_onboarding_aenderungen_greifen_sofort(qapp, monkeypatch):
+    from fleech.usersettings import UserSettings
+
+    monkeypatch.setattr(UserSettings, "save", lambda self, path=None: None)
+    changed: list = []
+    dlg, settings = _onboarding(changed=changed, mics=["Scarlett Solo", "Webcam"])
+
+    dlg._mic_combo.setCurrentIndex(1)             # "Scarlett Solo"
+    assert settings.recording.microphone == "Scarlett Solo"
+    assert "microphone" in changed
+
+    dlg._toggle_radio.setChecked(True)
+    assert settings.recording.mode == "toggle"
+    assert "recording" in changed
+
+def test_onboarding_vorbelegung_aus_settings(qapp):
+    from fleech.usersettings import UserSettings
+
+    settings = UserSettings()
+    settings.recording.mode = "toggle"
+    settings.recording.microphone = "Webcam"
+    settings.output.trigger_word = "Redax"
+    dlg, _ = _onboarding(settings=settings, mics=["Scarlett Solo", "Webcam"])
+    assert dlg._toggle_radio.isChecked()
+    assert dlg._mic_combo.currentData() == "Webcam"
+
+
+# -- Autostart-Wunsch bewahren (v2.1.0) --------------------------------------------
+
+def test_fehlgeschlagenes_schreiben_loescht_den_wunsch_nicht(qapp, monkeypatch):
+    """Der reale Fehler: Scheiterte das Schreiben einmal, setzte Fleech den Wunsch
+    auf False — und der naechste Start LOESCHTE den Eintrag dann aktiv."""
+    from fleech.ui import autostart as autostart_mod
+    from fleech.ui import settings_window
+    from fleech.usersettings import UserSettings
+
+    monkeypatch.setattr(UserSettings, "save", lambda self, path=None: None)
+    # Schreiben schlaegt fehl: set_autostart tut nichts, Abfrage bleibt False.
+    monkeypatch.setattr(settings_window.autostart, "set_autostart", lambda e: False)
+    monkeypatch.setattr(settings_window.autostart, "is_autostart_enabled", lambda: False)
+    monkeypatch.setattr(settings_window.autostart, "blocked_by_system", lambda: False)
+
+    settings = UserSettings()
+    panel = settings_window.SettingsPanel(
+        settings, on_changed=lambda s: None, list_microphones=lambda: ["M"])
+    panel._apply_autostart(True)
+
+    assert settings.general.autostart is True      # Wunsch bleibt erhalten!
+    assert not panel._autostart_warn.isHidden()    # aber ehrlich gewarnt
+
+def test_warnung_bei_deaktivierung_im_taskmanager(qapp, monkeypatch):
+    from fleech.ui import settings_window
+    from fleech.usersettings import UserSettings
+
+    monkeypatch.setattr(UserSettings, "save", lambda self, path=None: None)
+    monkeypatch.setattr(settings_window.autostart, "set_autostart", lambda e: True)
+    monkeypatch.setattr(settings_window.autostart, "is_autostart_enabled", lambda: True)
+    monkeypatch.setattr(settings_window.autostart, "blocked_by_system", lambda: True)
+
+    settings = UserSettings()
+    panel = settings_window.SettingsPanel(
+        settings, on_changed=lambda s: None, list_microphones=lambda: ["M"])
+    panel._apply_autostart(True)
+
+    assert settings.general.autostart is True
+    assert not panel._autostart_warn.isHidden()
+    assert "Task-Manager" in panel._autostart_warn.text()
+
+
+# -- Formel-Warnung ist von der Transkript-Anzeige unabhaengig (v3.0.2) -----------
+
+class _FakeEndpoint:
+    model = "gemma3:4b"
+    base_url = "http://127.0.0.1:11434"
+
+def _fake_setup_lage(monkeypatch, lage="ready", modelle=("gemma3:4b",), whisper=True,
+                     winget=True):
+    import fleech.llm.client as client
+    from fleech import ollama_setup, provisioning
+
+    monkeypatch.setattr(ollama_setup, "status", lambda *a, **k: lage)
+    monkeypatch.setattr(ollama_setup, "install_available", lambda: winget)
+    monkeypatch.setattr(provisioning, "whisper_present", lambda _m: whisper)
+    monkeypatch.setattr(client, "ollama_installed_models", lambda *a, **k: set(modelle))
+
+def _setup_page(**kw):
+    from fleech.ui.setuppage import SetupPage
+
+    return SetupPage([_FakeEndpoint()], "large-v3-turbo", autostart=False, **kw)
+
+def test_setup_page_zeigt_drei_zeilen_und_haken(qapp, monkeypatch):
+    _fake_setup_lage(monkeypatch)
+    page = _setup_page()
+    assert list(page._rows) == ["ollama", "llm:gemma3:4b", "stt"]
+    assert page.is_ready() is True
+    assert not page._btn.isEnabled()               # nichts zu tun
+    assert page._btn.text() == "Alles bereit"
+    page.deleteLater()
+
+def test_setup_page_frischer_rechner_bietet_einrichtung(qapp, monkeypatch):
+    _fake_setup_lage(monkeypatch, lage="missing", modelle=(), whisper=False)
+    page = _setup_page()
+    assert page.is_ready() is False
+    assert page._btn.isEnabled()
+    assert "Hintergrund" in page._status.text()
+    page.deleteLater()
+
+def test_setup_page_ohne_winget_laedt_trotzdem_das_erkennungsmodell(qapp, monkeypatch):
+    """Ein manueller Schritt sperrt nur sich selbst — Whisper kommt von HuggingFace."""
+    _fake_setup_lage(monkeypatch, lage="missing", modelle=(), whisper=False, winget=False)
+    page = _setup_page()
+    assert page._btn.isEnabled()
+    assert "Erneut prüfen" in page._status.text()
+    page.deleteLater()
+
+def test_setup_page_fortschritt_landet_in_der_zeile(qapp, monkeypatch):
+    _fake_setup_lage(monkeypatch, lage="missing", modelle=(), whisper=False)
+    page = _setup_page()
+    page._on_state("llm:gemma3:4b", "running", "wird geladen")
+    page._on_progress("llm:gemma3:4b", "Lade Sprachmodell gemma3:4b … 42 %", 42)
+    row = page._rows["llm:gemma3:4b"]
+    assert row._bar.value() == 42
+    assert row._bar.maximum() == 100
+    assert "42 %" in row._note.text()
+
+    # Unbestimmt: Qt-Bordmittel ist Range 0..0 (laufender Balken)
+    page._on_progress("stt", "Lade Erkennungsmodell … 412 MB", -1)
+    assert page._rows["stt"]._bar.maximum() == 0
+    page.deleteLater()
+
+def test_setup_page_kein_autostart_wenn_ollama_fehlt(qapp, monkeypatch):
+    """Fremde Software installiert Fleech nie als Nebenwirkung — nur auf Klick."""
+    _fake_setup_lage(monkeypatch, lage="missing", modelle=(), whisper=False)
+    from fleech.ui.setuppage import SetupPage
+
+    gestartet = []
+    monkeypatch.setattr(SetupPage, "start", lambda self: gestartet.append(True))
+    SetupPage([_FakeEndpoint()], "large-v3-turbo", autostart=True)
+    assert gestartet == []
+
+def test_setup_page_autostart_wenn_nur_downloads_fehlen(qapp, monkeypatch):
+    _fake_setup_lage(monkeypatch, lage="ready", modelle=(), whisper=False)
+    from fleech.ui.setuppage import SetupPage
+
+    gestartet = []
+    monkeypatch.setattr(SetupPage, "start", lambda self: gestartet.append(True))
+    SetupPage([_FakeEndpoint()], "large-v3-turbo", autostart=True)
+    assert gestartet == [True]
+
+def test_onboarding_zeigt_einrichtung_nur_wenn_noetig(qapp, monkeypatch):
+    from fleech.ui.onboarding import OnboardingDialog
+    from fleech.usersettings import UserSettings
+
+    monkeypatch.setattr(UserSettings, "save", lambda self, path=None: None)
+
+    def bauen():
+        return OnboardingDialog(
+            UserSettings(), lambda: ["Mikrofon (USB)"], audio=False,
+            endpoints=[_FakeEndpoint()], stt_model="large-v3-turbo",
+        )
+
+    _fake_setup_lage(monkeypatch, lage="missing", modelle=(), whisper=False)
+    dlg = bauen()
+    assert dlg._stack.count() == 6
+    assert dlg._pages["setup"] == 1               # direkt nach dem Willkommen
+    assert dlg._pages["microphone"] == 2
+    dlg.reject()
+
+    # Fertig eingerichtet: keine Seite mit drei Haken zum Durchklicken.
+    _fake_setup_lage(monkeypatch)
+    dlg2 = bauen()
+    assert dlg2._stack.count() == 5
+    assert "setup" not in dlg2._pages
+    dlg2.reject()
+
+def test_onboarding_pegel_haengt_am_namen_nicht_am_index(qapp, monkeypatch):
+    """Die eingeschobene Einrichtungs-Seite darf den Mikrofon-Pegel nicht verschieben."""
+    from fleech.ui.onboarding import OnboardingDialog
+    from fleech.usersettings import UserSettings
+
+    monkeypatch.setattr(UserSettings, "save", lambda self, path=None: None)
+    _fake_setup_lage(monkeypatch, lage="missing", modelle=(), whisper=False)
+    gestartet = []
+    monkeypatch.setattr(OnboardingDialog, "_start_level_stream",
+                        lambda self: gestartet.append(self._stack.currentIndex()))
+    dlg = OnboardingDialog(
+        UserSettings(), lambda: ["Mikrofon (USB)"], audio=False,
+        endpoints=[_FakeEndpoint()], stt_model="large-v3-turbo",
+    )
+    dlg._go_next()                                # → Einrichtung
+    assert gestartet == []
+    dlg._go_next()                                # → Mikrofon
+    assert gestartet == [2]
+    dlg.reject()

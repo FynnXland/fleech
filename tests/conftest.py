@@ -1,7 +1,13 @@
+import os
 import sys
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
+
+# Muss stehen, bevor irgendein Test die erste QApplication baut — sonst versucht Qt
+# ein echtes Fenster zu öffnen. Lag früher in test_ui_smoke.py; alle anderen
+# Qt-Tests hingen damit an der Dateireihenfolge.
+os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 
 import pytest
 
