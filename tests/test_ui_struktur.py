@@ -197,9 +197,11 @@ def test_die_farben_sind_ueberall_dieselben():
 # Was heute schon laenger ist als die Grenze. Die Liste ist bewusst kurz und
 # bewusst sichtbar: Sie ist die Arbeitsliste, nicht der Freibrief. Wer hier etwas
 # ergaenzt, sollte einen Grund haben — wer etwas streicht, hat aufgeraeumt.
-LANGE_ALTLASTEN = {
-    ("fleech/ui/pages/profiles.py", "__init__"),   # 276 Z. — naechster Kandidat
-}
+#
+# Seit 5.5.1 LEER. Der letzte Eintrag war `ProfilesPage.__init__` mit 276 Zeilen;
+# er ist in Bau-Methoden je Bildschirm-Abschnitt zerlegt. Eine leere Liste ist der
+# Normalzustand — wer hier wieder etwas eintraegt, verschiebt Arbeit, statt sie zu tun.
+LANGE_ALTLASTEN = set()
 GRENZE = 200
 
 

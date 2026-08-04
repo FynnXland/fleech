@@ -12,13 +12,17 @@ import logging
 from PySide6.QtCore import QPointF, Qt
 from PySide6.QtGui import QColor, QIcon, QPainter, QPixmap
 from PySide6.QtWidgets import (
-    QHBoxLayout, QLabel, QListWidget, QListWidgetItem, QPushButton, QVBoxLayout,
-    QWidget,
+    QCheckBox, QComboBox, QHBoxLayout, QLabel, QLineEdit, QListWidget, QListWidgetItem,
+    QPushButton, QVBoxLayout, QWidget,
 )
 
 from ...history import HistoryStore
-from ...profiles import PROFILE_FORMATS, PROFIL_FARBEN, profile_color
+from ...profiles import (
+    PROFILE_FORMATS, PROFIL_FARBEN, ensure_default_profile, profile_color,
+    profile_command_mode, profile_in_quickswitch, profile_mode,
+)
 from ...usersettings import UserSettings
+from ..chevron import apply_chevrons
 from ..dialogs import PromptDialog
 from ..theme import (
     ACCENT, BORDER_HAIRLINE, CARD, MUTED, NAV_ACTIVE_BG, ROW_HOVER, SIDEBAR, TEXT,
@@ -27,6 +31,59 @@ from ..theme import (
 from ..widgets import HelpBadge, _card, _no_hscroll, _passt, _suchfeld
 
 log = logging.getLogger(__name__)
+
+# Design-System: Zeilen 7/10-Padding, Radius 8; Hover eine Flaechenstufe heller.
+_LIST_QSS = (
+    f"QListWidget {{ background: transparent; border: none; outline: none;"
+    f"  color: {TEXT}; font-size: 9.5pt; }}"
+    f"QListWidget::item {{ padding: 7px 10px; border-radius: 8px; }}"
+    f"QListWidget::item:hover {{ background: {ROW_HOVER}; }}"
+    f"QListWidget::item:selected {{ background: {NAV_ACTIVE_BG}; color: {ACCENT}; }}"
+)
+# Checkbox im Design-System: 15px, Radius 4, TRACK-Rahmen → Akzent-Fuellung mit
+# dunklem Haken (generiertes Icon, QSS kann keinen Haken zeichnen).
+_CB_QSS = (
+    f"QCheckBox {{ color: {TEXT}; font-size: 9.5pt; spacing: 8px; }}"
+    f"QCheckBox::indicator {{ width: 15px; height: 15px; border-radius: 4px;"
+    f"  border: 1.5px solid {TRACK}; background: transparent; }}"
+    f"QCheckBox::indicator:hover {{ border-color: {MUTED}; }}"
+    f"QCheckBox::indicator:checked {{ background: {ACCENT}; border-color: {ACCENT};"
+    f"  image: url(__CHEV_CHECK__); }}"
+    f"QCheckBox:disabled {{ color: {MUTED}; }}"
+)
+# Combobox im dunklen Karten-Kontext: geschlossenes Feld UND aufgeklappte Liste in
+# Brand-Farben, damit das Dropdown nicht im Windows-Hell-Stil aufpoppt.
+_COMBO_QSS = (
+    f"QComboBox {{ background: {CARD}; color: {TEXT};"
+    f"  border: 1px solid {BORDER_HAIRLINE};"
+    f"  border-radius: 8px; padding: 5px 10px; font-size: 9.5pt; }}"
+    f"QComboBox:hover {{ background: {ROW_HOVER}; }}"
+    f"QComboBox::drop-down {{ border: none; width: 22px; }}"
+    f"QComboBox::down-arrow {{ width: 11px; height: 11px; margin-right: 6px;"
+    f"  image: url(__CHEV_DOWN__); }}"
+    f"QComboBox QAbstractItemView {{ background: {SIDEBAR}; color: {TEXT};"
+    f"  border: 1px solid {TRACK}; outline: none; padding: 4px;"
+    f"  selection-background-color: {NAV_ACTIVE_BG}; selection-color: {ACCENT}; }}"
+    f"QComboBox QAbstractItemView::item {{ min-height: 24px; padding: 4px 8px;"
+    f"  border-radius: 5px; }}"
+)
+
+
+def _abschnitt(text: str, tip: str) -> QWidget:
+    """Kleine Abschnitts-Ueberschrift + „?"-Badge.
+
+    Ersetzt die frueheren dauerhaft sichtbaren Erklaertexte — konsistent mit den
+    Einstellungen, wo die Erklaerung ebenfalls im Hover steckt."""
+    w = QWidget()
+    lay = QHBoxLayout(w)
+    lay.setContentsMargins(0, 4, 0, 0)
+    lay.setSpacing(6)
+    lab = QLabel(text)
+    lab.setStyleSheet(f"color: {MUTED}; font-size: 8.5pt; font-weight: 600;")
+    lay.addWidget(lab)
+    lay.addWidget(HelpBadge(tip))
+    lay.addStretch(1)
+    return w
 
 
 class ProfilesPage(QWidget):
@@ -50,26 +107,42 @@ class ProfilesPage(QWidget):
         self.store = store
         self._on_changed = on_changed or (lambda section: None)
         self._loading = False
-        from ...profiles import ensure_default_profile
-
         ensure_default_profile(self.settings.profiles.items)
 
         outer = QVBoxLayout(self)
         outer.setContentsMargins(20, 18, 20, 18)
+        self._baue_kopf(outer)
+
+        # Alles unterhalb des Kopfes lebt in einem Container, der bei global-aus
+        # komplett deaktiviert (ausgegraut, nicht klickbar) wird.
+        self._body = QWidget()
+        body = QHBoxLayout(self._body)
+        body.setContentsMargins(0, 0, 0, 0)
+        body.setSpacing(12)
+        outer.addWidget(self._body, 1)
+        body.addWidget(self._baue_profil_spalte(), 1)
+        body.addWidget(self._baue_detail_spalte(), 1)
+
+        self._apply_body_enabled(settings.profiles.enabled)
+
+    # -- Aufbau der Seite -------------------------------------------------------------
+    #
+    # Je Abschnitt eine Methode. Vorher war das EIN Konstruktor mit 276 Zeilen — die
+    # letzte Altlast aus der Aufteilung des Hauptfensters. Die Trennung ist die
+    # gleiche wie auf dem Bildschirm: Kopfzeile, linke Spalte, rechte Spalte.
+
+    def _baue_kopf(self, outer) -> None:
+        """Titelzeile mit dem grossen globalen Schalter, darunter die Einordnung."""
         head = QHBoxLayout()
         title = QLabel("Profile")
         title.setStyleSheet(f"color: {TEXT}; font-size: 12pt; font-weight: 600;")
         head.addWidget(title)
         head.addStretch(1)
-        from PySide6.QtWidgets import QCheckBox
-
         # Grosser globaler Toggle, rechtsbuendig in der Titelzeile.
         self._global_cb = QCheckBox()
-        self._global_cb.setChecked(settings.profiles.enabled)
+        self._global_cb.setChecked(self.settings.profiles.enabled)
         self._global_cb.setToolTip("App-Profile global aktivieren/deaktivieren")
         self._global_cb.setCursor(Qt.PointingHandCursor)
-        from ..chevron import apply_chevrons
-
         self._global_cb.setStyleSheet(apply_chevrons(
             f"QCheckBox::indicator {{ width: 22px; height: 22px; border-radius: 6px;"
             f"  border: 1.5px solid {TRACK}; background: transparent; }}"
@@ -88,77 +161,22 @@ class ProfilesPage(QWidget):
         outer.addWidget(hint)
         outer.addSpacing(6)
 
-        # Alles unterhalb des Kopfes lebt in einem Container, der bei global-aus
-        # komplett deaktiviert (ausgegraut, nicht klickbar) wird.
-        self._body = QWidget()
-        body = QHBoxLayout(self._body)
-        body.setContentsMargins(0, 0, 0, 0)
-        body.setSpacing(12)
-        outer.addWidget(self._body, 1)
+    def _baue_profil_spalte(self) -> QWidget:
+        """Links: Profil-Liste (Klick = Auswahl) mit Suche und Hinzufuegen/Loeschen.
 
-        # Design-System: Zeilen 7/10-Padding, Radius 8; Hover eine Flaechenstufe heller.
-        list_style = (
-            f"QListWidget {{ background: transparent; border: none; outline: none;"
-            f"  color: {TEXT}; font-size: 9.5pt; }}"
-            f"QListWidget::item {{ padding: 7px 10px; border-radius: 8px; }}"
-            f"QListWidget::item:hover {{ background: {ROW_HOVER}; }}"
-            f"QListWidget::item:selected {{ background: {NAV_ACTIVE_BG}; color: {ACCENT}; }}"
-        )
-        # Checkbox im Design-System: 15px, Radius 4, TRACK-Rahmen → Akzent-Fuellung
-        # mit dunklem Haken (generiertes Icon, QSS kann keinen Haken zeichnen).
-        cb_style = (
-            f"QCheckBox {{ color: {TEXT}; font-size: 9.5pt; spacing: 8px; }}"
-            f"QCheckBox::indicator {{ width: 15px; height: 15px; border-radius: 4px;"
-            f"  border: 1.5px solid {TRACK}; background: transparent; }}"
-            f"QCheckBox::indicator:hover {{ border-color: {MUTED}; }}"
-            f"QCheckBox::indicator:checked {{ background: {ACCENT}; border-color: {ACCENT};"
-            f"  image: url(__CHEV_CHECK__); }}"
-            f"QCheckBox:disabled {{ color: {MUTED}; }}"
-        )
-        # Combobox im dunklen Karten-Kontext: geschlossenes Feld UND aufgeklappte Liste
-        # in Brand-Farben, damit das Dropdown nicht im Windows-Hell-Stil aufpoppt.
-        combo_style = (
-            f"QComboBox {{ background: {CARD}; color: {TEXT};"
-            f"  border: 1px solid {BORDER_HAIRLINE};"
-            f"  border-radius: 8px; padding: 5px 10px; font-size: 9.5pt; }}"
-            f"QComboBox:hover {{ background: {ROW_HOVER}; }}"
-            f"QComboBox::drop-down {{ border: none; width: 22px; }}"
-            f"QComboBox::down-arrow {{ width: 11px; height: 11px; margin-right: 6px;"
-            f"  image: url(__CHEV_DOWN__); }}"
-            f"QComboBox QAbstractItemView {{ background: {SIDEBAR}; color: {TEXT};"
-            f"  border: 1px solid {TRACK}; outline: none; padding: 4px;"
-            f"  selection-background-color: {NAV_ACTIVE_BG}; selection-color: {ACCENT}; }}"
-            f"QComboBox QAbstractItemView::item {{ min-height: 24px; padding: 4px 8px;"
-            f"  border-radius: 5px; }}"
-        )
-
-        # Kleine Abschnitts-Ueberschrift + „?"-Badge — ersetzt die frueheren
-        # dauerhaft sichtbaren Erklaertexte (konsistent mit den Einstellungen).
-        def _section(text: str, tip: str) -> QWidget:
-            w = QWidget()
-            lay = QHBoxLayout(w)
-            lay.setContentsMargins(0, 4, 0, 0)
-            lay.setSpacing(6)
-            lab = QLabel(text)
-            lab.setStyleSheet(f"color: {MUTED}; font-size: 8.5pt; font-weight: 600;")
-            lay.addWidget(lab)
-            lay.addWidget(HelpBadge(tip))
-            lay.addStretch(1)
-            return w
-
-        # Links: Profil-Liste (Klick = Auswahl) + Funktions-Schalter darunter.
-        # Die frueher hier stehende App-Spalte ist mit v4.7.0 auf die eigene
-        # Seite „Apps" gewandert: Ein Profil beantwortet „was wird aus dem
-        # Diktat", die Frage „wo gilt das" gehoert zur App, nicht zum Profil.
-        profiles_frame, profiles_box = _card("Profile")
+        Die frueher hier stehende App-Spalte ist mit v4.7.0 auf die eigene Seite
+        „Apps" gewandert: Ein Profil beantwortet „was wird aus dem Diktat", die
+        Frage „wo gilt das" gehoert zur App, nicht zum Profil."""
+        frame, box = _card("Profile")
         self._profil_suche = _suchfeld("Profil suchen …")
-        self._profil_suche.textChanged.connect(lambda _t: self._refresh_profiles(keep_row=True))
-        profiles_box.addWidget(self._profil_suche)
+        self._profil_suche.textChanged.connect(
+            lambda _t: self._refresh_profiles(keep_row=True))
+        box.addWidget(self._profil_suche)
         self._profiles_list = QListWidget()
-        self._profiles_list.setStyleSheet(list_style)
+        self._profiles_list.setStyleSheet(_LIST_QSS)
         _no_hscroll(self._profiles_list)
         self._profiles_list.currentRowChanged.connect(lambda _r: self._refresh_detail())
-        profiles_box.addWidget(self._profiles_list, 1)
+        box.addWidget(self._profiles_list, 1)
         row = QHBoxLayout()
         row.setSpacing(8)
         add_btn = style_button(QPushButton("Hinzufügen"))
@@ -167,15 +185,35 @@ class ProfilesPage(QWidget):
         del_btn.clicked.connect(self._delete_profile)
         row.addWidget(add_btn, 1)
         row.addWidget(del_btn)
-        profiles_box.addLayout(row)
-        body.addWidget(profiles_frame, 1)
+        box.addLayout(row)
+        return frame
 
-        # Rechts: Detail des gewaehlten Profils.
-        detail_frame, detail_box = _card("Details")
-        from PySide6.QtWidgets import QComboBox, QLineEdit
+    def _baue_detail_spalte(self) -> QWidget:
+        """Rechts: alles zum gewaehlten Profil — Name, Ausgabeformat, Farbe,
+        Schnellwechsel, darunter der ausklappbare erweiterte Block."""
+        frame, box = _card("Details")
+        self._baue_detail_kopf(box)
+        self._baue_format_und_farbe(box)
 
-        # Titel = editierbares Feld: Klick hinein → Profil umbenennen (Enter/Fokusverlust
-        # uebernimmt). Sieht wie eine Ueberschrift aus, verhaelt sich wie ein Eingabefeld.
+        self._quick_cb = QCheckBox("Im Schnellwechsel zeigen")
+        self._quick_cb.setCursor(Qt.PointingHandCursor)
+        self._quick_cb.setStyleSheet(apply_chevrons(_CB_QSS))
+        self._quick_cb.setToolTip(
+            "Punkt in der Pille, Profil-Hotkey und Auswahlliste gehen nur durch "
+            "diese Profile. Wer viele pflegt, aber im Alltag zwischen zweien "
+            "wechselt, blendet den Rest hier aus."
+        )
+        self._quick_cb.toggled.connect(self._on_quick_toggled)
+        box.addWidget(self._quick_cb)
+
+        self._baue_erweitert(frame, box)
+        return frame
+
+    def _baue_detail_kopf(self, box) -> None:
+        """Der Titel ist ein Eingabefeld: Klick hinein → Profil umbenennen.
+
+        Sieht wie eine Ueberschrift aus, verhaelt sich wie ein Feld (Enter oder
+        Fokusverlust uebernimmt)."""
         self._detail_title = QLineEdit("")
         self._detail_title.setFrame(False)
         self._detail_title.setStyleSheet(
@@ -191,36 +229,36 @@ class ProfilesPage(QWidget):
         trow.setSpacing(6)
         trow.addWidget(self._detail_title, 1)
         trow.addWidget(HelpBadge("Name anklicken und tippen — Enter benennt das Profil um."))
-        detail_box.addWidget(title_row)
+        box.addWidget(title_row)
 
-        from ..chevron import apply_chevrons
-
+    def _baue_format_und_farbe(self, box) -> None:
+        """Ausgabeformat samt Prompt-Knopf, darunter die Farbreihe."""
         # Ausgabeformat: die Einstellung, die aus einem Profil mehr macht als eine
         # Glaettungsstufe. Der frueher entfernte „Modus-Slot" ist damit zurueck —
         # diesmal mit einem Zweck, den man beim Diktieren sofort merkt.
-        detail_box.addWidget(_section(
+        box.addWidget(_abschnitt(
             "Ausgabeformat", "Was aus dem Diktat wird. „Diktat“ = bereinigter Text "
             "wie gesprochen. „E-Mail“ und „KI-Prompt“ formulieren um: Anrede und "
             "Absätze bzw. knappe Stichpunkte für eine KI.",
         ))
         self._profile_format_combo = QComboBox()
-        self._profile_format_combo.setStyleSheet(apply_chevrons(combo_style))
+        self._profile_format_combo.setStyleSheet(apply_chevrons(_COMBO_QSS))
         for value, label in PROFILE_FORMATS:
             self._profile_format_combo.addItem(label, value)
         self._profile_format_combo.currentIndexChanged.connect(
             self._on_profile_format_changed
         )
-        detail_box.addWidget(self._profile_format_combo)
+        box.addWidget(self._profile_format_combo)
         # Der Prompt hinter dem Format — sichtbar und aenderbar. Bis 5.1.0 war er
         # eine Blackbox: Man sah, DASS ein Profil anders formuliert, aber nie warum.
         self._prompt_btn = style_button(QPushButton("Prompt ansehen …"), "ghost")
         self._prompt_btn.clicked.connect(self._prompt_bearbeiten)
-        detail_box.addWidget(self._prompt_btn)
+        box.addWidget(self._prompt_btn)
 
         # Farbe des Profils — die Wiedererkennung in der Liste UND am Punkt der
         # Pille. Eine Reihe zum Antippen statt eines Aufklappmenues: Es sind acht
         # Werte, und die Farbe selbst IST die Beschriftung.
-        detail_box.addWidget(_section(
+        box.addWidget(_abschnitt(
             "Farbe", "Der Punkt vor dem Namen — und der Ring am linken Knopf der "
             "Pille, solange dieses Profil aktiv ist. So sieht man beim Diktieren, "
             "welches Profil gerade greift, ohne hinzuklicken.",
@@ -247,50 +285,41 @@ class ProfilesPage(QWidget):
             farb_lay.addWidget(knopf)
             self._farb_knoepfe.append(knopf)
         farb_lay.addStretch(1)
-        detail_box.addWidget(self._farb_reihe)
+        box.addWidget(self._farb_reihe)
 
-        self._quick_cb = QCheckBox("Im Schnellwechsel zeigen")
-        self._quick_cb.setCursor(Qt.PointingHandCursor)
-        self._quick_cb.setStyleSheet(apply_chevrons(cb_style))
-        self._quick_cb.setToolTip(
-            "Punkt in der Pille, Profil-Hotkey und Auswahlliste gehen nur durch "
-            "diese Profile. Wer viele pflegt, aber im Alltag zwischen zweien "
-            "wechselt, blendet den Rest hier aus."
-        )
-        self._quick_cb.toggled.connect(self._on_quick_toggled)
-        detail_box.addWidget(self._quick_cb)
+    def _baue_erweitert(self, frame, box) -> None:
+        """Alles, was der Normalfall NICHT braucht — Eingriff, Safe-Word, Absenden.
 
-        # Ab hier: alles, was der Normalfall NICHT braucht. Der Umschalter unten
-        # blendet diesen Block aus — ein Profil besteht dann aus Name, Ausgabeformat
-        # und Schnellwechsel. Die App-Zuweisung steckt bewusst hier drin: Profile
-        # sind seit den Ausgabeformaten in erster Linie eine Wahl beim Sprechen,
-        # nicht eine Automatik nach Prozessnamen.
+        Der Umschalter unten blendet den Block aus; ein Profil besteht dann aus Name,
+        Ausgabeformat und Schnellwechsel. Die App-Zuweisung steckt bewusst NICHT hier,
+        sondern auf der Seite „Apps": Profile sind seit den Ausgabeformaten in erster
+        Linie eine Wahl beim Sprechen, nicht eine Automatik nach Prozessnamen.
+        """
         self._advanced_box = QWidget()
         adv = QVBoxLayout(self._advanced_box)
         adv.setContentsMargins(0, 0, 0, 0)
-        adv.setSpacing(detail_box.spacing())
-        detail_box.addWidget(self._advanced_box, 1)
-        detail_box = adv
+        adv.setSpacing(box.spacing())
+        box.addWidget(self._advanced_box, 1)
 
-        detail_box.addWidget(_section(
+        adv.addWidget(_abschnitt(
             "Eingriff", "Wie stark die KI das Diktat glättet. „Wie Einstellungen“ = "
             "globaler Wert aus Einstellungen → Ausgabe.",
         ))
         self._intervention_combo = QComboBox()
-        self._intervention_combo.setStyleSheet(apply_chevrons(combo_style))
+        self._intervention_combo.setStyleSheet(apply_chevrons(_COMBO_QSS))
         for value, label in self._INTERVENTION_LABELS:
             self._intervention_combo.addItem(label, value)
         self._intervention_combo.currentIndexChanged.connect(self._on_intervention_changed)
-        detail_box.addWidget(self._intervention_combo)
+        adv.addWidget(self._intervention_combo)
 
         # Gesprochenes Safe-Word je Profil: im Meeting/Grossraum unpassend und
         # zufaellig ausloesbar. Der »-Knopf in der Pille bleibt immer verfuegbar.
-        detail_box.addWidget(_section(
+        adv.addWidget(_abschnitt(
             "Safe-Word (gesprochen)", "Ob in diesen Apps ein gesprochenes Safe-Word "
             "Befehle auslöst. Der »-Knopf in der Pille funktioniert immer.",
         ))
         self._profile_command_combo = QComboBox()
-        self._profile_command_combo.setStyleSheet(apply_chevrons(combo_style))
+        self._profile_command_combo.setStyleSheet(apply_chevrons(_COMBO_QSS))
         for value, label in (("", "Wie Einstellungen (Ausgabe)"),
                              ("on", "An — gesprochenes Safe-Word erlaubt"),
                              ("off", "Aus — nur über den »-Knopf")):
@@ -298,7 +327,7 @@ class ProfilesPage(QWidget):
         self._profile_command_combo.currentIndexChanged.connect(
             self._on_profile_command_changed
         )
-        detail_box.addWidget(self._profile_command_combo)
+        adv.addWidget(self._profile_command_combo)
 
         # Der Stil-Tag-Editor ist mit v3.7.2 entfallen. Die Profilseite beantwortet
         # jetzt genau eine Frage — „in welcher App wie stark eingreifen" — statt
@@ -307,12 +336,12 @@ class ProfilesPage(QWidget):
         # settings.json laden unveraendert) und wirkt weiter, falls jemand es dort
         # von Hand pflegt; die Pipeline nimmt es unveraendert entgegen.
 
-        detail_box.addWidget(_section(
+        adv.addWidget(_abschnitt(
             "Nachricht absenden", "Nach dem Einfügen zusätzlich Enter drücken — "
             "praktisch in KI-Chats, gefährlich in E-Mails.",
         ))
         self._autosend_cb = QCheckBox("Diktat direkt abschicken")
-        self._autosend_cb.setStyleSheet(apply_chevrons(cb_style))
+        self._autosend_cb.setStyleSheet(apply_chevrons(_CB_QSS))
         self._autosend_cb.setCursor(Qt.PointingHandCursor)
         self._autosend_cb.setToolTip(
             "Gilt nur für die diesem Profil zugewiesenen Apps und nur bei einem "
@@ -320,19 +349,19 @@ class ProfilesPage(QWidget):
             "nie automatisch gesendet."
         )
         self._autosend_cb.toggled.connect(self._on_autosend_toggled)
-        detail_box.addWidget(self._autosend_cb)
+        adv.addWidget(self._autosend_cb)
 
         # Ohne diesen Dehnungs-Platzhalter verteilt Qt den freien Platz GLEICHMAESSIG
         # zwischen allen Zeilen, sobald der erweiterte Block (mit der App-Liste, die
         # den Raum bisher aufgefangen hat) versteckt ist: Beschriftungen standen dann
         # weit von ihren Bedienelementen entfernt und die Karte sah leer aus.
-        # WICHTIG in die AEUSSERE Karte — `detail_box` zeigt hier laengst auf den
-        # erweiterten Container, dort waere der Platzhalter mit versteckt.
-        detail_frame.layout().addStretch(1)
+        # WICHTIG in die AEUSSERE Karte — im erweiterten Container waere der
+        # Platzhalter mit versteckt.
+        frame.layout().addStretch(1)
 
         self._advanced_cb = QCheckBox("Erweiterte Einstellungen")
         self._advanced_cb.setCursor(Qt.PointingHandCursor)
-        self._advanced_cb.setStyleSheet(apply_chevrons(cb_style))
+        self._advanced_cb.setStyleSheet(apply_chevrons(_CB_QSS))
         self._advanced_cb.setToolTip(
             "Zeigt Eingriffsgrad, Safe-Word und automatisches Absenden. Ohne "
             "das besteht ein Profil aus Name, Ausgabeformat und Schnellwechsel "
@@ -341,9 +370,8 @@ class ProfilesPage(QWidget):
         )
         self._advanced_cb.setChecked(bool(self.settings.interface.profiles_advanced))
         self._advanced_cb.toggled.connect(self._on_advanced_toggled)
-        detail_frame.layout().addWidget(self._advanced_cb)
+        frame.layout().addWidget(self._advanced_cb)
         self._advanced_box.setVisible(self._advanced_cb.isChecked())
-        body.addWidget(detail_frame, 1)
 
         # Der Funktions-Balken (Mathe-Funktion) ist mit v3.7.4 entfallen: Er
         # schaltete dasselbe Feld wie die Formel-Erkennung in den Einstellungen —
@@ -351,7 +379,6 @@ class ProfilesPage(QWidget):
         # Auf der Profilseite hatte er ohnehin nichts zu suchen: Er galt global,
         # unabhaengig von jedem Profil.
 
-        self._apply_body_enabled(settings.profiles.enabled)
 
     # -- Datenzugriff -----------------------------------------------------------------
 
@@ -382,8 +409,6 @@ class ProfilesPage(QWidget):
     # -- Aufbau/Refresh ------------------------------------------------------------------
 
     def refresh(self) -> None:
-        from ...profiles import ensure_default_profile
-
         ensure_default_profile(self._items())
         self._refresh_profiles(keep_row=True)
 
@@ -412,8 +437,6 @@ class ProfilesPage(QWidget):
         return QIcon(pm)
 
     def _refresh_profiles(self, keep_row: bool = False) -> None:
-        from ...profiles import profile_in_quickswitch, profile_mode
-
         previous = self._current_index() if keep_row else 0
         suche = self._profil_suche.text()
         self._loading = True
@@ -461,10 +484,6 @@ class ProfilesPage(QWidget):
         self._detail_title.setEnabled(True)
         self._detail_title.setText(profile.get("name", "Profil"))
         self._refresh_farb_reihe(profile)
-        from ...profiles import profile_mode
-
-        from ...profiles import profile_command_mode
-
         self._profile_command_combo.setCurrentIndex(
             ["", "on", "off"].index(profile_command_mode(profile))
         )
@@ -474,16 +493,12 @@ class ProfilesPage(QWidget):
         self._intervention_combo.setCurrentIndex(
             values.index(current) if current in values else 0
         )
-        from ...profiles import profile_mode
-
         formate = [v for v, _l in PROFILE_FORMATS]
         fmt = profile_mode(profile)
         self._profile_format_combo.setCurrentIndex(
             formate.index(fmt) if fmt in formate else 0
         )
         self._aktualisiere_prompt_knopf(fmt)
-        from ...profiles import profile_in_quickswitch
-
         self._quick_cb.setChecked(profile_in_quickswitch(profile))
         self._loading = False
 
@@ -547,8 +562,6 @@ class ProfilesPage(QWidget):
             "Prompt bearbeiten  ·  eigene Fassung" if eigen else "Prompt ansehen …")
 
     def _prompt_bearbeiten(self) -> None:
-        from ...profiles import profile_mode
-
         profile = self._current_profile()
         if profile is None:
             return
