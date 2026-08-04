@@ -297,7 +297,7 @@ def test_autosend_nur_bei_erlaubtem_profil_und_normalem_diktat(qapp):
     import types
 
     from fleech.ui.desktop import DesktopApp
-    from fleech.usersettings import ProfileOverrides
+    from fleech.profiles import ProfileOverrides
 
     def lauf(auto_send, result, mode):
         gesendet = []
@@ -339,7 +339,7 @@ def test_autosend_fehler_macht_das_diktat_nicht_kaputt(qapp):
 
 def test_autosend_standardmaessig_aus():
     """Ein neues Profil sendet nie von allein — die Einstellung ist bewusst opt-in."""
-    from fleech.usersettings import ProfileOverrides
+    from fleech.profiles import ProfileOverrides
 
     assert ProfileOverrides().auto_send is False
 

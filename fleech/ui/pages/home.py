@@ -18,7 +18,8 @@ from PySide6.QtWidgets import (
 )
 
 from ...history import HistoryStore
-from ...usersettings import PROFILE_FORMATS, UserSettings
+from ...profiles import PROFILE_FORMATS
+from ...usersettings import UserSettings
 from ..dialogs import TranscriptDetailDialog
 from ..theme import ACCENT, MUTED, NAV_ACTIVE_BG, ROW_HOVER, SIDEBAR, TEXT, TRACK
 from ..widgets import _ElidedLabel, _card, _x_icon, enable_card_hiding
@@ -257,7 +258,7 @@ class HomePage(QWidget):
         """
         from PySide6.QtWidgets import QMenu
 
-        from ...usersettings import PROFILE_FORMATS, profile_mode
+        from ...profiles import PROFILE_FORMATS, profile_mode
 
         menu = QMenu(self)
         menu.setStyleSheet(

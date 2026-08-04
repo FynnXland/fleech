@@ -9,8 +9,11 @@ import types
 
 import pytest
 
-from fleech.usersettings import (
-    PROFILE_FORMATS, REWRITING_FORMATS, ensure_default_profile, profile_mode,
+from fleech.profiles import (
+    PROFILE_FORMATS,
+    REWRITING_FORMATS,
+    ensure_default_profile,
+    profile_mode,
 )
 
 
@@ -153,7 +156,7 @@ def test_rohtext_gilt_als_material_nicht_als_anweisung():
 
 def test_schnellwechsel_zeigt_nur_gewaehlte_profile():
     """Wer acht Profile pflegt, schaltet im Alltag zwischen zweien um."""
-    from fleech.usersettings import quickswitch_profiles
+    from fleech.profiles import quickswitch_profiles
 
     items = [{"name": "Standard", "default": True},
              {"name": "E-Mail", "mode": "email"},
@@ -165,13 +168,46 @@ def test_schnellwechsel_zeigt_nur_gewaehlte_profile():
 def test_ohne_feld_ist_ein_profil_dabei():
     """Bestehende settings.json kennen „quick" nicht — sie sollen sich nicht
     ploetzlich anders verhalten."""
-    from fleech.usersettings import profile_in_quickswitch
+    from fleech.profiles import profile_in_quickswitch
 
     assert profile_in_quickswitch({"name": "Alt"}) is True
     assert profile_in_quickswitch({"name": "Aus", "quick": False}) is False
 
 
 def test_namenlose_eintraege_stoeren_nicht():
-    from fleech.usersettings import quickswitch_profiles
+    from fleech.profiles import quickswitch_profiles
 
     assert quickswitch_profiles([{"name": "  "}, {"nope": 1}, "kaputt"]) == []
+
+
+# -- App-Regeln mit Fenstertitel (W3-16) ------------------------------------------
+
+def test_app_rule_parsen_und_formatieren():
+    from fleech.profiles import format_app_rule, parse_app_rule
+
+    assert parse_app_rule("Code.exe") == ("Code.exe", "")
+    assert parse_app_rule("Code.exe :: Fleech") == ("Code.exe", "Fleech")
+    assert parse_app_rule("  Code.exe::Fleech  ") == ("Code.exe", "Fleech")
+    assert parse_app_rule("") == ("", "")
+    assert format_app_rule("Code.exe") == "Code.exe"
+    assert format_app_rule("Code.exe", "Fleech") == "Code.exe :: Fleech"
+    assert format_app_rule("Code.exe", "  ") == "Code.exe"
+
+
+def test_alte_eintraege_verhalten_sich_unveraendert():
+    """Bestehende settings.json ohne '::' duerfen sich nicht anders verhalten."""
+    from fleech.profiles import app_rule_matches
+
+    assert app_rule_matches("Code.exe", "code.exe", "irgendein Titel")
+    assert app_rule_matches("Code.exe", "Code.exe", "")
+    assert not app_rule_matches("Code.exe", "Discord.exe", "")
+
+
+def test_titel_bedingung_greift_als_teilstring():
+    from fleech.profiles import app_rule_matches
+
+    rule = "Code.exe :: Fleech"
+    assert app_rule_matches(rule, "Code.exe", "pipeline.py — Fleech — Visual Studio Code")
+    assert app_rule_matches(rule, "Code.exe", "FLEECH gross geschrieben")  # case-insensitiv
+    assert not app_rule_matches(rule, "Code.exe", "andere-app — Visual Studio Code")
+    assert not app_rule_matches(rule, "Code.exe", "")   # kein Titel ermittelbar

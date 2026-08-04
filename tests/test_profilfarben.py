@@ -7,7 +7,7 @@ Farbe, sichtbar in der Liste UND am Punkt der Pille.
 
 import pytest
 
-from fleech.usersettings import PROFIL_FARBEN, profile_color
+from fleech.profiles import PROFIL_FARBEN, profile_color
 
 FARBEN = {f for f, _ in PROFIL_FARBEN}
 
@@ -100,7 +100,7 @@ def test_die_akzentfarbe_ist_nicht_waehlbar():
 
     Dieser Test existiert, weil ich die Farbe beim ersten Entwurf genau so in die
     Palette geschrieben hatte."""
-    from fleech.usersettings import ACCENT_RESERVIERT
+    from fleech.profiles import ACCENT_RESERVIERT
 
     assert ACCENT_RESERVIERT not in {f for f, _ in PROFIL_FARBEN}
     for name in ("Coding", "Privat", "Notizen", "Uni", "Journal", "Chat", "x", ""):
@@ -283,7 +283,8 @@ def test_farbwahl_landet_im_profil(qapp, tmp_path, monkeypatch):
     monkeypatch.setattr(us, "SETTINGS_PATH", tmp_path / "settings.json")
     from fleech.history import HistoryStore
     from fleech.ui.pages.profiles import ProfilesPage
-    from fleech.usersettings import UserSettings, profile_color
+    from fleech.profiles import profile_color
+    from fleech.usersettings import UserSettings
 
     settings = UserSettings()
     gemeldet = []

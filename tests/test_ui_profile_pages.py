@@ -17,7 +17,7 @@ def test_punkt_schaltet_reihum_durch_die_profile(qapp):
     import types
 
     from fleech.ui.desktop import DesktopApp
-    from fleech.usersettings import APP_STANDARD
+    from fleech.profiles import APP_STANDARD
 
     gezeigt = []
     fake = types.SimpleNamespace(
@@ -207,7 +207,7 @@ def test_app_profile_resolution_with_default_fallback(qapp):
         settings=types.SimpleNamespace(profiles=profiles),
         _record_app="Code.exe",
     )
-    from fleech.usersettings import ProfileOverrides
+    from fleech.profiles import ProfileOverrides
 
     # Coding hat keinen Modus-Slot und keinen eigenen Safe-Word-Schalter.
     assert DesktopApp._app_profile_overrides(fake) == ProfileOverrides(
@@ -240,7 +240,7 @@ def test_profile_can_disable_spoken_safeword():
     import types
 
     from fleech.ui.desktop import DesktopApp
-    from fleech.usersettings import ProfileOverrides
+    from fleech.profiles import ProfileOverrides
 
     profiles = types.SimpleNamespace(enabled=True, items=[
         {"name": "Standard", "default": True, "intervention": "", "tags": [], "apps": []},
@@ -294,7 +294,7 @@ def test_profil_zuordnung_beachtet_fenstertitel(qapp):
     import types
 
     from fleech.ui.desktop import DesktopApp
-    from fleech.usersettings import ProfileOverrides
+    from fleech.profiles import ProfileOverrides
 
     profiles = types.SimpleNamespace(enabled=True, items=[
         {"name": "Standard", "default": True, "intervention": "", "tags": [], "apps": []},
@@ -321,7 +321,7 @@ def test_profil_zuordnung_ohne_titel_attribut_bleibt_kompatibel(qapp):
     import types
 
     from fleech.ui.desktop import DesktopApp
-    from fleech.usersettings import ProfileOverrides
+    from fleech.profiles import ProfileOverrides
 
     profiles = types.SimpleNamespace(enabled=True, items=[
         {"name": "Coding", "intervention": "minimal", "tags": [], "apps": ["Code.exe"]},

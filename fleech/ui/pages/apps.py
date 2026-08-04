@@ -196,7 +196,7 @@ class AppsPage(QWidget):
         return str(item.data(Qt.UserRole)) if item is not None else ""
 
     def refresh(self) -> None:
-        from ...usersettings import parse_app_rule
+        from ...profiles import parse_app_rule
         from ..windowsfocus import list_visible_window_processes
 
         vorher = self._aktuelle_app()
@@ -264,7 +264,7 @@ class AppsPage(QWidget):
             if not isinstance(profile, dict) or profile.get("default"):
                 continue
             for entry in profile.get("apps", []):
-                from ...usersettings import parse_app_rule
+                from ...profiles import parse_app_rule
 
                 process = parse_app_rule(entry)[0].lower()
                 if not process or process in running or process in stale:
@@ -279,7 +279,7 @@ class AppsPage(QWidget):
         return stale
 
     def _eintrag(self, app: str, zusatz: str) -> None:
-        from ...usersettings import parse_app_rule
+        from ...profiles import parse_app_rule
 
         # Nur die ALLGEMEINE Regel (ohne Titel-Bedingung) anzeigen — sonst stuende
         # links ein Profil, das nur in einem einzigen Fenster gilt, und der Pfeil
@@ -302,7 +302,7 @@ class AppsPage(QWidget):
         self._erhoben.append((app, zusatz, text))
 
     def _refresh_detail(self) -> None:
-        from ...usersettings import parse_app_rule
+        from ...profiles import parse_app_rule
 
         app = self._aktuelle_app()
         self._loading = True
@@ -350,7 +350,7 @@ class AppsPage(QWidget):
         app = self._aktuelle_app()
         if not app:
             return
-        from ...usersettings import parse_app_rule
+        from ...profiles import parse_app_rule
 
         ziel = str(self._profil_combo.currentData() or "")
         # Erst ueberall entfernen (nur die Regel OHNE Titel), dann neu setzen: Eine
@@ -387,7 +387,7 @@ class AppsPage(QWidget):
         zwei Schalter fuer dieselbe Frage, und der eine wuerde den anderen
         stillschweigend uebersteuern.
         """
-        from ...usersettings import quickswitch_profiles
+        from ...profiles import quickswitch_profiles
 
         self._schnell.clear()
         namen = quickswitch_profiles(self._items())
@@ -465,7 +465,7 @@ class AppsPage(QWidget):
         ziel = str(self._regel_profil.currentData() or "")
         if not app or not titel or not ziel:
             return
-        from ...usersettings import format_app_rule, parse_app_rule
+        from ...profiles import format_app_rule, parse_app_rule
 
         # Dieselbe Titel-Bedingung nie zweimal: sonst haengt dieselbe App an zwei
         # Profilen und die Reihenfolge in der Liste entscheidet.

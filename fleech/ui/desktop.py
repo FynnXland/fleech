@@ -26,7 +26,8 @@ from ..hotkey import HotkeyManager, HotkeySpec
 from ..pipeline_factory import build_pipeline
 from ..recording_control import RecordingController
 from ..stt import create_stt
-from ..usersettings import APP_STANDARD, UserSettings
+from ..profiles import APP_STANDARD
+from ..usersettings import UserSettings
 from ..history import DictationRecord, HistoryStore
 from .main_window import MainWindow
 from .notifications import NotificationPolicy, Notifier
@@ -75,8 +76,11 @@ def overrides_from(item: dict):
     Profil-Tests bauen die App als schlankes Fake nach — eine Methode mehr waere
     dort jedes Mal eine Zeile Attrappe.
     """
-    from ..usersettings import (
-        ProfileOverrides, profile_command_mode, profile_mode, profile_sprache,
+    from ..profiles import (
+        ProfileOverrides,
+        profile_command_mode,
+        profile_mode,
+        profile_sprache,
     )
 
     mode = str(item.get("intervention", "")).lower()
@@ -672,8 +676,11 @@ class DesktopApp:
 
         Kein zugewiesenes Profil → Standardprofil ("Alle") als Fallback; Profile
         global aus → leere Overrides = Verhalten wie in den Einstellungen."""
-        from ..usersettings import (
-            ProfileOverrides, app_rule_matches, parse_app_rule, profile_command_mode,
+        from ..profiles import (
+            ProfileOverrides,
+            app_rule_matches,
+            parse_app_rule,
+            profile_command_mode,
             profile_mode,
         )
 
@@ -764,7 +771,7 @@ class DesktopApp:
         will man zwischen „KI-Prompt" und „Stichpunkte" wechseln, nicht durch
         „E-Mail" und „Formeln" hindurchtippen.
         """
-        from ..usersettings import quickswitch_for_app
+        from ..profiles import quickswitch_for_app
 
         return quickswitch_for_app(
             self.settings.profiles.items,
@@ -820,7 +827,7 @@ class DesktopApp:
         Profilwechsel und Einstellungsaenderung, also an Wegen, die mitten im
         Arbeiten laufen."""
         try:
-            from ..usersettings import profile_color
+            from ..profiles import profile_color
 
             aktiv = self.active_profile_name()
             treffer = next(

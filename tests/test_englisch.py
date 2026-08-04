@@ -124,13 +124,13 @@ def test_der_englische_prompt_existiert_und_traegt_die_kernregeln():
     ("", ""), ("xx", ""), (None, ""),
 ])
 def test_profil_sprache_wird_geprueft(wert, erwartet):
-    from fleech.usersettings import profile_sprache
+    from fleech.profiles import profile_sprache
 
     assert profile_sprache({"sprache": wert}) == erwartet
 
 
 def test_profil_ohne_sprache_erbt_die_einstellung():
-    from fleech.usersettings import profile_sprache
+    from fleech.profiles import profile_sprache
 
     assert profile_sprache({}) == ""
 

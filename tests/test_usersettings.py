@@ -134,39 +134,6 @@ def test_prefer_gpu_persists_across_restart(tmp_path):
     assert loaded.advanced.prefer_gpu is False  # ueberlebt "Neustart" (Reload von Disk)
 
 
-# -- App-Regeln mit Fenstertitel (W3-16) ------------------------------------------
-
-def test_app_rule_parsen_und_formatieren():
-    from fleech.usersettings import format_app_rule, parse_app_rule
-
-    assert parse_app_rule("Code.exe") == ("Code.exe", "")
-    assert parse_app_rule("Code.exe :: Fleech") == ("Code.exe", "Fleech")
-    assert parse_app_rule("  Code.exe::Fleech  ") == ("Code.exe", "Fleech")
-    assert parse_app_rule("") == ("", "")
-    assert format_app_rule("Code.exe") == "Code.exe"
-    assert format_app_rule("Code.exe", "Fleech") == "Code.exe :: Fleech"
-    assert format_app_rule("Code.exe", "  ") == "Code.exe"
-
-
-def test_alte_eintraege_verhalten_sich_unveraendert():
-    """Bestehende settings.json ohne '::' duerfen sich nicht anders verhalten."""
-    from fleech.usersettings import app_rule_matches
-
-    assert app_rule_matches("Code.exe", "code.exe", "irgendein Titel")
-    assert app_rule_matches("Code.exe", "Code.exe", "")
-    assert not app_rule_matches("Code.exe", "Discord.exe", "")
-
-
-def test_titel_bedingung_greift_als_teilstring():
-    from fleech.usersettings import app_rule_matches
-
-    rule = "Code.exe :: Fleech"
-    assert app_rule_matches(rule, "Code.exe", "pipeline.py — Fleech — Visual Studio Code")
-    assert app_rule_matches(rule, "Code.exe", "FLEECH gross geschrieben")  # case-insensitiv
-    assert not app_rule_matches(rule, "Code.exe", "andere-app — Visual Studio Code")
-    assert not app_rule_matches(rule, "Code.exe", "")   # kein Titel ermittelbar
-
-
 # -- Mathe-Stufe (v3.0.0: nur noch an/aus, kein Cloud-Umschaltweg) -----------------
 
 def test_math_level_ableitung():

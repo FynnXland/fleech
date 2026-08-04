@@ -17,9 +17,8 @@ from PySide6.QtWidgets import (
 )
 
 from ...history import HistoryStore
-from ...usersettings import (
-    PROFIL_FARBEN, PROFILE_FORMATS, UserSettings, profile_color,
-)
+from ...profiles import PROFILE_FORMATS, PROFIL_FARBEN, profile_color
+from ...usersettings import UserSettings
 from ..dialogs import PromptDialog
 from ..theme import (
     ACCENT, BORDER_HAIRLINE, CARD, MUTED, NAV_ACTIVE_BG, ROW_HOVER, SIDEBAR, TEXT,
@@ -51,7 +50,7 @@ class ProfilesPage(QWidget):
         self.store = store
         self._on_changed = on_changed or (lambda section: None)
         self._loading = False
-        from ...usersettings import ensure_default_profile
+        from ...profiles import ensure_default_profile
 
         ensure_default_profile(self.settings.profiles.items)
 
@@ -383,7 +382,7 @@ class ProfilesPage(QWidget):
     # -- Aufbau/Refresh ------------------------------------------------------------------
 
     def refresh(self) -> None:
-        from ...usersettings import ensure_default_profile
+        from ...profiles import ensure_default_profile
 
         ensure_default_profile(self._items())
         self._refresh_profiles(keep_row=True)
@@ -413,7 +412,7 @@ class ProfilesPage(QWidget):
         return QIcon(pm)
 
     def _refresh_profiles(self, keep_row: bool = False) -> None:
-        from ...usersettings import profile_in_quickswitch, profile_mode
+        from ...profiles import profile_in_quickswitch, profile_mode
 
         previous = self._current_index() if keep_row else 0
         suche = self._profil_suche.text()
@@ -462,9 +461,9 @@ class ProfilesPage(QWidget):
         self._detail_title.setEnabled(True)
         self._detail_title.setText(profile.get("name", "Profil"))
         self._refresh_farb_reihe(profile)
-        from ...usersettings import profile_mode
+        from ...profiles import profile_mode
 
-        from ...usersettings import profile_command_mode
+        from ...profiles import profile_command_mode
 
         self._profile_command_combo.setCurrentIndex(
             ["", "on", "off"].index(profile_command_mode(profile))
@@ -475,7 +474,7 @@ class ProfilesPage(QWidget):
         self._intervention_combo.setCurrentIndex(
             values.index(current) if current in values else 0
         )
-        from ...usersettings import profile_mode
+        from ...profiles import profile_mode
 
         formate = [v for v, _l in PROFILE_FORMATS]
         fmt = profile_mode(profile)
@@ -483,7 +482,7 @@ class ProfilesPage(QWidget):
             formate.index(fmt) if fmt in formate else 0
         )
         self._aktualisiere_prompt_knopf(fmt)
-        from ...usersettings import profile_in_quickswitch
+        from ...profiles import profile_in_quickswitch
 
         self._quick_cb.setChecked(profile_in_quickswitch(profile))
         self._loading = False
@@ -548,7 +547,7 @@ class ProfilesPage(QWidget):
             "Prompt bearbeiten  ·  eigene Fassung" if eigen else "Prompt ansehen …")
 
     def _prompt_bearbeiten(self) -> None:
-        from ...usersettings import profile_mode
+        from ...profiles import profile_mode
 
         profile = self._current_profile()
         if profile is None:
