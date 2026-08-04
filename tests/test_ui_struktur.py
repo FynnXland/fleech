@@ -185,14 +185,21 @@ def test_keine_funktion_waechst_ins_unermessliche():
     assert not zu_lang, "Zu lange Funktionen:\n  " + "\n  ".join(zu_lang)
 
 
-def test_die_einstellungsseiten_sind_je_eine_methode():
+def test_die_einstellungsseiten_sind_je_ein_modul():
+    """Eine Seite, ein Modul in `ui/settings/` — und jedes bietet `build(panel)`.
+
+    Bis 5.6.0 war je Seite eine Methode in settings_window.py; die Datei kam damit
+    auf 1379 Zeilen. Der Test prueft weiter dasselbe: dass keine Seite ohne eigenen
+    Ort dazukommt und die Navigation nicht mehr Eintraege hat als es Seiten gibt."""
+    from fleech.ui import settings as seiten
     from fleech.ui.settings_window import SettingsPanel
 
-    methoden = {m for m in dir(SettingsPanel) if m.startswith("_page_")}
-    assert len(methoden) == len(SettingsPanel.PAGES), (
-        f"{len(SettingsPanel.PAGES)} Seiten, aber {len(methoden)} _page_*-Methoden: "
-        f"{sorted(methoden)}"
+    assert len(seiten.SEITEN) == len(SettingsPanel.PAGES), (
+        f"{len(SettingsPanel.PAGES)} Eintraege in der Navigation, aber "
+        f"{len(seiten.SEITEN)} Seitenmodule"
     )
+    ohne_build = [m.__name__ for m in seiten.SEITEN if not callable(getattr(m, "build", None))]
+    assert not ohne_build, f"Seitenmodule ohne build(panel): {ohne_build}"
 
 
 def test_alle_neun_seiten_werden_wirklich_gebaut(qapp, tmp_path, monkeypatch):
