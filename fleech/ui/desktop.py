@@ -10,11 +10,9 @@ Alle UI-Updates laufen ueber StateBus-Signale (Queued Connections, thread-sicher
 from __future__ import annotations
 
 import logging
-import os
 import sys
 import threading
 import time
-from pathlib import Path
 
 from PySide6.QtCore import QTimer
 from PySide6.QtWidgets import QApplication
@@ -23,10 +21,8 @@ from ..app import DictationApp
 from ..audio import Recorder
 from ..config import load_config
 from ..hotkey import HotkeyManager, HotkeySpec
-from ..pipeline_factory import build_pipeline
 from ..recording_control import RecordingController
 from ..stt import create_stt
-from ..profiles import APP_STANDARD
 from ..usersettings import UserSettings
 from ..history import DictationRecord, HistoryStore
 from .main_window import MainWindow
@@ -36,14 +32,13 @@ from .sounds import SoundPlayer
 from .state import AppState, StateBus
 from .settings_window import SettingsPanel
 from .tray import TrayController
+from .desktopapp import (
+    FreihandMixin, LebenszyklusMixin, LizenzUpdateMixin, ModelleMixin,
+    NachbereitungMixin, ProfilMixin,
+)
 from .windowsfocus import FocusProbe
 
 log = logging.getLogger(__name__)
-
-# Ab dieser Haltedauer gilt der Profil-Hotkey als „gehalten" und oeffnet die
-# Auswahlliste. 350 ms: lang genug, dass ein zuegiger Tipp nie versehentlich die
-# Liste oeffnet, kurz genug, dass Halten sich nicht wie Warten anfuehlt.
-_PROFIL_HALTEN_MS = 350
 
 
 def list_input_devices() -> list[str]:
@@ -69,33 +64,16 @@ def list_input_devices() -> list[str]:
         return []
 
 
-def overrides_from(item: dict):
-    """Profil-Eintrag → ProfileOverrides.
+class DesktopApp(
+    ProfilMixin, FreihandMixin, ModelleMixin, NachbereitungMixin, LizenzUpdateMixin,
+    LebenszyklusMixin,
+):
+    """Verdrahtung der App: Aufbau, Aufnahme-Lebenszyklus, Hotkeys, Fenster.
 
-    Modul-Funktion statt Methode: die Umwandlung braucht kein App-Objekt, und die
-    Profil-Tests bauen die App als schlankes Fake nach — eine Methode mehr waere
-    dort jedes Mal eine Zeile Attrappe.
+    Die Teilgebiete liegen in `ui/desktopapp/` — dort steht auch, warum sie als
+    Mixins und nicht als eigene Controller-Objekte angebunden sind.
     """
-    from ..profiles import (
-        ProfileOverrides,
-        profile_command_mode,
-        profile_mode,
-        profile_sprache,
-    )
 
-    mode = str(item.get("intervention", "")).lower()
-    tags = [str(t).strip() for t in item.get("tags", []) if str(t).strip()]
-    return ProfileOverrides(
-        intervention=mode if mode in ("minimal", "standard", "strong") else None,
-        style_hints=tags or None,
-        mode_slot=profile_mode(item),
-        command=profile_command_mode(item),
-        auto_send=bool(item.get("auto_send", False)),
-        sprache=profile_sprache(item),
-    )
-
-
-class DesktopApp:
     def __init__(self):
         self.settings = UserSettings.load()
         self.config = load_config()
@@ -288,153 +266,21 @@ class DesktopApp:
 
     # ------------------------------------------------------------------- Engine --
 
-    def _build_engine(self) -> None:
-        cfg = self.config
-        s = self.settings
-        self.recorder = Recorder(cfg.audio.samplerate, cfg.audio.device)
-        # status: laengere Zwischenschritte gehen ueber den Bus an die Pille
-        # (thread-sicher via Queued Connection — der Aufruf kommt aus dem Worker).
-        self.pipeline = build_pipeline(cfg, s, status=self.bus.progress.emit)
-        # Rohtranskript direkt in die Pille — der Weg ueber den Bus ist Pflicht,
-        # die Pipeline laeuft im Worker-Thread.
-        self.pipeline.raw_callback = self.bus.raw_ready.emit
-        # Cursor-Rueckkehr: Restorer in den Injector einhaengen (plattformabhaengig,
-        # damit injection.py portabel bleibt). Das Ziel-Feld wird pro Aufnahme gesetzt.
-        from .focusrestore import restore_focus_target
-
-        self.pipeline.injector.focus_restorer = restore_focus_target
-        self.focus = DictationApp._build_focus_controller(cfg)
         # Kein Preview-Streamer mehr: die Overlay-Pille zeigt den Audiopegel statt
         # Live-Text (Nutzer-Entscheid) — spart das separate Whisper-Preview-Modell
         # (~0,5 GB VRAM + Warmup). Streaming-Vorschau gibt es weiter im --cli-Modus.
 
-    def _warm_up(self) -> None:
-        import numpy as np
-
-        try:
-            self.pipeline.stt.transcribe(np.zeros(8000, dtype=np.float32), 16000)
-            log.info("STT warm. %s", self.focus.status_line())
-        except Exception:
-            log.exception("STT-Warm-up fehlgeschlagen.")
 
     # -- Live-Vorschau (Opt-in) ---------------------------------------------------------
 
-    def _ensure_preview_model(self):
-        from ..overlay import PreviewModel
-
-        if self._preview_model is None:
-            self._preview_model = PreviewModel(
-                model_size="small", language=self.settings.general.language,
-                samplerate=self.config.audio.samplerate,
-            )
-        try:
-            self._preview_model.load()
-        except Exception:
-            log.exception("Preview-Modell konnte nicht geladen werden.")
-        return self._preview_model
 
     _preview_gen = 0  # Generationszaehler gegen Start/Stop-Races (Load dauert Sekunden)
 
-    def _start_preview_async(self) -> None:
-        self._preview_gen += 1
-        gen = self._preview_gen
 
-        def worker():
-            from ..overlay import PreviewStreamer
 
-            model = self._ensure_preview_model()
-            if self._preview is None:
-                self._preview = PreviewStreamer(
-                    snapshot_fn=self._laufendes_audio,
-                    transcribe_fn=model.transcribe_segments,
-                    on_text=self.bus.preview_text.emit,  # Signal = thread-sicher zur UI
-                    samplerate=self.config.audio.samplerate,
-                )
-            # Aufnahme koennte waehrend des Modell-Ladens schon beendet worden sein.
-            if gen == self._preview_gen and self.bus.state is AppState.LISTENING:
-                self._preview.start()
 
-        threading.Thread(target=worker, daemon=True).start()
 
-    def _stop_preview(self) -> None:
-        self._preview_gen += 1  # entwertet einen evtl. noch laufenden Start-Worker
-        if self._preview is not None:
-            self._preview.stop()
 
-    def _count_dictionary_usage(self, text: str) -> None:
-        """Zaehlt, welche Woerterbuch-Begriffe tatsaechlich im eingefuegten Text
-        vorkamen. Daraus entscheidet sich, welche Begriffe ueber dem 60er-Limit
-        ins Whisper-Priming kommen — die genutzten statt der zufaellig obersten."""
-        from ..dictionary import find_terms_in_text
-
-        try:
-            hits = find_terms_in_text(text, self.pipeline.vocab_terms)
-        except Exception:
-            log.debug("Woerterbuch-Nutzungszaehlung fehlgeschlagen.", exc_info=True)
-            return
-        if not hits:
-            return
-        usage = self.settings.output.dictionary_usage
-        for term in hits:
-            key = term.lower()
-            usage[key] = int(usage.get(key, 0)) + 1
-        self.settings.save()
-
-    def _check_dictionary_candidates(self, text: str) -> None:
-        """Wahrscheinliche Fehlschreibung eines Woerterbuch-Begriffs erkannt →
-        Rueckfrage ausloesen (selbstlernendes Woerterbuch). Nur der erste Treffer
-        pro Diktat, abgelehnte Paare werden nie erneut gefragt."""
-        import re as _re
-
-        from ..dictionary import find_dictionary_candidates
-
-        try:
-            candidates = find_dictionary_candidates(
-                text, self.pipeline.vocab_terms,
-                self.settings.output.dictionary_ignores,
-            )
-        except Exception:
-            log.debug("Woerterbuch-Kandidaten-Suche fehlgeschlagen.", exc_info=True)
-            return
-        if not candidates:
-            return
-        recognized, meant = candidates[0]
-        sentence = next(
-            (s.strip() for s in _re.split(r"(?<=[.!?])\s+", text)
-             if recognized in s),
-            text[:160],
-        )
-        self.bus.dictionary_suggestion.emit(recognized, meant, sentence)
-
-    def _on_dictionary_suggestion(self, recognized: str, meant: str, sentence: str) -> None:
-        from .main_window import DictionarySuggestionDialog
-
-        def learn(rec: str, target: str) -> None:
-            self.settings.output.dictionary.append(f"{rec} => {target}")
-            self.settings.save()
-            self.pipeline.set_dictionary(self.settings.output.dictionary,
-                                         self.settings.output.dictionary_usage)
-            self.tray.notify("Fleech", f"Gelernt: „{rec}“ → „{target}“.")
-
-        def ignore(rec: str, target: str) -> None:
-            self.settings.output.dictionary_ignores.append(
-                f"{rec.lower()} => {target.lower()}"
-            )
-            self.settings.save()
-
-        self._dict_dialog = DictionarySuggestionDialog(
-            recognized, meant, sentence, learn, ignore
-        )
-        self._dict_dialog.show()
-        self._dict_dialog.raise_()
-
-    def _on_preview_text(self, text: str) -> None:
-        """Live-Vorschau anzeigen + Signalwort-Erkennung: faellt das Safe-Word,
-        faerbt sich die Pille (sichtbares "Befehl erkannt")."""
-        self.overlay.show_live_text(text)
-        trigger = (self.pipeline.trigger_word or "").lower()
-        if trigger and trigger in (text or "").lower():
-            self.overlay.set_command_armed(True)
 
     # Smart-Modus: solange nach dem letzten Diktat aktiv warmhalten. Laeuft das
     # (einstellbare) Idle-Fenster ab ODER laeuft ein Spiel (Gaming-Erkennung), werden
@@ -442,130 +288,14 @@ class DesktopApp:
     # nachlaufen zu lassen. Beim Zocken zaehlt jedes GB: Ollama haelt sonst ~9 GB im
     # Speicher, obwohl waehrenddessen nicht diktiert wird.
 
-    def show_onboarding(self) -> None:
-        """Einfuehrungs-Wizard zeigen (Erststart oder aus den Einstellungen).
 
-        Nicht-modal mit gehaltener Referenz: exec() wuerde den Event-Loop
-        verschachteln, waehrend Hotkeys/Poll weiterlaufen — unnoetiges Risiko."""
-        from .onboarding import OnboardingDialog
 
-        existing = getattr(self, "_onboarding", None)
-        if existing is not None and existing.isVisible():
-            existing.raise_()
-            existing.activateWindow()
-            return
-        endpoints = self._llm_endpoints()
-        self._onboarding = OnboardingDialog(
-            self.settings, list_input_devices, on_changed=self._on_setting_changed,
-            endpoints=endpoints, stt_model=getattr(self.config.stt, "model_size", ""),
-            llm_base_url=getattr(endpoints[0], "base_url", "") if endpoints else "",
-            on_ready=self._warm_up_after_setup,
-        )
-        self._onboarding.show()
-        self._onboarding.raise_()
-        self._onboarding.activateWindow()
 
-    def _warm_up_after_setup(self) -> None:
-        """Nach erfolgreicher Kaltstart-Einrichtung sofort aufwaermen.
 
-        Beim allerersten Start lief der Warm-up ins Leere (Modelle fehlten noch).
-        Ohne diesen Nachzieher waere das erste Diktat trotz fertiger Einrichtung
-        das langsamste — Whisper und Ollama laden erst beim Zugriff."""
-        threading.Thread(target=self._warm_up, daemon=True).start()
-        self._keep_warm_tick()
 
-    def _recheck_input_device(self) -> None:
-        """Loopback-Pruefung nach einem Geraetewechsel erneuern.
 
-        Der DeviceCheck wurde bisher NUR einmal beim App-Start gemacht: Wer im
-        laufenden Betrieb auf „Stereomix" umstellte, bekam weder Warnung noch die
-        Formel-Sperre — der Controller trug bis zum Neustart das Urteil ueber das
-        ALTE Geraet. Umgekehrt blieb eine einmal gezeigte Warnung stehen, obwohl
-        laengst ein echtes Mikrofon gewaehlt war."""
-        from ..audiofocus import DeviceCheck, DeviceGuard
 
-        device = self.settings.recording.microphone
-        blocklist = self.settings.recording.blocked_devices
-        try:
-            check = DeviceGuard.check(device, blocklist)
-        except Exception as exc:
-            check = DeviceCheck(ok=True, name=f"<unbekannt: {exc}>")
-        self.controller.device_check = check
-        self.config.audio_focus.blocked_devices = list(blocklist or [])
-        if check.ok:
-            log.info("Aufnahmegeraet geprueft: %s — in Ordnung.", check.name)
-            return
-        log.error("⚠ Aufnahmegeraet '%s': %s", check.name, check.reason)
-        self.tray.notify("Fleech — Aufnahmegerät", f"„{check.name}“: {check.reason}")
 
-    def _idle_unload_window_s(self) -> float:
-        return max(0, int(self.settings.advanced.llm_idle_unload_minutes)) * 60
-
-    def _keep_warm_tick(self) -> None:
-        mode = self.settings.advanced.llm_keep_warm
-        if mode == "off":
-            return
-        gaming = False
-        try:
-            gaming = self.notifier.policy.gaming_active(self.notifier.context)
-        except Exception:
-            log.debug("Gaming-Check fuer Keep-Warm fehlgeschlagen.", exc_info=True)
-        idle = time.monotonic() - self._last_dictation > self._idle_unload_window_s()
-        if mode == "smart" and (gaming or idle):
-            self._unload_llms_async("Spiel erkannt" if gaming else "Leerlauf")
-            return
-        threading.Thread(target=self._keep_llm_warm, daemon=True).start()
-
-    def _llm_endpoints(self) -> list:
-        models = {self.config.llm_cleanup.model: self.config.llm_cleanup}
-        models.setdefault(self.config.llm_command.model, self.config.llm_command)
-        if self.settings.advanced.adaptive_cleanup:
-            models.setdefault(
-                self.config.llm_cleanup_fast.model, self.config.llm_cleanup_fast
-            )
-        return list(models.values())
-
-    def _keep_llm_warm(self) -> None:
-        from ..llm.client import ensure_ollama_models, ollama_preload
-
-        try:
-            # Fehlt das Sprachmodell (frische Installation, Modell umkonfiguriert),
-            # holt Fleech es selbst — sonst scheitert das erste Diktat mit einer
-            # Fehlermeldung, die nur weiterhilft, wenn man Ollama kennt.
-            endpoints = self._llm_endpoints()
-            ensure_ollama_models(endpoints, on_progress=self._report_model_download)
-            for endpoint in endpoints:
-                ollama_preload(endpoint)
-            self._llms_unloaded = False  # wieder warm → naechstes Entladen erlaubt
-        except Exception:
-            log.debug("Keep-Warm fehlgeschlagen.", exc_info=True)
-
-    def _report_model_download(self, text: str) -> None:
-        """Download-Fortschritt sichtbar machen — mehrere GB duerfen nicht wie eine
-        eingefrorene App aussehen. Laeuft im Worker-Thread → nur ueber den StateBus."""
-        try:
-            self.bus.progress.emit(text)
-        except Exception:
-            log.debug("Fortschrittsmeldung fehlgeschlagen.", exc_info=True)
-
-    def _unload_llms_async(self, reason: str) -> None:
-        """Alle lokalen Ollama-Modelle SOFORT entladen (RAM/VRAM frei) — idempotent:
-        nach einem Entladen passiert bis zum naechsten Aufwaermen nichts mehr (kein
-        Request-Spam alle 4 min gegen ein ohnehin leeres Ollama)."""
-        if getattr(self, "_llms_unloaded", False):
-            return
-        self._llms_unloaded = True
-        from ..llm.client import ollama_unload
-
-        def work():
-            try:
-                log.info("LLM-Modelle entladen (%s) — RAM/VRAM wird freigegeben.", reason)
-                for endpoint in self._llm_endpoints():
-                    ollama_unload(endpoint)
-            except Exception:
-                log.debug("LLM-Entladen fehlgeschlagen.", exc_info=True)
-
-        threading.Thread(target=work, daemon=True).start()
 
     # ------------------------------------------------------------------ Aufnahme --
 
@@ -671,216 +401,21 @@ class DesktopApp:
         self.bus.set_state(AppState.IDLE, "verworfen")
         log.info("Aufnahme verworfen (%s).", kind)
 
-    def _app_profile_overrides(self):
-        """App-Profil der Ziel-App aufloesen → ProfileOverrides.
-
-        Kein zugewiesenes Profil → Standardprofil ("Alle") als Fallback; Profile
-        global aus → leere Overrides = Verhalten wie in den Einstellungen."""
-        from ..profiles import (
-            ProfileOverrides,
-            app_rule_matches,
-            parse_app_rule,
-            profile_command_mode,
-            profile_mode,
-        )
-
-        prof = self.settings.profiles
-        if not prof.enabled:
-            return ProfileOverrides()
-        # Von Hand gewaehltes Profil (Punkt in der Pille) sticht die App-Zuordnung.
-        # Ob dieses Diktat eine Mail wird, weiss nur der Sprecher — keine Regel
-        # ueber Prozessnamen kann das wissen.
-        gewaehlt = getattr(self.settings.profiles, "active", "")
-        if gewaehlt:
-            for item in prof.items or []:
-                if isinstance(item, dict) and item.get("name") == gewaehlt:
-                    return overrides_from(item)
-            log.info("Gewaehltes Profil %r gibt es nicht mehr — zurueck auf automatisch.",
-                     gewaehlt)
-            self._set_profile("")
-        app = getattr(self, "_record_app", "") or ""
-        title = getattr(self, "_record_title", "") or ""
-
-        # Zwei Durchlaeufe nach Spezifitaet: Eintraege MIT Titel-Bedingung gewinnen
-        # immer gegen den blossen Prozessnamen. Sonst haenge die Zuordnung an der
-        # Reihenfolge der Profile — „Code.exe" in einem Profil wuerde
-        # „Code.exe :: Fleech" in einem anderen je nach Listenposition verdecken,
-        # und der Nutzer haette keine Handhabe, das zu steuern.
-        chosen = None
-        default_item = None
-        candidates = []
-        for item in prof.items or []:
-            if not isinstance(item, dict):
-                continue
-            if item.get("default"):
-                default_item = item
-                continue
-            candidates.append(item)
-
-        for want_title in (True, False):
-            for item in candidates:
-                for entry in item.get("apps", []):
-                    if bool(parse_app_rule(entry)[1]) != want_title:
-                        continue
-                    if app and app_rule_matches(entry, app, title):
-                        chosen = item
-                        break
-                if chosen is not None:
-                    break
-            if chosen is not None:
-                break
-
-        if chosen is None:
-            chosen = default_item
-        if chosen is None:
-            return ProfileOverrides()
-        return overrides_from(chosen)
 
     # -- Profil-Umschaltung (Punkt in der Pille) --------------------------------------
 
-    def current_app(self) -> str:
-        """Prozessname der App, in die gerade diktiert wird bzw. wuerde.
 
-        Waehrend einer Aufnahme der beim Start festgehaltene Wert — sonst waere die
-        Auswahlliste eine andere als die, fuer die das Diktat gilt (der Fokus kann
-        zwischendurch wandern). Sonst der laufende Fokus-Poll.
-        """
-        if getattr(self, "recorder", None) is not None and self.recorder.recording:
-            gemerkt = getattr(self, "_record_app", "")
-            if gemerkt:
-                return gemerkt
-        # Ausserhalb der Aufnahme: frisch abfragen. Der 3-s-Poll haette hier
-        # dieselbe Verzoegerung wie oben — die Auswahlliste zeigte dann die
-        # Profile der App, aus der man gerade gekommen ist.
-        from .windowsfocus import foreground_now
 
-        prozess = foreground_now()[0]
-        if prozess:
-            return prozess
-        try:
-            return self.notifier.context.foreground_process or ""
-        except Exception:
-            return ""
 
-    def profile_names(self) -> list:
-        """Profile fuer den Schnellwechsel (Punkt, Hotkey, Liste).
 
-        Nicht alle Profile: Wer viele pflegt, schaltet im Alltag nur zwischen
-        zweien um — der Rest laesst sich auf der Profilseite global ausblenden,
-        und auf der Apps-Seite je Anwendung noch einmal enger fassen. In Claude
-        will man zwischen „KI-Prompt" und „Stichpunkte" wechseln, nicht durch
-        „E-Mail" und „Formeln" hindurchtippen.
-        """
-        from ..profiles import quickswitch_for_app
 
-        return quickswitch_for_app(
-            self.settings.profiles.items,
-            getattr(self.settings.profiles, "app_quick", {}) or {},
-            self.current_app(),
-        )
-
-    def active_profile_name(self) -> str:
-        """Profil, das fuer das naechste Diktat gilt — gewaehlt oder automatisch."""
-        gewaehlt = getattr(self.settings.profiles, "active", "")
-        if gewaehlt:
-            return gewaehlt
-        for item in self.settings.profiles.items or []:
-            if isinstance(item, dict) and item.get("default"):
-                return str(item.get("name", "Standard"))
-        return "Standard"
-
-    def cycle_profile(self) -> None:
-        """Naechstes Profil waehlen; hinter dem letzten wieder „App-Standard".
-
-        Die Wahl bleibt bestehen, bis sie geaendert wird — auch ueber Diktate
-        hinweg. Waehrend einer laufenden Aufnahme gilt sie fuer GENAU dieses
-        Diktat (die Aufloesung passiert erst beim Verarbeiten).
-        """
-        namen = self.profile_names()
-        if not namen:
-            return
-        stationen = namen + [""]        # "" = automatisch (App-Zuordnung)
-        jetzt = getattr(self.settings.profiles, "active", "")
-        try:
-            naechste = stationen[(stationen.index(jetzt) + 1) % len(stationen)]
-        except ValueError:
-            naechste = stationen[0]
-        self._set_profile(naechste)
-
-    def _set_profile(self, name: str) -> None:
-        """Profil festlegen, merken und kurz anzeigen. "" = automatisch nach App."""
-        self.settings.profiles.active = name
-        self.settings.save()
-        anzeige = name or f"{APP_STANDARD} ({self.active_profile_name()})"
-        log.info("Profil gewaehlt: %s", anzeige)
-        try:
-            self.overlay.show_profile(anzeige)
-        except Exception:
-            log.debug("Profil-Anzeige fehlgeschlagen.", exc_info=True)
-        self._melde_profilfarbe()
-
-    def _melde_profilfarbe(self) -> None:
-        """Farbe des aktiven Profils an den Punkt der Pille geben.
-
-        Defensiv gekapselt: Der Punkt ist reine Anzeige. Ginge hier etwas schief,
-        duerfte das niemals das Diktieren aufhalten — der Aufruf haengt an
-        Profilwechsel und Einstellungsaenderung, also an Wegen, die mitten im
-        Arbeiten laufen."""
-        try:
-            from ..profiles import profile_color
-
-            aktiv = self.active_profile_name()
-            treffer = next(
-                (i for i in (self.settings.profiles.items or [])
-                 if isinstance(i, dict) and str(i.get("name", "")) == aktiv),
-                None,
-            )
-            # Profile global aus = kein bunter Ring: Er wuerde etwas anzeigen,
-            # das gerade gar nicht greift.
-            farbe = (profile_color(treffer)
-                     if treffer is not None and self.settings.profiles.enabled else "")
-            self.overlay.set_profile_color(farbe)
-        except Exception:
-            log.debug("Profilfarbe konnte nicht gesetzt werden.", exc_info=True)
 
     # -- Profil-Hotkey: tippen = weiterschalten, halten = Auswahlliste --------------
 
-    def _on_profile_key(self, gedrueckt: bool) -> None:
-        """UI-Thread: Profil-Taste gedrueckt (True) bzw. losgelassen (False)."""
-        if gedrueckt:
-            self._on_profile_key_down()
-        else:
-            self._on_profile_key_up()
 
-    def _on_profile_key_down(self) -> None:
-        """Taste gedrueckt: Timer starten. Ob Tippen oder Halten, entscheidet sich
-        erst beim Loslassen — deshalb passiert hier bewusst noch nichts."""
-        self._profile_key_held = True
-        QTimer.singleShot(_PROFIL_HALTEN_MS, self._maybe_open_profile_picker)
 
-    def _maybe_open_profile_picker(self) -> None:
-        if not getattr(self, "_profile_key_held", False):
-            return                      # war ein Tipp — schon losgelassen
-        self._profile_picker_open = True
-        self.show_profile_picker()
 
-    def _on_profile_key_up(self) -> None:
-        war_gehalten = getattr(self, "_profile_picker_open", False)
-        self._profile_key_held = False
-        self._profile_picker_open = False
-        if not war_gehalten:
-            self.cycle_profile()        # kurzer Tipp → naechstes Profil
 
-    def show_profile_picker(self) -> None:
-        """Auswahlliste am Mauszeiger (Hotkey halten)."""
-        from .profilepicker import ProfilePicker
-
-        picker = getattr(self, "_profile_picker", None)
-        if picker is None:
-            picker = self._profile_picker = ProfilePicker()
-            picker.chosen.connect(self._set_profile)
-        picker.show_at_cursor(self.profile_names(),
-                              getattr(self.settings.profiles, "active", ""))
 
     def _process(self, audio, force_command: bool = False,
                  prompt_oneshot: bool = False) -> None:
@@ -1065,113 +600,11 @@ class DesktopApp:
     # gearbeitet hat, will nicht, dass ein Tastendruck irgendwo im Text herumloescht.
     _UNDO_MAX_AGE_S = 120
 
-    def _undo_last_output(self) -> None:
-        """Die letzte Ausgabe durch das ROH-Transkript ersetzen.
 
-        Kein allgemeines "Rueckgaengig", sondern gezielt der Weg fuer den Fall, dass
-        die Bereinigung danebengriff: Es kommt Wort fuer Wort das zurueck, was
-        gesprochen wurde. Loeschen kann der Nutzer danach mit dem Undo seiner App.
-
-        Drei harte Bedingungen, alle aus einem echten Datenverlust gelernt (ein Befehl
-        loeschte einmal 2701 Zeichen ersatzlos): Es muss eine eigene, frische Ausgabe
-        geben, der Cursor muss noch dahinter stehen (`resolve_scope` liefert bei
-        gewechseltem Fenster None), und jede Ausgabe laesst sich nur EINMAL ersetzen.
-        """
-        kandidat = getattr(self, "_undo_candidate", None)
-        if not kandidat:
-            self._flash_status("Nichts zum Zurücknehmen")
-            return
-        injected, raw, ts = kandidat
-        if time.monotonic() - ts > self._UNDO_MAX_AGE_S:
-            self._undo_candidate = None
-            self._flash_status("Letzte Ausgabe ist zu lange her")
-            return
-        raw = (raw or "").strip()
-        if not raw or raw == injected:
-            self._flash_status("Rohtext ist identisch")
-            return
-        # Steht der Cursor noch hinter unserem Text? Nach Fensterwechsel oder eigenem
-        # Tippen ist die Position unbekannt — dann wird NICHT geloescht.
-        if self.pipeline.tracker.resolve_scope("dictated") is None:
-            self._undo_candidate = None
-            self._flash_status("Cursor nicht mehr an der Stelle")
-            return
-
-        if self._process_lock.locked():
-            # Ein Diktat wird gerade eingefuegt — dazwischenzufunken hiesse, an einer
-            # Stelle zu loeschen, die sich im selben Moment verschiebt.
-            self._flash_status("Verarbeitung läuft — bitte kurz warten")
-            return
-
-        self._undo_candidate = None          # nur ein Versuch je Ausgabe
-        try:
-            with self._process_lock:         # nie parallel zu einem laufenden Diktat
-                self.pipeline.injector.replace_tail(len(injected), raw)
-                self.pipeline.tracker.record_replace(len(injected), raw)
-        except Exception:
-            log.exception("Rueckgaengig fehlgeschlagen.")
-            self._flash_status("Zurücknehmen fehlgeschlagen — Log prüfen")
-            return
-        log.info("Letzte Ausgabe durch Rohtext ersetzt (%d → %d Zeichen).",
-                 len(injected), len(raw))
-        self.notifier.sound("commit")
-        self._flash_status("Rohtext eingesetzt")
-
-    def _auto_send(self) -> None:
-        """Enter nachschicken (Profil-Einstellung „Nachricht absenden").
-
-        Fehler hier duerfen das Diktat nie nachtraeglich zum Fehlschlag machen —
-        der Text steht bereits im Feld, nur das Absenden hat nicht geklappt.
-        """
-        try:
-            self.pipeline.injector.send_enter()
-            log.info("Automatisch abgeschickt (Profil-Einstellung).")
-        except Exception:
-            log.exception("Automatisches Absenden fehlgeschlagen — Text steht im Feld.")
-            self._flash_status("Absenden fehlgeschlagen")
 
     # -- Nachbearbeitung aus dem Verlauf (F3) ------------------------------------------
 
-    def _reprocess_entry(self, roh: str, fmt: str, name: str) -> None:
-        """Ein gespeichertes Diktat neu bereinigen lassen. Laeuft im Worker-Thread.
 
-        Das Ergebnis geht in die ZWISCHENABLAGE. Wer im Verlauf rechtsklickt, steht
-        im Fleech-Fenster — das urspruengliche Zielfeld ist laengst nicht mehr
-        fokussiert. Blind dorthin zu schreiben ist genau die Fehlerklasse, aus der
-        die Cursor-Regeln stammen (einmal 2701 Zeichen fremder Text geloescht).
-        """
-        if self._process_lock.locked():
-            self._flash_status("Ein Diktat läuft noch")
-            return
-
-        def arbeit():
-            with self._process_lock:
-                self.bus.progress.emit(f"Neu bereinigen als {name} …")
-                try:
-                    text = self.pipeline.reprocess(roh, fmt)
-                except Exception:
-                    log.exception("Nachbearbeitung fehlgeschlagen.")
-                    text = ""
-                self.bus.reprocessed.emit(text, name)
-
-        threading.Thread(target=arbeit, daemon=True).start()
-
-    def _on_reprocessed(self, text: str, name: str) -> None:
-        """UI-Thread: Ergebnis in die Zwischenablage und Rueckmeldung geben."""
-        if not text:
-            self._flash_status(f"{name} fehlgeschlagen — Text unverändert")
-            return
-        try:
-            from PySide6.QtWidgets import QApplication
-
-            QApplication.clipboard().setText(text)
-        except Exception:
-            log.exception("Zwischenablage nicht beschreibbar.")
-            self._flash_status("Zwischenablage nicht erreichbar")
-            return
-        log.info("Neu bereinigt als %s (%d Zeichen) — in der Zwischenablage.",
-                 name, len(text))
-        self._flash_status(f"{name} kopiert — Strg+V zum Einfügen")
 
     def _flash_status(self, text: str) -> None:
         """Kurze Rueckmeldung ueber die Pille — thread-sicher ueber den StateBus."""
@@ -1287,14 +720,6 @@ class DesktopApp:
         # Overlay-Tooltip (Bedienmodus/Fokus/Mathe/Eingriff) aktuell halten.
         self._update_mode_line()
 
-    def _warm_up_stt(self) -> None:
-        import numpy as np
-
-        try:
-            self.pipeline.stt.transcribe(np.zeros(8000, dtype=np.float32), 16000)
-            log.info("STT neu geladen (device=%s) und warm.", self.config.stt.device)
-        except Exception:
-            log.exception("STT-Neuladen fehlgeschlagen.")
 
     def _apply_trigger_word(self) -> None:
         """Safe-Word live umstecken: Routing + Command-Prompt (⟨TRIGGER⟩) neu setzen.
@@ -1346,27 +771,7 @@ class DesktopApp:
         self.overlay.apply_preset(preset)
         self.settings.save()
 
-    def _open_settings(self) -> None:
-        self.window.open_page("settings")
 
-    def _clear_history(self) -> None:
-        """Verlauf loeschen NUR nach getippter Bestaetigung („Delete") — ein
-        versehentlicher Button-Klick darf die Historie nie unwiderruflich leeren."""
-        from PySide6.QtWidgets import QInputDialog, QLineEdit
-
-        text, ok = QInputDialog.getText(
-            self.window, "Verlauf löschen",
-            "Das löscht ALLE aufgezeichneten Diktate unwiderruflich.\n"
-            "Zur Bestätigung „Delete“ eintippen:",
-            QLineEdit.Normal, "",
-        )
-        if not ok or text.strip().lower() != "delete":
-            if ok:  # bestaetigt, aber falsch getippt → kurz erklaeren statt still nichts
-                self.tray.notify("Fleech", "Nicht gelöscht — Bestätigung war nicht „Delete“.")
-            return
-        self.store.clear()
-        self.window.refresh_data()
-        self.tray.notify("Fleech", "Diktat-Verlauf gelöscht.")
 
     def _poll_focus(self) -> None:
         """Alle 3 s: Fokus-Kontext aktualisieren und Overlay-Verhalten anpassen.
@@ -1390,75 +795,10 @@ class DesktopApp:
                 else:
                     self._keep_warm_tick()  # zurueck am Desktop → ggf. wieder aufwaermen
 
-    def _on_window_closed_to_tray(self) -> None:
-        # Overlay nie im Bearbeiten-Modus zurücklassen (sonst bleibt die Pille dauerhaft).
-        if self.overlay.is_edit_mode():
-            self.overlay.toggle_edit_mode()
-            self.panel.set_overlay_editing(False)
-            self.settings.save()
-        if not self.settings.window.tray_hint_shown:
-            shown = self.notifier.toast(
-                "background_info", "Fleech",
-                "Die App läuft im Hintergrund weiter — Beenden über das Tray-Menü.",
-            )
-            if shown:
-                self.settings.window.tray_hint_shown = True
-                self.settings.save()
 
-    def attach_instance_lock(self, lock) -> None:
-        self._instance_lock = lock
 
-    def _start_ipc_server(self) -> None:
-        """Zweitstart-UX: eine weitere Fleech.exe weckt uns (Settings-Fenster) statt
-        parallel zu laufen. Der Instance-Lock verhindert die zweite Instanz, der
-        IPC-Kanal macht daraus einen sinnvollen Klick statt eines stillen No-Ops."""
-        try:
-            from PySide6.QtNetwork import QLocalServer
 
-            QLocalServer.removeServer(IPC_NAME)  # Stale-Socket nach Crash aufraeumen
-            self._ipc = QLocalServer()
-            if self._ipc.listen(IPC_NAME):
-                self._ipc.newConnection.connect(self._on_ipc_wake)
-            else:
-                log.warning("IPC-Server nicht startbar: %s", self._ipc.errorString())
-        except Exception:
-            log.exception("IPC-Setup fehlgeschlagen — Zweitstart oeffnet kein Fenster.")
 
-    def _on_ipc_wake(self) -> None:
-        """Zwei Befehle: "show" (Zweitstart) und "quit" (Update/Deployment).
-
-        „quit" gibt es, weil ein hartes Beenden von aussen (`taskkill /F`) mitten
-        in einem `settings.save()` landen kann. Seit dem atomaren Schreiben ist das
-        nicht mehr fatal — aber der ordentliche Weg ist trotzdem der bessere: Die
-        App speichert zu Ende, gibt Mutex und Hotkeys frei und geht dann.
-        """
-        sock = self._ipc.nextPendingConnection()
-        befehl = b""
-        if sock is not None:
-            if sock.waitForReadyRead(300):
-                befehl = bytes(sock.readAll()).strip()
-            sock.close()
-        if befehl == b"quit":
-            log.info("Beenden per IPC angefordert (Update/Deployment).")
-            self._quit()
-            return
-        log.info("Zweite Instanz angeklopft — oeffne Hauptfenster.")
-        self.window.open_page("home")
-
-    def _reload(self) -> None:
-        """App neu laden: sauberer Prozess-Neustart (Modelle, Config, Prompts frisch)."""
-        log.info("Neustart …")
-        self.settings.save()
-        self.hotkeys.stop()
-        # Mutex VOR execv freigeben, sonst blockiert der alte Handle den Nachfolger
-        # (acquire() im Nachfolger hat zusaetzlich eine Retry-Schleife als Netz).
-        if getattr(self, "_instance_lock", None) is not None:
-            self._instance_lock.release()
-        if getattr(sys, "frozen", False):
-            # gepackte EXE: direkt neu starten (kein "-m fleech" verfuegbar)
-            os.execv(sys.executable, [sys.executable, "--gui"])
-        else:
-            os.execv(sys.executable, [sys.executable, "-m", "fleech", "--gui"])
 
     # -- Pause -----------------------------------------------------------------------
 
@@ -1508,331 +848,26 @@ class DesktopApp:
 
     # -- Freihand-Modus (F1) -----------------------------------------------------------
 
-    def _starte_freihand(self) -> None:
-        """Dauerlauschen aufbauen — im Hintergrund, weil tiny geladen werden muss.
 
-        Standardmaessig aus: Eine App, die ungefragt dauerhaft mithoert, waere ein
-        Vertrauensbruch, auch wenn technisch nichts gespeichert wird.
-        """
-        if not self.settings.freihand.aktiv:
-            return
 
-        def bauen():
-            try:
-                from ..freihand import (
-                    Einstellungen, FreihandStream, Lauscher, baue_erkenner, baue_vad,
-                )
 
-                s = self.settings.freihand
-                lauscher = Lauscher(
-                    Einstellungen(
-                        aktiv=True, startwort=s.startwort,
-                        abbruchwort=s.abbruchwort, stille_s=s.stille_s,
-                        ausgeschlossene_apps=tuple(s.ausgeschlossene_apps or ()),
-                    ),
-                    vad=baue_vad(),
-                    erkenner=baue_erkenner(
-                        modell_groesse=getattr(s, "modell", "base") or "base",
-                        sprache=self.settings.general.language,
-                        startwort=s.startwort,
-                    ),
-                )
-                self._freihand = FreihandStream(
-                    lauscher, self._freihand_ereignis,
-                    geraet=self.settings.recording.microphone,
-                )
-                if self._freihand.start():
-                    self.bus.freihand_zustand.emit("lauscht")
-                else:
-                    # SICHTBAR machen. Vorher stand der Fehlschlag nur im Log:
-                    # Der Schalter blieb an, der Punkt zeigte „lauscht" nie, und
-                    # es gab keinen Hinweis, warum nichts passiert — man haelt
-                    # dann das Startwort fuer das Problem und probiert andere aus.
-                    self._freihand = None
-                    self.bus.freihand_zustand.emit("aus")
-                    self.bus.freihand_fehler.emit(
-                        "Mikrofon liess sich nicht oeffnen")
-            except Exception as fehler:
-                log.exception("Freihand-Modus nicht startbar.")
-                self._freihand = None
-                self.bus.freihand_zustand.emit("aus")
-                self.bus.freihand_fehler.emit(str(fehler) or "unbekannter Fehler")
 
-        threading.Thread(target=bauen, daemon=True).start()
 
-    def _stoppe_freihand(self) -> None:
-        strom = getattr(self, "_freihand", None)
-        if strom is not None:
-            strom.stop()
-        self._freihand = None
-        self.bus.freihand_zustand.emit("aus")
 
-    def toggle_freihand(self) -> None:
-        """Schnellschalter (Tray/Hotkey): sofort aufhoeren mitzuhoeren.
-
-        Der Nutzer muss das Lauschen jederzeit mit einem Griff beenden koennen —
-        ohne Einstellungen zu oeffnen und ohne zu suchen.
-        """
-        an = not self.settings.freihand.aktiv
-        self.settings.freihand.aktiv = an
-        self.settings.save()
-        try:
-            self.tray.set_freihand(an, self.settings.freihand.startwort)
-        except Exception:
-            log.debug("Tray-Text nicht aktualisierbar.", exc_info=True)
-        if an:
-            self._starte_freihand()
-            self._flash_status("Freihand an — sag „%s“" % self.settings.freihand.startwort)
-        else:
-            self._stoppe_freihand()
-            self._flash_status("Freihand aus")
-
-    def _freihand_ereignis(self, ereignis, audio) -> None:
-        """AUDIO-THREAD! Nur weiterreichen — alles andere gehoert in den UI-Thread."""
-        if audio is not None and len(audio):
-            self._freihand_audio = audio
-        self.bus.freihand_ereignis.emit(ereignis.value)
-
-    def _on_freihand(self, ereignis: str) -> None:
-        """UI-Thread: auf ein Freihand-Ereignis reagieren."""
-        if ereignis == "start":
-            if not self._freihand_erlaubt():
-                return
-            self.bus.freihand_zustand.emit("aufnahme")
-            self.bus.set_state(AppState.LISTENING)
-            self.notifier.sound("start")
-            prozess, titel = self._freihand_ziel()
-            self._record_app, self._record_title = prozess, titel
-            # Live-Vorschau auch hier: Sie hing bisher nur am Hotkey-Weg, beim
-            # Freihand-Diktat blieb die Pille stumm und man wusste bis zum Ende
-            # nicht, ob etwas ankommt.
-            if self.settings.overlay.live_preview:
-                self._start_preview_async()
-            return
-        if ereignis == "abbruch":
-            self._freihand_audio = None
-            self._stop_preview()
-            self.bus.freihand_zustand.emit("lauscht")
-            self.bus.set_state(AppState.IDLE)
-            self._flash_status("Verworfen")
-            return
-        # ENDE: wie ein normales Diktat weiterverarbeiten.
-        audio, self._freihand_audio = getattr(self, "_freihand_audio", None), None
-        self._stop_preview()
-        self.bus.freihand_zustand.emit("lauscht")
-        if audio is None or not len(audio):
-            self.bus.set_state(AppState.IDLE)
-            return
-        self.notifier.sound("stop")
-        self.bus.set_state(AppState.PROCESSING)
-        threading.Thread(target=self._process, args=(audio,), daemon=True).start()
-
-    def _freihand_ziel(self):
-        from .windowsfocus import foreground_now
-
-        return foreground_now()
-
-    def _freihand_erlaubt(self) -> bool:
-        """In dieser App lauschen? Spiele und Meetings stehen auf der Sperrliste."""
-        strom = getattr(self, "_freihand", None)
-        if strom is None:
-            return False
-        prozess = self._freihand_ziel()[0]
-        if not strom.lauscher.app_erlaubt(prozess):
-            log.info("Freihand in %s ausgeschlossen — Aktivierung verworfen.", prozess)
-            self.bus.freihand_zustand.emit("lauscht")
-            return False
-        return True
 
     # -- Lizenz ----------------------------------------------------------------------
 
-    def _license_ok(self) -> bool:
-        """Darf diese Installation diktieren?
 
-        Das Ergebnis wird gemerkt, weil die Pruefung bei JEDEM Aufnahmestart laeuft
-        — eine Signaturpruefung kostet zwar nur Mikrosekunden, aber der Hotkey-Pfad
-        ist der letzte Ort, an dem man Arbeit sammeln will. Der Merker wird
-        zurueckgesetzt, sobald ein Schluessel eingetragen wird.
-        """
-        gemerkt = getattr(self, "_license_state", None)
-        if gemerkt is None:
-            from ..licensing import check
 
-            gemerkt = check(self.settings)
-            self._license_state = gemerkt
-            if not gemerkt.ok:
-                log.warning("Fleech ist nicht freigeschaltet: %s", gemerkt.reason)
-        return bool(gemerkt.ok)
-
-    def show_license_dialog(self) -> None:
-        """Freischalt-Dialog zeigen (nicht-modal, Referenz gehalten)."""
-        from .licensedialog import LicenseDialog
-
-        vorhanden = getattr(self, "_license_dialog", None)
-        if vorhanden is not None and vorhanden.isVisible():
-            vorhanden.raise_()
-            vorhanden.activateWindow()
-            return
-        self._license_dialog = LicenseDialog(
-            self.settings, on_changed=self._on_license_changed,
-        )
-        self._license_dialog.show()
-        self._license_dialog.raise_()
-        self._license_dialog.activateWindow()
-
-    def _on_license_changed(self, _section: str = "general") -> None:
-        self._license_state = None            # neu bewerten
-        try:
-            self.panel.refresh_license()
-        except Exception:
-            log.debug("Lizenzzeile liess sich nicht nachziehen.", exc_info=True)
-        if self._license_ok():
-            self._flash_status("Fleech ist freigeschaltet.")
 
     # -- Updates ---------------------------------------------------------------------
 
-    def _check_updates_async(self) -> None:
-        """Im Hintergrund pruefen und — wenn erlaubt — gleich laden.
 
-        Alles Netz- und Dateiwerk laeuft im Thread; die UI erfaehrt das Ergebnis nur
-        ueber `bus.update_ready`. Ein nicht erreichbarer Server ist kein Ereignis:
-        gemeldet wird nur, wenn es wirklich eine neue Version gibt.
-        """
-        if not self.settings.advanced.auto_update_check:
-            return
-        if self._pending_update is not None:
-            return                       # schon gefunden — nicht erneut suchen
-        bus, settings = self.bus, self.settings
 
-        def work():
-            from .updates import check_for_updates, download_update, update_token
-            from .updatedialog import UPDATE_DIR
 
-            marke = update_token(settings)
-            try:
-                info = check_for_updates(settings.advanced.update_feed_url or None,
-                                         token=marke)
-            except Exception:
-                log.debug("Update-Pruefung fehlgeschlagen.", exc_info=True)
-                return
-            if info.get("status") != "update_available":
-                log.info("Update-Pruefung: %s (installiert %s).",
-                         info.get("status"), info.get("current"))
-                return
-            log.info("Update %s verfuegbar.", info.get("latest"))
-            datei = ""
-            if settings.advanced.auto_update_download:
-                pfad = download_update(
-                    info.get("url", ""), UPDATE_DIR,
-                    on_progress=lambda p, t: None,      # still: niemand wartet darauf
-                    expected_size=int(info.get("size") or 0),
-                    expected_sha256=str(info.get("sha256") or ""),
-                    token=marke, dateiname=str(info.get("name") or ""),
-                )
-                datei = str(pfad) if pfad else ""
-            bus.update_ready.emit(info, datei)
 
-        threading.Thread(target=work, daemon=True, name="fleech-update-check").start()
 
-    def _on_update_ready(self, info, datei: str) -> None:
-        """UI-Thread: Tray-Eintrag zeigen und einmal darauf hinweisen."""
-        self._pending_update = dict(info or {})
-        self._update_file = Path(datei) if datei else None
-        version = self._pending_update.get("latest", "")
-        try:
-            self.tray.show_update(version, self._update_file is not None)
-        except Exception:
-            log.debug("Tray-Update-Eintrag fehlgeschlagen.", exc_info=True)
-        text = (f"Version {version} ist geladen und kann installiert werden."
-                if self._update_file is not None
-                else f"Version {version} ist verfügbar.")
-        self.notifier.toast("background_info", "Fleech-Update", text)
 
-    def show_update_dialog(self) -> None:
-        """Update-Dialog oeffnen (Tray-Eintrag oder Einstellungen)."""
-        from .updatedialog import UpdateDialog
-
-        info = getattr(self, "_pending_update", None)
-        if not info:
-            self._check_updates_async()
-            return
-        vorhanden = getattr(self, "_update_dialog", None)
-        if vorhanden is not None and vorhanden.isVisible():
-            vorhanden.raise_()
-            vorhanden.activateWindow()
-            return
-        self._update_dialog = UpdateDialog(
-            info, on_quit=self._quit, fertige_datei=self._update_file,
-            settings=self.settings,
-        )
-        self._update_dialog.show()
-        self._update_dialog.raise_()
-        self._update_dialog.activateWindow()
-
-    def _laufendes_audio(self):
-        """Bisher aufgenommenes Audio — egal ob per Hotkey oder per Freihand.
-
-        Die Live-Vorschau hing allein am Recorder. Beim Freihand-Diktat laeuft der
-        nicht, sie blieb deshalb leer: Man sah beim Sprechen nichts und wusste bis
-        zum Ende nicht, ob ueberhaupt etwas ankommt.
-        """
-        import numpy as _np
-
-        eigenes = self.recorder.snapshot()
-        if eigenes is not None and len(eigenes):
-            return eigenes
-        strom = getattr(self, "_freihand", None)
-        lauscher = getattr(strom, "lauscher", None)
-        if lauscher is None:
-            return eigenes
-        try:
-            return lauscher.aufnahme_audio()
-        except Exception:
-            log.debug("Freihand-Audio fuer die Vorschau nicht lesbar.", exc_info=True)
-            return _np.zeros(0, dtype=_np.float32)
-
-    def _freihand_level(self) -> float:
-        """Eingangspegel des Freihand-Stroms, 0.0 wenn er nicht laeuft.
-
-        Wird aus dem Zeichentakt der Pille aufgerufen (mehrmals je Sekunde) und
-        muss deshalb billig und still sein — ein Fehler hier duerfte niemals die
-        Anzeige stoppen."""
-        strom = getattr(self, "_freihand", None)
-        try:
-            return float(getattr(strom, "level", 0.0) or 0.0)
-        except Exception:
-            return 0.0
-
-    def _on_freihand_fehler(self, grund: str) -> None:
-        """UI-Thread: Freihand liess sich nicht starten — das muss man SEHEN.
-
-        Der Aufbau laeuft im Hintergrund-Thread, deshalb kommt die Meldung ueber
-        den StateBus hier an. Vorher landete so ein Fehlschlag nur im Log: Der
-        Schalter stand auf an, der Punkt zeigte nie „lauscht", und nichts sagte
-        warum — man sucht den Fehler dann beim Startwort und probiert andere aus,
-        obwohl das Mikrofon nie geoeffnet wurde.
-        """
-        log.warning("Freihand nicht gestartet: %s", grund)
-        try:
-            self.notifier.toast(
-                "background_info", "Freihand konnte nicht starten",
-                "Das Mikrofon liess sich nicht öffnen. Prüfe die Mikrofon-Auswahl "
-                "in den Einstellungen.",
-                bypass_cooldown=True,
-            )
-        except Exception:
-            log.debug("Freihand-Fehlermeldung nicht zeigbar.", exc_info=True)
-        try:
-            self.tray.set_freihand(False, self.settings.freihand.startwort)
-        except Exception:
-            log.debug("Tray-Text nicht setzbar.", exc_info=True)
-
-    def _quit(self) -> None:
-        self._stoppe_freihand()
-        self.controller.stop_if_active()
-        self.settings.save()
-        self.hotkeys.stop()
-        QApplication.instance().quit()
 
 
 IPC_NAME = "Fleech.ipc"

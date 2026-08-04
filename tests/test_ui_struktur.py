@@ -33,15 +33,34 @@ def test_die_teile_existieren():
         assert (UI / name).exists(), f"{name} fehlt"
     for name in ("home.py", "insights.py", "apps.py", "profiles.py"):
         assert (UI / "pages" / name).exists(), f"pages/{name} fehlt"
+    for name in ("allgemein.py", "aufnahme.py", "audiofokus.py", "overlay.py",
+                 "sounds.py", "benachrichtigungen.py", "ausgabe.py",
+                 "textersetzung.py", "advanced.py", "common.py"):
+        assert (UI / "settings" / name).exists(), f"settings/{name} fehlt"
+    for name in ("profil.py", "freihand.py", "modelle.py", "nachbereitung.py",
+                 "lizenz.py", "lebenszyklus.py"):
+        assert (UI / "desktopapp" / name).exists(), f"desktopapp/{name} fehlt"
 
 
-def test_das_fenster_bleibt_schlank():
-    """Die Zahl ist grosszuegig gewaehlt — sie soll nicht bei jeder Zeile
-    anschlagen, sondern verhindern, dass wieder eine Seite hier einzieht."""
-    n = _zeilen(UI / "main_window.py")
-    assert n < 500, (
-        f"main_window.py hat {n} Zeilen. Gehoert der neue Code wirklich ins "
-        f"Fenstergeruest, oder in pages/ bzw. widgets.py?"
+# Obergrenzen der drei Dateien, aus denen wiederholt Monolithen geworden sind.
+# Grosszuegig gewaehlt: Sie sollen nicht bei jeder Zeile anschlagen, sondern
+# verhindern, dass wieder ein ganzes Thema hier einzieht. Wer eine Grenze reisst,
+# soll NICHT die Zahl erhoehen, sondern das neue Thema dorthin legen, wo es
+# hingehoert (pages/, settings/, desktopapp/).
+OBERGRENZEN = {
+    "main_window.py": (500, "Fenstergeruest — Seiten nach pages/, Bausteine nach widgets.py"),
+    "settings_window.py": (700, "Panel und Widget-Bauer — Seiten nach settings/"),
+    "desktop.py": (1200, "Verdrahtung und Aufnahme-Lebenszyklus — Themen nach desktopapp/"),
+}
+
+
+@pytest.mark.parametrize("datei", sorted(OBERGRENZEN))
+def test_die_grossen_dateien_bleiben_schlank(datei):
+    grenze, wohin = OBERGRENZEN[datei]
+    n = _zeilen(UI / datei)
+    assert n < grenze, (
+        f"{datei} hat {n} Zeilen (Grenze {grenze}). Gehoert der neue Code wirklich "
+        f"hierher? {wohin}."
     )
 
 
@@ -85,6 +104,26 @@ def test_seiten_kennen_das_hauptfenster_nicht():
     for datei in (UI / "pages").glob("*.py"):
         quelle = datei.read_text(encoding="utf-8")
         assert "main_window" not in quelle, f"pages/{datei.name} nennt main_window"
+
+
+@pytest.mark.parametrize("ordner,verboten,hinweis", [
+    ("settings", "settings_window",
+     "der gemeinsame Hinweis-Bauer und die Hilfetexte liegen in settings/common.py"),
+    ("desktopapp", "desktop",
+     "die Mixins definieren Methoden AUF DesktopApp, kennen die Klasse aber nicht"),
+])
+def test_die_teile_kennen_ihr_ganzes_nicht(ordner, verboten, hinweis):
+    """Dieselbe Regel wie bei den Seiten, eine Ebene tiefer: Ein Teil, das sein
+    Ganzes importiert, schliesst den Zyklus — die uebergeordnete Datei importiert
+    es ja gerade, um es zu benutzen. Geprueft werden Importe, nicht Erwaehnungen:
+    Die Docstrings duerfen und sollen erklaeren, woher der Code kam."""
+    for datei in (UI / ordner).glob("*.py"):
+        for k in ast.walk(_baum(datei)):
+            if not isinstance(k, ast.ImportFrom):
+                continue
+            assert (k.module or "").split(".")[0] != verboten, (
+                f"{ordner}/{datei.name} importiert {verboten} — {hinweis}."
+            )
 
 
 def test_keine_importzyklen_in_der_oberflaeche():
