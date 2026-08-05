@@ -11,6 +11,48 @@ GitHub-Release-Notizen (`packaging/release.py`).
 
 ---
 
+## 5.10.0 — 2026-08-05
+
+Die erste Veröffentlichung seit 5.5. Alles aus 5.6 bis 5.9 ist enthalten; unten
+stehen die Punkte, die du im Alltag merkst.
+
+**Diktieren, ohne am Ende wieder zur Tastatur zu greifen.** Der neue Bedienmodus
+**Anstupsen** (Einstellungen → Aufnahme → Bedienmodus): einmal drücken, reden,
+aufhören — die Aufnahme endet von selbst. Eine Denkpause schneidet nichts ab, und
+wer zwischendurch pausiert, um mit jemandem zu sprechen, verliert nichts. Ein
+zweiter Druck beendet trotzdem sofort.
+
+**Das Ausgabeformat lässt sich am Ende ansagen.** Diktieren und zum Schluss „…
+als Stichpunkte" sagen. Ebenso „als E-Mail", „als KI-Prompt" oder „als Diktat".
+Das gilt für dieses eine Diktat und übersteuert das Profil.
+
+**Stichpunkte verdichten jetzt wirklich.** Bisher wurde jeder Satz einzeln
+umgeschrieben — an echten Diktaten gemessen sind die Ergebnisse jetzt 29 bis 65
+Prozent kürzer, ohne dass ein genannter Punkt verlorenginge.
+
+**Wörterbuch-Einträge lassen sich einsprechen.** Cursor in die Zeile, „Eintrag
+einsprechen …", Wort sagen. Fleech zeigt, was ankommt — und bietet die passende
+Ersetzungsregel gleich zum Eintragen an, wenn etwas anderes verstanden wurde.
+
+**Freihand hört deutlich besser — und lässt sich bedienen.** Drei Dinge waren
+kaputt: Die Startwort-Prüfung blockierte den Mikrofonstrom (die Hälfte des
+Gesprochenen kam nicht an), die Aufnahme war oft schon vorbei, bevor man
+reagieren konnte, und die Knöpfe der Pille taten beim Freihand-Diktat nichts.
+Alles behoben. Dazu **mehrere Startwörter**: Wort eintippen, Enter, es steht als
+Zeile darunter — Fleech startet bei jedem davon.
+
+Trotzdem ehrlich gesagt: Ein dauerhaft offenes Mikrofon in einem Raum mit
+Nebengeräuschen bleibt schwierig. Wenn es dir um das automatische Ende geht, ist
+„Anstupsen" die zuverlässigere Wahl.
+
+**Einheitliche Oberfläche.** Auf der Seite „Apps" standen die Karten weiter vom
+Rand und die Überschrift war größer als anderswo; beim Umschalten sprang das
+Layout. Das ist angeglichen.
+
+**Unter der Haube.** Die größten Quelldateien wurden nach Themen aufgeteilt (eine
+davon hatte 1979 Zeilen in einem Stück). Für dich ändert sich dabei nichts — es
+sorgt dafür, dass Änderungen an einer Ecke seltener eine andere umstoßen.
+
 ## 5.9.1 — 2026-08-05
 
 *Nicht einzeln veröffentlicht.*

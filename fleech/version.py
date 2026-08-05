@@ -7,7 +7,7 @@
 
 from __future__ import annotations
 
-APP_VERSION = "5.9.1"  # 5.9.1: Aufteilung der grossen Dateien (reiner Umbau)
+APP_VERSION = "5.10.0"  # 5.10.0: Sammel-Release 5.6-5.9 — Anstupsen, Startwoerter, Freihand-Reparatur
 
 
 def _read_build() -> str:

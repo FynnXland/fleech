@@ -1,6 +1,6 @@
 # Fleech — Gesamtkonzept, Funktionen und technische Umsetzung
 
-> Stand: Version 5.4.0 · Diese Datei ist die Gesamtdarstellung des Projekts: Idee,
+> Stand: Version 5.10.0 · Diese Datei ist die Gesamtdarstellung des Projekts: Idee,
 > Bedienung, jede Funktion, jede Einstellung und die technische Umsetzung dahinter.
 > Die themenspezifischen Vertiefungen liegen daneben in `docs/`
 > ([Audio-Architektur](audio-architektur.md), [Focus & Notifications](focus-notifications.md),
@@ -16,6 +16,7 @@
 2. [Leitprinzipien](#2-leitprinzipien)
 3. [Der Weg eines Diktats](#3-der-weg-eines-diktats)
 4. [Die Betriebsmodi](#4-die-betriebsmodi)
+4a. [Anstupsen — drücken, reden, fertig](#4a-anstupsen--drücken-reden-fertig-seit-580)
 5. [Schutzmechanismen](#5-schutzmechanismen)
 6. [Adaptives Routing und Tempo](#6-adaptives-routing-und-tempo)
 7. [Profile](#7-profile)
@@ -418,6 +419,59 @@ auf die normale Formel-Mischung zurück.
 Ist dagegen das **ganze** Diktat fest im Formel-Modus, wird der Prompting-Hotkey bewusst
 ignoriert — die Kombination wäre dort sinnlos.
 
+### 4.6 Das Ausgabeformat am Ende ansagen (seit 5.6.0)
+
+Wer mitten im Reden merkt, dass daraus besser eine Liste würde, sagt es einfach zum
+Schluss: **„… als Stichpunkte."** Der Zusatz wird erkannt, aus dem Text entfernt und
+das Diktat entsprechend verarbeitet. Ebenso „als E-Mail", „als KI-Prompt" oder „als
+Diktat" für ausdrücklich normal. Das übersteuert das Profil für genau dieses eine
+Diktat.
+
+Die Erkennung greift **nur am Satzende und nur mit Einleitung** („als", „bitte als",
+„mach das als"). Das ist der ganze Unterschied zwischen Befehl und Inhalt: „Ich
+schicke das als E-Mail raus" steht mitten im Satz und bleibt Diktat. Ein
+Safe-Word-Befehl hat Vorrang — „Kimono, mach das als Stichpunkte" ist eine Anweisung
+und gehört dem Befehlsweg, sonst würde der Befehl zerschnitten.
+
+Vorher musste man das Profil **vorher** umschalten; wer es vergaß, diktierte erst und
+klickte danach im Verlauf auf „neu bereinigen".
+
+---
+
+## 4a. Anstupsen — drücken, reden, fertig (seit 5.8.0)
+
+Ein dritter Bedienmodus neben Hold und Toggle: **einmal drücken, reden, aufhören.**
+Die Aufnahme endet von selbst, sobald man aufhört zu sprechen — kein zweiter Griff zur
+Tastatur. Ein zweiter Druck beendet trotzdem sofort, falls es schneller gehen soll.
+
+Das ist die brauchbare Hälfte dessen, was der Freihand-Modus versprach. Der Wunsch
+dahinter war nie, mit der Stimme zu *starten*, sondern am Ende nicht wieder anfassen zu
+müssen — und nur diese Hälfte lässt sich zuverlässig bauen. Auslösen kann hier nur, wer
+die Taste drückt; ein Video im Raum oder ein Gespräch nebenan bleiben folgenlos.
+
+**Wie das Ende erkannt wird** (`fleech/stillewache.py`): Ein Timer prüft alle 300 ms
+die letzte Sekunde der laufenden Aufnahme mit demselben VAD, das auch Freihand nutzt.
+Meldet es Sprache, läuft die Uhr neu an; sonst zählt sie bis zur eingestellten
+Sprechpause.
+
+| Messung (echtes VAD, RTX 4070) | Wert |
+|---|---|
+| Kosten je Prüfung | **1,4 ms** (Median), 185 ms beim ersten Aufruf |
+| Zimmerrauschen als Sprache gewertet | **nein** |
+| laufende Rede erkannt | **25 / 25** |
+| Rede endet bei 5,0 s → Diktat endet | **6,9 s** (Schwelle 2,0 s) |
+
+Die 185 ms des ersten Aufrufs werden beim Laden im Hintergrund abgearbeitet — im
+GUI-Thread wären sie ein sichtbarer Hänger, genau wenn der Nutzer zu sprechen anfängt.
+
+**Zwei Regeln, die im Alltag zählen:** Eine Denkpause schneidet nichts ab, weil die Uhr
+bei jedem weiteren Wort neu anläuft. Und wer die Aufnahme pausiert, um mit jemandem zu
+sprechen, hält die Automatik mit an.
+
+**Anlaufzeit** (`MIN_LAUFZEIT_S`, 1,5 s): Vor Ablauf des VAD-Fensters ist „keine
+Sprache" keine Aussage über den Sprecher, sondern nur eine Messgrenze — siehe die
+ausführliche Begründung in Abschnitt 21.
+
 ---
 
 ## 5. Schutzmechanismen
@@ -734,6 +788,26 @@ fragt nie wieder. Geprüft wird bewusst **nur** gegen das eigene Wörterbuch —
 allgemeine „ungewöhnliche Wörter"-Heuristik ohne Referenzlexikon würde ständig
 falsch anschlagen.
 
+**4 · Einen Eintrag einsprechen** (seit 5.6.0). Cursor in die Zeile, „Eintrag
+einsprechen …", Wort einmal sagen. Fleech zeigt, was ankommt — und wenn etwas anderes
+verstanden wurde, bietet es die passende Ersetzungsregel gleich zum Eintragen an: aus
+„Ollama" gehört als „Olama" wird der Knopf **„Ollama => Olama" eintragen**.
+
+Bisher trug man ein Wort ein und merkte erst mitten im nächsten Diktat, ob es etwas
+gebracht hat. Der Test läuft über dieselbe Erkennung wie ein echtes Diktat, **mit
+demselben Wörterbuch-Priming** — ohne das würde er messen, wie gut Whisper das Wort
+*ohne* Wörterbuch versteht, also das Gegenteil der Frage.
+
+**Warum keine Computerstimme.** Der naheliegende Weg wäre, das Wort per TTS zu erzeugen
+und automatisch zu prüfen. Das wurde gemessen und taugt nicht: Dieselbe Kette verstand
+das TTS-„Kimono" sauber, während die echte Stimme über ein echtes Mikrofon als „Kimu",
+„Gimo" oder „Kimo no" ankam. Ein Test, der immer besteht, ist kein Test.
+
+**Warum kein Nachtrainieren.** Ein Whisper-Modell auf einzelne Wörter nachzutrainieren
+braucht viele hundert Aufnahmen, Stunden GPU-Zeit und liefert ein Modell, das nach dem
+nächsten Update neu gebaut werden müsste. Priming erreicht dasselbe zur Laufzeit, kostet
+nichts und gilt sofort.
+
 ---
 
 ## 8a. Text-Bausteine
@@ -995,10 +1069,17 @@ der Knopf „Alle Karten wieder einblenden" unter **Allgemein**.
 
 | Einstellung | Bedeutung | Standard |
 |---|---|---|
-| Bedienmodus | **Hold** (halten = aufnehmen) oder **Toggle** (drücken/drücken) | Hold |
+| Bedienmodus | **Hold** (halten) · **Toggle** (drücken/drücken) · **Anstupsen** (drücken, endet von selbst) | Hold |
+| Sprechpause bis Ende | nur bei *Anstupsen* sichtbar: so lange still = fertig (1–4 s) | 2,0 s |
 | Diktat-Hotkey | Taste, Kombination oder Maustaste 4/5/Mitte | F9 |
 | Mathe-Umschalt | **nur während einer Aufnahme**: markiert ein Formel-Segment | Strg+Alt+M |
 | KI-Prompting | **nur während einer Aufnahme**: dieses Diktat wird zum Prompt | Strg+Alt+P |
+| Freihand | dauerhaft auf ein Startwort lauschen (Abschnitt 21) | aus |
+| Startwörter | ein Wort pro Zeile; Fleech startet bei **jedem** davon | Kimono |
+| Genauigkeit | welches Modell das Startwort prüft: *wie beim Diktat* oder ein sparsames eigenes | wie beim Diktat |
+| Abbruchwort | fällt es im Diktat, wird verworfen statt eingefügt | Abbrechen |
+| Fehlersuche | hebt geprüfte Startwort-Fenster als Tondateien auf (Abschnitt 21) | aus |
+| Nicht lauschen in | Prozessnamen, in denen Freihand ruht | leer |
 | Mikrofon | Gerätewahl; wirkt ab der nächsten Aufnahme | Systemstandard |
 | Gesperrte Geräte | Namensteile, die nie als Mikrofon gelten sollen | leer |
 
@@ -1406,8 +1487,17 @@ Sprechen** geladen, was die Ladezeit größtenteils verdeckt.
 
 ### 14.1 Modulkarte
 
-70 Dateien, rund 20.800 Zeilen. Der Kern ist bewusst klein geschnitten; die
+101 Dateien, rund 23.800 Zeilen. Der Kern ist bewusst klein geschnitten; die
 Oberfläche ist der größte Block, weil sie am meisten Fälle abdecken muss.
+
+> **Zur Dateizahl:** Sie ist zwischen 5.4.0 und 5.9.1 von 70 auf 101 gestiegen, ohne
+> dass nennenswert Code dazugekommen wäre — die großen Sammelbecken wurden nach Themen
+> aufgeteilt. `main_window.py` hatte 2970 Zeilen, `desktop.py` 1979 mit 89 Methoden,
+> `overlay_qt.py` 1409, `settings_window.py` 1379, `textutils.py` 898. Die Testsuite
+> wacht seither über die Aufteilung selbst: Obergrenzen je Datei, Richtung der
+> Abhängigkeiten, und dass ein Teil nie sein Ganzes importiert
+> (`tests/test_ui_struktur.py`, `tests/test_kernstruktur.py`). Reißt eine Grenze, ist
+> die Antwort ein neuer Ort für das neue Thema — nicht eine größere Zahl.
 
 ```
 fleech/
@@ -1417,10 +1507,13 @@ fleech/
 ├── usersettings.py      settings.json — atomar geschrieben, mit .bak-Heilung
 ├── version.py           eine Stelle für die Versionsnummer
 │
-├── audio.py             Recorder: Mikrofon, Pegel, sample-genaue Position
-├── recording_control.py Halten/Umschalten — UI-unabhängig, testbar
+├── audio.py             Recorder: Mikrofon, Pegel, sample-genaue Position, tail()
+├── recording_control.py Halten / Umschalten / Anstupsen — UI-unabhängig, testbar
 ├── hotkey.py            Tasten, Maus, Modifier, Entprellung
-├── freihand.py          Diktieren ohne Taste: VAD → tiny → Aufnahme
+├── freihand.py          Diktieren ohne Taste: VAD → Prüfmodell → Aufnahme
+├── freihand_diagnose.py geprüfte Startwort-Fenster aufheben (opt-in, Fehlersuche)
+├── stillewache.py       wann ist eine Aufnahme wegen Sprechpause zu Ende?
+├── wortprobe.py         ein Wort einsprechen und prüfen, ob es ankommt
 │
 ├── pipeline.py          ▶ Orchestrierung der gesamten Verarbeitung
 ├── pipeline_factory.py  baut die Pipeline aus Config + Settings
@@ -1428,7 +1521,11 @@ fleech/
 ├── commands.py          Befehls-JSON, Plausibilitäts- und Löschguards
 ├── formula.py           gesprochene Mathematik → LaTeX (Parser, kein Modell)
 ├── snippets.py          Text-Bausteine
-├── textutils.py         die sieben Guards, Wörterbuch, Priming
+├── textfilter.py        ▶ die Qualitäts-Guards: erfundene Ergänzungen, Wortsalat,
+│                          fremde Schrift, Sinnumkehr — Kern-Fachlogik
+├── textutils.py         nur noch der Rahmen um den LLM-Call
+├── dictionary.py        persönliches Wörterbuch (Priming, Ersetzung, Vorschläge)
+├── profiles.py          App-Profile: Regeln, Farben, Schnellwechsel
 ├── document.py          was habe ich selbst eingefügt?
 ├── kontext.py           Projekt-Gedächtnis: Fachbegriffe je App und Titel
 ├── prompts.py           Prompt-Dateien laden (Nutzerfassung bevorzugt)
@@ -1454,8 +1551,15 @@ fleech/
 ├── stt/                 faster_whisper_stt.py (lokal, einziger Weg) + base.py
 ├── llm/client.py        Ollamas /api/chat mit num_ctx, Warmhaltung
 └── ui/
-    ├── desktop.py       ▶ DesktopApp: verdrahtet alles
-    ├── theme.py         Design-Token und Button-Stile — die unterste Schicht
+    ├── desktop.py       ▶ DesktopApp: Aufbau, Aufnahme-Lebenszyklus, Verdrahtung
+    ├── desktopapp/      die Teilgebiete von DesktopApp als Mixins
+    │   ├── profil.py         Profilwahl, Farbe, Schnellwechsel
+    │   ├── freihand.py       Lauscher aufbauen, Ereignisse, Startwort-Probe
+    │   ├── modelle.py        Warmhaltung, Entladen bei Spielstart
+    │   ├── nachbereitung.py  neu bereinigen, Rohtext, Vorschläge
+    │   ├── lizenz.py         Freischaltung und Update-Prüfung
+    │   └── lebenszyklus.py   Start, IPC, Beenden
+    ├── theme.py         Design-Token, Seitenmaße, Button-Stile — unterste Schicht
     ├── widgets.py       wiederverwendbare Bausteine (Karten, Suchfeld, Gauge)
     ├── dialogs.py       Prompt, Transkript-Detail, Wort-Detail, Wörterbuch
     ├── main_window.py   das Fenstergerüst: Sidebar, Seitenwechsel, Geometrie
@@ -1464,8 +1568,17 @@ fleech/
     │   ├── insights.py      Kennzahlen aus der eigenen Historie
     │   ├── apps.py          welches Profil greift in welchem Programm
     │   └── profiles.py      Format, Stil, Sprache, Zuordnung
-    ├── settings_window.py  Einstellungs-Panel (neun Seiten)
-    ├── overlay_qt.py    die Pille + Sprechblasen
+    ├── settings_window.py  Panel-Gerüst + Widget-Bauer
+    ├── settings/       die neun Einstellungsseiten, je Seite ein build(panel)
+    │                   (allgemein, aufnahme, audiofokus, overlay, sounds,
+    │                    benachrichtigungen, ausgabe, textersetzung, advanced)
+    ├── overlay_qt.py    die Pille: Aufbau, Hintergrund, Qt-Ereignisse
+    ├── overlaypille/    ihre Teile
+    │   ├── konstanten.py     Maße, Farben, Zeiten
+    │   ├── bausteine.py      Waveform, Status-Punkt, Textblase (echte Widgets)
+    │   ├── geometrie.py      Position, Ziehen, Presets        (Mixin)
+    │   ├── einblendungen.py  Transkript, Formeln, Fortschritt (Mixin)
+    │   └── zustand.py        Aufnahme, Modus, Profil, Pause   (Mixin)
     ├── state.py         StateBus (thread-sichere Signale)
     ├── tray.py          Tray-Icon und -Menü
     ├── sounds.py        synthetisierte Töne
@@ -1504,6 +1617,19 @@ die Oberfläche an der Wurzel des Abhängigkeitsbaums. Heute hängen sie an
 `theme.py`, das selbst nichts aus der App importiert. Ein Test wacht darüber,
 dass es dabei bleibt (`tests/test_ui_struktur.py`) — samt Prüfung, dass die
 Oberfläche **keine Importzyklen** enthält.
+
+`theme.py` hält seit 5.9.0 auch die **Seitenmaße** (`PAGE_MARGINS`, `PAGE_SPACING`,
+`PAGE_TITLE_PT`). Anlass war ein sichtbarer Bruch: „Apps" war herausgewachsen — Rand
+28/24/28/20 statt 20/18/20/18, Titel 17 pt statt 12 pt, Kartenabstand 14 statt 12. Beim
+Umschalten sprang dadurch das Layout. Die Werte standen viermal einzeln im Code; jetzt
+stehen sie an einer Stelle, und ein Test schlägt an, wenn eine Seite wieder ausschert
+oder jemand die Zahlen direkt hinschreibt.
+
+**Namenskonvention (bewusst gemischt):** Fachbegriffe der Domäne stehen auf Deutsch
+(`freihand`, `kontext`, `profil`, `nachbereitung`, `stillewache`), technische
+Infrastruktur auf Englisch (`pipeline`, `injection`, `history`, `StateBus`). Grund: Die
+Anwendung ist deutschsprachig, ihre Fachbegriffe haben keine natürliche englische
+Entsprechung — „Freihand" ist nicht „freehand".
 
 ### 14.2 Threads und Zustand
 
@@ -1737,6 +1863,25 @@ Die Zahlen, die das Verhalten bestimmen — alle mit Begründung im Quellcode.
 | **2 / 4 / 8 s** | Wartezeiten beim Formel-Rate-Limit |
 | **30 min** | Warmhalte-Zeitraum je Ollama-Ping |
 
+### Freihand und Anstupsen
+
+Diese Werte sind **gemessen, nicht gewählt** — die Begründungen stehen in Abschnitt 4a
+und 21.
+
+| Wert | Bedeutung |
+|---|---|
+| **1,0 s** (`VAD_FENSTER_S`) | Audio, das dem VAD vorgelegt wird. Auf 0,2 s meldet Silero **nie** Sprache (0 %), ab 0,8 s zu 98,6 %, ab 1,0 s zu 100 % |
+| **1,5 s** (`ANLAUF_S` / `MIN_LAUFZEIT_S`) | Anlaufzeit, in der nicht wegen Stille beendet wird — vorher ist „keine Sprache" eine Messgrenze, keine Aussage |
+| **2,0 s** (`FENSTER_S`) | Länge des Startwort-Prüffensters |
+| **0,6 s** (`PRUEF_ABSTAND_S`) | Mindestabstand zweier Startwort-Prüfungen |
+| **1,0 s** (`SPERRE_NACH_START_S`) | Sperre nach einer Aktivierung, damit der eigene Nachsatz nicht sofort neu auslöst |
+| **0,6 s** (`MIN_DIKTAT_S`) | kürzere Aufnahmen gelten als Versehen |
+| **120 s** (`MAX_DIKTAT_S`) | harter Deckel, falls die Stille-Erkennung nie greift |
+| **0,2 s** | Blockgröße des Freihand-Stroms |
+| **15 s** | Deckel der Prüf-Warteschlange; darüber hängt das Modell dauerhaft hinterher |
+| **300 ms** | Takt der Stille-Wache im Anstupsen-Modus (1,4 ms Kosten je Tick) |
+| **60 Dateien** | Deckel der Freihand-Fehlersuche |
+
 ### Statistik
 
 | Wert | Bedeutung |
@@ -1817,8 +1962,115 @@ wenn das anschlägt.
 | Ladezeit `tiny` | 0,8 s |
 
 Beide Stufen stecken bereits im Bundle — Silero-VAD kommt mit faster-whisper mit. Keine
-neue Abhängigkeit, kein Download. Das kleine Modell läuft bewusst auf der **CPU**: Die
-Grafikkarte gehört dem großen Modell, das gleich das eigentliche Diktat verarbeitet.
+neue Abhängigkeit, kein Download.
+
+### 21.1 Zwei Fehler, die den Modus jahrelang unbrauchbar machten (behoben in 5.7.0/5.9.0)
+
+Freihand hörte auffällig viel schlechter als der Hotkey-Weg — dasselbe Wort, dasselbe
+Mikrofon. Die Vermutung fiel jedes Mal auf das Startwort; die Ursache lag zweimal
+woanders.
+
+**(a) Die Prüfung zersägte den Mikrofonstrom.** Sie lief direkt im Audio-Callback.
+PortAudio wartet aber nicht: Was während der Rechnung hereinkommt, fällt weg. An echter
+Hardware gemessen, 200-ms-Blöcke:
+
+| Rechenzeit im Callback | Audio, das ankommt |
+|---|---|
+| keine | 97,3 % |
+| 140 ms | 97,3 % |
+| **440 ms** (`base` auf der CPU — der damalige Standard) | **49,6 %** |
+| 900 ms | 36,1 % |
+
+Rund die **Hälfte** des Gesprochenen ging verloren. Das Prüfmodell bekam zerhackte
+Fetzen und riet daraus „Ich bin hier.", „Wirksam.", „Vielen Dank." — alles echt aus dem
+Protokoll. Der Hotkey-Weg blieb tadellos, weil `audio.Recorder` im Callback nur kopiert.
+
+Seit 5.7.0 legt der Callback den Block nur in eine Warteschlange (Mikrosekunden), ein
+eigener Thread rechnet. Der **Zeitstempel wird mitgegeben** statt im Arbeiter genommen —
+sonst wäre die Stille-Uhr um den Rückstand verschoben.
+
+**(b) Die Stille-Uhr lief gegen eine Messgrenze.** Das VAD braucht mindestens 0,8 s
+Audio, um Sprache zu melden. Direkt nach dem Startwort ist die Aufnahme aber erst 0,2 s
+lang — in dieser Zeit meldet es zwangsläufig „keine Sprache", ganz gleich ob jemand
+spricht. Im Protokoll endete deshalb **jedes** Diktat nach exakt `stille_s`:
+
+```
+15:37:38  Startwort erkannt in 'Apfel.'
+15:37:38  Aufnahme ohne Sprache — verworfen (2.0 s)
+```
+
+Für den Nutzer hieß das: Die Pille kam und war wieder weg, bevor er reagieren konnte —
+gemeldet als „ich kann nicht abbrechen". Der Abbruch-Knopf war dabei in Ordnung; es gab
+schlicht nichts mehr abzubrechen. Seit 5.9.0 gibt es eine **Anlaufzeit** (`ANLAUF_S`,
+1,5 s), in der nicht wegen Stille beendet wird.
+
+**Welches Modell prüft.** Seit 5.7.0 dasselbe, das ohnehin für die Diktate geladen ist —
+gemessen auf 2 s Audio: large-v3-turbo auf der GPU **141 ms** (Median), `base` auf der
+CPU **437 ms** (max 2430). Es ist also schneller *und* genauer, und es kostet kein
+zusätzliches VRAM, weil kein zweites Modell dazukommt. Ein eigenes kleines Modell
+(`tiny`/`base`/`small`, CPU) bleibt für Rechner ohne brauchbare Grafikkarte wählbar.
+`vad_filter` schneidet die Stille im Prüffenster weg — genau daraus halluziniert Whisper
+sonst und überdeckt das, was wirklich gesagt wurde.
+
+### 21.2 Mehrere Startwörter (seit 5.9.0)
+
+Welches Wort die eigene Aussprache zuverlässig trifft, lässt sich nicht vorhersagen —
+diese Erfahrung kostete mehrere Runden mit „Kimono", „Apfel", „Redax" und „Fleech".
+Deshalb sind es jetzt **mehrere**: Wort eintippen, Enter, es steht als Zeile darunter
+mit einem ✕ zum Entfernen. Fleech startet bei jedem davon.
+
+**Alle** eingetragenen Wörter werden dem Modell als `initial_prompt` vorgesagt, nicht
+nur das erste — ein ungeprimtes Wort wäre genau das, das nie erkannt wird, und man
+suchte den Fehler bei der Aussprache.
+
+Zur Wahl des Wortes: Kunstwörter, die wie ein Alltagswort klingen, sind eine schlechte
+Idee. Gemessen am unscharfen Vergleich:
+
+| Kandidat | fälschlich als Treffer |
+|---|---|
+| **Fleech** | *fleisch*, *fleece* |
+| Kimono, Zeppelin, Kolibri, Pinguin | — keine — |
+
+### 21.3 Das Startwort einsprechen
+
+Unter *Einstellungen → Aufnahme → „Startwort einsprechen …"*: Wort sagen, und Fleech
+zeigt, was ankommt und ob Freihand anspringen würde. Geprüft wird mit dem Erkenner, der
+im Betrieb **läuft** — nicht mit dem Diktat-Weg. Der hört ungleich besser, und ein Test,
+der besteht während der Alltag scheitert, ist schlimmer als keiner.
+
+Für Freihand zählt dabei eine andere Frage als beim Wörterbuch: „nur ähnlich" heißt hier
+**genügt** (der Vergleich ist bewusst unscharf), im Wörterbuch heißt es „noch üben".
+
+### 21.4 Fehlersuche
+
+Ein Schalter, der die geprüften Startwort-Fenster als Tondateien aufhebt (zwei Sekunden
+je Prüfung, höchstens 60 Stück, in `%APPDATA%\Fleech\freihand-diagnose`; die Dateinamen
+nennen das Ergebnis und was verstanden wurde). Gebaut, weil sich die Frage „warum trifft
+die Probe und der Betrieb nicht?" anders nicht beantworten ließ — alles ohne echtes
+Signal Vergleichbare zeigte Gleichstand.
+
+**Standardmäßig aus, und das bleibt so.** Hier wird Audio gespeichert — genau das, was
+Freihand sonst ausdrücklich nicht tut. Das Modul, das das Audio hält, bleibt dateifrei:
+Die Aufzeichnung kommt als Callback von außen (`fleech/freihand_diagnose.py`), sonst
+stünde Schreib-Code dauerhaft neben dem Ringpuffer. Ein Test wacht darüber.
+
+### 21.5 Die Grenze des Ansatzes — ehrlich benannt
+
+Ein dauerhaft offenes Mikrofon in einem Raum, in dem auch mal ein Video läuft oder
+jemand spricht, lässt sich per Sprache **nicht zuverlässig** auslösen. Selbst die beste
+Zahl einer dedizierten Wake-Word-Engine (openWakeWord nennt < 0,5 Fehlalarme pro Stunde)
+wären bei acht Stunden Nutzung mehrere Fehlstarts täglich — und jeder Fehlstart tippt
+Text in das gerade fokussierte Fenster. Bei einem Lautsprecher ist ein Fehlalarm ein
+Blinken; hier ist es Text im Code.
+
+Dazu kommt: openWakeWord kann kein Deutsch (nur englische Modelle), die fertigen Modelle
+stehen unter CC-BY-NC-SA — bei einer Anwendung mit Lizenzschlüssel ein echtes Thema —
+und jedes neue Startwort hieße rund eine Stunde Training. Porcupine ist kostenlos nur
+zur Evaluation.
+
+**Deshalb ist „Anstupsen" (Abschnitt 4a) der empfohlene Weg**, wenn es um das
+automatische Ende geht. Freihand bleibt vorhanden für den, der es will; in den
+Einstellungen steht dabei, was die zuverlässigere Wahl ist.
 
 **Entscheidungen, die im Alltag zählen:**
 
@@ -1835,6 +2087,18 @@ Grafikkarte gehört dem großen Modell, das gleich das eigentliche Diktat verarb
   gefüllter Puffer von vorhin ein falscher Bezugspunkt wäre.
 - **Stille-Dauer begrenzt auf 1–4 s.** Darunter schneidet jede Denkpause ab, darüber
   wartet man nach jedem Satz spürbar.
+- **Die Knöpfe der Pille wirken auch hier** (seit 5.8.3). Bis dahin waren alle drei an
+  den Hotkey-Weg gebunden und beim Freihand-Diktat wirkungslos — sie sahen nur klickbar
+  aus. In einem Raum mit Hintergrundgeräuschen war das fatal: Dort meldet das VAD
+  dauernd Sprache, die Stille-Erkennung greift nie, und ohne wirksamen Knopf kam man aus
+  der Aufnahme nicht mehr heraus. Die Knöpfe setzen ein Flag, das die Zustandsmaschine
+  beim nächsten Block auswertet (< 200 ms) — so bleibt der Zustandswechsel an genau
+  einer Stelle, statt aus zwei Threads zu kommen.
+- **Deckel bei zwei Minuten** (`MAX_DIKTAT_S`) als zweite Sicherung für den Fall, dass
+  die Stille-Erkennung nie greift und niemand hinsieht.
+- **Ein Ende, ein Weg.** Ob Stille, Fertig-Knopf oder Deckel — alle drei laufen durch
+  dieselben zwei Prüfungen (Abbruchwort, „war überhaupt Sprache drin"). Der Fertig-Knopf
+  umging sie zunächst; damit wäre Mikrofonrauschen in die Pipeline gegangen.
 
 Der Zustand ist am Punkt der Pille sichtbar (ruhiger Ring beim Lauschen, kein Blinken)
 und im Infobereich, wo ein Schnellschalter das Mithören sofort beendet.
