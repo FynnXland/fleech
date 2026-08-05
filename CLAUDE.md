@@ -59,17 +59,22 @@ Provider/Modelle/Prompts sind in `config.yaml` + `prompts/` konfigurierbar
 - `fleech/history.py` — SQLite-Verlauf (`history.db`), Stats für Insights.
 - `fleech/ui/` — `desktop.py` (Aufbau, Aufnahme-Lebenszyklus, Hotkeys, Verdrahtung),
   `main_window.py` (Fenstergerüst), `settings_window.py` (Panel + Widget-Bauer),
-  `overlay_qt.py` (die Pille), `state.py` (StateBus-Signale), `theme.py`, `widgets.py`,
-  `dialogs.py`, `titlebar.py`, `chevron.py`, `focusrestore.py`, `windowsfocus.py`,
-  `notifications.py`.
+  `overlay_qt.py` (das Pillen-Fenster: Aufbau, Hintergrund, Qt-Ereignisse),
+  `state.py` (StateBus-Signale), `theme.py`, `widgets.py`, `dialogs.py`,
+  `titlebar.py`, `chevron.py`, `focusrestore.py`, `windowsfocus.py`, `notifications.py`.
 - `fleech/ui/pages/` — die vier Seiten des Hauptfensters (home, insights, apps, profiles).
 - `fleech/ui/settings/` — die neun Einstellungsseiten, je Seite ein `build(panel)`.
 - `fleech/ui/desktopapp/` — die Teilgebiete von `DesktopApp` als **Mixins**: `profil`,
   `freihand`, `modelle`, `nachbereitung`, `lizenz`, `lebenszyklus`.
+- `fleech/ui/overlaypille/` — die Teile der Pille: `konstanten` (Maße/Farben/Zeiten),
+  `bausteine` (Waveform, Status-Punkt, Textblase — echte Widgets), und als **Mixins**
+  `geometrie` (Position, Ziehen, Presets), `einblendungen` (Transkript, Formeln,
+  Fortschritt), `zustand` (Aufnahme, Modus, Profil, Pause).
 
 **Wenn du etwas Neues hinzufügst, leg es an den passenden Ort, nicht dorthin, wo
 gerade Platz ist.** Genau daraus sind die Monolithen entstanden — `main_window.py`
-hatte 2970 Zeilen, `desktop.py` 1979, `settings_window.py` 1379. Die Testsuite wacht
+hatte 2970 Zeilen, `desktop.py` 1979, `overlay_qt.py` 1409, `settings_window.py` 1379,
+`textutils.py` 898. Die Testsuite wacht
 inzwischen darüber (`tests/test_ui_struktur.py`, `tests/test_kernstruktur.py`):
 Obergrenzen je Datei, Richtung der Abhängigkeiten, und dass ein Teil nie sein Ganzes
 importiert. **Reißt eine Grenze, erhöhe nicht die Zahl** — gib dem neuen Thema einen

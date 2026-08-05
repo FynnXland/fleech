@@ -40,6 +40,9 @@ def test_die_teile_existieren():
     for name in ("profil.py", "freihand.py", "modelle.py", "nachbereitung.py",
                  "lizenz.py", "lebenszyklus.py"):
         assert (UI / "desktopapp" / name).exists(), f"desktopapp/{name} fehlt"
+    for name in ("konstanten.py", "bausteine.py", "geometrie.py", "einblendungen.py",
+                 "zustand.py"):
+        assert (UI / "overlaypille" / name).exists(), f"overlaypille/{name} fehlt"
 
 
 # Obergrenzen der drei Dateien, aus denen wiederholt Monolithen geworden sind.
@@ -51,6 +54,7 @@ OBERGRENZEN = {
     "main_window.py": (500, "Fenstergeruest — Seiten nach pages/, Bausteine nach widgets.py"),
     "settings_window.py": (700, "Panel und Widget-Bauer — Seiten nach settings/"),
     "desktop.py": (1200, "Verdrahtung und Aufnahme-Lebenszyklus — Themen nach desktopapp/"),
+    "overlay_qt.py": (450, "Fenster, Hintergrund, Qt-Ereignisse — Themen nach overlaypille/"),
 }
 
 
@@ -111,6 +115,8 @@ def test_seiten_kennen_das_hauptfenster_nicht():
      "der gemeinsame Hinweis-Bauer und die Hilfetexte liegen in settings/common.py"),
     ("desktopapp", "desktop",
      "die Mixins definieren Methoden AUF DesktopApp, kennen die Klasse aber nicht"),
+    ("overlaypille", "overlay_qt",
+     "Masse und Farben liegen in overlaypille/konstanten.py, nicht im Fenster"),
 ])
 def test_die_teile_kennen_ihr_ganzes_nicht(ordner, verboten, hinweis):
     """Dieselbe Regel wie bei den Seiten, eine Ebene tiefer: Ein Teil, das sein
