@@ -121,17 +121,26 @@ class FreihandSettings:
     # kurzes Alltagswort loest im Gespraech staendig versehentlich aus.
     startwort: str = "Kimono"
     abbruchwort: str = "Abbrechen"
-    # Welches Modell das Startwort prueft. Vorgabe ist „base" und nicht mehr
-    # „tiny": An echter Stimme gemessen verstand tiny „Kimono" je nach Aussprache
-    # als „Kimu", „Gimo" oder „Kimo no" und „Apfel" als „Achtung" — base traf
-    # beides. Der Preis sind ~450 statt ~230 ms je Pruefung, und die faellt nur
-    # an, wenn das VAD ueberhaupt Sprache meldet.
+    # Welches Modell das Startwort prueft. „diktat" heisst: dasselbe Modell, das
+    # ohnehin fuer die Diktate geladen ist.
     #
-    # „tiny" bleibt waehlbar fuer schwache Rechner, „small" fuer schwierige
-    # Aussprache oder laute Umgebung (dort aber ~1,5 s je Pruefung).
-    modell: str = "base"
+    # Bis 5.6.0 stand hier „base" — ein eigenes kleines Modell auf der CPU. Das
+    # war aus einem Grund falsch, der lange nicht sichtbar war: Die Pruefung lief
+    # IM Audio-Callback, und `base` brauchte dafuer 437 ms (Median) bei 200-ms-
+    # Bloecken. Gemessen kam dadurch nur noch die HAELFTE des Gesprochenen an;
+    # das Modell bekam Fetzen und halluzinierte. Der Callback ist inzwischen frei
+    # (siehe freihand.FreihandStream), aber das grosse Modell ist trotzdem die
+    # bessere Wahl: 141 ms statt 437, genauer, und kein zusaetzliches VRAM.
+    #
+    # „tiny"/„base"/„small" bleiben waehlbar fuer Rechner ohne brauchbare GPU.
+    modell: str = "diktat"
     # Wie lange Stille ein Diktat beendet (1–4 s, siehe freihand.Einstellungen).
+    # Gilt AUCH fuer den Bedienmodus „Anstupsen" (siehe stillewache.py).
     stille_s: float = 2.0
+    # Fehlersuche: die geprueften Startwort-Fenster als WAV aufheben. Aus gutem
+    # Grund standardmaessig AUS — hier wird Audio gespeichert, und genau das
+    # verspricht der Freihand-Modus sonst nicht zu tun.
+    diagnose: bool = False
     # Prozessnamen, in denen NICHT gelauscht wird. Spiele und Meeting-Werkzeuge
     # gehoeren hierher: Dort ist Sprache im Raum die Regel.
     ausgeschlossene_apps: list = field(default_factory=list)
@@ -850,6 +859,15 @@ class UserSettings:
                 for pair in dismissed:
                     if str(pair).strip().lower() not in known:
                         settings.output.dictionary_ignores.append(str(pair))
+        # Migration 5.6.0 → 5.7.0: „base" war die alte VORGABE fuer die
+        # Startwort-Pruefung und nachweislich kaputt — sie brauchte 437 ms im
+        # Audio-Callback und liess dabei die halbe Aufnahme fallen. Wer den Wert
+        # nie angefasst hat, bekommt den reparierten Weg; „tiny" und „small"
+        # bleiben unangetastet, denn die hat man bewusst gewaehlt.
+        if (data or {}).get("freihand", {}).get("modell") == "base":
+            settings.freihand.modell = "diktat"
+            log.info("Freihand-Pruefmodell von 'base' auf 'diktat' umgestellt "
+                     "(alte Vorgabe, siehe FreihandSettings).")
         return settings
 
     # -- Anwendung auf die technische Config ---------------------------------------

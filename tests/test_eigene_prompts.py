@@ -8,6 +8,7 @@ musste raten.
 import pytest
 
 from fleech import prompts as pmod
+from fleech.textutils import TRANSCRIPT_OPEN
 from fleech.prompts import load_prompt, prompt_text, save_user_prompt, user_prompt_path
 
 
@@ -32,9 +33,16 @@ def test_ohne_eigene_fassung_gilt_der_werkszustand(werk):
 def test_eigene_fassung_geht_vor(werk):
     save_user_prompt("email", "Meine eigene Anweisung.")
     text, eigen = prompt_text(werk, "email")
+    # Zum ANSEHEN und Bearbeiten kommt die eigene Fassung unveraendert zurueck.
     assert text == "Meine eigene Anweisung."
     assert eigen is True
-    assert load_prompt(werk, "email") == "Meine eigene Anweisung."
+    # An das MODELL geht sie mit ergaenzter Sicherheitsregel: „email" formuliert
+    # den ganzen Text um, dort waere eine im Diktat versteckte Anweisung genauso
+    # wirksam wie beim Bereinigen. Wer die Regel aus seiner Fassung streicht,
+    # bekommt sie zurueck — sie laesst sich nicht wegkuerzen.
+    ans_modell = load_prompt(werk, "email")
+    assert ans_modell.startswith("Meine eigene Anweisung.")
+    assert TRANSCRIPT_OPEN in ans_modell
 
 
 def test_zuruecksetzen_stellt_den_werkszustand_wieder_her(werk):
@@ -114,3 +122,66 @@ def test_leerer_prompt_wird_nicht_gespeichert(qapp, werk, monkeypatch):
     assert not user_prompt_path("email").is_file()
     assert "Zurücksetzen" in dlg._meldung.text()
     dlg.deleteLater()
+
+
+# -- Stichpunkte: verdichten statt umschreiben -------------------------------------------
+
+
+def test_stichpunkte_prompt_verlangt_verdichtung():
+    """An echten Diktaten gemessen schrieb das Modell Satz fuer Satz um, statt zu
+    verdichten: Aus „Manche Profile haben einen farbigen Punkt und andere nicht"
+    wurde derselbe Satz — statt „Farbigen Punkt fuer alle Profile".
+
+    Was gefehlt hat, war ein GEGENbeispiel. Die Regel allein reichte nicht; erst
+    mit „So NICHT / So RICHTIG" sank die Ausgabe an ungesehenen Diktaten um 29
+    bis 65 Prozent, ohne dass Inhalt verlorenging.
+    """
+    from pathlib import Path
+
+    from fleech.prompts import load_prompt
+
+    text = load_prompt(Path("prompts"), "summary")
+    assert "So NICHT" in text and "So RICHTIG" in text, "Gegenbeispiel fehlt"
+    assert "Verdichten ist Pflicht" in text
+
+
+def test_stichpunkte_prompt_haelt_die_kernregel():
+    """Verdichten darf nicht in Zusammenfassen kippen — nichts weglassen bleibt
+    die oberste Regel."""
+    from pathlib import Path
+
+    from fleech.prompts import load_prompt
+
+    text = load_prompt(Path("prompts"), "summary")
+    assert "KEINE Zusammenfassung" in text
+    assert "Ein Stichpunkt = eine Sache" in text
+
+
+def test_stichpunkte_prompt_wirft_verstuemmelte_woerter_weg():
+    """Real: Der Versprecher „Klickreihe" wanderte unveraendert in die Stichpunkte."""
+    from pathlib import Path
+
+    from fleech.prompts import load_prompt
+
+    text = load_prompt(Path("prompts"), "summary")
+    assert "Verstümmelte Wörter nicht mitschleppen" in text
+
+
+@pytest.mark.parametrize("name", ["cleanup", "cleanup-en", "prompt_engineer",
+                                  "summary", "email"])
+def test_umformulierende_prompts_erklaeren_die_marker(name):
+    """Zweite Verteidigungslinie gegen „Modell fuehrt das Diktat als Anweisung aus".
+
+    Sie wurde bisher nur fuer `cleanup` und `prompt_engineer` erzwungen. `summary`
+    und `email` formulieren den ganzen Text um — dort waere eine im Diktat
+    versteckte Anweisung genauso wirksam, und beide nannten die Marker nur
+    umschreibend („zwischen den Markern"), ohne sie zu zeigen.
+    """
+    from pathlib import Path
+
+    from fleech.prompts import load_prompt
+    from fleech.textutils import TRANSCRIPT_CLOSE, TRANSCRIPT_OPEN
+
+    text = load_prompt(Path("prompts"), name)
+    assert TRANSCRIPT_OPEN in text, f"{name}.md zeigt den Marker nicht"
+    assert TRANSCRIPT_CLOSE in text

@@ -113,7 +113,7 @@ class DesktopApp:
             level_provider=lambda: max(self.recorder.level, self._freihand_level()),
         )
         self.overlay.cancel_requested.connect(self._cancel_recording)
-        self.overlay.finish_requested.connect(lambda: self.controller.stop_if_active())
+        self.overlay.finish_requested.connect(self._finish_recording)
         self.overlay.pause_requested.connect(self.toggle_pause)
         # Modus-Punkt-Klick: KI-Prompting an/aus.
         self.overlay.profile_cycle_requested.connect(self.cycle_profile)
@@ -139,6 +139,7 @@ class DesktopApp:
                 "open_update": self.show_update_dialog,
                 "open_license": self.show_license_dialog,
             },
+            wortprobe_fn=self.wortprobe,
             # Globale Hotkeys waehrend der Recorder-Erfassung pausieren (lazy —
             # self.hotkeys existiert erst spaeter im __init__).
             hotkey_capture_guard=(
@@ -225,11 +226,14 @@ class DesktopApp:
         self._freihand = None
         self._freihand_audio = None
         try:
+            from ..freihand import woerter_als_text
+
             self.tray.set_freihand(self.settings.freihand.aktiv,
-                                   self.settings.freihand.startwort)
+                                   woerter_als_text(self.settings.freihand.startwort))
         except Exception:
             log.debug("Tray-Text nicht setzbar.", exc_info=True)
         self._starte_freihand()
+        self._starte_stille_wache()
         # Ring am Punkt gleich beim Start faerben — sonst bliebe er bis zum
         # ersten Profilwechsel grau, obwohl laengst ein Profil gilt.
         self._melde_profilfarbe()
@@ -654,10 +658,42 @@ class DesktopApp:
             daemon=True,
         ).start()
 
+    def _freihand_lauscher(self):
+        """Der Lauscher, wenn Freihand gerade AUFNIMMT — sonst None.
+
+        Die Pille kennt nur einen Zustand „Aufnahme laeuft" und weiss nicht, auf
+        welchem Weg sie zustande kam. Bis 5.8.2 wirkten alle drei Knoepfe
+        ausschliesslich auf den `RecordingController` — beim Freihand-Diktat
+        laeuft der aber gar nicht, also tat kein einziger Knopf etwas.
+        """
+        from ..freihand import Zustand
+
+        lauscher = getattr(getattr(self, "_freihand", None), "lauscher", None)
+        if lauscher is not None and lauscher.zustand is Zustand.AUFNAHME:
+            return lauscher
+        return None
+
+    def _finish_recording(self) -> None:
+        """Overlay-Haken: fertig — je nachdem, welcher Weg gerade aufnimmt."""
+        lauscher = self._freihand_lauscher()
+        if lauscher is not None and lauscher.beende_vorzeitig():
+            log.info("Freihand-Diktat per Pille beendet.")
+            return
+        self.controller.stop_if_active()
+
     def _cancel_recording(self) -> None:
         """Overlay-X: Aufnahme verwerfen — kein STT, kein LLM, kein Paste."""
+        lauscher = self._freihand_lauscher()
+        if lauscher is not None and lauscher.verwirf_vorzeitig():
+            log.info("Freihand-Diktat per Pille verworfen.")
+            self._stop_preview()
+            return
         kind = self.controller.cancel()
         if kind is None:
+            # Der Klick kam an, aber es lief nichts mehr. Das MUSS sichtbar sein:
+            # Genau dieser Fall („Pille schon weg, Klick ins Leere") war als
+            # „Abbrechen funktioniert nicht" gemeldet — und stand nirgends.
+            log.info("Abbrechen ohne laufende Aufnahme — nichts zu verwerfen.")
             return
         self._prompt_oneshot = False
         self.overlay.set_prompt_latched(self._prompt_latched)
@@ -1312,7 +1348,7 @@ class DesktopApp:
     def _update_mode_line(self) -> None:
         s = self.settings
         self.overlay.set_mode_line(
-            f"{'Hold' if s.recording.mode == 'hold' else 'Toggle'} | "
+            f"{ {'hold': 'Hold', 'toggle': 'Toggle'}.get(s.recording.mode, 'Anstupsen') } | "
             f"Fokus: {s.audio_focus.mode} | "
             f"Eingriff: {s.output.intervention}"
         )
@@ -1467,6 +1503,17 @@ class DesktopApp:
         Ohne laufende Aufnahme passiert bewusst nichts: ein „Pause" im Leerlauf
         haette keinen Zustand, den man spaeter fortsetzen koennte.
         """
+        lauscher = self._freihand_lauscher()
+        if lauscher is not None:
+            # Freihand-Diktat: Der Recorder laeuft hier nicht, der Knopf lief also
+            # ins Leere („Pause ignoriert"). Die Stille-Uhr ruht mit — sonst waere
+            # das Diktat nach `stille_s` beendet, waehrend man noch spricht.
+            an = not lauscher.diktat_pausiert
+            if lauscher.pausiere_diktat(an):
+                log.info("Freihand-Diktat %s.", "pausiert" if an else "fortgesetzt")
+                self.bus.paused_changed.emit(an)
+                self.notifier.sound("stop" if an else "start")
+            return
         if not self.recorder.recording:
             log.info("Pause ignoriert — es laeuft keine Aufnahme.")
             return
@@ -1499,7 +1546,142 @@ class DesktopApp:
             log.debug("STT-Sprache nicht setzbar.", exc_info=True)
         self.pipeline.sprache = "de" if sprache == "auto" else sprache
 
+    # -- Anstupsen: die Sprechpause beendet die Aufnahme --------------------------------
+
+    def _starte_stille_wache(self) -> None:
+        """Timer, der im Anstupsen-Modus auf das Ende der Rede achtet.
+
+        Laeuft DAUERHAFT und prueft selbst, ob gerade etwas zu tun ist — statt
+        beim Aufnahmestart gestartet zu werden. Grund: `_on_record_start` laeuft
+        im pynput-Listener-Thread, und ein QTimer darf nur aus dem GUI-Thread
+        gestartet werden. Ein Tick, der sofort mit „laeuft nichts" zurueckkommt,
+        kostet nichts.
+        """
+        from PySide6.QtCore import QTimer
+
+        self._stillewache = None
+        self._stillewache_laedt = False
+        # OHNE Parent: `DesktopApp` ist kein QObject, sondern die einfache Klasse,
+        # die alles verdrahtet. `QTimer(self)` wirft deshalb beim Start —
+        # genau wie die anderen Timer hier steht er ohne Parent und wird ueber
+        # das Attribut am Leben gehalten.
+        self._nudge_timer = QTimer()
+        self._nudge_timer.setInterval(300)
+        self._nudge_timer.timeout.connect(self._nudge_tick)
+        self._nudge_timer.start()
+
+    def _hole_stillewache(self):
+        """Die Wache, oder None solange das VAD noch laedt.
+
+        Silero kommt aus faster-whisper und braucht beim ersten Zugriff einen
+        Moment. Das im GUI-Thread zu tun wuerde die Oberflaeche einfrieren —
+        genau in dem Augenblick, in dem der Nutzer gerade zu sprechen anfaengt.
+        """
+        wache = getattr(self, "_stillewache", None)
+        if wache is not None:
+            wache.stille_s = self.settings.freihand.stille_s
+            return wache
+        if self._stillewache_laedt:
+            return None
+        self._stillewache_laedt = True
+
+        def laden():
+            try:
+                import numpy as _np
+
+                from ..freihand import SAMPLERATE, baue_vad
+                from ..stillewache import Stillewache
+
+                vad = baue_vad()
+                # Einmal warmlaufen lassen — HIER, im Hintergrund. Gemessen kostet
+                # der erste Aufruf 185 ms, jeder weitere 1,4 ms. Diese 185 ms im
+                # GUI-Thread waeren ein sichtbarer Hänger, genau in dem Moment, in
+                # dem der Nutzer zu sprechen anfaengt.
+                vad(_np.zeros(SAMPLERATE, dtype=_np.float32))
+                self._stillewache = Stillewache(
+                    vad, stille_s=self.settings.freihand.stille_s,
+                    samplerate=self.config.audio.samplerate)
+                log.info("Stille-Wache bereit (Anstupsen-Modus).")
+            except Exception:
+                log.exception("Stille-Wache nicht ladbar — Anstupsen endet nur "
+                              "per Tastendruck.")
+            finally:
+                self._stillewache_laedt = False
+
+        threading.Thread(target=laden, daemon=True).start()
+        return None
+
+    def _nudge_tick(self) -> None:
+        """GUI-Thread. Nur billige Arbeit: VAD auf einer Sekunde Audio (1–4 ms)."""
+        try:
+            if self.settings.recording.mode != "nudge" or not self.controller.active:
+                wache = getattr(self, "_stillewache", None)
+                if wache is not None and wache.laeuft:
+                    wache.stop()
+                return
+            wache = self._hole_stillewache()
+            if wache is None:
+                return
+            jetzt = time.monotonic()
+            if not wache.laeuft:
+                wache.start(jetzt)
+                return
+            if self.recorder.paused:
+                # Pause heisst ausdruecklich „ich rede gerade woanders" — genau
+                # dann darf die Stille das Diktat nicht beenden.
+                wache.start(jetzt)
+                return
+            from ..freihand import VAD_FENSTER_S
+
+            if wache.fertig(self.recorder.tail(VAD_FENSTER_S), jetzt):
+                log.info("Anstupsen: %.1f s still — Diktat beendet.", wache.stille_s)
+                wache.stop()
+                self.controller.stop_if_active()
+        except Exception:
+            log.exception("Stille-Wache fehlgeschlagen — Aufnahme laeuft weiter.")
+
     # -- Freihand-Modus (F1) -----------------------------------------------------------
+
+    def _baue_freihand_mitschnitt(self, s):
+        """Diagnose-Aufzeichnung, oder None (der Normalfall).
+
+        Getrennt vom Erkenner, damit im ausgeschalteten Zustand wirklich NICHTS
+        an Datei-Code in der Nähe des Audios steht.
+        """
+        if not getattr(s, "diagnose", False):
+            return None
+        from ..freihand_diagnose import ORDNER_NAME, baue_mitschnitt
+        from ..platformpaths import user_data_dir
+
+        ordner = user_data_dir() / ORDNER_NAME
+        log.warning("Freihand-DIAGNOSE ist an — geprüfte Fenster landen als WAV "
+                    "in %s. Nach der Fehlersuche wieder ausschalten.", ordner)
+        return baue_mitschnitt(ordner, samplerate=self.config.audio.samplerate)
+
+    def _baue_startwort_erkenner(self, s):
+        """Wer prueft auf das Startwort — das Diktat-Modell oder ein eigenes?
+
+        „diktat" ist seit 5.7.0 die Vorgabe: dasselbe Modell, das ohnehin geladen
+        ist. Ein eigenes kleines Modell bleibt waehlbar fuer Rechner ohne
+        brauchbare GPU. Faellt der Weg ueber die Engine aus (kein
+        faster-whisper-Backend), wird auf `base` zurueckgefallen statt Freihand
+        ganz abzuschalten.
+        """
+        from ..freihand import baue_erkenner, baue_erkenner_aus_engine
+
+        gewuenscht = (getattr(s, "modell", "diktat") or "diktat").strip().lower()
+        sprache = self.settings.general.language
+        if gewuenscht == "diktat":
+            engine = getattr(self.pipeline, "stt", None)
+            if engine is not None and hasattr(engine, "transcribe_kurz"):
+                log.info("Freihand prueft mit dem Diktat-Modell.")
+                return baue_erkenner_aus_engine(
+                    engine, sprache=sprache, startwort=s.startwort)
+            log.warning("Freihand: Diktat-Modell nicht nutzbar — nehme 'base'.")
+            gewuenscht = "base"
+        log.info("Freihand prueft mit eigenem Modell %r (CPU).", gewuenscht)
+        return baue_erkenner(modell_groesse=gewuenscht, sprache=sprache,
+                             startwort=s.startwort)
 
     def _starte_freihand(self) -> None:
         """Dauerlauschen aufbauen — im Hintergrund, weil tiny geladen werden muss.
@@ -1513,7 +1695,8 @@ class DesktopApp:
         def bauen():
             try:
                 from ..freihand import (
-                    Einstellungen, FreihandStream, Lauscher, baue_erkenner, baue_vad,
+                    Einstellungen, FreihandStream, Lauscher, baue_erkenner,
+                    baue_erkenner_aus_engine, baue_vad,
                 )
 
                 s = self.settings.freihand
@@ -1524,11 +1707,8 @@ class DesktopApp:
                         ausgeschlossene_apps=tuple(s.ausgeschlossene_apps or ()),
                     ),
                     vad=baue_vad(),
-                    erkenner=baue_erkenner(
-                        modell_groesse=getattr(s, "modell", "base") or "base",
-                        sprache=self.settings.general.language,
-                        startwort=s.startwort,
-                    ),
+                    erkenner=self._baue_startwort_erkenner(s),
+                    mitschnitt=self._baue_freihand_mitschnitt(s),
                 )
                 self._freihand = FreihandStream(
                     lauscher, self._freihand_ereignis,
@@ -1570,12 +1750,17 @@ class DesktopApp:
         self.settings.freihand.aktiv = an
         self.settings.save()
         try:
-            self.tray.set_freihand(an, self.settings.freihand.startwort)
+            from ..freihand import woerter_als_text
+
+            self.tray.set_freihand(an, woerter_als_text(self.settings.freihand.startwort))
         except Exception:
             log.debug("Tray-Text nicht aktualisierbar.", exc_info=True)
         if an:
             self._starte_freihand()
-            self._flash_status("Freihand an — sag „%s“" % self.settings.freihand.startwort)
+            from ..freihand import woerter_als_text
+
+            self._flash_status("Freihand an — sag „%s“"
+                               % woerter_als_text(self.settings.freihand.startwort))
         else:
             self._stoppe_freihand()
             self._flash_status("Freihand aus")
@@ -1762,6 +1947,74 @@ class DesktopApp:
         self._update_dialog.raise_()
         self._update_dialog.activateWindow()
 
+    def wortprobe(self, begriff: str, sekunden: float = 3.0,
+                  zweck: str = "woerterbuch"):
+        """Ein Wort einsprechen lassen und prüfen, ob es ankommt.
+
+        Läuft über DIESELBE Erkennung wie im Alltag — beim Wörterbuch mit dem
+        Wörterbuch-Priming, beim Startwort über den Weg, den Freihand geht. Ein
+        Test, der anders erkennt als der Betrieb, misst die falsche Frage.
+
+        Blockiert bewusst, solange aufgenommen wird: Der Dialog wartet auf das
+        Ergebnis, und zwei parallele Aufnahmen auf demselben Mikrofon wären ein
+        Gerätekonflikt.
+        """
+        import time as _time
+
+        from ..wortprobe import Ergebnis, Probe, pruefe_audio
+
+        if self.controller.active:
+            # Ein laufendes Diktat hat Vorrang — das Mikrofon gehoert ihm.
+            return Probe(Ergebnis.NICHTS, "", begriff, zweck)
+        # Freihand hoert am selben Mikrofon mit. Ohne Pause liefe die Probe
+        # Gefahr, das eigene Startwort auszuloesen — mitten im Test.
+        freihand = getattr(self, "_freihand", None)
+        if freihand is not None:
+            freihand.pausiere(True)
+        self.recorder.start()
+        try:
+            _time.sleep(max(0.5, min(10.0, float(sekunden))))
+        finally:
+            audio = self.recorder.stop()
+            if freihand is not None:
+                freihand.pausiere(False)
+        erkenne = (self._erkenne_startwort if zweck == "startwort"
+                   else self._erkenne_probe)
+        return pruefe_audio(
+            audio, begriff, erkenne,
+            samplerate=self.config.audio.samplerate, zweck=zweck,
+        )
+
+    def _erkenne_startwort(self, audio):
+        """Erkennung für die Startwort-Probe — exakt der Freihand-Weg.
+
+        Nicht der Diktat-Weg: Freihand prüft mit `beam_size=1`, abgeschnittener
+        Stille und dem Startwort als `initial_prompt`. Mit dem Diktat-Weg zu
+        messen hiesse, eine Frage zu beantworten, die niemand gestellt hat.
+
+        Läuft Freihand gerade, wird DESSEN Erkenner genommen — dieselbe Instanz,
+        die im Betrieb entscheidet. Sonst wird einer gebaut; bei einem eigenen
+        kleinen Modell kostet das beim ersten Mal ein paar Sekunden Ladezeit.
+        """
+        lauscher = getattr(getattr(self, "_freihand", None), "lauscher", None)
+        laufender = getattr(lauscher, "erkenner", None)
+        if laufender is not None:
+            return laufender(audio) or ""
+        return self._baue_startwort_erkenner(self.settings.freihand)(audio) or ""
+
+    def _erkenne_probe(self, audio):
+        """Erkennung für die Wortprobe — mit demselben Priming wie im Diktat.
+
+        Der `initial_prompt` ist der Punkt: Er ist genau das, was das Wörterbuch
+        bewirkt. Ohne ihn würde der Test messen, wie gut Whisper das Wort OHNE
+        Wörterbuch versteht — also das Gegenteil der Frage."""
+        p = self.pipeline
+        with p._stt_lock:
+            return p.stt.transcribe(
+                audio, self.config.audio.samplerate,
+                initial_prompt=getattr(p, "_vocab_prompt", None),
+            ) or ""
+
     def _laufendes_audio(self):
         """Bisher aufgenommenes Audio — egal ob per Hotkey oder per Freihand.
 
@@ -1816,7 +2069,10 @@ class DesktopApp:
         except Exception:
             log.debug("Freihand-Fehlermeldung nicht zeigbar.", exc_info=True)
         try:
-            self.tray.set_freihand(False, self.settings.freihand.startwort)
+            from ..freihand import woerter_als_text
+
+            self.tray.set_freihand(False,
+                                   woerter_als_text(self.settings.freihand.startwort))
         except Exception:
             log.debug("Tray-Text nicht setzbar.", exc_info=True)
 
@@ -1961,8 +2217,32 @@ def run_desktop() -> int:
         except Exception:
             pass
 
+    desktop = None
     try:
-        desktop = DesktopApp()
+        try:
+            desktop = DesktopApp()
+        except Exception:
+            # Ein Startfehler MUSS ins Protokoll. Bis 5.8.0 flog der Traceback nur
+            # auf stderr — bei der gepackten EXE gibt es dort niemanden, der
+            # zusieht. Im Protokoll stand dann bloss, wie weit der Start gekommen
+            # war, und alles sah nach einem sauberen Lauf aus. Real passiert:
+            # `QTimer(self)` in `_starte_stille_wache` (DesktopApp ist kein
+            # QObject) legte den Start lahm, und die Diagnose lief ins Leere.
+            log.exception("Fleech konnte nicht starten.")
+            # Und der Tastatur-Hook muss weg. `HotkeyManager.start()` laeuft frueh
+            # in __init__; bricht es danach ab, haengt ein Low-Level-Hook in einem
+            # halbtoten Prozess und schluckt oder verdoppelt Tastendruecke —
+            # gemeldet als „komische Tastatureingaben beim Starten". An die
+            # halbfertige Instanz kommt hier niemand heran, deshalb die Registry
+            # in HotkeyManager.
+            try:
+                offen = HotkeyManager.stop_all()
+                if offen:
+                    log.info("%d Tastatur-Listener nach dem Startfehler geschlossen.",
+                             offen)
+            except Exception:
+                log.debug("Hotkeys nicht abraeumbar.", exc_info=True)
+            raise
         desktop.attach_instance_lock(lock)
         desktop._start_ipc_server()
         # Erststart: Fenster zeigen; danach startet die App still in den Tray.
@@ -1974,6 +2254,12 @@ def run_desktop() -> int:
             from PySide6.QtCore import QTimer
 
             QTimer.singleShot(400, desktop.show_onboarding)
+        # Positive Startbestaetigung. Ohne sie laesst sich ein geglueckter Start
+        # nicht vom abgebrochenen unterscheiden: „Prozess laeuft" und „keine
+        # ERROR-Zeile" waren beide erfuellt, WAEHREND die App tot war.
+        from ..version import APP_VERSION
+
+        log.info("Fleech %s bereit — Oberflaeche steht.", APP_VERSION)
         return app.exec()
     finally:
         lock.release()

@@ -29,7 +29,7 @@ from .theme import (
     ACCENT, ACCENT_DIM, BORDER_HAIRLINE, CARD, MUTED, NAV_ACTIVE_BG, ROW_HOVER,
     SIDEBAR, TEXT, TRACK, button_qss, style_button,
 )
-from .widgets import HelpBadge
+from .widgets import HelpBadge, WortListe
 
 log = logging.getLogger(__name__)
 
@@ -114,7 +114,7 @@ class SettingsPanel(QWidget):
 
     def __init__(self, settings: UserSettings, on_changed, list_microphones,
                  test_hooks=None, hotkey_capture_guard=None, on_clear_history=None,
-                 overlay_hooks=None):
+                 overlay_hooks=None, wortprobe_fn=None):
         super().__init__()
         self.settings = settings
         self._on_changed = on_changed          # callback(section: str)
@@ -124,6 +124,9 @@ class SettingsPanel(QWidget):
         self._on_clear_history = on_clear_history
         # "edit_toggle": fn()->bool, "reset": fn(), "apply_preset": fn(key)
         self._overlay_hooks = overlay_hooks or {}
+        # fn(begriff, sekunden) -> Probe. None = kein Mikrofonzugriff (Tests,
+        # Onboarding) → der Einsprech-Knopf erscheint dann gar nicht erst.
+        self._wortprobe_fn = wortprobe_fn
         self._debounced_commits: list = []  # (QTimer, commit_fn) der Zeilen-Editoren
         self._loading = True
 
@@ -709,15 +712,44 @@ class SettingsPanel(QWidget):
         form.addRow("", _hint(
             "Wie du das Diktat auslöst — und welches Mikrofon genutzt wird."
         ))
+        # Der Sprechpause-Regler gehoert zum Anstupsen-Modus und wird mit ihm
+        # ein- und ausgeblendet. Er entsteht aber erst NACH dem Combo (er steht
+        # ja darunter) — deshalb der Umweg ueber diese Liste statt eines direkten
+        # Zugriffs im Setter.
+        #
+        # Der Setter faengt BEWUSST nur `s` und diese Liste, NIEMALS `self`: Ein
+        # Lambda, das den Qt-Parent faengt und in einem Kind-Widget haengt, baut
+        # einen Referenzzyklus. Die Widgets sterben dann per GC in undefinierter
+        # Reihenfolge — real aufgetreten als wandernde „access violation", deren
+        # Absturzort nichts mit der Ursache zu tun hatte (siehe CLAUDE.md).
+        pausen_zeilen: list = []
+
+        def modus_gesetzt(v, _ziel=s.recording, _zeilen=pausen_zeilen):
+            _ziel.mode = v
+            for layout, box in _zeilen:
+                layout.setRowVisible(box, v == "nudge")
+
         self._combo(
             form, "Bedienmodus",
-            [("hold", "Hold-to-talk (halten)"), ("toggle", "Toggle (drücken/drücken)")],
-            s.recording.mode, "recording", lambda v: setattr(s.recording, "mode", v),
+            [("hold", "Hold-to-talk (halten)"), ("toggle", "Toggle (drücken/drücken)"),
+             ("nudge", "Anstupsen (endet von selbst)")],
+            s.recording.mode, "recording", modus_gesetzt,
             help_map={
                 "hold": "Taste halten = aufnehmen, loslassen = fertig.",
                 "toggle": "Einmal drücken = Start, nochmal = fertig.",
+                "nudge": "Einmal drücken = Start. Hörst du auf zu reden, ist das "
+                         "Diktat fertig — ohne dass du die Taste nochmal anfasst. "
+                         "Ein zweiter Druck beendet trotzdem sofort.",
             },
         )
+        self._sprechpause_box = self._spin(
+            form, "Sprechpause bis Ende", s.freihand.stille_s, 1.0, 4.0, "freihand",
+            lambda v: setattr(s.freihand, "stille_s", v),
+            hint_text="Nur beim Anstupsen: So lange still = Diktat fertig. Kürzer "
+                      "schneidet Denkpausen ab, länger lässt dich warten.",
+        )
+        pausen_zeilen.append((form, self._sprechpause_box))
+        form.setRowVisible(self._sprechpause_box, s.recording.mode == "nudge")
         self._add_hotkey_field(
             form, "Diktat-Hotkey", "hotkey", "dictate", "f9",
             hint_text="„Aufnehmen“ klicken, dann Taste, Kombination oder Maustaste "
@@ -756,7 +788,10 @@ class SettingsPanel(QWidget):
         f = s.freihand
         form.addRow("", _hint(
             "— Freihand —  Startwort sagen, sprechen, aufhören. Kommt zusätzlich "
-            "zum Hotkey, ersetzt ihn nicht."
+            "zum Hotkey, ersetzt ihn nicht.\n"
+            "Wenn dir am automatischen Ende gelegen ist: Der Bedienmodus "
+            "„Anstupsen“ oben kann das auch — und kann nicht durch ein Video oder "
+            "ein Gespräch im Raum ausgelöst werden."
         ))
         self._freihand_cb = self._check(
             form, "Freihand", f.aktiv, "freihand",
@@ -766,24 +801,55 @@ class SettingsPanel(QWidget):
                       "gespeichert, erst ab dem Startwort überhaupt gesammelt. "
                       "Wirkt nach einem Neustart von Fleech.",
         )
-        self._text_field(
-            form, "Startwort", f.startwort, "freihand",
-            lambda v: setattr(f, "startwort", v),
-            hint_text="Mehrsilbig und im Alltag selten — sonst löst es im Gespräch "
-                      "ständig versehentlich aus. „Kimono“ hat sich bewährt.",
+        # Mehrere Startwörter: Welches Wort die eigene Aussprache zuverlässig
+        # trifft, lässt sich nicht vorhersagen — mit zwei oder drei Kandidaten
+        # nebeneinander entfällt das Herumprobieren mit einem einzigen.
+        from ..freihand import zerlege_woerter
+
+        def startwoerter_gesetzt(woerter, _ziel=f):
+            _ziel.startwort = "\n".join(woerter)
+
+        self._startwort_liste = WortListe(
+            zerlege_woerter(f.startwort),
+            platzhalter="Startwort eintippen, dann Enter",
+            on_changed=lambda w: (startwoerter_gesetzt(w), self._changed("freihand")),
         )
+        label_w, _ = self._row_label(
+            "Startwörter",
+            "Ein Wort pro Zeile — Fleech startet bei jedem davon. Mehrsilbig und "
+            "im Alltag selten, sonst löst es im Gespräch ständig versehentlich "
+            "aus. „Kimono“ hat sich bewährt. Kunstwörter, die wie ein Alltagswort "
+            "klingen, sind eine schlechte Wahl: „Fleech“ etwa kommt als „Fleisch“ "
+            "an und würde beim Kochrezept auslösen.")
+        form.addRow(label_w, self._startwort_liste)
+        if self._wortprobe_fn is not None:
+            # Ob ein Startwort taugt, hängt an der eigenen Aussprache — das lässt
+            # sich nicht vorhersagen, nur ausprobieren. Zehn Sekunden statt eines
+            # halben Tages Rätselraten, warum Freihand nicht reagiert.
+            self._startwort_probe_btn = style_button(
+                QPushButton("Startwort einsprechen …"), "ghost")
+            self._startwort_probe_btn.setToolTip(
+                "Sprich das Startwort einmal beiläufig ins Mikrofon. Fleech zeigt, "
+                "was ankommt und ob Freihand darauf anspringen würde."
+            )
+            self._startwort_probe_btn.clicked.connect(self._startwort_probe_starten)
+            form.addRow("", self._startwort_probe_btn)
         self._combo(
             form, "Genauigkeit", [
-                ("tiny", "Schnell (schwache Rechner)"),
-                ("base", "Ausgewogen — empfohlen"),
-                ("small", "Genau (langsamer)"),
+                ("diktat", "Wie beim Diktat — empfohlen"),
+                ("tiny", "Sparsam (schwache Rechner)"),
+                ("base", "Sparsam, etwas genauer"),
+                ("small", "Sparsam, am genauesten (langsam)"),
             ],
-            getattr(f, "modell", "base") or "base", "freihand",
+            getattr(f, "modell", "diktat") or "diktat", "freihand",
             lambda v: setattr(f, "modell", v),
-            hint_text="Wie genau auf das Startwort gehört wird. „Schnell“ überhört "
-                      "es je nach Aussprache („Kimono“ wurde als „Kimu“ verstanden); "
-                      "„Genau“ braucht rund 1,5 Sekunden je Prüfung. Wirkt nach "
-                      "einem Neustart von Fleech.",
+            hint_text="Wie genau auf das Startwort gehört wird. „Wie beim Diktat“ "
+                      "nimmt dasselbe Modell, das deine Diktate erkennt — es liegt "
+                      "ohnehin auf der Grafikkarte, ist am genauesten und mit 140 ms "
+                      "je Prüfung auch am schnellsten. Die sparsamen Varianten "
+                      "rechnen stattdessen auf dem Prozessor: für Rechner ohne "
+                      "brauchbare Grafikkarte, dafür deutlich schlechter im Hören. "
+                      "Wirkt nach einem Neustart von Fleech.",
         )
         self._text_field(
             form, "Abbruchwort", f.abbruchwort, "freihand",
@@ -792,11 +858,19 @@ class SettingsPanel(QWidget):
                       "Es startet bewusst KEINE neue Aufnahme — sonst würde ein "
                       "Versprecher zur Endlosschleife.",
         )
-        self._spin(
-            form, "Sprechpause bis Ende", f.stille_s, 1.0, 4.0, "freihand",
-            lambda v: setattr(f, "stille_s", v),
-            hint_text="So lange still = Diktat fertig. Kürzer schneidet Denkpausen "
-                      "ab, länger lässt dich warten.",
+        # „Sprechpause bis Ende" steht jetzt oben beim Bedienmodus: Sie beendet
+        # auch den Anstupsen-Modus, und derselbe Wert an zwei Stellen zu regeln
+        # wäre eine Einladung, ihn zweimal verschieden einzustellen.
+        self._check(
+            form, "Fehlersuche", getattr(f, "diagnose", False), "freihand",
+            lambda v: setattr(f, "diagnose", v),
+            hint_text="NUR zur Fehlersuche: Hebt die geprüften Startwort-Fenster "
+                      "als Tondateien auf, damit nachvollziehbar wird, was beim "
+                      "Lauschen wirklich ankommt. Es werden zwei Sekunden je "
+                      "Prüfung gespeichert, höchstens 60 Stück, in "
+                      "%APPDATA%\\Fleech\\freihand-diagnose. Danach bitte wieder "
+                      "ausschalten — sonst wird dauerhaft Ton mitgeschrieben. "
+                      "Wirkt nach einem Neustart von Fleech.",
         )
         self._lines_editor(
             form, "Nicht lauschen in", f.ausgeschlossene_apps, "freihand",
@@ -1137,6 +1211,16 @@ class SettingsPanel(QWidget):
                       "automatisch ersetzen.",
             height=220,
         )
+        # Einsprech-Test: Man traegt ein Wort ein und weiss nicht, ob es etwas
+        # gebracht hat — bis es mitten im Diktat wieder falsch dasteht.
+        if self._wortprobe_fn is not None:
+            self._probe_btn = style_button(QPushButton("Eintrag einsprechen …"), "ghost")
+            self._probe_btn.setToolTip(
+                "Markiere im Wörterbuch eine Zeile (oder setz den Cursor hinein) "
+                "und sprich das Wort einmal ins Mikrofon. Fleech zeigt, was ankommt."
+            )
+            self._probe_btn.clicked.connect(self._wortprobe_starten)
+            form.addRow("", self._probe_btn)
         # Transparenz zum Priming-Limit: ueber 60 Begriffen kann die Erkennung nicht
         # alle vorab kennen — sichtbar machen, statt still abzuschneiden.
         self._priming_hint = _hint("")
@@ -1377,3 +1461,66 @@ class SettingsPanel(QWidget):
             self._update_status.setText("Kein Zugriff — Token fehlt oder gilt nicht.")
         else:
             self._update_status.setText(f"Fehlgeschlagen: {result.get('message', '')[:60]}")
+
+    def _wortprobe_begriff(self) -> str:
+        """Der Begriff aus der Zeile, in der der Cursor steht.
+
+        Bewusst die AKTUELLE Zeile statt eines eigenen Eingabefelds: Man schreibt
+        das Wort gerade, der Cursor steht ohnehin darin — ein zweites Feld waere
+        dasselbe Wort ein zweites Mal.
+        """
+        editor = getattr(self, "_dictionary_editor", None)
+        if editor is None:
+            return ""
+        zeile = editor.textCursor().block().text().strip()
+        if not zeile:
+            # Cursor in einer Leerzeile: die letzte gefuellte Zeile nehmen.
+            gefuellt = [z.strip() for z in editor.toPlainText().splitlines() if z.strip()]
+            zeile = gefuellt[-1] if gefuellt else ""
+        # „falsch => richtig" — geprueft wird, ob die RICHTIGE Schreibweise ankommt.
+        if "=>" in zeile:
+            zeile = zeile.split("=>", 1)[1]
+        return zeile.strip()
+
+    def _startwort_probe_starten(self) -> None:
+        """Das Startwort einsprechen und sehen, ob Freihand darauf anspringen würde.
+
+        Geprüft wird mit dem Erkenner, der im Betrieb LÄUFT — nicht mit dem
+        Diktat-Weg. Der hört ungleich besser, und ein Test, der besteht, während
+        der Alltag scheitert, ist schlimmer als keiner.
+        """
+        if self._wortprobe_fn is None:
+            return
+        liste = getattr(self, "_startwort_liste", None)
+        woerter = liste.woerter() if liste is not None else []
+        if not woerter:
+            self._startwort_probe_btn.setText("Erst ein Startwort eintragen")
+            return
+        # Bei mehreren wird das ERSTE geprüft: Es ist das, das man im Alltag sagt
+        # — die anderen stehen als Rückfalloption da. Alle nacheinander abzufragen
+        # wäre ein Testlauf statt einer Probe.
+        wort = woerter[0]
+        from .dialogs import WortprobeDialog
+
+        WortprobeDialog(wort, self._wortprobe_fn, self, zweck="startwort").exec()
+        self._startwort_probe_btn.setText("Startwort einsprechen …")
+
+    def _wortprobe_starten(self) -> None:
+        if self._wortprobe_fn is None:
+            return
+        begriff = self._wortprobe_begriff()
+        if not begriff:
+            self._probe_btn.setText("Erst eine Zeile ins Wörterbuch schreiben")
+            return
+        from .dialogs import WortprobeDialog
+
+        dlg = WortprobeDialog(begriff, self._wortprobe_fn, self)
+        if dlg.exec() and dlg.vorschlag:
+            # „gehört => gemeint" ans Wörterbuch anhängen, damit die falsche
+            # Schreibweise kuenftig automatisch ersetzt wird.
+            editor = self._dictionary_editor
+            zeilen = [z for z in editor.toPlainText().splitlines()]
+            if dlg.vorschlag not in zeilen:
+                zeilen.append(dlg.vorschlag)
+                editor.setPlainText("\n".join(zeilen))
+        self._probe_btn.setText("Eintrag einsprechen …")

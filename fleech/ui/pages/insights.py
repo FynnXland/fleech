@@ -16,7 +16,10 @@ from PySide6.QtWidgets import QHBoxLayout, QLabel, QPushButton, QVBoxLayout, QWi
 from ...history import HistoryStore
 from ...milestones import word_milestone
 from ..dialogs import WordDetailDialog
-from ..theme import ACCENT, MUTED, TEXT, style_button
+from ..theme import (
+    ACCENT, MUTED, PAGE_MARGINS, PAGE_SPACING, TEXT, page_title_qss,
+    style_button,
+)
 from ..widgets import (
     StreakCalendar, WpmGauge, _card, _diktierzeit_text, _link_button, _metric,
     _rebuild_ranked_list, enable_card_hiding,
@@ -114,14 +117,14 @@ class InsightsPage(QWidget):
         self.store = store
 
         outer = QVBoxLayout(self)
-        outer.setContentsMargins(20, 18, 20, 18)
-        outer.setSpacing(12)  # Karten-Grid-Gap des Design-Systems
+        outer.setContentsMargins(*PAGE_MARGINS)
+        outer.setSpacing(PAGE_SPACING)   # Karten-Grid-Gap, siehe theme.py
         # Kopfzeile: Titel links, Zeitraum rechts. Der Zeitraum ist der Grund, warum
         # die Seite ueberhaupt lebendig wirkt — ohne ihn rechnet jede Zahl ueber die
         # gesamte Historie, und nach ein paar hundert Diktaten bewegt sich nichts mehr.
         head = QHBoxLayout()
         title = QLabel("Insights")
-        title.setStyleSheet(f"color: {TEXT}; font-size: 12pt; font-weight: 600;")
+        title.setStyleSheet(page_title_qss())
         head.addWidget(title)
         head.addStretch(1)
         self._range_buttons: dict[str, QPushButton] = {}

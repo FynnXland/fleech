@@ -62,3 +62,67 @@ def split_command_continuation(raw: str, trigger_word: str) -> tuple[str, str]:
     if not match:
         return raw, ""
     return raw[: match.start()].strip(), raw[match.end():].strip()
+
+
+# Gesprochene Namen der Ausgabeformate. Mehrere Fassungen je Format, weil man es
+# beim Sprechen nicht zweimal gleich sagt — und weil die Erkennung „Stichpunkte"
+# je nach Betonung als „Stichpunkt" oder „Stich Punkte" liefert.
+_FORMAT_WOERTER = {
+    "summary": ("stichpunkte", "stichpunkt", "stich punkte", "bulletpoints",
+                "stichpunktliste", "als liste", "auflistung"),
+    "email": ("email", "e mail", "mail"),
+    "prompt": ("ki prompt", "prompt", "ki-prompt", "promt"),
+    "": ("diktat", "normal", "standard", "fliesstext", "fliess text"),
+}
+
+# Wie der Zusatz eingeleitet wird. „als" ist der Normalfall; „bitte als" und
+# „mach das als" kommen im Sprechfluss genauso vor.
+_EINLEITUNG = r"(?:bitte\s+)?(?:mach(?:e)?\s+(?:das\s+)?)?(?:bitte\s+)?als"
+
+# Nur in den letzten Woertern suchen. Ein „als E-Mail" mitten im Diktat („ich
+# schicke das als E-Mail raus") ist Inhalt, kein Befehl — die Beschraenkung aufs
+# Ende ist der ganze Unterschied.
+_MAX_ZUSATZ_WOERTER = 6
+
+
+def _normalisiere_endstueck(text: str) -> str:
+    text = re.sub(r"[^\w\s]", " ", (text or "").lower())
+    return re.sub(r"\s+", " ", text).strip()
+
+
+def split_format_suffix(raw: str) -> tuple[str, str | None]:
+    """Trennt ein am ENDE angesagtes Ausgabeformat ab.
+
+    „Text Text Text, als Stichpunkte" → („Text Text Text", "summary")
+
+    Rueckgabe: (Diktat ohne den Zusatz, Format) — Format ist None, wenn keiner
+    gefunden wurde. Ein leerer String als Format heisst „ausdruecklich normal",
+    was etwas anderes ist als None (kein Wunsch geaeussert).
+
+    Bewusst NUR am Ende und nur mit Einleitung: „Ich schicke das als E-Mail raus"
+    steht mitten im Satz und bleibt Diktat. Wer das Format ansagt, tut das zum
+    Schluss und mit „als".
+    """
+    text = (raw or "").rstrip()
+    if not text:
+        return raw, None
+    woerter = text.split()
+    # Nur das Endstueck betrachten: Einleitung + Formatname sind hoechstens
+    # ein paar Woerter.
+    # Von LANG nach kurz: Sonst greift „als E-Mail" schon bei zwei Woertern und
+    # das „Mach das" davor bliebe als Text stehen („… Mach das" im Diktat).
+    for anzahl in range(min(_MAX_ZUSATZ_WOERTER, len(woerter)), 1, -1):
+        kandidat = _normalisiere_endstueck(" ".join(woerter[-anzahl:]))
+        treffer = re.fullmatch(rf"{_EINLEITUNG}\s+(.+)", kandidat)
+        if not treffer:
+            continue
+        rest = treffer.group(1).strip()
+        for fmt, namen in _FORMAT_WOERTER.items():
+            if rest in namen:
+                davor = " ".join(woerter[:-anzahl]).rstrip(" ,.;:-–—")
+                # Ohne Diktat davor waere nur der Befehl gesprochen worden —
+                # dann gibt es nichts zu formatieren.
+                if not davor.strip():
+                    return raw, None
+                return davor, fmt
+    return raw, None

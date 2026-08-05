@@ -393,3 +393,43 @@ def test_normaler_satz_bleibt_ganz():
 
     satz = "Das ist ein ganz normaler Satz mit Bonbon und Mississippi darin."
     assert collapse_trailing_repetitions(satz) == satz
+
+
+def test_angebrochenes_wort_am_ende_haelt_den_guard_nicht_auf():
+    """REAL aufgetreten: „Don't, don't, … don't, don" — 75 Wörter Whisper-Schleife,
+    die komplett durchkam und im Textfeld landete.
+
+    Ursache: Der Guard vergleicht den SCHWANZ. Das letzte Wort war das Fragment
+    „don", das nicht zu „dont" passte — also fand er keine Wiederholung. Ein
+    einziges angebrochenes Wort machte die ganze Schutzschicht wirkungslos.
+    """
+    from fleech.textutils import collapse_trailing_repetitions
+
+    murks = ", ".join(["Don't"] + ["don't"] * 73) + ", don"
+    ergebnis = collapse_trailing_repetitions(murks)
+    assert len(ergebnis.split()) <= 3, f"nicht gekürzt: {ergebnis[:80]}"
+
+
+@pytest.mark.parametrize("rest", ["don", "d", "und", "also"])
+def test_beliebiger_kurzer_rest_am_ende(rest):
+    from fleech.textutils import collapse_trailing_repetitions
+
+    murks = " ".join(["hallo"] * 40 + [rest])
+    assert len(collapse_trailing_repetitions(murks).split()) <= 3
+
+
+def test_zwei_woerter_rest_werden_noch_gefangen():
+    from fleech.textutils import collapse_trailing_repetitions
+
+    murks = " ".join(["hallo"] * 40 + ["und", "dann"])
+    assert len(collapse_trailing_repetitions(murks).split()) <= 4
+
+
+def test_echter_text_nach_der_wiederholung_bleibt_stehen():
+    """Die Toleranz darf nicht dazu führen, dass echter Text hinter einer
+    Wiederholung verschwindet — deshalb sind es HOECHSTENS zwei Wörter."""
+    from fleech.textutils import collapse_trailing_repetitions
+
+    text = " ".join(["hallo"] * 40 + ["und", "dann", "kam", "der", "eigentliche", "Satz"])
+    ergebnis = collapse_trailing_repetitions(text)
+    assert "eigentliche" in ergebnis, "echter Text wurde mit abgeschnitten"

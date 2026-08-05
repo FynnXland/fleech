@@ -23,7 +23,7 @@ from PySide6.QtWidgets import (
 
 from .theme import (
     _STREAK_SHADES, ACCENT, ACCENT_DIM, BORDER_CARD, BORDER_HAIRLINE, CARD,
-    MUTED, NAV_ACTIVE_BG, TEXT, TRACK,
+    MUTED, NAV_ACTIVE_BG, ROW_HOVER, TEXT, TRACK,
 )
 
 
@@ -428,3 +428,122 @@ def _diktierzeit_text(stats) -> str:
     if anzahl:
         text += f" · Ø {_dauer(gesamt / anzahl)} je Diktat"
     return text
+
+
+class WortListe(QWidget):
+    """Eingabefeld + Liste darunter: tippen, Enter, Wort steht als Zeile da.
+
+    Fuer Einstellungen, die frueher EIN Wort waren und jetzt mehrere sein duerfen
+    — zuerst das Freihand-Startwort. Ein mehrzeiliges Textfeld haette es auch
+    getan, sagt aber nicht, dass eine Zeile ein Wort ist; hier sieht man es.
+
+    Der Zustand liegt in `self._woerter` und nicht in den Widgets: Wer die Liste
+    aus den Einstellungen neu setzt, soll nicht erst Zeilen einsammeln muessen.
+    """
+
+    def __init__(self, woerter=(), platzhalter="Wort eintippen, dann Enter",
+                 on_changed=None, parent=None):
+        super().__init__(parent)
+        from PySide6.QtWidgets import QLineEdit
+
+        self._woerter: list[str] = [str(w).strip() for w in (woerter or []) if str(w).strip()]
+        # Callback statt Signal: Das Einstellungs-Panel verdrahtet hier eine
+        # kleine Funktion, die NUR die Dataclass anfasst. Ein Lambda, das den
+        # Panel-Parent faengt und in einem Kind haengt, waere ein Referenzzyklus
+        # (siehe CLAUDE.md) — deshalb bleibt der Aufrufer selbst dafuer zustaendig,
+        # nichts Grosses hineinzureichen.
+        self._on_changed = on_changed or (lambda woerter: None)
+
+        aussen = QVBoxLayout(self)
+        aussen.setContentsMargins(0, 0, 0, 0)
+        aussen.setSpacing(6)
+
+        self._eingabe = QLineEdit()
+        self._eingabe.setPlaceholderText(platzhalter)
+        self._eingabe.setStyleSheet(
+            f"QLineEdit {{ background: {CARD}; color: {TEXT};"
+            f"  border: 1px solid {BORDER_HAIRLINE}; border-radius: 8px;"
+            f"  padding: 6px 10px; font-size: 9.5pt; }}"
+            f"QLineEdit:focus {{ border-color: {ACCENT}; }}")
+        self._eingabe.returnPressed.connect(self._uebernehmen)
+        aussen.addWidget(self._eingabe)
+
+        self._zeilen_box = QVBoxLayout()
+        self._zeilen_box.setContentsMargins(0, 0, 0, 0)
+        self._zeilen_box.setSpacing(4)
+        aussen.addLayout(self._zeilen_box)
+
+        self._leer = QLabel("Noch keins — tippe eins ein und drück Enter.")
+        self._leer.setStyleSheet(f"color: {MUTED}; font-size: 8.5pt;")
+        aussen.addWidget(self._leer)
+
+        self._zeichne()
+
+    # -- Aussen ------------------------------------------------------------------------
+
+    def woerter(self) -> list:
+        return list(self._woerter)
+
+    def setze(self, woerter) -> None:
+        self._woerter = [str(w).strip() for w in (woerter or []) if str(w).strip()]
+        self._zeichne()
+
+    # -- Innen -------------------------------------------------------------------------
+
+    def _uebernehmen(self) -> None:
+        wort = self._eingabe.text().strip()
+        self._eingabe.clear()
+        if not wort:
+            return
+        # Doppelte still schlucken statt zu meckern: Wer dasselbe Wort zweimal
+        # eintippt, meint es einmal.
+        if wort.lower() in {w.lower() for w in self._woerter}:
+            return
+        self._woerter.append(wort)
+        self._zeichne()
+        self._on_changed(self.woerter())
+
+    def _entferne(self, wort: str) -> None:
+        self._woerter = [w for w in self._woerter if w != wort]
+        self._zeichne()
+        self._on_changed(self.woerter())
+
+    def _zeichne(self) -> None:
+        while self._zeilen_box.count():
+            alt = self._zeilen_box.takeAt(0)
+            if alt.widget() is not None:
+                alt.widget().deleteLater()
+        for wort in self._woerter:
+            self._zeilen_box.addWidget(self._zeile(wort))
+        self._leer.setVisible(not self._woerter)
+
+    def _zeile(self, wort: str) -> QWidget:
+        zeile = QFrame()
+        zeile.setObjectName("wortzeile")
+        # Per objectName gescopt: Ein unscoped QFrame-Stil kaskadiert auf jedes
+        # Kind-QLabel und malt Pillen dahinter (siehe CLAUDE.md).
+        zeile.setStyleSheet(
+            f"QFrame#wortzeile {{ background: {CARD}; border-radius: 8px;"
+            f"  border: 1px solid {BORDER_HAIRLINE}; }}")
+        lay = QHBoxLayout(zeile)
+        lay.setContentsMargins(10, 4, 4, 4)
+        lay.setSpacing(6)
+
+        label = QLabel(wort)
+        label.setStyleSheet(f"color: {TEXT}; font-size: 9.5pt; background: transparent;")
+        lay.addWidget(label, 1)
+
+        weg = QPushButton()
+        weg.setIcon(_x_icon(MUTED))
+        weg.setFixedSize(20, 20)
+        weg.setCursor(Qt.PointingHandCursor)
+        weg.setToolTip(f"„{wort}“ entfernen")
+        weg.setStyleSheet(
+            "QPushButton { background: transparent; border: none; border-radius: 10px; }"
+            f"QPushButton:hover {{ background: {ROW_HOVER}; }}")
+        # Nur das WORT faengt das Lambda, nicht `self` und nicht die Zeile —
+        # sonst haelt ein Kind-Widget seinen eigenen Parent fest.
+        _ref = self
+        weg.clicked.connect(lambda _c=False, w=wort: _ref._entferne(w))
+        lay.addWidget(weg)
+        return zeile

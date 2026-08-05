@@ -159,6 +159,14 @@ class HotkeyManager:
 
     REPEAT_GRACE_S = 0.4  # laenger als jedes Tastatur-Auto-Repeat-Intervall
 
+    # Alle Manager mit laufendem Listener. Gebraucht fuer genau einen Fall: Bricht
+    # der App-Start ab, NACHDEM der Listener lief, haengt ein Low-Level-Tastatur-
+    # Hook in einem halbtoten Prozess. Er schluckt und verdoppelt dann Tasten —
+    # gemeldet als „komische Tastatureingaben beim Starten". Der Aufraeumer in
+    # `ui/desktop.run_desktop` kommt sonst an keine Instanz heran: Die Exception
+    # fliegt mitten in `DesktopApp.__init__`, es gibt also kein fertiges Objekt.
+    _lebende: list = []
+
     def __init__(self, on_activate, on_deactivate):
         self.on_activate = on_activate
         self.on_deactivate = on_deactivate
@@ -225,6 +233,8 @@ class HotkeyManager:
         )
         self._listener.start()
         self._sync_mouse_listener()
+        if self not in HotkeyManager._lebende:
+            HotkeyManager._lebende.append(self)
 
     def stop(self) -> None:
         if self._listener is not None:
@@ -233,6 +243,27 @@ class HotkeyManager:
         if self._mouse_listener is not None:
             self._mouse_listener.stop()
             self._mouse_listener = None
+        try:
+            HotkeyManager._lebende.remove(self)
+        except ValueError:
+            pass
+
+    @classmethod
+    def stop_all(cls) -> int:
+        """Jeden laufenden Listener abraeumen. Rueckgabe: wie viele es waren.
+
+        Nur fuer den Notfall gedacht (abgebrochener App-Start) — im normalen
+        Betrieb raeumt jeder Manager sich selbst ueber `stop()` ab.
+        """
+        anzahl = 0
+        for manager in list(cls._lebende):
+            try:
+                manager.stop()
+                anzahl += 1
+            except Exception:
+                log.debug("Hotkey-Listener liess sich nicht schliessen.", exc_info=True)
+        cls._lebende.clear()
+        return anzahl
 
     # -- Gemeinsame Token-Logik (Tastatur + Maus) -------------------------------------
 

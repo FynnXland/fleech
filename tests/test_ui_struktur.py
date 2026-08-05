@@ -211,3 +211,66 @@ def test_alle_neun_seiten_werden_wirklich_gebaut(qapp, tmp_path, monkeypatch):
         assert seite is not None
         # Eine leer gebliebene Seite haette keine Kind-Widgets
         assert seite.findChildren(object), f"Seite {SettingsPanel.PAGES[idx]} ist leer"
+
+
+# -- Alle Hauptseiten halten dieselben Masse ---------------------------------------------
+
+
+def test_alle_hauptseiten_haben_dieselben_raender(qapp):
+    """Beim Umschalten darf das Layout nicht springen.
+
+    Apps war herausgewachsen: Rand 28/24/28/20 statt 20/18/20/18, Titel 17 pt
+    statt 12 pt, Kartenabstand 14 statt 12. Sichtbar wurde das an den Pillen, die
+    dort plötzlich weiter vom Rand standen — genau so gemeldet.
+    """
+    import tempfile
+    from pathlib import Path
+
+    from PySide6.QtWidgets import QLabel
+
+    from fleech.history import HistoryStore
+    from fleech.ui.pages.apps import AppsPage
+    from fleech.ui.pages.home import HomePage
+    from fleech.ui.pages.insights import InsightsPage
+    from fleech.ui.pages.profiles import ProfilesPage
+    from fleech.ui.theme import PAGE_MARGINS, PAGE_SPACING, PAGE_TITLE_PT
+    from fleech.usersettings import UserSettings
+
+    store = HistoryStore(Path(tempfile.mkdtemp()) / "h.db")
+    s = UserSettings()
+    seiten = {
+        "home": HomePage(s, store),
+        "insights": InsightsPage(store),
+        "profiles": ProfilesPage(s, store),
+        "apps": AppsPage(s, store),
+    }
+    for name, seite in seiten.items():
+        lay = seite.layout()
+        m = lay.contentsMargins()
+        assert (m.left(), m.top(), m.right(), m.bottom()) == PAGE_MARGINS, \
+            f"{name} hat eigene Ränder"
+        assert lay.spacing() == PAGE_SPACING, f"{name} hat eigenen Abstand"
+
+        titel = [l for l in seite.findChildren(QLabel)
+                 if "font-weight: 600" in (l.styleSheet() or "")
+                 and "font-size" in (l.styleSheet() or "")]
+        assert titel, f"{name} hat keinen erkennbaren Seitentitel"
+        groesse = titel[0].styleSheet().split("font-size:")[1].split("pt")[0].strip()
+        assert float(groesse) == PAGE_TITLE_PT, \
+            f"{name}: Titel {groesse}pt statt {PAGE_TITLE_PT}pt"
+
+
+def test_seitenmasse_stehen_nur_an_einer_stelle():
+    """Wächter gegen den Rückfall: Wer die Zahlen wieder direkt hinschreibt,
+    baut den nächsten Ausreisser."""
+    import re
+    from pathlib import Path
+
+    for datei in Path("fleech/ui/pages").glob("*.py"):
+        code = [z for z in datei.read_text(encoding="utf-8").splitlines()
+                if not z.strip().startswith("#")]
+        for zeile in code:
+            assert not re.search(r"setContentsMargins\(\s*20,\s*18,\s*20,\s*18\s*\)", zeile), \
+                f"{datei.name}: Rand hart hingeschrieben statt PAGE_MARGINS"
+            assert "font-size: 12pt; font-weight: 600" not in zeile, \
+                f"{datei.name}: Titelgrösse hart hingeschrieben statt page_title_qss()"

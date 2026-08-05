@@ -259,6 +259,29 @@ class Recorder:
             audio = np.concatenate(self._frames)[:, 0].copy()
         return self._to_target(audio)
 
+    def tail(self, sekunden: float) -> np.ndarray:
+        """Nur die LETZTEN Sekunden — fuer die Stille-Wache im Anstupsen-Modus.
+
+        Bewusst nicht `snapshot()`: Die Wache laeuft mehrmals pro Sekunde, und
+        `snapshot()` kopiert jedes Mal das gesamte bisherige Diktat. Bei einem
+        langen Diktat waere das mit jeder Sekunde teurer — fuer eine Frage, die
+        immer nur die letzte Sekunde betrifft.
+        """
+        noetig = int(max(0.0, sekunden) * self._capture_rate)
+        if not noetig:
+            return np.zeros(0, dtype=np.float32)
+        with self._lock:
+            if not self._frames:
+                return np.zeros(0, dtype=np.float32)
+            gesammelt, laenge = [], 0
+            for block in reversed(self._frames):
+                gesammelt.append(block)
+                laenge += len(block)
+                if laenge >= noetig:
+                    break
+            audio = np.concatenate(list(reversed(gesammelt)))[-noetig:, 0].copy()
+        return self._to_target(audio)
+
     def stop(self) -> np.ndarray:
         """Beendet die Aufnahme und gibt das Segment als 1-D-float32-Array zurueck."""
         if self._stream is None:
