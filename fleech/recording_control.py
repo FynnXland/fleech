@@ -1,8 +1,22 @@
-"""Bedienlogik Hold-to-talk / Toggle-to-talk — UI-unabhaengig und damit testbar.
+"""Bedienlogik Hold / Toggle / Anstupsen — UI-unabhaengig und damit testbar.
 
-Hold:   Taste druecken = Aufnahme laeuft, loslassen = stoppen & verarbeiten.
-Toggle: erster Druck = starten, zweiter Druck = stoppen & verarbeiten.
-        (Auto-Repeat beim Gedrueckthalten wird ueber den Key-Down-Zustand entprellt.)
+Hold:      Taste druecken = Aufnahme laeuft, loslassen = stoppen & verarbeiten.
+Toggle:    erster Druck = starten, zweiter Druck = stoppen & verarbeiten.
+           (Auto-Repeat beim Gedrueckthalten wird ueber den Key-Down-Zustand entprellt.)
+Anstupsen: ein Druck = starten, die SPRECHPAUSE beendet — kein zweiter Griff zur
+           Tastatur. Der zweite Druck bleibt trotzdem moeglich, um vorzeitig zu
+           beenden; hier verhaelt es sich also wie Toggle mit Abschaltautomatik.
+
+Das Beenden per Stille steht bewusst NICHT hier: Dieses Modul kennt kein Audio.
+Wer die Automatik fuettert, ist der Aufrufer (`ui/desktop.py`) mit Hilfe von
+`stillewache.Stillewache` — er ruft dann schlicht `stop_if_active()`.
+
+„Anstupsen" ist der Nachfolger des Freihand-Startworts. Der Wunsch dahinter war
+nie „mit der Stimme starten", sondern „am Ende nicht wieder zur Tastatur greifen
+muessen" — und genau diese Haelfte laesst sich zuverlaessig bauen. Die andere
+nicht: Ein dauerhaft offenes Mikrofon in einem Raum, in dem auch mal ein Video
+laeuft, loest frueher oder spaeter falsch aus, und jeder Fehlstart tippt Text in
+das gerade fokussierte Fenster.
 """
 
 from __future__ import annotations
@@ -11,7 +25,10 @@ import logging
 
 log = logging.getLogger(__name__)
 
-MODES = ("hold", "toggle")
+MODES = ("hold", "toggle", "nudge")
+
+# Modi, in denen der Druck startet und ein zweiter Druck vorzeitig beendet.
+_DRUCK_MODI = ("toggle", "nudge")
 
 
 class RecordingController:
@@ -43,7 +60,7 @@ class RecordingController:
         if self.mode == "hold":
             if self._active_kind is None:
                 self._start(kind)
-        else:  # toggle
+        else:  # toggle | nudge — Anstupsen endet zusaetzlich von selbst
             if self._active_kind is None:
                 self._start(kind)
             elif self._active_kind == kind:

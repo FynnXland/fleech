@@ -6,6 +6,11 @@ Baut die Seite in das uebergebene SettingsPanel; die Widget-Bauer
 
 from __future__ import annotations
 
+from PySide6.QtCore import Qt
+from PySide6.QtWidgets import QPushButton
+
+from ..theme import style_button
+from ..widgets import WortListe
 from .common import hint
 
 
@@ -15,15 +20,44 @@ def build(panel) -> None:
     form.addRow("", hint(
         "Wie du das Diktat auslöst — und welches Mikrofon genutzt wird."
     ))
+    # Der Sprechpause-Regler gehoert zum Anstupsen-Modus und wird mit ihm
+    # ein- und ausgeblendet. Er entsteht aber erst NACH dem Combo (er steht
+    # ja darunter) — deshalb der Umweg ueber diese Liste statt eines direkten
+    # Zugriffs im Setter.
+    #
+    # Der Setter faengt BEWUSST nur `s` und diese Liste, NIEMALS `panel`: Ein
+    # Lambda, das den Qt-Parent faengt und in einem Kind-Widget haengt, baut
+    # einen Referenzzyklus. Die Widgets sterben dann per GC in undefinierter
+    # Reihenfolge — real aufgetreten als wandernde „access violation", deren
+    # Absturzort nichts mit der Ursache zu tun hatte (siehe CLAUDE.md).
+    pausen_zeilen: list = []
+
+    def modus_gesetzt(v, _ziel=s.recording, _zeilen=pausen_zeilen):
+        _ziel.mode = v
+        for layout, box in _zeilen:
+            layout.setRowVisible(box, v == "nudge")
+
     panel._combo(
         form, "Bedienmodus",
-        [("hold", "Hold-to-talk (halten)"), ("toggle", "Toggle (drücken/drücken)")],
-        s.recording.mode, "recording", lambda v: setattr(s.recording, "mode", v),
+        [("hold", "Hold-to-talk (halten)"), ("toggle", "Toggle (drücken/drücken)"),
+         ("nudge", "Anstupsen (endet von selbst)")],
+        s.recording.mode, "recording", modus_gesetzt,
         help_map={
             "hold": "Taste halten = aufnehmen, loslassen = fertig.",
             "toggle": "Einmal drücken = Start, nochmal = fertig.",
+            "nudge": "Einmal drücken = Start. Hörst du auf zu reden, ist das "
+                     "Diktat fertig — ohne dass du die Taste nochmal anfasst. "
+                     "Ein zweiter Druck beendet trotzdem sofort.",
         },
     )
+    panel._sprechpause_box = panel._spin(
+        form, "Sprechpause bis Ende", s.freihand.stille_s, 1.0, 4.0, "freihand",
+        lambda v: setattr(s.freihand, "stille_s", v),
+        hint_text="Nur beim Anstupsen: So lange still = Diktat fertig. Kürzer "
+                  "schneidet Denkpausen ab, länger lässt dich warten.",
+    )
+    pausen_zeilen.append((form, panel._sprechpause_box))
+    form.setRowVisible(panel._sprechpause_box, s.recording.mode == "nudge")
     panel._add_hotkey_field(
         form, "Diktat-Hotkey", "hotkey", "dictate", "f9",
         hint_text="„Aufnehmen“ klicken, dann Taste, Kombination oder Maustaste "
@@ -62,7 +96,10 @@ def build(panel) -> None:
     f = s.freihand
     form.addRow("", hint(
         "— Freihand —  Startwort sagen, sprechen, aufhören. Kommt zusätzlich "
-        "zum Hotkey, ersetzt ihn nicht."
+        "zum Hotkey, ersetzt ihn nicht.\n"
+        "Wenn dir am automatischen Ende gelegen ist: Der Bedienmodus "
+        "„Anstupsen“ oben kann das auch — und kann nicht durch ein Video oder "
+        "ein Gespräch im Raum ausgelöst werden."
     ))
     panel._freihand_cb = panel._check(
         form, "Freihand", f.aktiv, "freihand",
@@ -72,24 +109,55 @@ def build(panel) -> None:
                   "gespeichert, erst ab dem Startwort überhaupt gesammelt. "
                   "Wirkt nach einem Neustart von Fleech.",
     )
-    panel._text_field(
-        form, "Startwort", f.startwort, "freihand",
-        lambda v: setattr(f, "startwort", v),
-        hint_text="Mehrsilbig und im Alltag selten — sonst löst es im Gespräch "
-                  "ständig versehentlich aus. „Kimono“ hat sich bewährt.",
+    # Mehrere Startwörter: Welches Wort die eigene Aussprache zuverlässig
+    # trifft, lässt sich nicht vorhersagen — mit zwei oder drei Kandidaten
+    # nebeneinander entfällt das Herumprobieren mit einem einzigen.
+    from ...freihand import zerlege_woerter
+
+    def startwoerter_gesetzt(woerter, _ziel=f):
+        _ziel.startwort = "\n".join(woerter)
+
+    panel._startwort_liste = WortListe(
+        zerlege_woerter(f.startwort),
+        platzhalter="Startwort eintippen, dann Enter",
+        on_changed=lambda w: (startwoerter_gesetzt(w), panel._changed("freihand")),
     )
+    label_w, _ = panel._row_label(
+        "Startwörter",
+        "Ein Wort pro Zeile — Fleech startet bei jedem davon. Mehrsilbig und "
+        "im Alltag selten, sonst löst es im Gespräch ständig versehentlich "
+        "aus. „Kimono“ hat sich bewährt. Kunstwörter, die wie ein Alltagswort "
+        "klingen, sind eine schlechte Wahl: „Fleech“ etwa kommt als „Fleisch“ "
+        "an und würde beim Kochrezept auslösen.")
+    form.addRow(label_w, panel._startwort_liste)
+    if panel._wortprobe_fn is not None:
+        # Ob ein Startwort taugt, hängt an der eigenen Aussprache — das lässt
+        # sich nicht vorhersagen, nur ausprobieren. Zehn Sekunden statt eines
+        # halben Tages Rätselraten, warum Freihand nicht reagiert.
+        panel._startwort_probe_btn = style_button(
+            QPushButton("Startwort einsprechen …"), "ghost")
+        panel._startwort_probe_btn.setToolTip(
+            "Sprich das Startwort einmal beiläufig ins Mikrofon. Fleech zeigt, "
+            "was ankommt und ob Freihand darauf anspringen würde."
+        )
+        panel._startwort_probe_btn.clicked.connect(panel._startwort_probe_starten)
+        form.addRow("", panel._startwort_probe_btn)
     panel._combo(
         form, "Genauigkeit", [
-            ("tiny", "Schnell (schwache Rechner)"),
-            ("base", "Ausgewogen — empfohlen"),
-            ("small", "Genau (langsamer)"),
+            ("diktat", "Wie beim Diktat — empfohlen"),
+            ("tiny", "Sparsam (schwache Rechner)"),
+            ("base", "Sparsam, etwas genauer"),
+            ("small", "Sparsam, am genauesten (langsam)"),
         ],
-        getattr(f, "modell", "base") or "base", "freihand",
+        getattr(f, "modell", "diktat") or "diktat", "freihand",
         lambda v: setattr(f, "modell", v),
-        hint_text="Wie genau auf das Startwort gehört wird. „Schnell“ überhört "
-                  "es je nach Aussprache („Kimono“ wurde als „Kimu“ verstanden); "
-                  "„Genau“ braucht rund 1,5 Sekunden je Prüfung. Wirkt nach "
-                  "einem Neustart von Fleech.",
+        hint_text="Wie genau auf das Startwort gehört wird. „Wie beim Diktat“ "
+                  "nimmt dasselbe Modell, das deine Diktate erkennt — es liegt "
+                  "ohnehin auf der Grafikkarte, ist am genauesten und mit 140 ms "
+                  "je Prüfung auch am schnellsten. Die sparsamen Varianten "
+                  "rechnen stattdessen auf dem Prozessor: für Rechner ohne "
+                  "brauchbare Grafikkarte, dafür deutlich schlechter im Hören. "
+                  "Wirkt nach einem Neustart von Fleech.",
     )
     panel._text_field(
         form, "Abbruchwort", f.abbruchwort, "freihand",
@@ -98,11 +166,19 @@ def build(panel) -> None:
                   "Es startet bewusst KEINE neue Aufnahme — sonst würde ein "
                   "Versprecher zur Endlosschleife.",
     )
-    panel._spin(
-        form, "Sprechpause bis Ende", f.stille_s, 1.0, 4.0, "freihand",
-        lambda v: setattr(f, "stille_s", v),
-        hint_text="So lange still = Diktat fertig. Kürzer schneidet Denkpausen "
-                  "ab, länger lässt dich warten.",
+    # „Sprechpause bis Ende" steht jetzt oben beim Bedienmodus: Sie beendet
+    # auch den Anstupsen-Modus, und derselbe Wert an zwei Stellen zu regeln
+    # wäre eine Einladung, ihn zweimal verschieden einzustellen.
+    panel._check(
+        form, "Fehlersuche", getattr(f, "diagnose", False), "freihand",
+        lambda v: setattr(f, "diagnose", v),
+        hint_text="NUR zur Fehlersuche: Hebt die geprüften Startwort-Fenster "
+                  "als Tondateien auf, damit nachvollziehbar wird, was beim "
+                  "Lauschen wirklich ankommt. Es werden zwei Sekunden je "
+                  "Prüfung gespeichert, höchstens 60 Stück, in "
+                  "%APPDATA%\\Fleech\\freihand-diagnose. Danach bitte wieder "
+                  "ausschalten — sonst wird dauerhaft Ton mitgeschrieben. "
+                  "Wirkt nach einem Neustart von Fleech.",
     )
     panel._lines_editor(
         form, "Nicht lauschen in", f.ausgeschlossene_apps, "freihand",

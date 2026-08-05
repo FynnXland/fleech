@@ -21,7 +21,10 @@ from ...history import HistoryStore
 from ...profiles import PROFILE_FORMATS
 from ...usersettings import UserSettings
 from ..dialogs import TranscriptDetailDialog
-from ..theme import ACCENT, MUTED, NAV_ACTIVE_BG, ROW_HOVER, SIDEBAR, TEXT, TRACK
+from ..theme import (
+    ACCENT, MUTED, NAV_ACTIVE_BG, PAGE_MARGINS, PAGE_SPACING, ROW_HOVER,
+    SIDEBAR, TEXT, TRACK, page_title_qss,
+)
 from ..widgets import _ElidedLabel, _card, _x_icon, enable_card_hiding
 
 log = logging.getLogger(__name__)
@@ -116,9 +119,10 @@ class HomePage(QWidget):
         self._on_reprocess = on_reprocess
 
         outer = QVBoxLayout(self)
-        outer.setContentsMargins(20, 18, 20, 18)
+        outer.setContentsMargins(*PAGE_MARGINS)
+        outer.setSpacing(PAGE_SPACING)
         self._welcome = QLabel("")
-        self._welcome.setStyleSheet(f"color: {TEXT}; font-size: 12pt; font-weight: 600;")
+        self._welcome.setStyleSheet(page_title_qss())
         outer.addWidget(self._welcome)
         outer.addSpacing(8)
 

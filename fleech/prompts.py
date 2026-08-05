@@ -15,7 +15,7 @@ TRIGGER_PLACEHOLDER = "⟨TRIGGER⟩"  # ⟨TRIGGER⟩
 # Prompts, deren Nutzer-Nachricht per wrap_transcript() delimiter-gerahmt wird. Sie
 # MUESSEN die Marker erklaeren, sonst faellt die zweite Verteidigungslinie gegen
 # "Modell fuehrt das Diktat als Anweisung aus" weg.
-_MARKER_PROMPTS = ("cleanup", "prompt_engineer")
+_MARKER_PROMPTS = ("cleanup", "cleanup-en", "prompt_engineer", "summary", "email")
 
 _SAFETY_BLOCK = f"""
 

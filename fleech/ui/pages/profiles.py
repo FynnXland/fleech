@@ -25,8 +25,8 @@ from ...usersettings import UserSettings
 from ..chevron import apply_chevrons
 from ..dialogs import PromptDialog
 from ..theme import (
-    ACCENT, BORDER_HAIRLINE, CARD, MUTED, NAV_ACTIVE_BG, ROW_HOVER, SIDEBAR, TEXT,
-    TRACK, style_button,
+    ACCENT, BORDER_HAIRLINE, CARD, MUTED, NAV_ACTIVE_BG, PAGE_MARGINS,
+    PAGE_SPACING, ROW_HOVER, SIDEBAR, TEXT, TRACK, page_title_qss, style_button,
 )
 from ..widgets import HelpBadge, _card, _no_hscroll, _passt, _suchfeld
 
@@ -110,7 +110,8 @@ class ProfilesPage(QWidget):
         ensure_default_profile(self.settings.profiles.items)
 
         outer = QVBoxLayout(self)
-        outer.setContentsMargins(20, 18, 20, 18)
+        outer.setContentsMargins(*PAGE_MARGINS)
+        outer.setSpacing(PAGE_SPACING)
         self._baue_kopf(outer)
 
         # Alles unterhalb des Kopfes lebt in einem Container, der bei global-aus
@@ -135,7 +136,7 @@ class ProfilesPage(QWidget):
         """Titelzeile mit dem grossen globalen Schalter, darunter die Einordnung."""
         head = QHBoxLayout()
         title = QLabel("Profile")
-        title.setStyleSheet(f"color: {TEXT}; font-size: 12pt; font-weight: 600;")
+        title.setStyleSheet(page_title_qss())
         head.addWidget(title)
         head.addStretch(1)
         # Grosser globaler Toggle, rechtsbuendig in der Titelzeile.

@@ -26,6 +26,7 @@ from .theme import (
     ACCENT, ACCENT_DIM, BORDER_HAIRLINE, CARD, MUTED, NAV_ACTIVE_BG, ROW_HOVER,
     SIDEBAR, TEXT, TRACK, button_qss, style_button,
 )
+from .settings.wortprobe import WortprobeMixin
 from .widgets import HelpBadge
 
 log = logging.getLogger(__name__)
@@ -78,7 +79,7 @@ QSlider::handle:horizontal {{
 }}
 """
 
-class SettingsPanel(QWidget):
+class SettingsPanel(WortprobeMixin, QWidget):
     # „Oberfläche" ist entfallen: Die zwölf Sichtbarkeits-Checkboxen sind an die
     # Karten selbst gewandert (Rechtsklick → Ausblenden). Zurueckholen sammelt der
     # Knopf auf der Seite „Allgemein".
@@ -88,7 +89,7 @@ class SettingsPanel(QWidget):
 
     def __init__(self, settings: UserSettings, on_changed, list_microphones,
                  test_hooks=None, hotkey_capture_guard=None, on_clear_history=None,
-                 overlay_hooks=None):
+                 overlay_hooks=None, wortprobe_fn=None):
         super().__init__()
         self.settings = settings
         self._on_changed = on_changed          # callback(section: str)
@@ -98,6 +99,9 @@ class SettingsPanel(QWidget):
         self._on_clear_history = on_clear_history
         # "edit_toggle": fn()->bool, "reset": fn(), "apply_preset": fn(key)
         self._overlay_hooks = overlay_hooks or {}
+        # fn(begriff, sekunden) -> Probe. None = kein Mikrofonzugriff (Tests,
+        # Onboarding) → der Einsprech-Knopf erscheint dann gar nicht erst.
+        self._wortprobe_fn = wortprobe_fn
         self._debounced_commits: list = []  # (QTimer, commit_fn) der Zeilen-Editoren
         self._loading = True
 
@@ -593,6 +597,9 @@ class SettingsPanel(QWidget):
 
         self._hotkey_fields = {}
         seiten.build_all(self)
+
+
+
 
     def _on_overlay_edit_clicked(self) -> None:
         toggle = self._overlay_hooks.get("edit_toggle")

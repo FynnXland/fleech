@@ -5,6 +5,7 @@ from __future__ import annotations
 import logging
 import os
 import sys
+import threading
 from pathlib import Path
 
 import numpy as np
@@ -84,6 +85,10 @@ class FasterWhisperSTT(STTEngine):
         self.cfg = cfg
         self._model = None
         self._on_cpu = False
+        # Ein Modell, zwei Aufrufer: das Diktat und (seit 5.7.0) die
+        # Freihand-Startwortpruefung. ctranslate2 ist nicht reentrant — ohne
+        # Schloss liefen beide gleichzeitig in dieselbe Modellinstanz.
+        self._lock = threading.Lock()
 
     def _load_model(self, device: str, compute_type: str):
         from faster_whisper import WhisperModel
@@ -139,16 +144,46 @@ class FasterWhisperSTT(STTEngine):
         # "auto" (oder leer) = Whisper bestimmt die Sprache selbst — fuer
         # zweisprachiges Diktat (deutsch/englisch gemischt).
         language = None if self.cfg.language in ("", "auto") else self.cfg.language
-        segments, _info = self._model.transcribe(
-            audio,
-            language=language,
-            vad_filter=self.cfg.vad_filter,
-            beam_size=5,
-            initial_prompt=initial_prompt,
-        )
-        # segments ist ein Generator — CUDA-Fehler tauchen erst hier auf.
-        return " ".join(seg.text.strip() for seg in segments
-                        if self._keep_segment(seg)).strip()
+        with self._lock:
+            segments, _info = self._model.transcribe(
+                audio,
+                language=language,
+                vad_filter=self.cfg.vad_filter,
+                beam_size=5,
+                initial_prompt=initial_prompt,
+            )
+            # segments ist ein Generator — die Arbeit passiert beim Iterieren,
+            # das MUSS also innerhalb des Schlosses geschehen. CUDA-Fehler tauchen
+            # ebenfalls erst hier auf.
+            return " ".join(seg.text.strip() for seg in segments
+                            if self._keep_segment(seg)).strip()
+
+    def transcribe_kurz(self, audio: np.ndarray, language: str | None = None,
+                        initial_prompt: str | None = None) -> str:
+        """Kurzen Schnipsel erkennen — fuer die Freihand-Startwortpruefung.
+
+        Nutzt bewusst DASSELBE Modell wie das Diktat statt eines zweiten:
+
+        - Kein zusaetzliches VRAM. Zwei gleichzeitig geladene Modelle waren schon
+          einmal der Grund fuer staendige Entladungen (siehe CLAUDE.md); ein
+          zweites Whisper daneben waere derselbe Fehler nochmal.
+        - Es ist SCHNELLER. Gemessen auf 2 s Audio: large-v3-turbo auf der GPU
+          141 ms (Median, max 198), `base` auf der CPU 437 ms (max 2430).
+        - Und es ist das genaueste Modell, das da ist.
+
+        `beam_size=1`, weil es nur um die Frage geht, ob ein bestimmtes Wort
+        gefallen ist — nicht um schoene Saetze. `vad_filter` schneidet die Stille
+        vor dem Wort weg; genau daraus halluziniert Whisper sonst („Vielen Dank.",
+        „Untertitel …") und ueberdeckt das, was wirklich gesagt wurde.
+        """
+        self._ensure_model()
+        with self._lock:
+            segments, _info = self._model.transcribe(
+                audio, language=language or None, beam_size=1, vad_filter=True,
+                initial_prompt=initial_prompt,
+            )
+            return " ".join(seg.text.strip() for seg in segments
+                            if self._keep_segment(seg)).strip()
 
     def transcribe(
         self, audio: np.ndarray, samplerate: int, initial_prompt: str | None = None

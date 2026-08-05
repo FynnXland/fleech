@@ -366,8 +366,10 @@ def test_hotkey_pfade_fassen_keine_widgets_an():
         bus=types.SimpleNamespace(paused_changed=types.SimpleNamespace(
             emit=lambda wert: geschaltet.append(wert))),
         notifier=types.SimpleNamespace(sound=lambda n: toene.append(n)),
+        _freihand=None,   # kein Freihand-Diktat → der Recorder-Weg gilt
         # KEIN `overlay` — greift die Methode es doch an, wirft sie hier.
     )
+    fake._freihand_lauscher = types.MethodType(DesktopApp._freihand_lauscher, fake)
     DesktopApp.toggle_pause(fake)
     assert geschaltet == [True] and toene == ["stop"]
     DesktopApp.toggle_pause(fake)
@@ -408,7 +410,11 @@ def _pause_fake(recording=True, paused=False):
         bus=types.SimpleNamespace(paused_changed=types.SimpleNamespace(
             emit=lambda p: protokoll.append(f"overlay:{p}"))),
         notifier=types.SimpleNamespace(sound=lambda n: protokoll.append(f"sound:{n}")),
+        # Seit 5.8.3 fragt toggle_pause zuerst, ob ein FREIHAND-Diktat laeuft —
+        # dort gibt es keinen Recorder, den man anhalten koennte.
+        _freihand=None,
     )
+    fake._freihand_lauscher = types.MethodType(DesktopApp._freihand_lauscher, fake)
     return DesktopApp.toggle_pause, fake, protokoll
 
 def test_toggle_pause_haelt_an_und_setzt_fort():

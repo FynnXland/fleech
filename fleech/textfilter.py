@@ -184,7 +184,33 @@ def collapse_trailing_repetitions(raw: str, min_repeats: int = 3,
                 text = " ".join(parts).strip()
 
     # 2) Wort-Ebene: dieselbe Phrase ohne Satzzeichen wiederholt.
+    #
+    # `rest` laesst bis zu zwei Woerter am ENDE ausser Acht. Ohne das genuegte ein
+    # einziges angebrochenes Wort, um den ganzen Guard wirkungslos zu machen: Real
+    # kam „Don't, don't, … don't, don" (75×) durch, weil das letzte Fragment „don"
+    # nicht zu „dont" passte — verglichen wird ja der Schwanz. Alle 75 Woerter
+    # landeten im Textfeld.
     words = text.split()
+    for rest in range(0, 3):
+        geschnitten = _collapse_wortebene(
+            words[:len(words) - rest] if rest else words, min_repeats, min_word_repeats)
+        if geschnitten is not None:
+            words = geschnitten + words[len(words) - rest:] if rest else geschnitten
+            text = " ".join(words)
+            break
+
+    # 3) INNERHALB eines Wortes: „G-G-G-G-G-…" ist EIN Token, die Ebenen oben
+    # sehen dort nur ein einziges Wort und greifen nicht. Real aufgetreten, als
+    # Freihand zwei Sekunden Mikrofonrauschen verarbeitete — das Ergebnis wurde
+    # ungefiltert ins Textfeld geschrieben.
+    text = " ".join(_entstottern(w) for w in text.split()).strip()
+    return text.strip()
+
+
+def _collapse_wortebene(words: list, min_repeats: int, min_word_repeats: int):
+    """Wiederholte Phrase am Ende von `words` auf eine Nennung kuerzen.
+
+    Rueckgabe: gekuerzte Liste, oder None wenn nichts zu kuerzen war."""
     for size in range(1, 9):
         if len(words) < size * min_repeats:
             break
@@ -201,16 +227,8 @@ def collapse_trailing_repetitions(raw: str, min_repeats: int = 3,
             reps += 1
         needed = min_word_repeats if size == 1 else min_repeats
         if reps >= needed:
-            words = words[: len(words) - size * (reps - 1)]
-            text = " ".join(words)
-            break
-
-    # 3) INNERHALB eines Wortes: „G-G-G-G-G-G-…" ist EIN Token, die Ebenen oben
-    # sehen dort nur ein einziges Wort und greifen nicht. Real aufgetreten, als
-    # Freihand zwei Sekunden Mikrofonrauschen verarbeitete — das Ergebnis wurde
-    # ungefiltert ins Textfeld geschrieben.
-    text = " ".join(_entstottern(w) for w in text.split()).strip()
-    return text.strip()
+            return words[: len(words) - size * (reps - 1)]
+    return None
 
 
 # Ab welcher Laenge ein einzelnes Token ueberhaupt verdaechtig ist. Darunter gibt

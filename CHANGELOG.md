@@ -11,20 +11,194 @@ GitHub-Release-Notizen (`packaging/release.py`).
 
 ---
 
-## 5.5.1 — 2026-08-05
+## 5.9.1 — 2026-08-05
 
 *Nicht einzeln veröffentlicht.*
 
 **Für dich ändert sich nichts — das ist der Punkt.** Diese Version räumt nur den
-Code auf: Die fünf größten Dateien waren über die Zeit zu Sammelbecken geworden
-(eine davon mit 1979 Zeilen und 89 Funktionen in einem Stück). Sie sind jetzt
-nach Themen aufgeteilt. Keine Funktion ist dazugekommen, keine verschwunden,
-keine Einstellung hat sich verschoben.
+Code auf: Die größten Dateien waren über die Zeit zu Sammelbecken geworden (eine
+davon mit 1979 Zeilen und 89 Funktionen in einem Stück). Sie sind jetzt nach
+Themen aufgeteilt. Keine Funktion ist dazugekommen, keine verschwunden, keine
+Einstellung hat sich verschoben.
 
 Der Nutzen ist mittelbar, aber real: Änderungen an einer Ecke von Fleech können
 seltener eine andere Ecke umstoßen, und neue Sachen sind schneller gebaut. Damit
 das so bleibt, wacht die Testsuite jetzt auch über die Aufteilung selbst — wenn
 eine Datei wieder zum Sammelbecken wird, schlägt sie Alarm.
+
+---
+
+## 5.9.0 — 2026-08-04
+
+**Mehrere Startwörter.** Unter Einstellungen → Aufnahme tippst du ein Wort ein,
+drückst Enter, und es steht als Zeile darunter — mit einem ✕ zum Entfernen.
+Fleech startet bei jedem davon.
+
+Der Grund: Welches Wort die eigene Aussprache zuverlässig trifft, lässt sich
+nicht vorhersagen. Mit zwei oder drei Kandidaten nebeneinander entfällt das
+Herumprobieren mit einem einzigen. Alle eingetragenen Wörter werden der Erkennung
+vorgesagt, nicht nur das erste.
+
+**Die Pille war zu früh wieder weg.** Sagtest du das Startwort und wolltest dann
+abbrechen, war die Aufnahme oft schon vorbei — im Protokoll immer nach exakt zwei
+Sekunden. Ursache war eine Messgrenze: Die Spracherkennung braucht knapp eine
+Sekunde Ton, bevor sie überhaupt sagen kann, ob jemand spricht. In dieser Zeit
+lief die Stille-Uhr gegen eine Antwort, die noch gar nicht vorliegen konnte.
+Jetzt startet sie erst, wenn wirklich genug Ton da ist — du hast Zeit,
+loszusprechen oder abzubrechen.
+
+**Alle Seiten haben jetzt dieselben Abstände.** Auf „Apps" standen die Karten
+weiter vom Rand und die Überschrift war größer als auf Home, Insights und
+Profile; beim Umschalten sprang dadurch das Layout. Die Maße stehen jetzt an
+einer Stelle, statt viermal einzeln im Code.
+
+## 5.8.3 — 2026-08-04
+
+*Nicht einzeln veröffentlicht.*
+
+**Die Pille reagiert jetzt auch beim Freihand-Diktat.** Abbrechen, Fertig und
+Pause taten dort schlicht nichts: Alle drei Knöpfe waren an den Hotkey-Weg
+gebunden, und der läuft beim Freihand-Diktat gar nicht. Die Knöpfe sahen dabei
+ganz normal aus — man klickte und wartete auf etwas, das nie kam.
+
+Besonders unangenehm war das in Räumen mit Hintergrundgeräuschen: Läuft dort ein
+Video oder unterhält sich jemand, hört Fleech durchgehend Sprache und wartet
+weiter auf eine Sprechpause, die nicht kommt. Ohne funktionierenden Knopf saß man
+in der Aufnahme fest. Genau das ist behoben — und als zweite Sicherung endet ein
+Freihand-Diktat jetzt spätestens nach zwei Minuten von selbst.
+
+Die Pause hält dabei auch die Uhr an: Wer mitten im Diktat kurz mit jemandem
+spricht, verliert das Gesagte nicht.
+
+## 5.8.2 — 2026-08-04
+
+*Nicht einzeln veröffentlicht.*
+
+**Fehlersuche für das Startwort.** Unter Einstellungen → Aufnahme → Fehlersuche
+lässt sich einschalten, dass Fleech die geprüften Startwort-Fenster als
+Tondateien aufhebt (zwei Sekunden je Prüfung, höchstens 60 Stück, in
+`%APPDATA%\Fleech\freihand-diagnose`). Die Dateinamen sagen, was verstanden wurde
+und ob es als Treffer zählte.
+
+Der Anlass: Das Startwort wird beim Einsprech-Test zuverlässig erkannt, im
+laufenden Betrieb aber nicht — und alles, was sich ohne echte Aufnahme
+vergleichen liess, sah identisch aus. Ohne zu hören, was tatsächlich ankommt,
+bleibt jede weitere Erklärung geraten.
+
+**Standardmäßig aus, und das bleibt so.** Hier wird Audio gespeichert — genau
+das, was Freihand sonst ausdrücklich nicht tut. Nach der Fehlersuche wieder
+ausschalten.
+
+## 5.8.1 — 2026-08-04
+
+*Nicht einzeln veröffentlicht.*
+
+**Fleech startet wieder.** 5.8.0 brach beim Start ab — die Uhr für den neuen
+Anstupsen-Modus wurde falsch angelegt. Wer dabei Tasten drückte, bekam
+merkwürdige Eingaben zu sehen: Die Tastenerkennung lief zu diesem Zeitpunkt
+schon und blieb in dem halb gestarteten Programm hängen. Beides ist behoben — ein
+abgebrochener Start räumt die Tastenerkennung jetzt sauber ab.
+
+**Startfehler stehen jetzt im Protokoll.** Bisher gingen sie nur in ein Fenster,
+das bei der fertigen Anwendung niemand sieht; im Protokoll sah ein abgestürzter
+Start wie ein gelungener aus. Es gibt jetzt auch eine Zeile, die den geglückten
+Start ausdrücklich bestätigt.
+
+## 5.8.0 — 2026-08-04
+
+**Neuer Bedienmodus „Anstupsen": einmal drücken, reden, fertig.** Die Aufnahme
+endet von selbst, sobald du aufhörst zu sprechen — du musst am Ende nicht wieder
+zur Tastatur greifen. Ein zweiter Druck beendet trotzdem sofort, falls es mal
+schneller gehen soll.
+
+Zu finden unter Einstellungen → Aufnahme → Bedienmodus, neben „Hold-to-talk" und
+„Toggle". Wie lange eine Sprechpause dauern darf, stellst du direkt darunter ein
+(Vorgabe: 2 Sekunden); der Regler erscheint nur in diesem Modus.
+
+Das ist der Weg, den der Freihand-Modus eigentlich gemeint hat. Der Wunsch
+dahinter war nie, mit der Stimme zu *starten* — sondern am Ende nicht wieder
+anfassen zu müssen. Und nur diese Hälfte lässt sich zuverlässig bauen: Ein
+dauerhaft offenes Mikrofon in einem Raum, in dem auch mal ein Video läuft oder
+jemand spricht, löst früher oder später falsch aus, und jeder Fehlstart tippt
+Text in das Fenster, in dem du gerade arbeitest. Beim Anstupsen kann nur
+auslösen, wer die Taste drückt.
+
+Eine Denkpause schneidet nichts ab: Sobald du weiterredest, läuft die Uhr neu an.
+Und wenn du die Aufnahme pausierst, um mit jemandem zu sprechen, ruht auch die
+Automatik.
+
+**Freihand bleibt vorhanden, aber nicht mehr empfohlen.** Wer es nutzt, kann es
+weiter nutzen; in den Einstellungen steht jetzt dabei, was der zuverlässigere Weg
+ist.
+
+## 5.7.0 — 2026-08-04
+
+**Freihand hört jetzt so gut wie das Diktat.** Bisher erkannte Fleech dasselbe
+Wort im normalen Diktat mühelos und überhörte es beim Lauschen ständig. Der Grund
+lag nicht am Startwort, sondern daran, dass die Startwort-Prüfung den Mikrofonstrom
+blockierte: Während sie rechnete, verwarf Windows die hereinkommende Aufnahme.
+Gemessen kam nur noch die **Hälfte** des Gesprochenen an — die Prüfung bekam
+Bruchstücke und riet daraus „Ich bin hier.", „Wirksam.", „Vielen Dank."
+
+Die Prüfung läuft jetzt neben der Aufnahme statt in ihr; es geht nichts mehr
+verloren. Und sie nutzt dasselbe Modell, das ohnehin für deine Diktate geladen
+ist: genauer als das kleine Modell von vorher, mit 140 statt 440 Millisekunden
+schneller, und ohne zusätzlichen Grafikspeicher.
+
+Wer bei der Genauigkeit nichts eingestellt hatte, wird automatisch umgestellt.
+Unter Einstellungen → Aufnahme → Genauigkeit stehen die sparsamen Varianten
+weiterhin bereit — für Rechner ohne brauchbare Grafikkarte.
+
+**Startwort einsprechen.** Unter Einstellungen → Aufnahme steht jetzt „Startwort
+einsprechen …". Wort sagen, und Fleech zeigt, was ankommt und ob Freihand darauf
+anspringen würde. Ob ein Startwort taugt, hängt an der eigenen Aussprache — das
+lässt sich nicht vorhersagen, nur ausprobieren.
+
+Zur Wahl des Wortes: Kunstwörter, die wie ein Alltagswort klingen, sind eine
+schlechte Idee. „Fleech" etwa kommt als „Fleisch" an und würde beim Kochrezept
+auslösen. „Kimono" bleibt die sichere Wahl.
+
+## 5.6.0 — 2026-08-04
+
+**Stichpunkte verdichten jetzt wirklich.** Bisher wurde jeder Satz einzeln
+umgeschrieben: Aus „Manche Profile haben einen farbigen Punkt und andere nicht"
+wurde derselbe Satz mit Strich davor — eine Feststellung statt einer Aufgabe, und
+Versprecher wanderten mit. Jetzt steht dort „Farbigen Punkt für alle Profile,
+Farbe auswählbar".
+
+An echten Diktaten gemessen, die dem Modell nicht als Beispiel vorlagen: 29 bis
+65 Prozent kürzer, ohne dass ein genannter Punkt verlorenging. Die oberste Regel
+bleibt unangetastet — es wird nichts weggelassen, nur die Art zu sprechen.
+
+**Wörterbuch-Einträge lassen sich einsprechen.** Unter Einstellungen →
+Textersetzung gibt es „Eintrag einsprechen …": Cursor in die Zeile, Knopf drücken,
+Wort einmal sagen. Fleech zeigt, was ankommt — und wenn etwas anderes verstanden
+wurde, bietet es die passende Ersetzungsregel gleich zum Eintragen an.
+
+Bisher trug man ein Wort ein und merkte erst mitten im nächsten Diktat, ob es
+etwas gebracht hat. Der Test läuft über dieselbe Erkennung wie ein echtes Diktat,
+mit demselben Wörterbuch-Priming — sonst würde er etwas anderes messen als den
+Alltag.
+
+**Das Ausgabeformat lässt sich am Ende ansagen.** Diktieren und zum Schluss
+„… als Stichpunkte" sagen — der Zusatz wird erkannt, aus dem Text entfernt und das
+Diktat entsprechend verarbeitet. Ebenso „als E-Mail", „als KI-Prompt" oder „als
+Diktat" für ausdrücklich normal. Das übersteuert das Profil für genau dieses eine
+Diktat.
+
+Erkannt wird nur am **Satzende** und nur mit Einleitung („als", „bitte als",
+„mach das als"). „Ich schicke das als E-Mail raus" bleibt deshalb Diktat — ein
+Wort wie „als" kommt im Sprechen zu oft vor, um es überall als Befehl zu deuten.
+
+**Behoben: Eine Whisper-Schleife kam komplett ins Textfeld.** Der Filter gegen
+Wiederholungen prüft das Textende — stand dort ein angebrochenes Wort („… don't,
+don't, don"), fand er keine Wiederholung und ließ alle 75 Wörter durch. Ein
+einziges halbes Wort setzte die Schutzschicht außer Kraft.
+
+**Behoben: Sicherheitsregel für die umformulierenden Formate.** Der Schutz gegen
+„Modell führt das Diktat als Anweisung aus" wurde nur bei der normalen
+Bereinigung erzwungen. Stichpunkte und E-Mail formulieren den ganzen Text um —
+dort wäre eine im Diktat versteckte Anweisung genauso wirksam.
 
 ---
 

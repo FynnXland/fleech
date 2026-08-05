@@ -5,6 +5,8 @@ Ereignisse kommen heraus. Damit ist der heikle Teil — wann startet, wann endet
 Diktat — vollständig ohne Mikrofon prüfbar.
 """
 
+import time
+
 import numpy as np
 import pytest
 
@@ -25,6 +27,17 @@ def _lauscher(text="", sprache=True, **kw):
     lau = Lauscher(e, vad=lambda a: sprache, erkenner=lambda a: text, samplerate=SR)
     lau.start_lauschen()
     return lau
+
+
+def speise(strom, audio) -> None:
+    """Einen Block durch den Strom schicken — Callback UND Verarbeitung.
+
+    Seit 5.7.0 sind das zwei Stufen: Der Audio-Callback legt nur ab, ein eigener
+    Thread rechnet. Im Test wird die zweite Stufe direkt aufgerufen statt über
+    den Thread — dieselbe Methode, nur ohne Warten.
+    """
+    strom._callback(audio, 0, None, None)
+    strom.verarbeite_wartende()
 
 
 # -- Wortvergleich ---------------------------------------------------------------------
@@ -107,7 +120,9 @@ def test_abbruchwort_verwirft():
     lau.verarbeite(block(1.0), jetzt=100.0)
     lau._erkenner = lambda a: "das war Quatsch, Abbrechen"
     lau._vad = lambda a: False
-    assert lau.verarbeite(block(0.5), jetzt=103.5) is Ereignis.ABBRUCH
+    # Genug Audio, damit die Anlaufzeit durch ist: Sie gilt, weil das VAD auf
+    # weniger als seinem Fenster gar nichts melden KANN (siehe ANLAUF_S).
+    assert lau.verarbeite(block(2.0), jetzt=103.5) is Ereignis.ABBRUCH
     assert lau.statistik.verworfen == 1
 
 
@@ -117,7 +132,7 @@ def test_abbruchwort_startet_nicht_sofort_neu():
     lau.verarbeite(block(1.0), jetzt=100.0)
     lau._erkenner = lambda a: "Abbrechen"
     lau._vad = lambda a: False
-    lau.verarbeite(block(0.5), jetzt=103.5)
+    lau.verarbeite(block(2.0), jetzt=103.5)
     assert lau.zustand is Zustand.LAUSCHT
     lau._erkenner = lambda a: "Kimono"
     lau._vad = lambda a: True
@@ -245,11 +260,11 @@ def test_der_strom_pausiert_statt_zu_sammeln():
     ereignisse = []
     strom = FreihandStream(lau, lambda e, a: ereignisse.append(e), samplerate=SR)
     strom.pausiere(True)
-    strom._callback(block(1.0), 0, None, None)
+    speise(strom, block(1.0))
     assert ereignisse == []
 
     strom.pausiere(False)
-    strom._callback(block(1.0), 0, None, None)
+    speise(strom, block(1.0))
     assert ereignisse == [Ereignis.START]
 
 
@@ -260,7 +275,7 @@ def test_pausieren_setzt_den_zustand_zurueck():
 
     lau = _lauscher(text="")
     strom = FreihandStream(lau, lambda e, a: None, samplerate=SR)
-    strom._callback(block(1.5), 0, None, None)
+    speise(strom, block(1.5))
     assert len(lau._ring) > 0
     strom.pausiere(True)
     assert len(lau._ring) == 0
@@ -276,7 +291,7 @@ def test_fehler_im_audio_thread_reisst_nichts_mit():
         raise RuntimeError("UI weg")
 
     strom = FreihandStream(lau, kaputt, samplerate=SR)
-    strom._callback(block(1.0), 0, None, None)     # darf nicht werfen
+    speise(strom, block(1.0))     # darf nicht werfen
 
 
 def test_ende_liefert_das_gesammelte_audio():
@@ -285,14 +300,14 @@ def test_ende_liefert_das_gesammelte_audio():
     lau = _lauscher(text="Kimono")
     gemeldet = []
     strom = FreihandStream(lau, lambda e, a: gemeldet.append((e, a)), samplerate=SR)
-    strom._callback(block(1.0), 0, None, None)               # START
+    speise(strom, block(1.0))               # START
     for _ in range(3):
-        strom._callback(block(1.0), 0, None, None)           # 3 s Diktat sammeln
+        speise(strom, block(1.0))           # 3 s Diktat sammeln
     lau._erkenner = lambda a: "der Diktattext"
     # Fenster (1 s) gilt als still, die Gesamtaufnahme (3 s) hat Inhalt.
     lau._vad = lambda a: len(a) > int(1.5 * SR)
     lau._letzte_sprache = -99                                 # Stille erzwingen
-    strom._callback(block(0.5), 0, None, None)               # ENDE
+    speise(strom, block(0.5))               # ENDE
     ereignis, audio = gemeldet[-1]
     assert ereignis is Ereignis.ENDE
     assert audio is not None and len(audio) > 0
@@ -546,16 +561,21 @@ def test_aufnahme_ohne_sprache_wird_verworfen():
     lau.verarbeite(block(1.0), jetzt=100.0)          # START
     lau._erkenner = lambda a: ""                      # nichts gesprochen
     lau._vad = lambda a: False                        # VAD: keine Sprache
-    ereignis = lau.verarbeite(block(0.5), jetzt=103.5)
+    ereignis = lau.verarbeite(block(2.0), jetzt=103.5)
     assert ereignis is Ereignis.ABBRUCH, "stilles Rauschen ging in die Pipeline"
 
 
 def test_zu_kurze_aufnahme_wird_verworfen():
+    """Über die Stille kann eine Aufnahme seit der Anlaufzeit nicht mehr so kurz
+    enden — über den Fertig-Knopf der Pille schon. Genau dieser Weg wird hier
+    geprüft: Wer sofort nach dem Startwort auf ✓ drückt, hat nichts gesagt."""
     lau = _lauscher(text="Kimono")
     lau.verarbeite(block(1.0), jetzt=100.0)
     lau._erkenner = lambda a: "ja"
     lau._vad = lambda a: False
-    lau.verarbeite(block(0.2), jetzt=103.5)           # nur 0,2 s gesammelt
+    lau.verarbeite(block(0.2), jetzt=100.2)           # nur 0,2 s gesammelt
+    lau.beende_vorzeitig()
+    lau.verarbeite(block(0.2), jetzt=100.4)
     assert lau.statistik.verworfen == 1
 
 
@@ -628,11 +648,11 @@ def test_pegel_nur_waehrend_der_aufnahme():
     strom = FreihandStream(lau, lambda e, a: None, samplerate=SR)
     laut = (np.ones(int(0.2 * SR), dtype=np.float32) * 0.3)
 
-    strom._callback(laut, 0, None, None)             # nur lauschen
+    speise(strom, laut)             # nur lauschen
     assert strom.level == 0.0
 
     lau.zustand = Zustand.AUFNAHME
-    strom._callback(laut, 0, None, None)
+    speise(strom, laut)
     assert strom.level > 0.2, "kein Pegel waehrend der Aufnahme"
 
 
@@ -654,12 +674,43 @@ def test_desktop_nimmt_den_hoeheren_pegel():
 # -- Modellwahl ----------------------------------------------------------------------------
 
 
-def test_modell_ist_einstellbar_und_steht_auf_base():
-    """tiny verstand „Kimono" je nach Aussprache als „Kimu" oder „Gimo" und
-    „Apfel" als „Achtung" — base traf beides."""
+def test_pruefung_nimmt_vorgabegemaess_das_diktat_modell():
+    """Ein eigenes kleines Modell war zweimal die falsche Wahl.
+
+    Erst „tiny" (verstand „Kimono" als „Kimu"/„Gimo"), dann „base" — und base war
+    schlimmer als gedacht: 437 ms Rechenzeit im Audio-Callback, gemessen 49,6 %
+    Audioverlust. Das Diktat-Modell liegt ohnehin geladen da, braucht 141 ms und
+    hört besser."""
     from fleech.usersettings import UserSettings
 
-    assert UserSettings().freihand.modell == "base"
+    assert UserSettings().freihand.modell == "diktat"
+
+
+def test_alte_vorgabe_base_wird_beim_laden_umgestellt(tmp_path):
+    """„base" war die kaputte VORGABE — wer sie nie angefasst hat, soll den
+    reparierten Weg bekommen, ohne etwas einstellen zu müssen."""
+    import json
+
+    from fleech.usersettings import UserSettings
+
+    pfad = tmp_path / "settings.json"
+    pfad.write_text(json.dumps({"freihand": {"aktiv": True, "modell": "base"}}),
+                    encoding="utf-8")
+    assert UserSettings.load(pfad).freihand.modell == "diktat"
+
+
+@pytest.mark.parametrize("gewaehlt", ["tiny", "small"])
+def test_bewusste_modellwahl_bleibt_unangetastet(tmp_path, gewaehlt):
+    """tiny und small stehen nie durch Vorgabe da — die hat jemand gewählt,
+    vermutlich weil die Grafikkarte nichts taugt. Das darf keine Migration
+    überschreiben."""
+    import json
+
+    from fleech.usersettings import UserSettings
+
+    pfad = tmp_path / "settings.json"
+    pfad.write_text(json.dumps({"freihand": {"modell": gewaehlt}}), encoding="utf-8")
+    assert UserSettings.load(pfad).freihand.modell == gewaehlt
 
 
 def test_modellwahl_ueberlebt_das_speichern(tmp_path, monkeypatch):
@@ -695,12 +746,12 @@ def test_bloecke_werden_kopiert_nicht_referenziert():
 
     puffer = np.zeros(int(0.2 * SR), dtype=np.float32)   # DER wiederverwendete Puffer
     for _ in range(6):                                    # Ringpuffer fuellen (>0,8 s)
-        strom._callback(puffer, 0, None, None)
+        speise(strom, puffer)
     assert lau.zustand is Zustand.AUFNAHME, "Startwort wurde nicht erkannt"
 
     for wert in (0.1, 0.2, 0.3, 0.4):
         puffer[:] = wert                                  # sounddevice ueberschreibt
-        strom._callback(puffer, 0, None, None)
+        speise(strom, puffer)
     puffer[:] = 0.0                                       # letzter Block: Stille
 
     audio = lau.aufnahme_audio()
@@ -719,11 +770,11 @@ def test_aufnahme_ueberlebt_das_ueberschreiben_des_puffers():
     strom = FreihandStream(lau, lambda e, a: None, samplerate=SR)
     puffer = np.zeros(int(0.2 * SR), dtype=np.float32)
     for _ in range(6):
-        strom._callback(puffer, 0, None, None)           # START
+        speise(strom, puffer)           # START
     assert lau.zustand is Zustand.AUFNAHME
 
     puffer[:] = 0.5
-    strom._callback(puffer, 0, None, None)
+    speise(strom, puffer)
     vorher = lau.aufnahme_audio().copy()
     puffer[:] = -0.9                                      # sounddevice schreibt neu
     assert np.array_equal(lau.aufnahme_audio(), vorher), \
@@ -778,3 +829,215 @@ def test_vorschau_ohne_freihand_bleibt_wie_bisher():
     fake = types.SimpleNamespace(
         recorder=types.SimpleNamespace(snapshot=lambda: leer), _freihand=None)
     assert len(DesktopApp._laufendes_audio(fake)) == 0
+
+
+# -- Der Audio-Thread darf nicht rechnen (der eigentliche Fehler bis 5.6.0) -------------
+
+
+def test_der_callback_rechnet_nicht_mehr_selbst():
+    """DER Fehler, der Freihand so schlecht hören ließ.
+
+    Bis 5.6.0 lief die Zustandsmaschine — und damit Whisper — direkt im
+    Audio-Callback. Gemessen an echter Hardware mit 200-ms-Blöcken: bei 440 ms
+    Rechenzeit (das war `base` auf der CPU, Median 437 ms) kamen nur noch 49,6 %
+    des Audios an. PortAudio wartet nicht; was während der Rechnung hereinkommt,
+    fällt weg. Das Prüfmodell bekam Fetzen und halluzinierte „Ich bin hier."
+    """
+    import time
+
+    from fleech.freihand import FreihandStream
+
+    lau = _lauscher(text="Kimono")
+    langsam = []
+
+    def zaeher(audio):
+        time.sleep(0.05)          # stellvertretend für 437 ms Whisper
+        langsam.append(1)
+        return "Kimono"
+
+    lau._erkenner = zaeher
+    strom = FreihandStream(lau, lambda e, a: None, samplerate=SR)
+
+    start = time.perf_counter()
+    for _ in range(5):
+        strom._callback(block(1.0), 0, None, None)
+    dauer = time.perf_counter() - start
+
+    assert langsam == [], "Der Callback hat die Erkennung angestoßen"
+    assert dauer < 0.02, f"Callback brauchte {dauer*1000:.0f} ms — er muss frei bleiben"
+    # Die Arbeit ist nicht weg, sie wartet nur woanders.
+    assert strom.rueckstand() > 0
+    strom.verarbeite_wartende()
+    assert langsam, "Die Erkennung lief nie"
+
+
+def test_zeitstempel_kommt_aus_dem_callback_nicht_aus_dem_arbeiter():
+    """Sonst schnitte ein Rückstand jedes Diktat mitten im Satz ab.
+
+    Der Arbeiter darf hinterherhängen — aber die Stille-Uhr muss den Moment
+    messen, in dem das Audio ANKAM, nicht den, in dem es drankommt.
+    """
+    from fleech.freihand import FreihandStream
+
+    gesehen = []
+    lau = _lauscher(text="")
+    lau.verarbeite = lambda b, jetzt=None: gesehen.append(jetzt)
+    strom = FreihandStream(lau, lambda e, a: None, samplerate=SR)
+
+    strom._callback(block(0.2), 0, None, None)
+    time.sleep(0.05)
+    strom._callback(block(0.2), 0, None, None)
+    time.sleep(0.05)                      # so lange hängt der Arbeiter zurück
+    spaeter = time.monotonic()
+    strom.verarbeite_wartende()
+
+    assert len(gesehen) == 2
+    assert all(t is not None for t in gesehen)
+    assert gesehen[1] - gesehen[0] >= 0.04, "Der Abstand der Blöcke ging verloren"
+    assert gesehen[-1] < spaeter, "Zeitstempel stammt aus dem Arbeiter statt vom Eingang"
+
+
+def test_ueberlauf_verwirft_den_block_nicht_mehr():
+    """`input_overflow` meldet, dass VOR diesem Block etwas verloren ging — der
+    Block selbst ist gültig. Ihn wegzuwerfen (so war es) vergrößerte den Verlust."""
+    import types
+
+    from fleech.freihand import FreihandStream
+
+    lau = _lauscher(text="")
+    strom = FreihandStream(lau, lambda e, a: None, samplerate=SR)
+    strom._callback(block(0.2), 0, None, types.SimpleNamespace(input_overflow=True))
+    assert strom.rueckstand() > 0
+
+
+def test_warteschlange_hat_einen_deckel():
+    """Ein dauerhaft zu langsames Modell darf den Speicher nicht auffressen."""
+    from fleech.freihand import FreihandStream
+
+    lau = _lauscher(text="")
+    strom = FreihandStream(lau, lambda e, a: None, samplerate=SR)
+    for _ in range(strom.WARTESCHLANGE_MAX + 40):
+        strom._callback(block(0.2), 0, None, None)   # darf nicht werfen
+    assert strom.rueckstand() <= strom.WARTESCHLANGE_MAX * strom.BLOCK_S
+    assert strom._ueberlauf >= 40
+
+
+def test_pausieren_wirft_wartende_bloecke_weg():
+    """Sie stammen aus der Zeit VOR der Pause — beim Fortsetzen wären sie ein
+    falscher Bezugspunkt, genau wie ein halb gefüllter Ringpuffer."""
+    from fleech.freihand import FreihandStream
+
+    lau = _lauscher(text="")
+    strom = FreihandStream(lau, lambda e, a: None, samplerate=SR)
+    for _ in range(3):
+        strom._callback(block(0.2), 0, None, None)
+    assert strom.rueckstand() > 0
+    strom.pausiere(True)
+    assert strom.rueckstand() == 0
+
+
+# -- Welches Modell prüft? --------------------------------------------------------------
+
+
+def test_erkenner_aus_engine_nutzt_das_geladene_modell():
+    """Kein zweites Whisper daneben: Zwei gleichzeitig geladene Modelle waren
+    schon einmal der Grund für ständige VRAM-Entladungen (siehe CLAUDE.md)."""
+    import types
+
+    from fleech.freihand import baue_erkenner_aus_engine
+
+    gerufen = []
+    engine = types.SimpleNamespace(
+        transcribe_kurz=lambda audio, language=None, initial_prompt=None:
+            gerufen.append((language, initial_prompt)) or "also Kimono jetzt")
+
+    erkenne = baue_erkenner_aus_engine(engine, sprache="de", startwort="Kimono")
+    assert erkenne(block(2.0)) == "also Kimono jetzt"
+    assert gerufen == [("de", "Kimono.")], "Startwort wurde nicht vorgesagt"
+
+
+def test_erkenner_aus_engine_reicht_auto_als_none_durch():
+    """„auto" heißt: Whisper bestimmt die Sprache selbst. Als String übergeben
+    würde faster-whisper danach eine Sprache namens „auto" suchen."""
+    import types
+
+    from fleech.freihand import baue_erkenner_aus_engine
+
+    gesehen = []
+    engine = types.SimpleNamespace(
+        transcribe_kurz=lambda audio, language=None, initial_prompt=None:
+            gesehen.append(language) or "")
+    baue_erkenner_aus_engine(engine, sprache="auto", startwort="X")(block(1.0))
+    assert gesehen == [None]
+
+
+def test_ohne_startwort_wird_nichts_vorgesagt():
+    """Ein leerer initial_prompt ist etwas anderes als keiner — faster-whisper
+    würde einen leeren String als Kontext werten."""
+    import types
+
+    from fleech.freihand import baue_erkenner_aus_engine
+
+    gesehen = []
+    engine = types.SimpleNamespace(
+        transcribe_kurz=lambda audio, language=None, initial_prompt=None:
+            gesehen.append(initial_prompt) or "")
+    baue_erkenner_aus_engine(engine, sprache="de", startwort="  ")(block(1.0))
+    assert gesehen == [None]
+
+
+def test_desktop_waehlt_das_diktat_modell_und_faellt_sauber_zurueck():
+    """Fehlt das faster-whisper-Backend, darf Freihand nicht ausfallen — dann
+    lieber ein eigenes kleines Modell als gar kein Freihand."""
+    import types
+
+    from fleech.ui.desktop import DesktopApp
+
+    s = types.SimpleNamespace(modell="diktat", startwort="Kimono")
+    allgemein = types.SimpleNamespace(
+        settings=types.SimpleNamespace(general=types.SimpleNamespace(language="de")))
+
+    # a) Engine kann es → Engine-Weg, ohne dass ein Modell geladen wird.
+    mit = types.SimpleNamespace(
+        **vars(allgemein),
+        pipeline=types.SimpleNamespace(stt=types.SimpleNamespace(
+            transcribe_kurz=lambda audio, language=None, initial_prompt=None: "Kimono")))
+    assert DesktopApp._baue_startwort_erkenner(mit, s)(block(1.0)) == "Kimono"
+
+    # b) Kein passendes Backend → Rückfall, ohne zu werfen.
+    ohne = types.SimpleNamespace(**vars(allgemein),
+                                 pipeline=types.SimpleNamespace(stt=None))
+    gebaut = []
+    import fleech.freihand as fh
+    echt = fh.baue_erkenner
+    fh.baue_erkenner = lambda **kw: gebaut.append(kw) or (lambda a: "")
+    try:
+        DesktopApp._baue_startwort_erkenner(ohne, s)
+    finally:
+        fh.baue_erkenner = echt
+    assert gebaut and gebaut[0]["modell_groesse"] == "base"
+
+
+def test_kurze_pruefung_und_diktat_teilen_sich_ein_schloss():
+    """ctranslate2 ist nicht reentrant. Ohne Schloss liefen die Freihand-Prüfung
+    (eigener Thread) und das Diktat gleichzeitig in dieselbe Modellinstanz."""
+    import inspect
+
+    from fleech.stt.faster_whisper_stt import FasterWhisperSTT
+
+    for name in ("_run", "transcribe_kurz"):
+        quelle = inspect.getsource(getattr(FasterWhisperSTT, name))
+        assert "self._lock" in quelle, f"{name} läuft ohne Schloss"
+
+
+def test_kurze_pruefung_schneidet_die_stille_weg():
+    """Das Prüffenster ist 2 s lang, das Wort darin oft 0,4 s. Aus der Stille
+    halluziniert Whisper („Vielen Dank.", „Ich bin hier.") und überdeckt damit,
+    was wirklich gesagt wurde — echt aus dem Protokoll."""
+    import inspect
+
+    from fleech.stt.faster_whisper_stt import FasterWhisperSTT
+
+    quelle = inspect.getsource(FasterWhisperSTT.transcribe_kurz)
+    assert "vad_filter=True" in quelle
+    assert "beam_size=1" in quelle

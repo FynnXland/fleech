@@ -26,6 +26,16 @@ def build(panel) -> None:
                   "automatisch ersetzen.",
         height=220,
     )
+    # Einsprech-Test: Man traegt ein Wort ein und weiss nicht, ob es etwas
+    # gebracht hat — bis es mitten im Diktat wieder falsch dasteht.
+    if panel._wortprobe_fn is not None:
+        panel._probe_btn = style_button(QPushButton("Eintrag einsprechen …"), "ghost")
+        panel._probe_btn.setToolTip(
+            "Markiere im Wörterbuch eine Zeile (oder setz den Cursor hinein) "
+            "und sprich das Wort einmal ins Mikrofon. Fleech zeigt, was ankommt."
+        )
+        panel._probe_btn.clicked.connect(panel._wortprobe_starten)
+        form.addRow("", panel._probe_btn)
     # Transparenz zum Priming-Limit: ueber 60 Begriffen kann die Erkennung nicht
     # alle vorab kennen — sichtbar machen, statt still abzuschneiden.
     panel._priming_hint = hint("")

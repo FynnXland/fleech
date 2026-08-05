@@ -18,7 +18,8 @@ from .document import DocumentTracker
 from .formula import apply_formulas, restore_formulas
 from .formula import markers_survived as formula_markers_survived
 from .routing import (
-    Mode, detect_mode, split_command_continuation, text_before_trigger,
+    Mode, detect_mode, split_command_continuation, split_format_suffix,
+    text_before_trigger,
 )
 from .snippets import (
     DEFAULT_KEYWORD, expand_snippets, markers_survived, mentions_keyword,
@@ -354,6 +355,23 @@ class Pipeline:
         # (leeres Trigger-Wort = Routing erkennt nie einen Befehl). Der »-Knopf laeuft
         # ueber force_command und bleibt davon unberuehrt.
         trigger = "" if suppress_command else self.trigger_word
+        # Am Ende angesagtes Ausgabeformat („… als Stichpunkte") uebersteuert das
+        # Profil fuer GENAU dieses Diktat. Vor dem Modus-Routing, damit der Zusatz
+        # nicht als Befehl oder als Inhalt weiterlaeuft.
+        #
+        # Nicht bei einem Safe-Word-Befehl: Dort ist die ganze Aeusserung eine
+        # Anweisung, und „mach das als Stichpunkte" ist genau so eine — sie
+        # gehoert dem Befehlsweg, nicht dem Format-Umschalter.
+        if detect_mode(raw, trigger) is not Mode.COMMAND and not force_command:
+            ohne_zusatz, gesagtes_format = split_format_suffix(raw)
+            if gesagtes_format is not None:
+                log.info("Ausgabeformat per Ansage: %r (statt %r)",
+                         gesagtes_format or "Diktat", output_format or "Diktat")
+                raw = ohne_zusatz
+                output_format = gesagtes_format
+                self.last_raw = raw
+                self._melde_roh(raw)
+
         mode = detect_mode(raw, trigger)
         if force_command and self.command_llm is not None:
             # Overlay-»-Button: Befehls-Modus erzwingen, ohne gesprochenes Safe-Word. Die

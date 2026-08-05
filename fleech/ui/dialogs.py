@@ -345,3 +345,98 @@ class DictionarySuggestionDialog(QDialog):
             self.close()  # Klick daneben = spaeter entscheiden (fragt beim
             # naechsten Vorkommen erneut — nichts wird gelernt/ignoriert)
         return super().event(e)
+
+
+class WortprobeDialog(QDialog):
+    """Einen Wörterbuch-Eintrag einsprechen und sehen, ob die Erkennung ihn trifft.
+
+    Man trägt „PySide6" ein und weiß danach nicht, ob es etwas gebracht hat —
+    bis es mitten im Diktat wieder als „Pi Seite 6" dasteht. Hier dauert die
+    Antwort zehn Sekunden.
+
+    Der Dialog nimmt selbst nichts auf: `aufnehmen` kommt von aussen und liefert
+    die fertige Probe zurück. So hängt die Oberfläche nicht am Audiogerät, und
+    der Weg bleibt ohne Mikrofon prüfbar.
+    """
+
+    AUFNAHME_S = 3.0
+
+    def __init__(self, begriff: str, aufnehmen, parent=None,
+                 zweck: str = "woerterbuch"):
+        super().__init__(parent)
+        self._begriff = begriff
+        self._aufnehmen = aufnehmen          # fn(begriff, sekunden, zweck) -> Probe
+        self._zweck = zweck
+        self._vorschlag = ""
+        self.setWindowTitle(f"„{begriff}“ testen")
+        self.setMinimumWidth(460)
+        self.setStyleSheet(f"QDialog {{ background: {BG}; }}")
+
+        lay = QVBoxLayout(self)
+        lay.setContentsMargins(20, 18, 20, 18)
+        lay.setSpacing(10)
+
+        titel = QLabel(f"Sag „{begriff}“")
+        titel.setStyleSheet(f"color: {TEXT}; font-size: 13pt; font-weight: 600;")
+        lay.addWidget(titel)
+
+        hinweis = QLabel(
+            f"Nach dem Klick wird {self.AUFNAHME_S:.0f} Sekunden aufgenommen. "
+            + ("Sag es beiläufig, so wie mitten im Reden — nicht betont "
+               "deutlich. Genau so muss es später erkannt werden."
+               if zweck == "startwort" else
+               "Sprich das Wort einmal so, wie du es im Diktat sagen würdest — "
+               "nicht betont langsam.")
+        )
+        hinweis.setWordWrap(True)
+        hinweis.setStyleSheet(f"color: {MUTED}; font-size: 9pt;")
+        lay.addWidget(hinweis)
+
+        self._meldung = QLabel("")
+        self._meldung.setWordWrap(True)
+        self._meldung.setStyleSheet(f"color: {TEXT}; font-size: 10pt;")
+        self._meldung.setMinimumHeight(52)
+        lay.addWidget(self._meldung)
+
+        knoepfe = QHBoxLayout()
+        self._start_btn = style_button(QPushButton("Aufnehmen"), "primary")
+        self._start_btn.clicked.connect(self._starten)
+        knoepfe.addWidget(self._start_btn)
+        # Erscheint erst, wenn es etwas zu übernehmen gibt — ein toter Knopf
+        # daneben sähe aus, als wäre etwas kaputt.
+        self._uebernehmen_btn = style_button(QPushButton("Als Variante eintragen"))
+        self._uebernehmen_btn.clicked.connect(self.accept)
+        self._uebernehmen_btn.hide()
+        knoepfe.addWidget(self._uebernehmen_btn)
+        knoepfe.addStretch(1)
+        schliessen = style_button(QPushButton("Schließen"), "ghost")
+        schliessen.clicked.connect(self.reject)
+        knoepfe.addWidget(schliessen)
+        lay.addLayout(knoepfe)
+
+    @property
+    def vorschlag(self) -> str:
+        """Wörterbuch-Zeile „gehört => gemeint" ("" = keine)."""
+        return self._vorschlag
+
+    def _starten(self) -> None:
+        self._start_btn.setEnabled(False)
+        self._uebernehmen_btn.hide()
+        self._vorschlag = ""
+        self._meldung.setText("Aufnahme läuft — jetzt sprechen …")
+        QApplication.processEvents()          # die Meldung MUSS vor der Aufnahme stehen
+        try:
+            probe = self._aufnehmen(self._begriff, self.AUFNAHME_S, self._zweck)
+        except Exception:
+            log.exception("Wortprobe fehlgeschlagen.")
+            self._meldung.setText("Aufnahme nicht möglich — läuft gerade ein Diktat?")
+            self._start_btn.setEnabled(True)
+            self._start_btn.setText("Nochmal")
+            return
+        self._meldung.setText(probe.als_text())
+        self._vorschlag = probe.vorschlag
+        if self._vorschlag:
+            self._uebernehmen_btn.setText(f"„{self._vorschlag}“ eintragen")
+            self._uebernehmen_btn.show()
+        self._start_btn.setEnabled(True)
+        self._start_btn.setText("Nochmal")

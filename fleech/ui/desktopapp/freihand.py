@@ -34,7 +34,8 @@ class FreihandMixin:
         def bauen():
             try:
                 from ...freihand import (
-                    Einstellungen, FreihandStream, Lauscher, baue_erkenner, baue_vad,
+                    Einstellungen, FreihandStream, Lauscher, baue_erkenner,
+                    baue_erkenner_aus_engine, baue_vad,
                 )
 
                 s = self.settings.freihand
@@ -45,11 +46,8 @@ class FreihandMixin:
                         ausgeschlossene_apps=tuple(s.ausgeschlossene_apps or ()),
                     ),
                     vad=baue_vad(),
-                    erkenner=baue_erkenner(
-                        modell_groesse=getattr(s, "modell", "base") or "base",
-                        sprache=self.settings.general.language,
-                        startwort=s.startwort,
-                    ),
+                    erkenner=self._baue_startwort_erkenner(s),
+                    mitschnitt=self._baue_freihand_mitschnitt(s),
                 )
                 self._freihand = FreihandStream(
                     lauscher, self._freihand_ereignis,
@@ -91,12 +89,17 @@ class FreihandMixin:
         self.settings.freihand.aktiv = an
         self.settings.save()
         try:
-            self.tray.set_freihand(an, self.settings.freihand.startwort)
+            from ...freihand import woerter_als_text
+
+            self.tray.set_freihand(an, woerter_als_text(self.settings.freihand.startwort))
         except Exception:
             log.debug("Tray-Text nicht aktualisierbar.", exc_info=True)
         if an:
             self._starte_freihand()
-            self._flash_status("Freihand an — sag „%s“" % self.settings.freihand.startwort)
+            from ...freihand import woerter_als_text
+
+            self._flash_status("Freihand an — sag „%s“"
+                               % woerter_als_text(self.settings.freihand.startwort))
         else:
             self._stoppe_freihand()
             self._flash_status("Freihand aus")
@@ -212,6 +215,133 @@ class FreihandMixin:
         except Exception:
             log.debug("Freihand-Fehlermeldung nicht zeigbar.", exc_info=True)
         try:
-            self.tray.set_freihand(False, self.settings.freihand.startwort)
+            from ...freihand import woerter_als_text
+
+            self.tray.set_freihand(False,
+                                   woerter_als_text(self.settings.freihand.startwort))
         except Exception:
             log.debug("Tray-Text nicht setzbar.", exc_info=True)
+
+    def _baue_freihand_mitschnitt(self, s):
+        """Diagnose-Aufzeichnung, oder None (der Normalfall).
+
+        Getrennt vom Erkenner, damit im ausgeschalteten Zustand wirklich NICHTS
+        an Datei-Code in der Nähe des Audios steht.
+        """
+        if not getattr(s, "diagnose", False):
+            return None
+        from ...freihand_diagnose import ORDNER_NAME, baue_mitschnitt
+        from ...platformpaths import user_data_dir
+
+        ordner = user_data_dir() / ORDNER_NAME
+        log.warning("Freihand-DIAGNOSE ist an — geprüfte Fenster landen als WAV "
+                    "in %s. Nach der Fehlersuche wieder ausschalten.", ordner)
+        return baue_mitschnitt(ordner, samplerate=self.config.audio.samplerate)
+
+    def _baue_startwort_erkenner(self, s):
+        """Wer prueft auf das Startwort — das Diktat-Modell oder ein eigenes?
+
+        „diktat" ist seit 5.7.0 die Vorgabe: dasselbe Modell, das ohnehin geladen
+        ist. Ein eigenes kleines Modell bleibt waehlbar fuer Rechner ohne
+        brauchbare GPU. Faellt der Weg ueber die Engine aus (kein
+        faster-whisper-Backend), wird auf `base` zurueckgefallen statt Freihand
+        ganz abzuschalten.
+        """
+        from ...freihand import baue_erkenner, baue_erkenner_aus_engine
+
+        gewuenscht = (getattr(s, "modell", "diktat") or "diktat").strip().lower()
+        sprache = self.settings.general.language
+        if gewuenscht == "diktat":
+            engine = getattr(self.pipeline, "stt", None)
+            if engine is not None and hasattr(engine, "transcribe_kurz"):
+                log.info("Freihand prueft mit dem Diktat-Modell.")
+                return baue_erkenner_aus_engine(
+                    engine, sprache=sprache, startwort=s.startwort)
+            log.warning("Freihand: Diktat-Modell nicht nutzbar — nehme 'base'.")
+            gewuenscht = "base"
+        log.info("Freihand prueft mit eigenem Modell %r (CPU).", gewuenscht)
+        return baue_erkenner(modell_groesse=gewuenscht, sprache=sprache,
+                             startwort=s.startwort)
+
+    def _erkenne_probe(self, audio):
+        """Erkennung für die Wortprobe — mit demselben Priming wie im Diktat.
+
+        Der `initial_prompt` ist der Punkt: Er ist genau das, was das Wörterbuch
+        bewirkt. Ohne ihn würde der Test messen, wie gut Whisper das Wort OHNE
+        Wörterbuch versteht — also das Gegenteil der Frage."""
+        p = self.pipeline
+        with p._stt_lock:
+            return p.stt.transcribe(
+                audio, self.config.audio.samplerate,
+                initial_prompt=getattr(p, "_vocab_prompt", None),
+            ) or ""
+
+    def _erkenne_startwort(self, audio):
+        """Erkennung für die Startwort-Probe — exakt der Freihand-Weg.
+
+        Nicht der Diktat-Weg: Freihand prüft mit `beam_size=1`, abgeschnittener
+        Stille und dem Startwort als `initial_prompt`. Mit dem Diktat-Weg zu
+        messen hiesse, eine Frage zu beantworten, die niemand gestellt hat.
+
+        Läuft Freihand gerade, wird DESSEN Erkenner genommen — dieselbe Instanz,
+        die im Betrieb entscheidet. Sonst wird einer gebaut; bei einem eigenen
+        kleinen Modell kostet das beim ersten Mal ein paar Sekunden Ladezeit.
+        """
+        lauscher = getattr(getattr(self, "_freihand", None), "lauscher", None)
+        laufender = getattr(lauscher, "erkenner", None)
+        if laufender is not None:
+            return laufender(audio) or ""
+        return self._baue_startwort_erkenner(self.settings.freihand)(audio) or ""
+
+    def _freihand_lauscher(self):
+        """Der Lauscher, wenn Freihand gerade AUFNIMMT — sonst None.
+
+        Die Pille kennt nur einen Zustand „Aufnahme laeuft" und weiss nicht, auf
+        welchem Weg sie zustande kam. Bis 5.8.2 wirkten alle drei Knoepfe
+        ausschliesslich auf den `RecordingController` — beim Freihand-Diktat
+        laeuft der aber gar nicht, also tat kein einziger Knopf etwas.
+        """
+        from ...freihand import Zustand
+
+        lauscher = getattr(getattr(self, "_freihand", None), "lauscher", None)
+        if lauscher is not None and lauscher.zustand is Zustand.AUFNAHME:
+            return lauscher
+        return None
+
+    def wortprobe(self, begriff: str, sekunden: float = 3.0,
+                  zweck: str = "woerterbuch"):
+        """Ein Wort einsprechen lassen und prüfen, ob es ankommt.
+
+        Läuft über DIESELBE Erkennung wie im Alltag — beim Wörterbuch mit dem
+        Wörterbuch-Priming, beim Startwort über den Weg, den Freihand geht. Ein
+        Test, der anders erkennt als der Betrieb, misst die falsche Frage.
+
+        Blockiert bewusst, solange aufgenommen wird: Der Dialog wartet auf das
+        Ergebnis, und zwei parallele Aufnahmen auf demselben Mikrofon wären ein
+        Gerätekonflikt.
+        """
+        import time as _time
+
+        from ...wortprobe import Ergebnis, Probe, pruefe_audio
+
+        if self.controller.active:
+            # Ein laufendes Diktat hat Vorrang — das Mikrofon gehoert ihm.
+            return Probe(Ergebnis.NICHTS, "", begriff, zweck)
+        # Freihand hoert am selben Mikrofon mit. Ohne Pause liefe die Probe
+        # Gefahr, das eigene Startwort auszuloesen — mitten im Test.
+        freihand = getattr(self, "_freihand", None)
+        if freihand is not None:
+            freihand.pausiere(True)
+        self.recorder.start()
+        try:
+            _time.sleep(max(0.5, min(10.0, float(sekunden))))
+        finally:
+            audio = self.recorder.stop()
+            if freihand is not None:
+                freihand.pausiere(False)
+        erkenne = (self._erkenne_startwort if zweck == "startwort"
+                   else self._erkenne_probe)
+        return pruefe_audio(
+            audio, begriff, erkenne,
+            samplerate=self.config.audio.samplerate, zweck=zweck,
+        )

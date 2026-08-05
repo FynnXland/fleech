@@ -34,6 +34,26 @@ DANGER_TEXT = "#E08585"                     # Danger-Buttons (Verlauf löschen)
 
 _STREAK_SHADES = ["#2A313B", "#12525F", "#219FB8", "#35C0D8"]
 
+# -- Seitenmasse ---------------------------------------------------------------------
+#
+# Jede Hauptseite (Home, Insights, Profile, Apps) haelt denselben Rand, denselben
+# Abstand zwischen den Bloecken und dieselbe Titelgroesse. Vorher standen die
+# Werte viermal einzeln im Code, und Apps war dabei herausgewachsen: Rand
+# 28/24/28/20 statt 20/18/20/18 und ein 17-pt-Titel gegen sonst 12 pt. Beim
+# Umschalten sprang dadurch das ganze Layout — sichtbar an den Pillen, die
+# ploetzlich weiter vom Rand standen.
+#
+# Als Konstante und nicht als Zahl in jeder Datei, damit genau das nicht wieder
+# passiert; `tests/test_ui_struktur.py` haelt es zusaetzlich fest.
+PAGE_MARGINS = (20, 18, 20, 18)     # links, oben, rechts, unten
+PAGE_SPACING = 12                   # Karten-Grid-Gap des Design-Systems
+PAGE_TITLE_PT = 12                  # Seitentitel („Insights", „Profile", „Apps")
+
+
+def page_title_qss() -> str:
+    """Stil fuer den Seitentitel — eine Zeile, damit alle vier gleich aussehen."""
+    return f"color: {TEXT}; font-size: {PAGE_TITLE_PT}pt; font-weight: 600;"
+
 
 def button_qss(variant: str = "default") -> str:
     """Button-Stile des Design-Systems: default (Karte + Hairline), primary

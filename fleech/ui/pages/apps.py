@@ -19,8 +19,8 @@ from PySide6.QtWidgets import (
 from ...history import HistoryStore
 from ...usersettings import UserSettings
 from ..theme import (
-    ACCENT, BORDER_HAIRLINE, CARD, MUTED, NAV_ACTIVE_BG, ROW_HOVER, SIDEBAR, TEXT,
-    TRACK, style_button,
+    ACCENT, BORDER_HAIRLINE, CARD, MUTED, NAV_ACTIVE_BG, PAGE_MARGINS,
+    PAGE_SPACING, ROW_HOVER, SIDEBAR, TEXT, TRACK, page_title_qss, style_button,
 )
 from ..widgets import _card, _no_hscroll, _passt, _suchfeld
 
@@ -60,10 +60,13 @@ class AppsPage(QWidget):
         from ..chevron import apply_chevrons
 
         layout = QVBoxLayout(self)
-        layout.setContentsMargins(28, 24, 28, 20)
-        layout.setSpacing(12)
+        # Dieselben Masse wie Home, Insights und Profile — siehe theme.PAGE_MARGINS.
+        # Diese Seite war herausgewachsen (Rand 28/24/28/20, Titel 17 pt), und beim
+        # Umschalten sprang dadurch sichtbar das ganze Layout.
+        layout.setContentsMargins(*PAGE_MARGINS)
+        layout.setSpacing(PAGE_SPACING)
         titel = QLabel("Apps")
-        titel.setStyleSheet(f"color: {TEXT}; font-size: 17pt; font-weight: 600;")
+        titel.setStyleSheet(page_title_qss())
         layout.addWidget(titel)
         unter = QLabel("Anwendung links wählen. In der Mitte, welches Profil "
                        "Fleech dort automatisch nimmt — rechts, zwischen welchen "
@@ -74,7 +77,7 @@ class AppsPage(QWidget):
         layout.addWidget(unter)
 
         body = QHBoxLayout()
-        body.setSpacing(14)
+        body.setSpacing(PAGE_SPACING)   # 12 wie Home, Insights und Profile (war 14)
         layout.addLayout(body, 1)
 
         list_style = (
