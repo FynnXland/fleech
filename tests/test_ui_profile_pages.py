@@ -1123,3 +1123,77 @@ def test_abgebrochener_dateidialog_aendert_nichts(qapp, tmp_path, monkeypatch):
     page._profile_exportieren()
     page._profile_importieren()
     assert len(settings.profiles.items) == vorher
+
+
+# -- Titel per Knopf uebernehmen (V-11/G-3) --------------------------------------------
+
+def _apps_mit_poll(tmp_path, monkeypatch, folge):
+    """Apps-Seite mit gefaelschtem Vordergrund-Poll. `folge` = Liste von (App, Titel)."""
+    window, _p, _store, settings, _c = make_main_window(tmp_path, monkeypatch,
+                                                        with_data=True)
+    monkeypatch.setattr("fleech.ui.windowsfocus.list_visible_window_processes",
+                        lambda: ["Code.exe", "comet.exe"])
+    page = window.apps
+    page.refresh()
+    for app_name, titel in folge:
+        monkeypatch.setattr("fleech.ui.windowsfocus.foreground_now",
+                            lambda a=app_name, t=titel: (a, t))
+        page._jetzt_aktualisieren()
+    return page, settings
+
+
+def _waehle_app(page, name):
+    for i in range(page._apps.count()):
+        if str(page._apps.item(i).data(0x0100)).lower() == name.lower():
+            page._apps.setCurrentRow(i)
+            return True
+    return False
+
+
+def test_knopf_traegt_den_zuletzt_gesehenen_fremden_titel_ein(qapp, tmp_path,
+                                                              monkeypatch):
+    """Fleech selbst zaehlt nicht: Wer auf dieser Seite steht, hat Fleech im
+    Vordergrund — angeboten wird die Anwendung, aus der er gerade kam."""
+    page, _s = _apps_mit_poll(tmp_path, monkeypatch, [
+        ("Code.exe", "apps.py - Fleech - Visual Studio Code"),
+        ("Fleech.exe", "Fleech"),
+    ])
+    assert _waehle_app(page, "Code.exe")
+    assert page._titel_knopf.isEnabled()
+    assert "apps.py - Fleech - Visual Studio Code" in page._titel_hinweis.text()
+
+    # Anzeigen, nicht still eintragen — erst der Klick fuellt das Feld.
+    assert page._regel_titel.text() == ""
+    page._titel_uebernehmen()
+    assert page._regel_titel.text() == "apps.py - Fleech - Visual Studio Code"
+
+
+def test_segment_knopf_traegt_nur_den_stabilen_teil_ein(qapp, tmp_path, monkeypatch):
+    """Ein ganzer Fenstertitel ist als Bedingung fast immer zu genau."""
+    from PySide6.QtWidgets import QPushButton
+
+    page, _s = _apps_mit_poll(tmp_path, monkeypatch, [
+        ("Code.exe", "apps.py - Fleech - Visual Studio Code"),
+        ("Code.exe", "profiles.py - Fleech - Visual Studio Code"),
+    ])
+    assert _waehle_app(page, "Code.exe")
+    knoepfe = [k for k in page._segment_leiste.findChildren(QPushButton)]
+    assert [k.text() for k in knoepfe][0] == "fleech"
+    knoepfe[0].click()
+    assert page._regel_titel.text() == "fleech"
+
+
+def test_ohne_fremdes_fenster_bleibt_der_knopf_aus(qapp, tmp_path, monkeypatch):
+    page, _s = _apps_mit_poll(tmp_path, monkeypatch, [("Fleech.exe", "Fleech")])
+    assert not page._titel_knopf.isEnabled()
+    assert "Noch kein fremdes Fenster" in page._titel_hinweis.text()
+
+
+def test_titel_aus_einer_anderen_anwendung_wird_als_solcher_ausgewiesen(
+        qapp, tmp_path, monkeypatch):
+    """Der „aktuelle" Titel kann der falsche sein — dann muss man das sehen."""
+    page, _s = _apps_mit_poll(tmp_path, monkeypatch, [
+        ("comet.exe", "Eldorado — Kaufrichtlinien"),
+    ])
+    assert _waehle_app(page, "Code.exe")
+    assert "aus comet.exe" in page._titel_hinweis.text()

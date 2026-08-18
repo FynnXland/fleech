@@ -239,6 +239,7 @@ class MainWindow(QMainWindow):
         self.apps = AppsPage(
             settings, store,
             on_changed=getattr(settings_panel, "_on_changed", None),
+            kontext_fn=self._kontext_speicher,
         )
         self.settings_panel = settings_panel
         # Karten per Rechtsklick ausblendbar — ersetzt elf Checkboxen.

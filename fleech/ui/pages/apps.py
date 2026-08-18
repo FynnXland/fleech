@@ -48,11 +48,17 @@ class AppsPage(QWidget):
 
     KEIN_PROFIL = "— kein Profil (Standard)"
 
-    def __init__(self, settings: UserSettings, store: HistoryStore, on_changed=None):
+    def __init__(self, settings: UserSettings, store: HistoryStore, on_changed=None,
+                 kontext_fn=None):
         super().__init__()
         self.settings = settings
         self.store = store
         self._on_changed = on_changed or (lambda section: None)
+        # Zugang zum Projekt-Gedaechtnis (gelernte Titel-Segmente, V-11). Als
+        # Funktion statt als Verbindung: SQLite-Verbindungen gehoeren dem Thread,
+        # der sie oeffnet — dieselbe Nahtstelle nutzt schon die Insights-Seite.
+        self._kontext_fn = kontext_fn
+        self._segment_cache: dict = {}
         self._loading = False
 
         from PySide6.QtWidgets import QComboBox, QLineEdit
@@ -169,6 +175,8 @@ class AppsPage(QWidget):
         self._regeln.itemDoubleClicked.connect(self._regel_entfernen)
         rechts_box.addWidget(self._regeln, 1)
 
+        self._baue_titel_uebernahme(rechts_box)
+
         neu_row = QHBoxLayout()
         neu_row.setSpacing(6)
         self._regel_titel = QLineEdit()
@@ -201,6 +209,11 @@ class AppsPage(QWidget):
         from PySide6.QtCore import QTimer
 
         self._letzter_fremder: tuple = ("", "")
+        # Ringpuffer der zuletzt gesehenen fremden Fenster (V-11/G-3). Er haengt
+        # bewusst am selben Poll: eine zweite Abfrage waere dieselbe Arbeit noch
+        # einmal, nur zu einem anderen Zeitpunkt.
+        self._titel_puffer: list = []
+        self._titel_angebot: str = ""
         self._jetzt = QLabel("")
         self._jetzt.setWordWrap(True)
         self._jetzt.setStyleSheet(
@@ -244,9 +257,136 @@ class AppsPage(QWidget):
         selbst = ist_fleech_selbst(app)
         if app and not selbst:
             self._letzter_fremder = (app, titel)
+            from .titelvorschlag import merke
+
+            self._titel_puffer = merke(self._titel_puffer, app, titel)
         ziel = self._letzter_fremder if selbst else (app, titel)
         self._jetzt.setText(
             beschreibe_jetzt(self.settings, ziel[0], ziel[1], fleech_selbst=selbst))
+        self._titel_angebot_aktualisieren()
+
+    # -- Titel uebernehmen statt abtippen (V-11/G-3) --------------------------------
+
+    def _baue_titel_uebernahme(self, box) -> None:
+        """Knopf „Aktuellen Titel übernehmen" samt Angebot und Segment-Vorschlaegen.
+
+        Bewusst ANZEIGEN statt still eintragen: Der zuletzt gesehene Titel kann
+        der falsche sein (man hat zwischendurch geklickt). Das Feld bleibt
+        editierbar, der Knopf fuellt es nur.
+        """
+        zeile = QHBoxLayout()
+        zeile.setSpacing(6)
+        self._titel_knopf = style_button(
+            QPushButton("Aktuellen Titel übernehmen"), "ghost")
+        self._titel_knopf.setToolTip(
+            "Trägt den Fenstertitel der zuletzt im Vordergrund gewesenen fremden "
+            "Anwendung unten ein — Fleech selbst zählt nicht. Der Titel bleibt "
+            "danach änderbar; meist will man nur den stabilen Teil davon.")
+        self._titel_knopf.clicked.connect(self._titel_uebernehmen)
+        zeile.addWidget(self._titel_knopf)
+        self._titel_hinweis = QLabel("")
+        self._titel_hinweis.setWordWrap(True)
+        self._titel_hinweis.setStyleSheet(f"color: {MUTED}; font-size: 8.5pt;")
+        zeile.addWidget(self._titel_hinweis, 1)
+        box.addLayout(zeile)
+
+        # Eigene Zeile fuer die Segment-Knoepfe: Ein ganzer Fenstertitel ist als
+        # Bedingung fast immer zu genau („(866) ich habe …") — der stabile Teil
+        # ist das, was man tatsaechlich eintragen will.
+        self._segment_leiste = QWidget()
+        self._segment_lay = QHBoxLayout(self._segment_leiste)
+        self._segment_lay.setContentsMargins(0, 0, 0, 0)
+        self._segment_lay.setSpacing(6)
+        self._segmente_gezeigt: list = []
+        box.addWidget(self._segment_leiste)
+        self._segment_leiste.setVisible(False)
+
+    def _titel_angebot_aktualisieren(self) -> None:
+        """Angebot und Segment-Knoepfe auf die gewaehlte Anwendung nachziehen."""
+        from .titelvorschlag import angebot, segmente
+
+        app = self._aktuelle_app()
+        titel, herkunft = angebot(getattr(self, "_titel_puffer", []), app)
+        self._titel_angebot = titel
+        self._titel_knopf.setEnabled(bool(app) and bool(titel))
+        if not titel:
+            self._titel_hinweis.setText(
+                "Noch kein fremdes Fenster gesehen — wechsle einmal hinüber.")
+        elif app and herkunft.lower() != app.lower():
+            self._titel_hinweis.setText(f"aus {herkunft}: „{titel}“")
+        else:
+            self._titel_hinweis.setText(f"„{titel}“")
+        self._zeige_segmente(segmente(getattr(self, "_titel_puffer", []), app,
+                                      self._gelernte_segmente(app)))
+
+    def _gelernte_segmente(self, app: str) -> list:
+        """Was `kontext.db` fuer diesen Prozess an Titel-Segmenten gelernt hat.
+
+        Je Anwendung einmal gemerkt: Die Anzeige laeuft im Sekundentakt, und
+        jedes Mal eine SQLite-Verbindung zu oeffnen waere Dauerlast fuer eine
+        Antwort, die sich zwischen zwei Diktaten nicht aendert. `refresh()` wirft
+        den Merkzettel weg.
+
+        Ohne Verbindung (Gedaechtnis aus, Datei weg) einfach leer — die Segmente
+        aus dem Puffer stehen dann allein, und das ist kein Fehlerfall."""
+        holen = getattr(self, "_kontext_fn", None)
+        if not callable(holen) or not app:
+            return []
+        schluessel = app.lower()
+        gemerkt = self._segment_cache.get(schluessel)
+        if gemerkt is not None:
+            return gemerkt
+        segmente: list = []
+        try:
+            speicher = holen()
+            if speicher is not None:
+                segmente = [s for _app, s, _n in speicher.kontexte(app) if s]
+        except Exception:
+            log.debug("Titel-Segmente nicht abrufbar.", exc_info=True)
+        self._segment_cache[schluessel] = segmente
+        return segmente
+
+    def _zeige_segmente(self, segmente: list) -> None:
+        """Die Segment-Knoepfe nur neu bauen, wenn sich die Liste geaendert hat —
+        der Poll laeuft jede Sekunde, und Widgets im Sekundentakt neu zu bauen
+        laesst den Fokus springen."""
+        if segmente == self._segmente_gezeigt:
+            return
+        self._segmente_gezeigt = list(segmente)
+        while self._segment_lay.count():
+            eintrag = self._segment_lay.takeAt(0)
+            widget = eintrag.widget()
+            if widget is not None:
+                # Erst abhaengen, dann loeschen: `deleteLater` raeumt erst beim
+                # naechsten Durchlauf der Ereignisschleife auf — bis dahin haengt
+                # der alte Knopf sonst noch sichtbar am Container.
+                widget.setParent(None)
+                widget.deleteLater()
+        for segment in segmente:
+            knopf = style_button(QPushButton(segment), "ghost")
+            knopf.setProperty("segment", segment)
+            knopf.setToolTip("Nur diesen Teil des Titels als Bedingung nehmen — "
+                             "er bleibt stehen, wenn der Rest wechselt.")
+            # Bewusst kein Lambda mit `self` (CLAUDE.md, Referenzzyklus): der Wert
+            # haengt am Knopf, die gebundene Methode holt ihn ueber sender().
+            knopf.clicked.connect(self._segment_uebernehmen)
+            self._segment_lay.addWidget(knopf)
+        self._segment_lay.addStretch(1)
+        self._segment_leiste.setVisible(bool(segmente))
+
+    def _titel_uebernehmen(self) -> None:
+        titel = getattr(self, "_titel_angebot", "")
+        if not titel:
+            return
+        self._regel_titel.setText(titel)
+        self._regel_titel.setFocus()
+
+    def _segment_uebernehmen(self) -> None:
+        knopf = self.sender()
+        segment = str(knopf.property("segment") or "") if knopf is not None else ""
+        if segment:
+            self._regel_titel.setText(segment)
+            self._regel_titel.setFocus()
 
     # -- Daten ---------------------------------------------------------------------
 
@@ -274,6 +414,7 @@ class AppsPage(QWidget):
         vorher = self._aktuelle_app()
         self._loading = True
         self._apps.clear()
+        self._segment_cache = {}      # gelernte Segmente neu holen (V-11)
         gesehen: set = set()
         self._erhoben: list = []      # [(app, zusatz, text, hinweis)] — Anzeigequelle
         try:
@@ -426,6 +567,8 @@ class AppsPage(QWidget):
         for w in (self._regel_titel, self._regel_profil):
             w.setEnabled(bool(app) and self._regel_profil.count() > 0)
         self._fuelle_schnellwechsel(app)
+        # Das Titel-Angebot gilt je Anwendung — mit der Auswahl wechselt es mit.
+        self._titel_angebot_aktualisieren()
         if not app:
             self._loading = False
             return
