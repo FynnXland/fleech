@@ -65,11 +65,15 @@ Provider/Modelle/Prompts sind in `config.yaml` + `prompts/` konfigurierbar
   `overlay_qt.py` (das Pillen-Fenster: Aufbau, Hintergrund, Qt-Ereignisse),
   `state.py` (StateBus-Signale), `theme.py`, `widgets.py`, `dialogs.py`,
   `titlebar.py`, `chevron.py`, `focusrestore.py`, `windowsfocus.py`, `notifications.py`.
-- `fleech/ui/pages/` — die vier Seiten des Hauptfensters (home, insights, apps, profiles).
+- `fleech/ui/pages/` — die vier Seiten des Hauptfensters (home, insights, apps, profiles);
+  dazu `verlauffilter` (Suche/Zeitraum/Export der Home-Timeline) und `jetztzeile`
+  („Wenn du jetzt diktierst …" auf der Apps-Seite, ohne Qt prüfbar).
+- `fleech/varianten.py` — Schreibvarianten desselben Begriffs (Cloud-Code/Claude Code)
+  für die Vorschlagskarte; `fleech/settingsheilung.py`, `fleech/gruende.py` s. o.
 - `fleech/ui/settings/` — die neun Einstellungsseiten, je Seite ein `build(panel)`.
 - `fleech/ui/desktopapp/` — die Teilgebiete von `DesktopApp` als **Mixins**: `profil`,
-  `freihand`, `keinton` (Wache: Mikrofon liefert nichts), `modelle`,
-  `nachbereitung`, `lizenz`, `lebenszyklus`.
+  `freihand`, `anstupsen` (Stille-Wache des Nudge-Modus), `keinton` (Wache: Mikrofon
+  liefert nichts), `modelle`, `nachbereitung`, `lizenz`, `lebenszyklus`.
 - `fleech/ui/overlaypille/` — die Teile der Pille: `konstanten` (Maße/Farben/Zeiten),
   `bausteine` (Waveform, Status-Punkt, Textblase — echte Widgets), und als **Mixins**
   `geometrie` (Position, Ziehen, Presets), `einblendungen` (Transkript, Formeln,

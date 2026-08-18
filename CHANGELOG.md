@@ -11,6 +11,52 @@ GitHub-Release-Notizen (`packaging/release.py`).
 
 ---
 
+## 5.10.5 — 2026-08-18
+
+*Nicht einzeln veröffentlicht.* Dritte Runde aus der Tiefenanalyse: Profile werden
+sichtbar, das Mikrofon meldet sich, wenn es nichts liefert, und drei Funktionen, die
+aus dem eigenen Verlauf etwas machen.
+
+**Du siehst, welches Profil gilt.** Der Ring am Punkt der Pille zeigt jetzt das
+Profil, das in der App gilt, in die du gerade diktierst — nicht mehr nur das von Hand
+gewählte; wechselt es beim Aufnahmestart, erscheint der Name kurz daneben. Die Seite
+„Apps" sagt oben mitlaufend, was ein Diktat jetzt ergäbe: Anwendung, Fenstertitel,
+das daraus aufgelöste Profil samt Regel, Ausgabeformat, Eingriff und Sprache. Die
+Anwendungsliste dort ist nach diktierten Wörtern sortiert, die meistgenutzte App ist
+vorgewählt, zugewiesene Programme, die es nicht zu geben scheint („noch nie
+gesehen"), stehen farbig ganz oben — ein Tippfehler fällt sofort auf. Beim Anlegen
+einer Titel-Ausnahme steht das Profil vorn, das in dieser App ohnehin gilt; eine
+Ausnahme auf das Standardprofil ist jetzt möglich und wirkt. Oben auf der Profilseite
+wählst du, welches Profil gerade gilt — ohne laufende Aufnahme und ohne Hotkey. Und
+die Diktiersprache lässt sich je Profil einstellen (deutscher Prompt im Chat,
+englischer Kommentar in der IDE). Sind Profile global aus, sagt der Punkt das,
+statt zu wechseln.
+
+**„Kein Ton vom Mikrofon"** — nach vier Sekunden ohne Ton wird der Punkt an der
+Pille rot und eine Blase sagt es, noch während du sprichst. Bisher merkte man es erst
+am leeren Ergebnis, im schlimmsten Fall nach zweieinhalb Minuten Rede. Die Warnung
+stoppt nichts und verschwindet, sobald wieder Ton ankommt. Aussetzer der
+Audio-Schnittstelle stehen jetzt im Protokoll.
+
+**Der Verlauf lässt sich durchsuchen** — nach Wörtern (auch nach solchen, die die
+Bereinigung entfernt hat), nach Programm und Zeitraum, statt nur der letzten 40
+Einträge; die Treffer lassen sich als Markdown-Datei speichern (der Knopf sagt, dass
+darin der volle Wortlaut unverschlüsselt steht).
+
+**Schreibweisen statt Grammatik.** Die Vorschlagskarte in den Insights fragt jetzt:
+„Cloud-Code 18× · Claude Code 10× — welche Schreibweise stimmt?" Beide Seiten sind
+gleichwertige Knöpfe; die Antwort wird eine Wörterbuch-Regel, und Fleech vergisst
+die falsche Form auch im Gedächtnis, damit sie sich nicht über die Erkennung selbst
+weiterträgt. Gelerntes Vokabular lässt sich unter Einstellungen → Textersetzung
+jetzt auch einzeln vergessen.
+
+**Die letzte Aufnahme bleibt im Arbeitsspeicher.** Über das Tray-Menü lässt sie sich
+noch einmal erkennen (wenn nichts ankam oder Ollama gerade nicht lief) oder als
+WAV-Datei sichern — auch dann, wenn gar kein Text herauskam. Nie auf Platte, außer
+du sicherst sie ausdrücklich.
+
+---
+
 ## 5.10.4 — 2026-08-18
 
 *Nicht einzeln veröffentlicht.* Zweite Runde aus der Tiefenanalyse: Der Verlauf
