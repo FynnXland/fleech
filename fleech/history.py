@@ -147,6 +147,28 @@ def corrected_word_count(raw: str, cleaned: str) -> int:
     )
 
 
+def treffer_als_markdown(eintraege: list[dict]) -> str:
+    """Trefferliste der Verlaufssuche als Markdown (V-12/H-4).
+
+    Je Eintrag eine Ueberschrift „Datum · Uhrzeit · Anwendung" und darunter der
+    bereinigte Text — das ist die Form, die sich in Obsidian oder einer Notiz
+    weiterverwenden laesst. Bewusst nur die ANGEZEIGTEN Treffer, nicht der ganze
+    Bestand: Ein Abzug von tausend Eintraegen beantwortet keine Frage.
+
+    Der Text geht damit unverschluesselt aus der Anwendung heraus — der Hinweis
+    dazu steht am Knopf, der diese Funktion aufruft.
+    """
+    zeilen = [f"# Fleech-Verlauf — {len(eintraege)} Einträge", ""]
+    for eintrag in eintraege:
+        zeit = _dt.datetime.fromtimestamp(eintrag.get("ts", 0.0))
+        app = str(eintrag.get("app", "") or "").strip() or "unbekannte Anwendung"
+        zeilen.append(f"## {zeit.strftime('%d.%m.%Y %H:%M')} · {app}")
+        zeilen.append("")
+        zeilen.append(str(eintrag.get("cleaned", "") or "").strip())
+        zeilen.append("")
+    return "\n".join(zeilen)
+
+
 @dataclass
 class DictationRecord:
     ts: float
@@ -266,6 +288,69 @@ class HistoryStore:
                 "ORDER BY ts DESC LIMIT ?", (limit,),
             ).fetchall()
         return [dict(r) for r in rows]
+
+    def search(self, text: str = "", app: str = "", von: float | None = None,
+               bis: float | None = None, limit: int = 200) -> list[dict]:
+        """Verlauf durchsuchen — Wortsuche, Anwendung, Zeitraum (V-12/H-4).
+
+        Bis 5.10.4 zeigte Home die 40 letzten Eintraege und sonst nichts; alles
+        Aeltere war praktisch unerreichbar (bei 29 Diktaten am Tag also alles ab
+        anderthalb Tagen). Gesucht wird ueber ROH- UND bereinigten Text: Wer sich
+        an ein gesprochenes Wort erinnert, das die Bereinigung entfernt hat, faende
+        seinen Eintrag sonst nicht.
+
+        Bewusst schlichtes `LIKE` und kein FTS5: Bei ein paar tausend Zeilen ist
+        der volle Durchlauf im Millisekundenbereich — eine zweite Tabelle, die
+        synchron gehalten werden muss, waere Aufwand ohne Wirkung.
+
+        `%` und `_` im Suchtext sind LIKE-Platzhalter und werden maskiert, sonst
+        faende die Suche nach „x_3" auch „x13". Gross-/Kleinschreibung ignoriert
+        SQLite nur bei ASCII — Umlaute muessen passend geschrieben werden.
+        """
+        felder = ("SELECT id, ts, cleaned, app, mode, words, reason, profile, "
+                  "title, dropped FROM dictations")
+        bedingungen: list[str] = []
+        args: list = []
+        text = (text or "").strip()
+        if text:
+            muster = "%" + text.replace("\\", "\\\\").replace("%", "\\%") \
+                              .replace("_", "\\_") + "%"
+            bedingungen.append("(raw LIKE ? ESCAPE '\\' OR cleaned LIKE ? ESCAPE '\\')")
+            args += [muster, muster]
+        if (app or "").strip():
+            bedingungen.append("LOWER(app) = ?")
+            args.append(app.strip().lower())
+        if von:
+            bedingungen.append("ts >= ?")
+            args.append(float(von))
+        if bis:
+            bedingungen.append("ts <= ?")
+            args.append(float(bis))
+        sql = felder + (" WHERE " + " AND ".join(bedingungen) if bedingungen else "")
+        sql += " ORDER BY ts DESC LIMIT ?"
+        args.append(max(1, int(limit)))
+        try:
+            with self._connect() as con:
+                con.row_factory = sqlite3.Row
+                rows = con.execute(sql, args).fetchall()
+        except Exception:
+            log.exception("Historie: Suche fehlgeschlagen.")
+            return []
+        return [dict(r) for r in rows]
+
+    def recent_cleaned(self, limit: int = 300) -> list[str]:
+        """Die bereinigten Texte der letzten `limit` Diktate — Quelle der
+        Schreibvarianten-Auswertung (V-14, `fleech/varianten.py`)."""
+        try:
+            with self._connect() as con:
+                rows = con.execute(
+                    "SELECT cleaned FROM dictations WHERE cleaned != '' "
+                    "ORDER BY ts DESC LIMIT ?", (max(1, int(limit)),)
+                ).fetchall()
+        except Exception:
+            log.exception("Historie: Texte nicht lesbar.")
+            return []
+        return [r[0] for r in rows]
 
     # -- Aktionable Auswertungen (Insights-Vorschlaege) --------------------------------
     #
