@@ -55,7 +55,9 @@ Provider/Modelle/Prompts sind in `config.yaml` + `prompts/` konfigurierbar
 - `fleech/mathmode.py`, `document.py` — Formeln, Diktat-Puffer.
 - `fleech/profiles.py` — App-Profile: Regeln (Prozess + Titel), Farben, Schnellwechsel.
 - `fleech/usersettings.py` — `%APPDATA%\Fleech\settings.json` (Dataclasses, additive Migration).
-  Importiert `profiles`, **nie umgekehrt**.
+  Importiert `profiles`, **nie umgekehrt**. `save()` läuft unter einem Modul-Lock mit
+  eindeutiger Nebendatei; `load()` heilt eine gültige, aber zurückgesetzte Datei aus
+  der `.bak` (Erkennung in `fleech/settingsheilung.py`, kennt weder Pfade noch Schreiben).
 - `fleech/history.py` — SQLite-Verlauf (`history.db`), Stats für Insights.
 - `fleech/ui/` — `desktop.py` (Aufbau, Aufnahme-Lebenszyklus, Hotkeys, Verdrahtung),
   `main_window.py` (Fenstergerüst), `settings_window.py` (Panel + Widget-Bauer),

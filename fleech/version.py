@@ -7,7 +7,7 @@
 
 from __future__ import annotations
 
-APP_VERSION = "5.10.2"  # 5.10.2: Profil-Punkt wechselt nur waehrend der Aufnahme
+APP_VERSION = "5.10.3"  # 5.10.3: Tiefenanalyse Runde 1 — Anzeige=Wirkung, Waechter, Einstellungs-Heilung
 
 
 def _read_build() -> str:

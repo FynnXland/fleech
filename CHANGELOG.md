@@ -11,6 +11,87 @@ GitHub-Release-Notizen (`packaging/release.py`).
 
 ---
 
+## 5.10.3 — 2026-08-18
+
+*Nicht einzeln veröffentlicht.* Erste Runde aus der Tiefenanalyse vom 17./18. August:
+alles, was die App etwas anderes anzeigen ließ, als sie tat — und der Schutz der
+Einstellungsdatei.
+
+**Einstellungen gehen nicht mehr verloren.** Speichert Fleech im selben Moment aus
+zwei Richtungen (etwa am Ende eines Diktats und bei einem Klick in den Einstellungen),
+konnte bisher eine unlesbare `settings.json` entstehen. Und stand die Datei nach einem
+Unfall plötzlich auf Werkseinstellung — Lizenz weg, Hotkey wieder F9 —, ließ Fleech es
+dabei. Jetzt holt es beim Start die letzte gute Fassung zurück und legt die
+zurückgesetzte Datei als `settings.json.zurueckgesetzt` daneben; einzelne Werte, die
+man selbst zurückgesetzt hat, bleiben unangetastet. Eine kaputte Datei wird nicht mehr
+zur Sicherung gemacht. Beim Start steht im Protokoll, wie viele Profile,
+App-Zuordnungen, Schnellwechsel-Einträge und Wörterbuchzeilen geladen wurden und ob
+eine Lizenz da ist — ein Verlust fällt sofort auf.
+
+**Das Profil „Stichpunkte" funktioniert jetzt auch beim Diktieren.** Bisher kam trotz
+gewähltem Profil Fließtext heraus — das Format erreichte die Verarbeitung nie; nur die
+gesprochene Ansage „… als Stichpunkte" ging.
+
+**„Diktat direkt abschicken" wirkt jetzt in den Profilen „KI-Prompt" und
+„Stichpunkte"** — genau dort, wofür der Haken gedacht ist. Beim Format „E-Mail" greift
+er weiterhin bewusst nicht.
+
+**Die Formel-Erkennung zeigt, was sie tut.** Nach einer frischen Installation stand
+sie auf „Automatisch", obwohl keine Formeln erkannt wurden. Wer Formeln will, schaltet
+sie jetzt sichtbar unter Einstellungen → Ausgabe ein — und bekommt sie dann auch. Das
+Ausgabeformat „Formeln" ist aus der Profilauswahl verschwunden (es hat nie etwas
+bewirkt); das Profil „Mathe" bleibt mit Name, Eingriffsgrad und Farbe.
+
+**Der Schnellwechsel überspringt das Standardprofil.** Ein Klick zu weit auf den
+Pillen-Punkt oder den Profil-Hotkey landete bisher auf „Standard" — und das legte
+unbemerkt und dauerhaft alle App-Zuordnungen still, ohne anders auszusehen als
+„App-Standard". Letzteres leistet dasselbe und lässt die Zuordnung zu. Passen zwei
+Titelregeln auf ein Fenster, gewinnt jetzt die genauere.
+
+**Uhrzeiten kosten keinen Fehlversuch mehr.** Machte Fleech aus „18.50 Uhr" ein
+„18:50 Uhr", galt das als verlorene Zahl — in genau diesen Diktaten landete der
+unbereinigte Text im Feld, mit Fehlerton. Ebenso dürfen Datumsangaben wie „15.07."
+zu „15. Juli" werden.
+
+**„Strong" glättet weiter stark, prüft aber wieder auf verschluckte Zahlen und
+Verneinungen** — wichtig für „Geschäftlich" und „E-Mail", wo Termine und Beträge stehen.
+
+**Ehrlichere Rückmeldung.** Antwortet die KI leer, meldet Fleech das als Rückfall
+(Warnton, amberner Hinweis) statt eines grünen Hakens. Verliert die KI bei Formel plus
+Textbaustein die Formel, fällt Fleech sichtbar auf den Rohtext zurück, statt still ein
+Loch einzufügen. Ein Schlusssatz mit Formel wird nicht mehr als „erfunden"
+abgeschnitten. Verhörte Endlosschleifen mitten im Text („um, um, um, um, um",
+„G-G-G-G-G") werden auf eine Nennung gekürzt und in der Pille gemeldet; dreifache
+Betonung wie „nein, nein, nein" bleibt.
+
+**Gesprochene Zeichen:** „Raute", „Unterstrich" und „Schrägstrich" bleiben normale
+Wörter — aus „zeichne eine Raute darunter" wird kein „#darunter" mehr; folgt ein
+gewöhnliches Wort, bleibt das Leerzeichen stehen.
+
+**Mikrofonwechsel im Betrieb** wird sofort neu bewertet — die Warnung vor
+Loopback-/Mix-Geräten folgt dem neuen Gerät statt bis zum Neustart am alten zu hängen.
+
+**Texte, die jetzt stimmen.** Der Hinweis am Diktat-Hotkey sagt, dass Esc/Entf/
+Backspace die Bindung *löschen*; der Aufnahme-Dialog hat einen „Abbrechen"-Knopf.
+Das „?" neben jeder Auswahlliste erklärt alle Optionen, nicht nur die gewählte — man
+muss „Anstupsen" nicht mehr einschalten, um zu erfahren, was es ist. Die Einführung
+erklärt Formeln richtig (kein toter Hotkey) und bietet „Anstupsen" als dritten
+Bedienmodus an. Warmhaltung nennt ~3,5 GB statt ~8 GB. „Adaptive Geschwindigkeit" und
+die Insights-Statistik behaupten kein zweites Modell mehr. Click-Through warnt, dass
+dabei auch die Knöpfe der Pille unbedienbar werden. Die Freihand-Einstellungen sind
+vollständig ausgegraut, solange der Modus stillgelegt ist. „Auto-Hide nach" erscheint
+nur bei „Automatisch ausblenden". Das Safe-Word-Feld zeigt, welches Wort gilt. Der
+Hinweis am KI-Prompting-Hotkey nennt den richtigen Weg (Profil „KI-Prompt"). Das Tray
+sagt nicht mehr „Freihand: an". „Debug-Logging" tut ab dem nächsten Start endlich
+etwas. Die Weitergabe-Dokumentation verspricht keine Offline-Nutzung ohne
+Update-Prüfung mehr und nennt realistische Wartezeiten.
+
+**Aufgeräumt:** Einstellungen zu einem Formel-Modus, den es seit Version 3 nicht mehr
+gibt (Mathe-Hotkeys, „Mathe-Umschalt"), sind entfallen; bestehende
+Einstellungsdateien laden unverändert.
+
+---
+
 ## 5.10.2 — 2026-08-17
 
 *Nicht einzeln veröffentlicht.*
