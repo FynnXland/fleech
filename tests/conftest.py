@@ -12,6 +12,21 @@ os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 import pytest
 
 
+@pytest.fixture(autouse=True)
+def _kein_echtes_gedaechtnis(tmp_path, monkeypatch):
+    """Kein Test fasst das echte Projekt-Gedaechtnis des Nutzers an.
+
+    `KontextSpeicher()` ohne Pfad oeffnet `%APPDATA%\\Fleech\\kontext.db` — die
+    Datei mit dem real gelernten Vokabular. Die Einstellungsseite baut so einen
+    Speicher beim Aufbau, und seit V-14 kann die Uebernahme eines Vorschlags dort
+    auch LOESCHEN. Ein Testlauf darf das nicht koennen, deshalb zeigt der
+    Vorgabepfad waehrend der Tests in ein Wegwerf-Verzeichnis.
+    """
+    import fleech.kontext as kontext
+
+    monkeypatch.setattr(kontext, "DB_PATH", tmp_path / "kontext.db")
+
+
 @pytest.fixture
 def qapp():
     """Eine QApplication für alle Qt-Tests.

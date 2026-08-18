@@ -236,15 +236,10 @@ class SettingsPanel(WortprobeMixin, QWidget):
     # -- Projekt-Gedaechtnis (fleech/kontext.py) ---------------------------------------
 
     def _kontext_speicher(self):
-        """Eigene Verbindung fuer die Anzeige — die Pipeline laeuft in einem
-        anderen Thread, und SQLite-Verbindungen gehoeren dem, der sie oeffnet."""
-        try:
-            from ..kontext import KontextSpeicher
+        """Eigene Verbindung fuer die Anzeige (siehe `kontext.oeffne`)."""
+        from ..kontext import oeffne
 
-            return KontextSpeicher()
-        except Exception:
-            log.debug("Gedaechtnis nicht lesbar.", exc_info=True)
-            return None
+        return oeffne()
 
     def _on_kontext_toggled(self, an: bool) -> None:
         self.settings.advanced.kontext_lernen = bool(an)
@@ -257,10 +252,14 @@ class SettingsPanel(WortprobeMixin, QWidget):
         label = getattr(self, "_kontext_zeile", None)
         if label is None:
             return
-        if not getattr(self.settings.advanced, "kontext_lernen", True):
+        an = getattr(self.settings.advanced, "kontext_lernen", True)
+        speicher = self._kontext_speicher() if an else None
+        # Die Auswahlliste IMMER nachziehen, auch auf den Abkuerzungen unten:
+        # Wer gerade alles vergessen hat, darf dort keine Begriffe mehr stehen sehen.
+        self._refresh_kontext_begriffe(speicher)
+        if not an:
             label.setText("Aus — es wird nichts gelernt und nichts verwendet.")
             return
-        speicher = self._kontext_speicher()
         if speicher is None:
             label.setText("")
             return
@@ -281,6 +280,35 @@ class SettingsPanel(WortprobeMixin, QWidget):
         if zeilen:
             text += " — " + " · ".join(zeilen)
         label.setText(text)
+
+    def _refresh_kontext_begriffe(self, speicher) -> None:
+        """Die Auswahlliste der gelernten Begriffe fuellen (haeufigste zuerst).
+
+        V-14: Bis 5.10.4 gab es nur „alles vergessen" — wer den einen Hoerfehler
+        loswerden wollte, den das Gedaechtnis gelernt hat (`Cloud-Code`, `FLEACH`),
+        verlor das ganze Vokabular mit."""
+        combo = getattr(self, "_kontext_begriffe", None)
+        if combo is None:
+            return
+        eintraege = speicher.alle_begriffe()[:60] if speicher is not None else []
+        combo.blockSignals(True)
+        combo.clear()
+        for begriff, treffer in eintraege:
+            combo.addItem(f"{begriff}  ({treffer}×)", begriff)
+        combo.blockSignals(False)
+        combo.setEnabled(bool(eintraege))
+
+    def _kontext_begriff_vergessen(self) -> None:
+        """Einen einzelnen gelernten Begriff loeschen — in allen Fenster-Segmenten,
+        sonst primt ihn das naechste Diktat aus dem Titel-Segment zurueck."""
+        combo = getattr(self, "_kontext_begriffe", None)
+        begriff = str(combo.currentData() or "") if combo is not None else ""
+        speicher = self._kontext_speicher()
+        if not begriff or speicher is None:
+            return
+        anzahl = speicher.vergiss(begriff=begriff)
+        log.info("Gelernter Begriff vergessen: %s (%d Eintraege).", begriff, anzahl)
+        self._refresh_kontext_zeile()
 
     def _kontext_vergessen(self) -> None:
         speicher = self._kontext_speicher()

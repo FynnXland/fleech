@@ -264,8 +264,42 @@ class KontextSpeicher:
             log.debug("Kontext-Uebersicht fehlgeschlagen.", exc_info=True)
             return []
 
-    def vergiss(self, app: str = "", segment: str | None = None) -> int:
-        """Gelerntes loeschen. Ohne Argumente: alles. Rueckgabe: Anzahl Zeilen."""
+    def alle_begriffe(self, app: str = "") -> list[tuple[str, int]]:
+        """[(begriff, treffer)] — die Rohliste des Gelernten, haeufigste zuerst.
+
+        Nur das app-weite Segment (`segment = ''`): `lerne` legt jeden Begriff
+        zusaetzlich unter jedem Titel-Segment ab, ueber alles summiert waere jeder
+        Begriff also mehrfach gezaehlt — und zwar unterschiedlich oft, je nachdem
+        wie viele Fenstertitel er gesehen hat. Fuer die Frage „welche Schreibweise
+        ist haeufiger?" (V-14) waere das eine verzerrte Zahl.
+
+        Bewusst OHNE Verfalls- und Trefferfilter (anders als `priming_begriffe`):
+        Hier geht es ums Zeigen und Aufraeumen, nicht ums Primen — was der Nutzer
+        loeschen koennen soll, muss er auch sehen.
+        """
+        sql = ("SELECT begriff, SUM(treffer) FROM begriffe WHERE segment = ''")
+        args: list = []
+        if app:
+            sql += " AND app = ?"
+            args.append(app.strip().lower())
+        sql += " GROUP BY klein ORDER BY SUM(treffer) DESC, begriff"
+        try:
+            with self._lock, self._connect() as con:
+                return [(str(b), int(n)) for b, n in con.execute(sql, args).fetchall()]
+        except Exception:
+            log.debug("Kontext-Begriffe nicht lesbar.", exc_info=True)
+            return []
+
+    def vergiss(self, app: str = "", segment: str | None = None,
+                begriff: str | None = None) -> int:
+        """Gelerntes loeschen. Ohne Argumente: alles. Rueckgabe: Anzahl Zeilen.
+
+        `begriff` loescht EINEN Begriff (in allen Segmenten, sonst primt ihn das
+        Titel-Segment weiter). Genau das fehlte bisher: Die Oberflaeche konnte nur
+        alles vergessen, obwohl in `kontext.db` einzelne Hoerfehler stehen
+        (`Cloud-Code`, `FLEACH`) — wer die loswerden wollte, verlor das ganze
+        gelernte Vokabular mit (Befund H-B3).
+        """
         sql, args = "DELETE FROM begriffe", []
         bedingungen = []
         if app:
@@ -274,6 +308,9 @@ class KontextSpeicher:
         if segment is not None:
             bedingungen.append("segment = ?")
             args.append(segment.strip().lower())
+        if begriff:
+            bedingungen.append("klein = ?")
+            args.append(begriff.strip().lower())
         if bedingungen:
             sql += " WHERE " + " AND ".join(bedingungen)
         try:
@@ -293,6 +330,23 @@ class KontextSpeicher:
         except Exception:
             log.debug("Kontext-Aufraeumen fehlgeschlagen.", exc_info=True)
             return 0
+
+
+def oeffne(aktiv: bool = True) -> "KontextSpeicher | None":
+    """Eine eigene Verbindung fuer die Oberflaeche — `None`, wenn es nicht geht.
+
+    Eigene Verbindung und nicht die der Pipeline: Die laeuft in einem anderen
+    Thread, und SQLite-Verbindungen gehoeren dem, der sie oeffnet. `aktiv=False`
+    (Gedaechtnis abgeschaltet) liefert bewusst `None`, damit die aufrufende Stelle
+    nicht zusaetzlich die Einstellung pruefen muss.
+    """
+    if not aktiv:
+        return None
+    try:
+        return KontextSpeicher()
+    except Exception:
+        log.debug("Gedaechtnis nicht lesbar.", exc_info=True)
+        return None
 
 
 def erstbefuellung(speicher: "KontextSpeicher", history_db: Path | None = None,
