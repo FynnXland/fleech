@@ -378,6 +378,92 @@ def test_apps_page_assigns_profile_per_app(qapp, tmp_path, monkeypatch):
     page._profil_combo.setCurrentIndex(0)
     assert all(p.get("apps", []) == [] for p in items)
 
+def test_apps_liste_sortiert_nach_nutzung_und_meldet_unbekanntes_zuerst(
+        qapp, tmp_path, monkeypatch):
+    """Befund G-B8: Die Liste begann mit ALLEN sichtbaren Fensterprozessen in
+    EnumWindows-Reihenfolge — die Seite sah aus wie ein Taskmanager, die
+    meistgenutzte App stand irgendwo dazwischen und trug nur „laeuft" (ihre
+    Wortzahl fiel weg), und der Tippfehler-Melder „noch nie gesehen" stand ganz
+    unten. Jetzt: Unbekanntes zuerst, dann nach diktierten Woertern."""
+    from PySide6.QtCore import Qt
+
+    from fleech.ui.theme import AMBER
+
+    window, _p, _store, settings, _c = make_main_window(tmp_path, monkeypatch,
+                                                        with_data=True)
+    # Code.exe: 2 Diktate, comet.exe: 1 — plus ein laufendes Programm ohne Verlauf.
+    monkeypatch.setattr("fleech.ui.windowsfocus.list_visible_window_processes",
+                        lambda: ["Code.exe", "NVIDIA Overlay.exe"])
+    coding = next(p for p in settings.profiles.items
+                  if str(p.get("name", "")).startswith("Coding"))
+    coding["apps"] = ["Tippfehler.exe"]          # zugewiesen, gibt es aber nicht
+
+    page = window.apps
+    page.refresh()
+    apps = [str(page._apps.item(i).data(Qt.UserRole))
+            for i in range(page._apps.count())]
+    assert apps[0] == "Tippfehler.exe"           # der Hinweis ganz oben
+    assert page._apps.item(0).foreground().color().name().lower() == AMBER.lower()
+    assert "noch nie gesehen" in page._apps.item(0).text()
+    assert apps.index("Code.exe") < apps.index("comet.exe")     # mehr diktiert
+    assert apps.index("comet.exe") < apps.index("NVIDIA Overlay.exe")
+
+    # Zusaetze werden zusammengefasst statt zu verdraengen: Code.exe laeuft UND
+    # hat Verlauf.
+    zeile = page._apps.item(apps.index("Code.exe")).text()
+    assert "läuft" in zeile and "Wörter diktiert" in zeile
+
+    # Ohne gemerkte Auswahl steht die meistgenutzte App vorn — nicht Zeile 0
+    # (die ist jetzt der Hinweis, frueher irgendein Systemprozess).
+    assert page._aktuelle_app() == "Code.exe"
+
+
+def test_titelregel_faellt_auf_das_profil_der_app_zurueck(qapp, tmp_path, monkeypatch):
+    """Befund G-B8, zweiter Teil: Das Profilfeld der Titel-Ausnahme stand per
+    Vorgabe auf dem ersten Nicht-Standard-Profil — wer einen Titel tippte und auf
+    „Hinzufügen" drueckte, legte ungewollt eine „Geschäftlich"-Regel an. Jetzt
+    steht dort das Profil, das in dieser App ohnehin gilt, sonst das
+    Standardprofil."""
+    from PySide6.QtCore import Qt
+
+    window, _p, _store, settings, _c = make_main_window(tmp_path, monkeypatch,
+                                                        with_data=True)
+    monkeypatch.setattr("fleech.ui.windowsfocus.list_visible_window_processes",
+                        lambda: ["Code.exe", "Discord.exe"])
+    items = settings.profiles.items
+    standard = next(p for p in items if p.get("default"))
+    coding = next(p for p in items if str(p.get("name", "")).startswith("Coding"))
+
+    page = window.apps
+    page.refresh()
+    apps = [str(page._apps.item(i).data(Qt.UserRole))
+            for i in range(page._apps.count())]
+    page._apps.setCurrentRow(apps.index("Discord.exe"))     # ohne Zuordnung
+    assert page._regel_profil.currentData() == standard["name"]
+
+    page._apps.setCurrentRow(apps.index("Code.exe"))
+    page._profil_combo.setCurrentIndex(page._profil_combo.findData(coding["name"]))
+    page._apps.setCurrentRow(apps.index("Code.exe"))
+    assert page._regel_profil.currentData() == coding["name"]
+
+
+def test_titelausnahme_auf_das_standardprofil_greift_wirklich(qapp):
+    """Sonst waere die neue Wahlmoeglichkeit eine tote Regel: Das Standardprofil war
+    in der Aufloesung NUR Fallback und nie Kandidat — „in diesem einen Fenster gilt
+    wieder das Normale" liess sich damit gar nicht ausdruecken."""
+    from fleech.profiles import profil_fuer_app
+
+    items = [
+        {"name": "Standard", "default": True, "intervention": "",
+         "apps": ["chrome.exe :: Gmail"]},
+        {"name": "Coding", "intervention": "minimal", "apps": ["chrome.exe"]},
+    ]
+    treffer, regel = profil_fuer_app(items, "chrome.exe", "Gmail - Posteingang")
+    assert (treffer["name"], regel) == ("Standard", "chrome.exe :: Gmail")
+    # Ohne den Titel bleibt es bei der Zuordnung der App.
+    assert profil_fuer_app(items, "chrome.exe", "Fleech")[0]["name"] == "Coding"
+
+
 def test_app_profile_resolution_with_default_fallback(qapp):
     import types
 

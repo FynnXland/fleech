@@ -266,8 +266,11 @@ def profil_fuer_app(items: list, app: str, title: str = "") -> tuple[dict | None
             continue
         if item.get("default"):
             default_item = item
-        else:
-            candidates.append(item)
+        # Das Standardprofil laeuft BEIDES: Fallback und normaler Kandidat. Nur
+        # als Fallback waere eine Titel-Ausnahme darauf eine tote Regel — „in
+        # diesem einen Fenster gilt wieder das Normale" liesse sich sonst gar
+        # nicht ausdruecken, obwohl die Apps-Seite es anbietet.
+        candidates.append(item)
 
     if app:
         for want_title in (True, False):

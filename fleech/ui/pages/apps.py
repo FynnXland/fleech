@@ -258,6 +258,16 @@ class AppsPage(QWidget):
         return str(item.data(Qt.UserRole)) if item is not None else ""
 
     def refresh(self) -> None:
+        """Die Anwendungsliste neu erheben — in der Reihenfolge, die zaehlt.
+
+        Bis 5.10.4 standen zuerst ALLE sichtbaren Fensterprozesse in
+        EnumWindows-Reihenfolge, danach erst die Verlaufs-Apps (Befund G-B8): Die
+        Seite sah beim Oeffnen aus wie ein Taskmanager, die meistgenutzte
+        Anwendung stand irgendwo dazwischen und trug nur „laeuft", und der
+        wertvollste Hinweis („noch nie gesehen" — der Tippfehler-Melder) stand ganz
+        unten. Jetzt: erst die zugewiesenen Prozesse, die es gar nicht zu geben
+        scheint, dann die Apps nach diktierten Woertern, dann der Rest.
+        """
         from ...profiles import parse_app_rule
         from ..windowsfocus import list_visible_window_processes
 
@@ -265,41 +275,61 @@ class AppsPage(QWidget):
         self._loading = True
         self._apps.clear()
         gesehen: set = set()
-        self._erhoben: list = []      # [(app, zusatz)] — Quelle fuer die Anzeige
+        self._erhoben: list = []      # [(app, zusatz, text, hinweis)] — Anzeigequelle
         try:
             laufend = list_visible_window_processes()
         except Exception:
             log.debug("Fensterliste nicht abrufbar.", exc_info=True)
             laufend = []
-        for app in laufend:
-            gesehen.add(app.lower())
-            self._eintrag(app, "läuft")
+        laeuft = {a.lower() for a in laufend}
         try:
-            haeufig = self.store.stats().app_usage or []
+            haeufig = self.store.stats().app_usage or []   # bereits nach Woertern sortiert
         except Exception:
             haeufig = []
-        for app, words, _share in haeufig:
-            if app.lower() not in gesehen:
-                gesehen.add(app.lower())
-                self._eintrag(app, f"{words} Wörter diktiert")
-        # Zugewiesene Apps, die gerade weder laufen noch im Verlauf stehen: sonst
-        # verschwindet eine bestehende Regel aus der Sicht und wirkt geloescht.
-        # Der „nie gesehen"-Hinweis ist wichtig — ein vertippter Prozessname
-        # faellt sonst NIE auf, weil das Profil einfach stumm nie greift.
+        woerter = {str(a).lower(): w for a, w, _share in haeufig}
+
+        # 1. Zugewiesen, aber weder laufend noch je im Verlauf: ein vertippter oder
+        #    umbenannter Prozessname faellt sonst NIE auf, weil das Profil stumm nie
+        #    greift. Deshalb nach ganz oben und farblich als Hinweis.
         stale = self._stale_apps()
         for profil in self._items():
             for eintrag in profil.get("apps", []):
                 prozess = parse_app_rule(eintrag)[0]
-                if prozess and prozess.lower() not in gesehen:
-                    gesehen.add(prozess.lower())
-                    tage = stale.get(prozess.lower())
-                    if tage is None:
-                        zusatz = "zugewiesen"
-                    elif tage:
-                        zusatz = f"seit {tage} Tagen nicht gesehen"
-                    else:
-                        zusatz = "noch nie gesehen"
-                    self._eintrag(prozess, zusatz)
+                schluessel = prozess.lower()
+                if not prozess or schluessel in gesehen:
+                    continue
+                if schluessel in laeuft or schluessel in woerter:
+                    continue
+                gesehen.add(schluessel)
+                tage = stale.get(schluessel)
+                if tage is None:
+                    zusatz = "zugewiesen"
+                elif tage:
+                    zusatz = f"seit {tage} Tagen nicht gesehen"
+                else:
+                    zusatz = "noch nie gesehen"
+                self._eintrag(prozess, [zusatz], hinweis=True)
+
+        # 2. Apps mit Verlauf, die meistbenutzte zuerst. „laeuft" ist hier ein
+        #    ZUSATZ und kein eigener Eintrag mehr — vorher verlor claude.exe seine
+        #    Wortzahl, nur weil es gerade lief.
+        self._vorgabe_app = ""
+        for app, words, _share in haeufig:
+            if app.lower() in gesehen:
+                continue
+            gesehen.add(app.lower())
+            zusaetze = (["läuft"] if app.lower() in laeuft else []) + \
+                       [f"{words} Wörter diktiert"]
+            self._eintrag(app, zusaetze)
+            if not self._vorgabe_app:
+                self._vorgabe_app = app
+
+        # 3. Laufende Programme ohne Verlauf — der Taskmanager-Teil, jetzt zuletzt.
+        for app in laufend:
+            if app.lower() in gesehen:
+                continue
+            gesehen.add(app.lower())
+            self._eintrag(app, ["läuft"])
         self._loading = False
         self._zeige_apps(vorher)
 
@@ -323,7 +353,7 @@ class AppsPage(QWidget):
         now = _time.time()
         stale = {}
         for profile in self.settings.profiles.items or []:
-            if not isinstance(profile, dict) or profile.get("default"):
+            if not isinstance(profile, dict):
                 continue
             for entry in profile.get("apps", []):
                 from ...profiles import parse_app_rule
@@ -340,7 +370,10 @@ class AppsPage(QWidget):
                     stale[process] = days
         return stale
 
-    def _eintrag(self, app: str, zusatz: str) -> None:
+    def _eintrag(self, app: str, zusaetze: list, hinweis: bool = False) -> None:
+        """Eine Zeile merken. `zusaetze` werden zusammengefasst statt zu verdraengen
+        („claude.exe · läuft · 17580 Wörter diktiert") — vorher legte der erste
+        Treffer den Zusatz fest und die Wortzahl fiel weg (Befund G-B8)."""
         from ...profiles import parse_app_rule
 
         # Nur die ALLGEMEINE Regel (ohne Titel-Bedingung) anzeigen — sonst stuende
@@ -356,12 +389,13 @@ class AppsPage(QWidget):
                     ausnahmen += 1
                 elif not profil:
                     profil = str(p.get("name", ""))
+        zusatz = "   ·  ".join(zusaetze)
         text = f"{app}   ·  {zusatz}"
         if profil:
             text += f"   →  {profil}"
         if ausnahmen:
             text += f"   (+{ausnahmen} nach Titel)"
-        self._erhoben.append((app, zusatz, text))
+        self._erhoben.append((app, zusatz, text, hinweis))
 
     def _refresh_detail(self) -> None:
         from ...profiles import parse_app_rule
@@ -372,6 +406,15 @@ class AppsPage(QWidget):
         self._profil_combo.clear()
         self._regel_profil.clear()
         self._profil_combo.addItem(self.KEIN_PROFIL, "")
+        # Bei den TITEL-Ausnahmen steht das Standardprofil bewusst zur Wahl und
+        # bewusst vorn (Befund G-B8): „in diesem einen Fenster gilt wieder das
+        # Normale" liess sich sonst gar nicht ausdruecken, und die Vorgabe war das
+        # erste Nicht-Standard-Profil — wer einen Titel tippte und auf
+        # „Hinzufügen" drueckte, legte ungewollt eine „Geschäftlich"-Regel an.
+        for p in self._items():
+            if p.get("default"):
+                name = str(p.get("name", ""))
+                self._regel_profil.addItem(name, name)
         for p in self._items():
             if not p.get("default"):
                 name = str(p.get("name", ""))
@@ -402,6 +445,10 @@ class AppsPage(QWidget):
                     gewaehlt = str(p.get("name", ""))
         index = self._profil_combo.findData(gewaehlt)
         self._profil_combo.setCurrentIndex(max(0, index))
+        # Vorgabe der Titel-Ausnahme: das Profil, das in dieser App ohnehin gilt.
+        # Eine Ausnahme praezisiert meistens die bestehende Zuordnung; ohne
+        # Zuordnung bleibt das Standardprofil vorn.
+        self._regel_profil.setCurrentIndex(max(0, self._regel_profil.findData(gewaehlt)))
         self._loading = False
 
     # -- Aenderungen ----------------------------------------------------------------
@@ -500,21 +547,37 @@ class AppsPage(QWidget):
         per EnumWindows, Verlaufs-Statistik). Beides bei jedem Tastendruck im
         Suchfeld abzufragen waere spuerbar traege.
         """
+        from PySide6.QtGui import QColor
+
+        from ..theme import AMBER
+
         suche = self._app_suche.text()
         self._loading = True
         self._apps.clear()
-        for app, zusatz, text in getattr(self, "_erhoben", []):
+        for app, _zusatz, text, hinweis in getattr(self, "_erhoben", []):
             # Gesucht wird ueber die GANZE Zeile, nicht nur den Prozessnamen — so
             # findet „stichpunkte" auch die Apps, die auf dieses Profil zeigen.
             if not _passt(text, suche):
                 continue
             item = QListWidgetItem(text)
             item.setData(Qt.UserRole, app)
+            if hinweis:
+                # Zugewiesen, aber nie gesehen — das ist ein Hinweis und keine
+                # gewoehnliche Zeile. Vorher stand er als schlichter Text ganz unten.
+                item.setForeground(QColor(AMBER))
             self._apps.addItem(item)
         self._loading = False
         if self._apps.count():
             treffer = [i for i in range(self._apps.count())
                        if str(self._apps.item(i).data(Qt.UserRole)) == auswahl]
+            if not treffer:
+                # Ohne gemerkte Auswahl die MEISTGENUTZTE App vorwaehlen (Befund
+                # G-B8): Zeile 0 war frueher irgendein Systemprozess, und die Seite
+                # fragte beim ersten Oeffnen, welches Profil fuer das
+                # NVIDIA-Overlay gelten soll.
+                vorgabe = getattr(self, "_vorgabe_app", "")
+                treffer = [i for i in range(self._apps.count())
+                           if str(self._apps.item(i).data(Qt.UserRole)) == vorgabe]
             self._apps.setCurrentRow(treffer[0] if treffer else 0)
         self._refresh_detail()
 
