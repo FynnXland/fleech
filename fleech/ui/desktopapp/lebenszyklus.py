@@ -58,7 +58,12 @@ class LebenszyklusMixin:
         laufenden Betrieb auf „Stereomix" umstellte, bekam weder Warnung noch die
         Formel-Sperre — der Controller trug bis zum Neustart das Urteil ueber das
         ALTE Geraet. Umgekehrt blieb eine einmal gezeigte Warnung stehen, obwohl
-        laengst ein echtes Mikrofon gewaehlt war."""
+        laengst ein echtes Mikrofon gewaehlt war.
+
+        Befund B-3: Das neue Urteil landete auf `self.controller` (dem
+        RecordingController) — einem Objekt ohne dieses Feld. Es legte dort still
+        ein Attribut an, das niemand liest. Gelesen wird `device_check` allein vom
+        AudioFocusController (`may_record`, `status_line`), also `self.focus`."""
         from ...audiofocus import DeviceCheck, DeviceGuard
 
         device = self.settings.recording.microphone
@@ -67,7 +72,11 @@ class LebenszyklusMixin:
             check = DeviceGuard.check(device, blocklist)
         except Exception as exc:
             check = DeviceCheck(ok=True, name=f"<unbekannt: {exc}>")
-        self.controller.device_check = check
+        if getattr(self, "focus", None) is not None:
+            self.focus.device_check = check
+        # Die Sperrliste gehoert in die Config, aus der der naechste DeviceGuard
+        # gebaut wird — sonst zieht eine gerade ergaenzte Zeile erst nach einem
+        # Neustart.
         self.config.audio_focus.blocked_devices = list(blocklist or [])
         if check.ok:
             log.info("Aufnahmegeraet geprueft: %s — in Ordnung.", check.name)

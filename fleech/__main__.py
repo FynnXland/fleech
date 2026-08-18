@@ -47,6 +47,21 @@ def _attach_console_if_available() -> None:
             sys.stderr = fallback
 
 
+def _debug_logging_gewuenscht() -> bool:
+    """Einstellungen → Erweitert → „Debug-Logging": ist der Haken gesetzt?
+
+    Der Schalter wurde bis 5.10.2 gespeichert und von niemandem gelesen (Befund
+    B-6) — der Tooltip versprach ein ausfuehrliches Protokoll, das nie entstand.
+    Bewusst defensiv: Laesst sich die settings.json hier nicht lesen, startet
+    Fleech normal weiter; die Datei wird gleich darauf ohnehin regulaer geladen."""
+    try:
+        from .usersettings import UserSettings
+
+        return bool(UserSettings.load().advanced.debug_logging)
+    except Exception:
+        return False
+
+
 def main() -> int:
     _attach_console_if_available()
     parser = argparse.ArgumentParser(prog="fleech", description="Fleech Diktat-Engine")
@@ -85,7 +100,9 @@ def main() -> int:
 
     # Desktop-Modus: Log in Datei (%APPDATA%/Fleech), da keine Konsole existiert.
     handlers = None
-    if not (args.cli or args.list_devices or args.audio_selftest or args.pipeline_selftest):
+    desktop_modus = not (args.cli or args.list_devices or args.audio_selftest
+                         or args.pipeline_selftest)
+    if desktop_modus:
         from .usersettings import SETTINGS_DIR
 
         SETTINGS_DIR.mkdir(parents=True, exist_ok=True)
@@ -99,6 +116,13 @@ def main() -> int:
         datefmt="%H:%M:%S",
         handlers=handlers,
     )
+    # Der Haken in den Einstellungen wirkt jetzt wie -v: Wer ihn setzt, will beim
+    # naechsten Start ein ausfuehrliches Protokoll sehen (B-6).
+    if desktop_modus and not args.verbose and _debug_logging_gewuenscht():
+        logging.getLogger().setLevel(logging.DEBUG)
+        logging.getLogger(__name__).info(
+            "Debug-Logging aus den Einstellungen aktiv — ausfuehrliches Protokoll. "
+            "Zum Abschalten: Einstellungen → Erweitert.")
 
     if args.license:
         # Bewusst OHNE Qt und ohne Modelle: das muss auch dann noch antworten,

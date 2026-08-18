@@ -202,7 +202,9 @@ class ProfilesPage(QWidget):
         self._quick_cb.setToolTip(
             "Punkt in der Pille, Profil-Hotkey und Auswahlliste gehen nur durch "
             "diese Profile. Wer viele pflegt, aber im Alltag zwischen zweien "
-            "wechselt, blendet den Rest hier aus."
+            "wechselt, blendet den Rest hier aus. Das Standardprofil läuft nie "
+            "mit — dafür gibt es die Station „App-Standard“ am Ende des Zyklus, "
+            "die zusätzlich die App-Zuordnung zulässt."
         )
         self._quick_cb.toggled.connect(self._on_quick_toggled)
         box.addWidget(self._quick_cb)
@@ -347,7 +349,9 @@ class ProfilesPage(QWidget):
         self._autosend_cb.setToolTip(
             "Gilt nur für die diesem Profil zugewiesenen Apps und nur bei einem "
             "normalen Diktat — nach einem Befehl oder einem Rohtext-Rückfall wird "
-            "nie automatisch gesendet."
+            "nie automatisch gesendet. Beim Ausgabeformat „E-Mail“ greift der "
+            "Haken bewusst nicht: Eine Mail, die sich selbst abschickt, ist der "
+            "eine Fall, in dem ein Versehen echte Folgen hat."
         )
         self._autosend_cb.toggled.connect(self._on_autosend_toggled)
         adv.addWidget(self._autosend_cb)
@@ -420,7 +424,9 @@ class ProfilesPage(QWidget):
                         "email": "#6E86C8", "summary": "#7FD1A6"}
     # Kurzform des Ausgabeformats hinter dem Namen. Beantwortet die Frage „was macht
     # dieses Profil?" in der LISTE — vorher musste man jedes Profil anklicken.
-    _MODE_KURZ = {"email": "E-Mail", "prompt": "KI-Prompt", "math": "Formeln",
+    # („Formeln" ist hier entfallen — das Format gab es nur in der Liste, nie im
+    #  Code; siehe Befund E-14 in fleech/profiles.py.)
+    _MODE_KURZ = {"email": "E-Mail", "prompt": "KI-Prompt",
                   "summary": "Stichpunkte"}
 
     @staticmethod
@@ -501,6 +507,12 @@ class ProfilesPage(QWidget):
         )
         self._aktualisiere_prompt_knopf(fmt)
         self._quick_cb.setChecked(profile_in_quickswitch(profile))
+        # Das Standardprofil laeuft im Schnellwechsel nicht mehr mit (Befund G-B1)
+        # — dann darf der Haken hier auch nicht so tun, als koenne man das waehlen.
+        ist_standard = bool(profile.get("default"))
+        self._quick_cb.setEnabled(not ist_standard)
+        if ist_standard:
+            self._quick_cb.setChecked(False)
         self._loading = False
 
     # -- Interaktionen ---------------------------------------------------------------------

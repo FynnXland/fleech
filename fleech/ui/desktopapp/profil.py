@@ -99,14 +99,19 @@ class ProfilMixin:
             candidates.append(item)
 
         for want_title in (True, False):
-            for item in candidates:
-                for entry in item.get("apps", []):
-                    if bool(parse_app_rule(entry)[1]) != want_title:
-                        continue
-                    if app and app_rule_matches(entry, app, title):
-                        chosen = item
-                        break
-                if chosen is not None:
+            paare = [(item, entry) for item in candidates
+                     for entry in item.get("apps", [])
+                     if bool(parse_app_rule(entry)[1]) == want_title]
+            # Innerhalb des Titel-Durchgangs entschied bisher die Reihenfolge der
+            # Profile (Befund G-B7): „chrome.exe :: Gmail" fing „chrome.exe ::
+            # Gmail - Entwurf" ab, wenn es weiter oben stand — die feinere Regel
+            # griff nie. Genauer schlaegt allgemeiner, also die laengere Bedingung
+            # zuerst. Gleich lange Bedingungen behalten ihre Reihenfolge (stabil).
+            if want_title:
+                paare.sort(key=lambda p: len(parse_app_rule(p[1])[1]), reverse=True)
+            for item, entry in paare:
+                if app and app_rule_matches(entry, app, title):
+                    chosen = item
                     break
             if chosen is not None:
                 break

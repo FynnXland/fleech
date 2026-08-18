@@ -62,8 +62,10 @@ Feedbacktext und Commit-/Fehler-Sound.
 ```jsonc
 {
   "general":   { "autostart": false, "language": "de" },
-  "recording": { "mode": "hold|toggle", "hotkey": "f9", "math_hotkey": "f10",
+  "recording": { "mode": "hold|toggle", "hotkey": "f9",
                  "microphone": null },              // null = Systemstandard
+                 // math_hotkey/math_toggle_hotkey gibt es nicht mehr (seit v3.0.0
+                 // kein Formel-Modus); alte Dateien laden trotzdem weiter.
   "audio_focus": { "mode": "pure_mic|soft_duck|hard_focus" },
   "math":      { "priority": "math|natural|mixed", "math_focus": false },
   "overlay":   { "visibility": "always|during_activity|auto_hide|off",

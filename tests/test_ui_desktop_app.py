@@ -289,32 +289,92 @@ def test_undo_wartet_wenn_gerade_verarbeitet_wird(qapp):
 
 # -- Automatisch absenden je Profil (v3.10.0) --------------------------------------
 
+def _diktat_lauf(profil, ergebnis="ok", last_mode="cleanup"):
+    """Ein echtes `_process_locked` mit Attrappen ringsum.
+
+    Bewusst der ECHTE Weg Profil → Desktop → Pipeline: Die Befunde E-2 und E-3
+    konnten nur deshalb monatelang unbemerkt bleiben, weil die Tests die
+    Bedingungen aus `_process_locked` abgeschrieben statt ausgefuehrt haben.
+    Rueckgabe: (was die Pipeline an Argumenten sah, wurde Enter gedrueckt?)."""
+    import types
+
+    from fleech.ui.desktop import DesktopApp
+
+    gesehen = {}
+    gesendet = []
+
+    def process(audio, samplerate, **kwargs):
+        gesehen.update(kwargs)
+        return ergebnis
+
+    still = types.SimpleNamespace(emit=lambda *a: None)
+    fake = types.SimpleNamespace(
+        _app_profile_overrides=lambda: profil,
+        _setze_sprache=lambda s: None,
+        settings=types.SimpleNamespace(
+            output=types.SimpleNamespace(command_enabled=True),
+            general=types.SimpleNamespace(language="de", save_history=False),
+        ),
+        config=types.SimpleNamespace(audio=types.SimpleNamespace(samplerate=16000)),
+        pipeline=types.SimpleNamespace(
+            process=process, last_mode=last_mode, last_injected="Text",
+            last_raw="roh", last_formulas=[], last_dropped_tail="",
+            last_error_kind="", last_tier="", last_stt_ms=0, last_llm_ms=0,
+            injector=types.SimpleNamespace(send_enter=lambda: gesendet.append(True)),
+        ),
+        bus=types.SimpleNamespace(
+            injection_fallback=still, formula_preview=still, tail_dropped=still,
+            transcript_ready=still, history_changed=still,
+            set_state=lambda *a: None,
+        ),
+        notifier=types.SimpleNamespace(sound=lambda k: None,
+                                       toast=lambda *a: None),
+        _record_app="", _record_title="", _undo_candidate=None,
+        _check_dictionary_candidates=lambda t: None,
+        _count_dictionary_usage=lambda t: None,
+        _flash_status=lambda t: None,
+    )
+    fake._auto_send = lambda: DesktopApp._auto_send(fake)
+    DesktopApp._process_locked(fake, b"\x00" * 32)
+    return gesehen, bool(gesendet)
+
+
+def test_profilformat_stichpunkte_erreicht_die_pipeline(qapp):
+    """Befund E-3: In `_process_locked` stand ein hartes ("email", "prompt").
+    „Stichpunkte" kam spaeter dazu und fiel deshalb still auf normales Cleanup
+    zurueck — in sechs Wochen Protokoll ist das Format ueber ein Profil kein
+    einziges Mal gelaufen, obwohl die Pipeline es kann."""
+    from fleech.profiles import PROFILE_FORMATS, ProfileOverrides, REWRITING_FORMATS
+
+    for fmt, _label in PROFILE_FORMATS:
+        gesehen, _ = _diktat_lauf(ProfileOverrides(mode_slot=fmt))
+        erwartet = fmt if fmt in REWRITING_FORMATS else ""
+        assert gesehen["output_format"] == erwartet, fmt
+
+    # Der Fall, an dem es aufgefallen ist — ausdruecklich noch einmal einzeln.
+    gesehen, _ = _diktat_lauf(ProfileOverrides(mode_slot="summary"))
+    assert gesehen["output_format"] == "summary"
+
+
 def test_autosend_nur_bei_erlaubtem_profil_und_normalem_diktat(qapp):
     """Enter nach dem Einfügen ist bequem in KI-Chats und fatal in E-Mails.
     Deshalb: nur wo das Profil es erlaubt, und nur nach einem NORMALEN Diktat —
     nach einem Befehl oder einem Rohtext-Rückfall will man erst sehen, was ankam.
-    """
-    import types
 
-    from fleech.ui.desktop import DesktopApp
+    Befund E-2: Die Bedingung fragte nur `last_mode == "cleanup"`. Ausgerechnet
+    im Profil „KI-Prompt", für das der Haken gedacht ist, feuerte er nie.
+    """
     from fleech.profiles import ProfileOverrides
 
     def lauf(auto_send, result, mode):
-        gesendet = []
-        fake = types.SimpleNamespace(
-            pipeline=types.SimpleNamespace(
-                injector=types.SimpleNamespace(
-                    send_enter=lambda: gesendet.append(True)),
-                last_mode=mode),
-            _flash_status=lambda t: None,
-        )
-        prof = ProfileOverrides(auto_send=auto_send)
-        # Dieselbe Bedingung wie in _process_locked.
-        if prof.auto_send and result == "ok" and fake.pipeline.last_mode == "cleanup":
-            DesktopApp._auto_send(fake)
-        return bool(gesendet)
+        _, gesendet = _diktat_lauf(ProfileOverrides(auto_send=auto_send),
+                                   ergebnis=result, last_mode=mode)
+        return gesendet
 
     assert lauf(True, "ok", "cleanup") is True          # der gewollte Fall
+    assert lauf(True, "ok", "prompt") is True           # E-2: der eigentliche Zweck
+    assert lauf(True, "ok", "summary") is True
+    assert lauf(True, "ok", "email") is False           # eine Mail nie von allein
     assert lauf(False, "ok", "cleanup") is False        # Profil erlaubt es nicht
     assert lauf(True, "fallback", "cleanup") is False   # Rohtext-Rückfall
     assert lauf(True, "ok", "command") is False         # war ein Befehl
@@ -459,3 +519,45 @@ def test_pause_hotkey_ist_belegt_und_konfigurierbar():
 
 
 # -- Pause in der Pille -------------------------------------------------------------
+
+
+# -- Geraetewechsel im laufenden Betrieb (Befund B-3) --------------------------------
+
+
+def test_geraetewechsel_erneuert_den_guard_der_ihn_auch_liest(monkeypatch):
+    """Befund B-3: Das frische Urteil landete auf `self.controller` — dem
+    RecordingController, einer Klasse ohne dieses Feld. Es legte dort still ein
+    Attribut an, das niemand liest; gewarnt wird ueber `AudioFocusController`.
+    Folge: Wer im Betrieb auf „Stereomix" umstellte, bekam keine Warnung, und
+    eine alte Warnung blieb bis zum Neustart stehen."""
+    import types
+
+    from fleech.ui.desktop import DesktopApp
+    from fleech.audiofocus import DeviceCheck, DeviceGuard
+
+    # Kein echtes Audiogeraet befragen — hier zaehlt, WOHIN das Urteil geht.
+    monkeypatch.setattr(DeviceGuard, "check", staticmethod(
+        lambda device, blocklist: DeviceCheck(
+            ok=False, name=str(device), reason="Loopback-/Mix-Geraet")))
+
+    focus = types.SimpleNamespace(device_check=DeviceCheck(ok=True, name="alt"))
+    fake = types.SimpleNamespace(
+        focus=focus,
+        controller=types.SimpleNamespace(),      # hat kein device_check — mit Absicht
+        settings=types.SimpleNamespace(recording=types.SimpleNamespace(
+            microphone="Stereomix", blocked_devices=["Stereomix"])),
+        config=types.SimpleNamespace(audio_focus=types.SimpleNamespace(
+            blocked_devices=[])),
+        tray=types.SimpleNamespace(notify=lambda *a: None),
+    )
+    DesktopApp._recheck_input_device(fake)
+
+    assert focus.device_check.ok is False        # die Warnung kommt dort an, wo sie zaehlt
+    assert not hasattr(fake.controller, "device_check")
+    assert fake.config.audio_focus.blocked_devices == ["Stereomix"]
+    # Und der Guard, der das Urteil wirklich liest, meldet es auch.
+    from fleech.audiofocus import AudioFocusController, FocusMode
+
+    ctrl = AudioFocusController(FocusMode.PURE_MIC, None, focus.device_check)
+    erlaubt, hinweis = ctrl.may_record()
+    assert erlaubt is True and "WARNUNG" in hinweis

@@ -21,14 +21,16 @@ def test_save_load_roundtrip(tmp_path):
     s.overlay.opacity = 0.7
     s.sounds.volume = 0.15
     s.sounds.commit = False
-    s.recording.math_toggle_hotkey = "f8"
+    # (Hier stand bis 5.10.2 math_toggle_hotkey — ein Feld, das seit v3.0.0
+    # niemand mehr band und das mit den toten Feldern entfallen ist.)
+    s.recording.pause_hotkey = "f8"
     s.window.x, s.window.y, s.window.width = 10, 20, 900
     s.window.tray_hint_shown = True
     s.save(p)
 
     loaded = UserSettings.load(p)
     assert loaded.recording.mode == "toggle"
-    assert loaded.recording.math_toggle_hotkey == "f8"
+    assert loaded.recording.pause_hotkey == "f8"
     assert (loaded.overlay.x, loaded.overlay.y) == (1500, 400)
     assert loaded.overlay.visibility == "auto_hide"
     assert loaded.overlay.opacity == 0.7
@@ -137,23 +139,33 @@ def test_prefer_gpu_persists_across_restart(tmp_path):
 # -- Mathe-Stufe (v3.0.0: nur noch an/aus, kein Cloud-Umschaltweg) -----------------
 
 def test_math_level_ableitung():
+    """Befund A-1: Die Stufe zaehlte nur `enabled` — wirksam ist aber `auto_latex`
+    (`pipeline.auto_latex = enabled and auto_latex`), und dessen Vorgabe ist aus.
+    Eine frische Installation zeigte deshalb „Automatisch" und erkannte trotzdem
+    nie eine Formel. Die Anzeige fragt jetzt beide Felder."""
     from fleech.usersettings import MathSettings, math_level
 
     m = MathSettings()
+    assert math_level(m) == "off"           # Vorgabe: auto_latex ist aus
+    m.auto_latex = True
     assert math_level(m) == "auto"
     m.enabled = False
     assert math_level(m) == "off"
 
 
 def test_apply_math_level_setzt_alle_felder():
-    """„auto" schaltet Automatik UND Haertung — es gibt keinen anderen Weg mehr."""
+    """„auto" schaltet Automatik UND Haertung — es gibt keinen anderen Weg mehr.
+    „off" loescht auch die Automatik, sonst laese `math_level` gleich wieder
+    „Automatisch" (A-1)."""
     from fleech.usersettings import MathSettings, apply_math_level
 
     m = MathSettings()
     apply_math_level(m, "auto")
+    assert m.enabled is True and m.auto_latex is True
 
     apply_math_level(m, "off")
     assert m.enabled is False
+    assert m.auto_latex is False
 
 
 def test_math_level_ist_rundreise_stabil():

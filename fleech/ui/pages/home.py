@@ -277,8 +277,9 @@ class HomePage(QWidget):
         # Angeboten werden die Ausgabeformate, nicht die Profilnamen: Zwei Profile
         # mit demselben Format ergaeben denselben Text — das waere eine Auswahl
         # ohne Unterschied.
-        formate = [(wert, name) for wert, name in PROFILE_FORMATS if wert != "math"]
-        for wert, name in formate:
+        # (Die Ausnahme fuer „Formeln" ist entfallen — das Format steht seit
+        #  Befund E-14 gar nicht mehr in PROFILE_FORMATS.)
+        for wert, name in PROFILE_FORMATS:
             aktion = neu_menu.addAction(name)
             aktion.triggered.connect(
                 lambda _c=False, w=wert, n=name: self._reprocess(entry, w, n))
