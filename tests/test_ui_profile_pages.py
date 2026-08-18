@@ -1197,3 +1197,74 @@ def test_titel_aus_einer_anderen_anwendung_wird_als_solcher_ausgewiesen(
     ])
     assert _waehle_app(page, "Code.exe")
     assert "aus comet.exe" in page._titel_hinweis.text()
+
+
+# -- Zuordnungsvorschlaege auf der Apps-Seite (V-13/G-4 + H-7) -------------------------
+
+def _apps_mit_verlauf(tmp_path, monkeypatch, app="claude.exe", anzahl=30,
+                      mode="prompt"):
+    import time
+
+    import fleech.usersettings as us
+
+    monkeypatch.setattr(us, "SETTINGS_PATH", tmp_path / "settings.json")
+    monkeypatch.setattr("fleech.ui.windowsfocus.list_visible_window_processes",
+                        lambda: [])
+    from fleech.history import DictationRecord, HistoryStore
+    from fleech.ui.pages.apps import AppsPage
+    from fleech.usersettings import UserSettings
+
+    settings = UserSettings()
+    store = HistoryStore(tmp_path / "history.db")
+    jetzt = time.time()
+    for i in range(anzahl):
+        store.add(DictationRecord(
+            ts=jetzt - i * 60, raw="roh", cleaned="Fertig.", audio_seconds=3.0,
+            app=app, mode=mode))
+    seite = AppsPage(settings, store)
+    seite.refresh()
+    return seite, settings
+
+
+def _karten_knoepfe(seite):
+    from PySide6.QtWidgets import QPushButton
+
+    return {k.text(): k for k in seite._vorschlag_karte.findChildren(QPushButton)}
+
+
+def test_vorschlagskarte_fragt_nach_der_meistgenutzten_app(qapp, tmp_path,
+                                                           monkeypatch):
+    """In 1399 Diktaten ist nie eine Zuordnung entstanden — die Karte stellt die
+    Frage, statt auf sie zu warten. Zuweisen tut sie NIE von selbst."""
+    from PySide6.QtWidgets import QLabel
+
+    seite, settings = _apps_mit_verlauf(tmp_path, monkeypatch)
+    assert not seite._vorschlag_karte.isHidden()
+    text = seite._vorschlag_karte.findChildren(QLabel)[0].text()
+    assert "claude.exe" in text and "30 Diktate" in text
+    assert all(not p.get("apps") for p in settings.profiles.items)
+    assert "KI-Prompt zuweisen" in _karten_knoepfe(seite)
+
+
+def test_uebernahme_legt_die_regel_an_und_die_karte_verschwindet(qapp, tmp_path,
+                                                                 monkeypatch):
+    seite, settings = _apps_mit_verlauf(tmp_path, monkeypatch)
+    _karten_knoepfe(seite)["KI-Prompt zuweisen"].click()
+    prompt = next(p for p in settings.profiles.items if p.get("name") == "KI-Prompt")
+    assert prompt["apps"] == ["claude.exe"]
+    assert seite._vorschlag_karte.isHidden()
+
+
+def test_nicht_mehr_fragen_wirkt_dauerhaft(qapp, tmp_path, monkeypatch):
+    """Eine Karte, die man nicht wegbekommt, ist schlimmer als keine."""
+    seite, settings = _apps_mit_verlauf(tmp_path, monkeypatch)
+    _karten_knoepfe(seite)["Nicht mehr fragen"].click()
+    assert settings.profiles.vorschlag_ignores == ["claude.exe"]
+    assert seite._vorschlag_karte.isHidden()
+    seite.refresh()                      # auch nach dem naechsten Aufbau weg
+    assert seite._vorschlag_karte.isHidden()
+
+
+def test_ohne_kandidaten_gibt_es_keine_karte(qapp, tmp_path, monkeypatch):
+    seite, _settings = _apps_mit_verlauf(tmp_path, monkeypatch, anzahl=3)
+    assert seite._vorschlag_karte.isHidden()

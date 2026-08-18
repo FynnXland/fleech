@@ -19,7 +19,7 @@ import math
 import re
 import sqlite3
 from collections import Counter
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from pathlib import Path
 
 from .usersettings import SETTINGS_DIR
@@ -188,6 +188,21 @@ class DictationRecord:
     profile: str = ""
     title: str = ""
     dropped: str = ""
+
+
+@dataclass
+class AppNutzung:
+    """Wie in EINER Anwendung diktiert wurde — Grundlage der Zuordnungsvorschlaege.
+
+    `modi` und `profile` sind {Wert: Anzahl}. Beide sind bei Altzeilen leer: die
+    Profil-Spalte gibt es erst seit 5.10.4, `mode` traegt nur bei umformulierenden
+    Formaten etwas anderes als „cleanup". Jede Auswertung muss das aushalten.
+    """
+
+    app: str
+    diktate: int = 0
+    modi: dict = field(default_factory=dict)
+    profile: dict = field(default_factory=dict)
 
 
 @dataclass
@@ -542,6 +557,42 @@ class HistoryStore:
         for (raw,) in rows:
             counts[classify_command(raw)] += 1
         return counts.most_common(limit)
+
+    def app_nutzung(self) -> tuple[list["AppNutzung"], int]:
+        """Je Anwendung: Anzahl Diktate, Modus- und Profil-Verteilung.
+
+        Grundlage der Zuordnungsvorschlaege (V-13/G-4). `stats().app_usage` zaehlt
+        WOERTER und beantwortet damit die falsche Frage: Fuer „lohnt sich hier ein
+        Profil?" zaehlt, wie oft man dort diktiert, und WAS dabei herauskommt.
+
+        Rueckgabe: (Liste, meistgenutzte zuerst; Gesamtzahl der Diktate mit
+        bekannter Anwendung). Die Gruppierung laeuft ueber `LOWER(app)`, weil die
+        Regelaufloesung ebenfalls case-insensitiv ist — sonst stuende dieselbe
+        Anwendung zweimal mit geteilten Zahlen da.
+        """
+        try:
+            with self._connect() as con:
+                rows = con.execute(
+                    "SELECT LOWER(app), app, mode, profile, COUNT(*) "
+                    "FROM dictations WHERE app != '' "
+                    "GROUP BY LOWER(app), app, mode, profile"
+                ).fetchall()
+        except Exception:
+            log.exception("Historie: App-Nutzung nicht ermittelbar.")
+            return [], 0
+        gesammelt: dict = {}
+        for klein, app, mode, profile, anzahl in rows:
+            eintrag = gesammelt.get(klein)
+            if eintrag is None:
+                eintrag = gesammelt[klein] = AppNutzung(app=str(app or ""))
+            eintrag.diktate += int(anzahl)
+            if mode:
+                eintrag.modi[str(mode)] = eintrag.modi.get(str(mode), 0) + int(anzahl)
+            if profile:
+                eintrag.profile[str(profile)] = \
+                    eintrag.profile.get(str(profile), 0) + int(anzahl)
+        liste = sorted(gesammelt.values(), key=lambda e: -e.diktate)
+        return liste, sum(e.diktate for e in liste)
 
     def last_seen_apps(self) -> dict:
         """{prozessname_klein: letzter Zeitstempel} — wann wurde zuletzt in diese

@@ -19,7 +19,7 @@ from PySide6.QtWidgets import (
 from ...history import HistoryStore
 from ...usersettings import UserSettings
 from ..theme import (
-    ACCENT, BORDER_HAIRLINE, CARD, MUTED, NAV_ACTIVE_BG, PAGE_MARGINS,
+    ACCENT, ACCENT_DIM, BORDER_HAIRLINE, CARD, MUTED, NAV_ACTIVE_BG, PAGE_MARGINS,
     PAGE_SPACING, ROW_HOVER, SIDEBAR, TEXT, TRACK, page_title_qss, style_button,
 )
 from ..widgets import _card, _no_hscroll, _passt, _suchfeld
@@ -81,6 +81,7 @@ class AppsPage(QWidget):
         unter.setWordWrap(True)
         unter.setStyleSheet(f"color: {MUTED}; font-size: 9pt;")
         layout.addWidget(unter)
+        self._baue_vorschlagskarte(layout)
         self._baue_jetzt_zeile(layout)
 
         body = QHBoxLayout()
@@ -197,6 +198,118 @@ class AppsPage(QWidget):
         rechts_box.addLayout(neu_row)
         body.addWidget(rechts, 5)
         body.addWidget(dritte, 4)
+
+    # -- Zuordnungsvorschläge aus dem Verlauf (V-13/G-4 + H-7) ----------------------
+
+    def _baue_vorschlagskarte(self, layout) -> None:
+        """Die Karte oben: „In X hast du N Diktate gemacht. Kein Profil zugewiesen."
+
+        Sie steht bewusst hier und nicht in den Insights (Widerspruch W-4): Die
+        Regel entsteht auf dieser Seite — ein Vorschlag zwei Klicks von seiner
+        Umsetzung entfernt ist ein Hinweis, kein Angebot.
+        """
+        from PySide6.QtWidgets import QFrame
+
+        self._vorschlag_karte = QFrame()
+        # QSS auf den Container scopen (CLAUDE.md): ein unscoped QFrame{…} malt
+        # Pillen hinter jedes Kind-QLabel.
+        self._vorschlag_karte.setObjectName("vorschlagKarte")
+        self._vorschlag_karte.setStyleSheet(
+            f"QFrame#vorschlagKarte {{ background: {CARD};"
+            f"  border: 1px solid {ACCENT_DIM}; border-radius: 10px; }}")
+        self._vorschlag_lay = QVBoxLayout(self._vorschlag_karte)
+        self._vorschlag_lay.setContentsMargins(12, 10, 12, 10)
+        self._vorschlag_lay.setSpacing(8)
+        layout.addWidget(self._vorschlag_karte)
+        self._vorschlag_karte.setVisible(False)
+
+    def _zeige_vorschlaege(self) -> None:
+        """Karte neu erheben. Ohne Vorschlag verschwindet sie ganz."""
+        from .appsvorschlaege import vorschlaege
+
+        while self._vorschlag_lay.count():
+            eintrag = self._vorschlag_lay.takeAt(0)
+            widget = eintrag.widget()
+            if widget is not None:
+                widget.setParent(None)
+                widget.deleteLater()
+        try:
+            nutzung, gesamt = self.store.app_nutzung()
+        except Exception:
+            log.debug("App-Nutzung nicht abrufbar.", exc_info=True)
+            nutzung, gesamt = [], 0
+        offen = vorschlaege(nutzung, gesamt, self._items(), self._ignorierte_apps())
+        for vorschlag in offen:
+            self._vorschlag_lay.addWidget(self._vorschlag_zeile(vorschlag))
+        self._vorschlag_karte.setVisible(bool(offen))
+
+    def _vorschlag_zeile(self, vorschlag) -> QWidget:
+        zeile = QWidget()
+        lay = QVBoxLayout(zeile)
+        lay.setContentsMargins(0, 0, 0, 0)
+        lay.setSpacing(6)
+        text = QLabel(vorschlag.satz())
+        text.setWordWrap(True)
+        text.setStyleSheet(f"color: {TEXT}; font-size: 9pt;")
+        lay.addWidget(text)
+        knopfreihe = QHBoxLayout()
+        knopfreihe.setSpacing(6)
+        for name, art in ((vorschlag.profil, "primary"),
+                          (vorschlag.alternative, "ghost")):
+            if not name:
+                continue
+            knopf = style_button(
+                QPushButton(f"{name} zuweisen" if art == "primary" else name), art)
+            knopf.setProperty("app", vorschlag.app)
+            knopf.setProperty("profil", name)
+            knopf.setToolTip(f"Trägt {vorschlag.app} beim Profil „{name}“ ein — "
+                             f"dieselbe Regel, die du unten von Hand anlegen "
+                             f"würdest. Zugewiesen wird nur auf Klick.")
+            # Werte am Knopf, gebundene Methode am Signal (CLAUDE.md,
+            # Referenzzyklus): kein Lambda, das `self` in ein Kind-Widget zieht.
+            knopf.clicked.connect(self._vorschlag_geklickt)
+            knopfreihe.addWidget(knopf)
+        weg = style_button(QPushButton("Nicht mehr fragen"), "ghost")
+        weg.setProperty("app", vorschlag.app)
+        weg.setToolTip("Diese Anwendung nicht mehr vorschlagen. Dauerhaft — "
+                       "steht danach in den Einstellungen unter Profile.")
+        weg.clicked.connect(self._vorschlag_ignoriert)
+        knopfreihe.addWidget(weg)
+        knopfreihe.addStretch(1)
+        lay.addLayout(knopfreihe)
+        return zeile
+
+    def _ignorierte_apps(self) -> list:
+        liste = getattr(self.settings.profiles, "vorschlag_ignores", None)
+        if not isinstance(liste, list):
+            liste = self.settings.profiles.vorschlag_ignores = []
+        return liste
+
+    def _vorschlag_geklickt(self) -> None:
+        knopf = self.sender()
+        if knopf is None:
+            return
+        self._vorschlag_uebernehmen(str(knopf.property("app") or ""),
+                                    str(knopf.property("profil") or ""))
+
+    def _vorschlag_uebernehmen(self, app: str, profil: str) -> None:
+        """Den Vorschlag zur Regel machen — dieselbe Struktur wie von Hand."""
+        if not app or not profil:
+            return
+        self._setze_app_profil(app, profil)
+        log.info("Vorschlag uebernommen: %s → Profil %s", app, profil)
+
+    def _vorschlag_ignoriert(self) -> None:
+        knopf = self.sender()
+        app = str(knopf.property("app") or "") if knopf is not None else ""
+        if not app:
+            return
+        liste = self._ignorierte_apps()
+        if app.lower() not in {str(a).lower() for a in liste}:
+            liste.append(app.lower())
+        self.settings.save()
+        log.info("Zuordnungsvorschlag fuer %s abgelehnt.", app)
+        self.refresh()
 
     # -- „Wenn du jetzt diktierst" (Vorschlag G-2) ----------------------------------
 
@@ -473,6 +586,9 @@ class AppsPage(QWidget):
             self._eintrag(app, ["läuft"])
         self._loading = False
         self._zeige_apps(vorher)
+        # Nach der Liste, weil die Karte dieselben Zuordnungen liest: Ein gerade
+        # zugewiesenes Programm darf oben nicht weiter gefragt werden.
+        self._zeige_vorschlaege()
 
     def _stale_apps(self) -> dict:
         """{prozess_klein: tage_seit_letztem_diktat} fuer Prozesse, die weder gerade
@@ -602,9 +718,17 @@ class AppsPage(QWidget):
         app = self._aktuelle_app()
         if not app:
             return
+        self._setze_app_profil(app, str(self._profil_combo.currentData() or ""))
+
+    def _setze_app_profil(self, app: str, ziel: str) -> None:
+        """Die Regel OHNE Titel-Bedingung fuer diese Anwendung setzen.
+
+        Eine Stelle fuer beide Wege — die Auswahlliste in der Mitte und die
+        Vorschlagskarte oben schreiben denselben Eintrag. Zwei Kopien waeren zwei
+        Gelegenheiten, die Zuordnung unterschiedlich zu verstehen.
+        """
         from ...profiles import parse_app_rule
 
-        ziel = str(self._profil_combo.currentData() or "")
         # Erst ueberall entfernen (nur die Regel OHNE Titel), dann neu setzen: Eine
         # App gehoert nie zu zwei Profilen, sonst entscheidet die Listenreihenfolge
         # und niemand kann nachvollziehen, warum welches gewinnt.
