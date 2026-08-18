@@ -1741,7 +1741,7 @@ Sprechen** geladen, was die Ladezeit größtenteils verdeckt.
 
 ### 14.1 Modulkarte
 
-101 Dateien, rund 23.800 Zeilen. Der Kern ist bewusst klein geschnitten; die
+111 Dateien, rund 27.700 Zeilen. Der Kern ist bewusst klein geschnitten; die
 Oberfläche ist der größte Block, weil sie am meisten Fälle abdecken muss.
 
 > **Zur Dateizahl:** Sie ist zwischen 5.4.0 und 5.9.1 von 70 auf 101 gestiegen, ohne
@@ -1750,15 +1750,20 @@ Oberfläche ist der größte Block, weil sie am meisten Fälle abdecken muss.
 > `overlay_qt.py` 1409, `settings_window.py` 1379, `textutils.py` 898. Die Testsuite
 > wacht seither über die Aufteilung selbst: Obergrenzen je Datei, Richtung der
 > Abhängigkeiten, und dass ein Teil nie sein Ganzes importiert
-> (`tests/test_ui_struktur.py`, `tests/test_kernstruktur.py`). Reißt eine Grenze, ist
-> die Antwort ein neuer Ort für das neue Thema — nicht eine größere Zahl.
+> (`tests/test_ui_struktur.py`, `tests/test_kernstruktur.py`). Seit 5.10.3 kommt
+> `tests/test_anzeige_gegen_wirkung.py` dazu — es prüft gezielt, dass eine Einstellung,
+> die die Oberfläche anbietet, auch einen echten Codepfad hat (Anlass: die
+> Formel-Erkennung zeigte „Automatisch", ohne dass `auto_latex` je gesetzt wurde). Reißt
+> eine Grenze, ist die Antwort ein neuer Ort für das neue Thema — nicht eine größere
+> Zahl.
 
 ```
 fleech/
 ├── __main__.py          Einstiegspunkt, CLI-Argumente, Logging
 ├── app.py               Engine-Verdrahtung ohne GUI
 ├── config.py            config.yaml + ENV-Overrides → AppConfig
-├── usersettings.py      settings.json — atomar geschrieben, mit .bak-Heilung
+├── usersettings.py      settings.json — atomar, Modul-Lock, .bak-/Ruecksetzer-Heilung
+├── settingsheilung.py   erkennt einen Ruecksetzer, der wie eine gueltige Datei aussieht
 ├── version.py           eine Stelle für die Versionsnummer
 │
 ├── audio.py             Recorder: Mikrofon, Pegel, sample-genaue Position, tail()
@@ -1779,7 +1784,9 @@ fleech/
 │                          fremde Schrift, Sinnumkehr — Kern-Fachlogik
 ├── textutils.py         nur noch der Rahmen um den LLM-Call
 ├── dictionary.py        persönliches Wörterbuch (Priming, Ersetzung, Vorschläge)
+├── varianten.py         Schreibvarianten desselben Begriffs finden ("Cloud-Code"/"Claude Code")
 ├── profiles.py          App-Profile: Regeln, Farben, Schnellwechsel
+├── profilexport.py      Profile + Schnellwechsel sichern/zurückholen (JSON)
 ├── document.py          was habe ich selbst eingefügt?
 ├── kontext.py           Projekt-Gedächtnis: Fachbegriffe je App und Titel
 ├── prompts.py           Prompt-Dateien laden (Nutzerfassung bevorzugt)
@@ -1788,6 +1795,7 @@ fleech/
 ├── clipboard.py         Zwischenablage — eine Nahtstelle für beide Systeme
 ├── audiofocus.py        Ducking, Loopback-Erkennung, Mikrofonpegel
 ├── history.py           SQLite-Verlauf und Statistiken
+├── gruende.py           feste Texte: warum ein Diktat nicht glatt lief
 ├── overlay.py           Live-Vorschau (Streaming)
 ├── milestones.py        „das 2,3-Fache von Goethes Faust"
 │
@@ -1809,19 +1817,25 @@ fleech/
     ├── desktopapp/      die Teilgebiete von DesktopApp als Mixins
     │   ├── profil.py         Profilwahl, Farbe, Schnellwechsel
     │   ├── freihand.py       Lauscher aufbauen, Ereignisse, Startwort-Probe
+    │   ├── anstupsen.py      Bedienmodus "Anstupsen": Stille-Wache waehrend der Aufnahme
+    │   ├── keinton.py        Kein-Ton-Wache: Pegel im Waveform-Takt pruefen, warnen
     │   ├── modelle.py        Warmhaltung, Entladen bei Spielstart
-    │   ├── nachbereitung.py  neu bereinigen, Rohtext, Vorschläge
+    │   ├── nachbereitung.py  neu bereinigen, Rohtext, Vorschläge, letzte Aufnahme
     │   ├── lizenz.py         Freischaltung und Update-Prüfung
     │   └── lebenszyklus.py   Start, IPC, Beenden
     ├── theme.py         Design-Token, Seitenmaße, Button-Stile — unterste Schicht
     ├── widgets.py       wiederverwendbare Bausteine (Karten, Suchfeld, Gauge)
     ├── dialogs.py       Prompt, Transkript-Detail, Wort-Detail, Wörterbuch
     ├── main_window.py   das Fenstergerüst: Sidebar, Seitenwechsel, Geometrie
-    ├── pages/           je Seite eine Datei
+    ├── pages/           je Seite eine Datei, dazu Qt-freie Helfer je Thema
     │   ├── home.py          Begrüßung, Verlauf, Kurz-Statistik
     │   ├── insights.py      Kennzahlen aus der eigenen Historie
+    │   ├── verlauffilter.py Verlaufssuche (Wort/App/Zeitraum) + Markdown-Export, ohne Qt
     │   ├── apps.py          welches Profil greift in welchem Programm
-    │   └── profiles.py      Format, Stil, Sprache, Zuordnung
+    │   ├── jetztzeile.py    "Wenn du jetzt diktierst" als Satz, ohne Qt
+    │   ├── titelvorschlag.py zuletzt gesehene Fenstertitel + Segmente anbieten, ohne Qt
+    │   ├── appsvorschlaege.py Zuordnungsvorschläge aus dem Verlauf, ohne Qt
+    │   └── profiles.py      Format, Stil, Sprache, Zuordnung, Export/Import
     ├── settings_window.py  Panel-Gerüst + Widget-Bauer
     ├── settings/       die neun Einstellungsseiten, je Seite ein build(panel)
     │                   (allgemein, aufnahme, audiofokus, overlay, sounds,
@@ -1939,11 +1953,39 @@ Fehlersuche nicht pro Plattform verzweigen:
 | `kontext.db` | Projekt-Gedächtnis: gelernte Fachbegriffe (SQLite) |
 | `prompts/` | *optional* — eigene Fassungen der System-Prompts |
 | `settings.json.bak` | Sicherung der zuletzt funktionierenden Einstellungen |
+| `settings.json.zurueckgesetzt` | *nur nach einer Heilung* — die verworfene, auf Vorgaben zurückgefallene Fassung, zur Ansicht beiseitegelegt |
 | `config.yaml` | *optional* — überschreibt die mitgelieferte Konfiguration |
 | `.env` | *optional* — API-Schlüssel, nur bei fremden Anbietern |
 
 Die Programmdateien (Prompts, Icons) liegen getrennt davon im Installationsordner. Ein
 Update ersetzt nur diese; Einstellungen, Verlauf und Wörterbuch überleben.
+
+**Schreiben und Heilen der `settings.json` seit 5.10.3** (`usersettings.py` +
+`settingsheilung.py`): `save()` läuft unter einem prozessweiten Schloss — die
+Bereinigung am Ende jedes Diktats speichert aus dem Worker-Thread, die Oberfläche aus
+dem GUI-Thread, und ohne Schloss konnten zwei gleichzeitige Schreiber sich dieselbe
+Nebendatei teilen und ein Gemisch aus beiden Fassungen in `os.replace` schieben (6 %
+der beobachteten Kollisionen ergaben eine unlesbare Datei). Die Nebendatei trägt jetzt
+Prozess- und Thread-Kennung im Namen. Die `.bak` entsteht nur noch aus einer Fassung,
+die sich als JSON lesen lässt — sonst hätte der nächste Speichervorgang eine kaputte
+Datei zur „letzten guten Fassung" gemacht und die Rettung wäre mit ihr weg gewesen.
+
+`load()` erkennt zusätzlich einen **Rücksetzer, der wie eine gültige Datei aussieht**:
+Steht die `settings.json` auf allen „wertvollen" Feldern (Lizenz, Onboarding,
+Wörterbuch, Bausteine, Schnellwechsel, Profilliste, Hotkeys) auf Werkszustand, während
+die `.bak` in mindestens zweien davon abweicht — oder steht der Lizenzschlüssel leer,
+während er in der `.bak` gesetzt ist —, gilt die Datei als zurückgesetzt. Sie wird dann
+nicht geladen, sondern als `settings.json.zurueckgesetzt` beiseitegelegt, und Fleech
+lädt stattdessen die `.bak`. Die Kriterien sind bewusst eng: Einzelne Werte darf man
+zurücksetzen, erst wenn *alles auf einmal* auf Werk steht, war es kein Mensch. Beim
+Start steht außerdem eine Zeile im Protokoll, wie viele Profile, App-Zuordnungen,
+Schnellwechsel-Einträge und Wörterbuchzeilen geladen wurden und ob eine Lizenz da ist —
+ein Verlust fällt damit beim nächsten Blick ins Log auf, statt erst am fehlenden
+Hotkey.
+
+`fleech.log` trägt seit 5.10.4 bei jeder Zeile das Datum und rotiert ab 20 MB (drei
+ältere Stände bleiben als `fleech.log.1`–`.3`) — vorher wuchs es unbegrenzt und war ab
+einigen Megabyte nur noch über Zeilennummern durchsuchbar.
 
 **Was den Rechner verlässt:**
 
