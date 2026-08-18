@@ -13,7 +13,11 @@ from uihelpers import make_main_window
 
 def test_punkt_schaltet_reihum_durch_die_profile(qapp):
     """Der Punkt war erst ein Modus-Zyklus (Mathe/Prompting), dann funktionslos.
-    Jetzt waehlt er das Profil — inklusive Station „automatisch" am Ende."""
+    Jetzt waehlt er das Profil — inklusive Station „automatisch" am Ende.
+
+    Das Standardprofil ist seit Befund G-B1 keine Station mehr: Es sah aus wie
+    „App-Standard", legte aber die App-Zuordnung still. Der Zyklus geht damit
+    ueber die echten Profile und endet bei „automatisch"."""
     import types
 
     from fleech.ui.desktop import DesktopApp
@@ -36,12 +40,12 @@ def test_punkt_schaltet_reihum_durch_die_profile(qapp):
     fake.overlay.set_profile_color = lambda farbe: None
     fake.settings.save = lambda: None
     DesktopApp.cycle_profile(fake)
-    assert fake.settings.profiles.active == "Standard"
-    DesktopApp.cycle_profile(fake)
     assert fake.settings.profiles.active == "E-Mail"
     DesktopApp.cycle_profile(fake)
     assert fake.settings.profiles.active == ""          # zurueck auf automatisch
     assert gezeigt[-1].startswith(APP_STANDARD)
+    DesktopApp.cycle_profile(fake)                      # und wieder von vorn
+    assert fake.settings.profiles.active == "E-Mail"
 
 def test_profilwechsel_geht_auch_waehrend_der_aufnahme(qapp):
     """Erst beim Verarbeiten wird aufgeloest — deshalb darf man mitten im
@@ -117,6 +121,17 @@ def test_profiles_page_assign_tags_and_default(qapp, tmp_path, monkeypatch):
     # Formel-Erkennung in den Einstellungen — zwei Schalter fuer einen Wert. Auf der
     # Profilseite gehoerte er ohnehin nicht hin (galt global, nicht je Profil).
     assert not hasattr(page, "_math_cb")
+
+    # Das Standardprofil laeuft seit Befund G-B1 nicht mehr im Schnellwechsel mit
+    # (es legte von Hand gewaehlt die App-Zuordnung still). Der Haken dazu darf
+    # dort dann auch nicht bedienbar aussehen.
+    page._profiles_list.setCurrentRow(0)
+    page._refresh_detail()
+    assert page._quick_cb.isEnabled() is False
+    assert page._quick_cb.isChecked() is False
+    page._profiles_list.setCurrentRow(coding_row)
+    page._refresh_detail()
+    assert page._quick_cb.isEnabled() is True
 
     # Umbenennen ueber das Detail-Titelfeld.
     page._profiles_list.setCurrentRow(coding_row)
@@ -213,10 +228,13 @@ def test_app_profile_resolution_with_default_fallback(qapp):
     assert DesktopApp._app_profile_overrides(fake) == ProfileOverrides(
         intervention="minimal", style_hints=["Fachbegriffe lassen"])
 
-    # Mathe-Profil (Legacy-Bool) erzwingt den Formel-Modus fuer seine Apps.
+    # Mathe-Profil: Der Kommentar hier behauptete bis 5.10.2, es „erzwinge den
+    # Formel-Modus fuer seine Apps" — das war falsch (Befund E-14). Einen
+    # Formel-Modus gibt es seit v3.0.0 nicht, kein Codepfad hat mode_slot="math"
+    # je ausgewertet. Das Profil setzt nur noch seinen Eingriffsgrad.
     fake._record_app = "calc.exe"
     assert DesktopApp._app_profile_overrides(fake) == ProfileOverrides(
-        intervention="standard", mode_slot="math")
+        intervention="standard")
 
     # KI-Prompting-Profil erzwingt den Prompt-Modus.
     fake._record_app = "claude.exe"
@@ -316,6 +334,37 @@ def test_profil_zuordnung_beachtet_fenstertitel(qapp):
     fake._record_title = ""
     assert DesktopApp._app_profile_overrides(fake) == ProfileOverrides(intervention="minimal")
 
+def test_bei_zwei_titelregeln_gewinnt_die_genauere(qapp):
+    """Befund G-B7: Passen zwei Titel-Regeln, entschied bisher die Reihenfolge der
+    Profile — „chrome.exe :: Gmail" fing „chrome.exe :: Gmail - Entwurf" ab, wenn
+    es weiter oben stand. Genau im gedachten Anwendungsfall (ein Browser, viele
+    Kontexte) griff die feine Regel damit nie, und nichts protokollierte es.
+    Jetzt schlaegt die laengere Bedingung die kuerzere, in beiden Reihenfolgen."""
+    import types
+
+    from fleech.ui.desktop import DesktopApp
+    from fleech.profiles import ProfileOverrides
+
+    grob = {"name": "Mail", "intervention": "standard", "tags": [],
+            "apps": ["chrome.exe :: Gmail"]}
+    fein = {"name": "Entwurf", "intervention": "strong", "tags": [],
+            "apps": ["chrome.exe :: Gmail - Entwurf"]}
+
+    for reihenfolge in ([grob, fein], [fein, grob]):
+        profiles = types.SimpleNamespace(enabled=True, items=list(reihenfolge))
+        fake = types.SimpleNamespace(
+            settings=types.SimpleNamespace(profiles=profiles),
+            _record_app="chrome.exe", _record_title="Gmail - Entwurf",
+        )
+        assert DesktopApp._app_profile_overrides(fake) == ProfileOverrides(
+            intervention="strong"), [p["name"] for p in reihenfolge]
+
+        # Der grobe Fall bleibt der grobe Fall.
+        fake._record_title = "Gmail - Posteingang"
+        assert DesktopApp._app_profile_overrides(fake) == ProfileOverrides(
+            intervention="standard"), [p["name"] for p in reihenfolge]
+
+
 def test_profil_zuordnung_ohne_titel_attribut_bleibt_kompatibel(qapp):
     """Aeltere Aufrufer ohne _record_title duerfen nicht brechen."""
     import types
@@ -360,9 +409,10 @@ def test_schnellwechsel_haelt_sich_an_die_app(qapp):
 
     # Nicht konfigurierte App: unveraendert alle — sonst waere jede App, die man
     # nie angefasst hat, stillschweigend auf ein Profil beschraenkt.
+    # (Ohne das Standardprofil — es ist seit Befund G-B1 keine Station mehr.)
     fake.current_app = lambda: "Code.exe"
     assert DesktopApp.profile_names(fake) == [
-        "Standard", "E-Mail", "KI-Prompt", "Stichpunkte", "Formeln"]
+        "E-Mail", "KI-Prompt", "Stichpunkte", "Formeln"]
 
     # Global ausgeblendete Profile holt eine App NICHT zurueck.
     profile.items[2]["quick"] = False
@@ -384,7 +434,8 @@ def test_schnellwechsel_faellt_zurueck_statt_leer_zu_sein(qapp):
             app_quick={"claude.exe": ["Heisst laengst anders"]})),
         current_app=lambda: "claude.exe",
     )
-    assert DesktopApp.profile_names(fake) == ["Standard", "E-Mail"]
+    # Ohne das Standardprofil (G-B1) — der Rueckfall ist die globale Auswahl.
+    assert DesktopApp.profile_names(fake) == ["E-Mail"]
 
 def test_current_app_haelt_die_app_der_laufenden_aufnahme_fest(qapp, monkeypatch):
     """Waehrend der Aufnahme zaehlt die App, in die eingefuegt wird — nicht die,

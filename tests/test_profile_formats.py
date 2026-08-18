@@ -155,14 +155,18 @@ def test_rohtext_gilt_als_material_nicht_als_anweisung():
 # -- Schnellwechsel-Auswahl ----------------------------------------------------------
 
 def test_schnellwechsel_zeigt_nur_gewaehlte_profile():
-    """Wer acht Profile pflegt, schaltet im Alltag zwischen zweien um."""
+    """Wer acht Profile pflegt, schaltet im Alltag zwischen zweien um.
+
+    Das Standardprofil steht seit Befund G-B1 NICHT mehr darin: Von Hand gewaehlt
+    sah es aus wie die Station „App-Standard" (gleicher Name, gleiche Farbe),
+    legte aber die gesamte App-Zuordnung still — dauerhaft und unsichtbar."""
     from fleech.profiles import quickswitch_profiles
 
     items = [{"name": "Standard", "default": True},
              {"name": "E-Mail", "mode": "email"},
              {"name": "Selten", "quick": False},
              {"name": "Stichpunkte", "mode": "summary"}]
-    assert quickswitch_profiles(items) == ["Standard", "E-Mail", "Stichpunkte"]
+    assert quickswitch_profiles(items) == ["E-Mail", "Stichpunkte"]
 
 
 def test_ohne_feld_ist_ein_profil_dabei():

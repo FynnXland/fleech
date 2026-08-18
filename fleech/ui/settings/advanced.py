@@ -132,4 +132,5 @@ def build(panel) -> None:
 
     panel._check(form, "Debug-Logging", s.advanced.debug_logging, "advanced",
                  lambda v: setattr(s.advanced, "debug_logging", v),
-                 f"Ausführliches Protokoll in {SETTINGS_DIR / 'fleech.log'}.")
+                 f"Ausführliches Protokoll in {SETTINGS_DIR / 'fleech.log'} — "
+                 "greift ab dem nächsten Start von Fleech.")

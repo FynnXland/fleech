@@ -537,7 +537,10 @@ class SettingsPanel(WortprobeMixin, QWidget):
     # Anzeigenamen fuer die Kollisionswarnung („belegt durch …"). JEDER Hotkey
     # braucht hier einen Eintrag — fehlt einer, wirft die Warnung einen KeyError,
     # sobald zwei Felder existieren.
-    _HOTKEY_FRIENDLY = {"dictate": "Diktat", "math_toggle": "Mathe-Umschalt",
+    # „Mathe-Umschalt" stand hier bis 5.10.2 mit drin, obwohl es das Feld und den
+    # Modus seit v3.0.0 nicht mehr gibt — ein Eintrag, der nur die Erinnerung an
+    # eine Bedienung wachhielt, die ins Leere geht.
+    _HOTKEY_FRIENDLY = {"dictate": "Diktat",
                         "prompt_toggle": "KI-Prompting", "undo": "Rohtext einsetzen",
                         "pause": "Pause", "profile": "Profil wechseln"}
 

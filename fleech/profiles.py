@@ -15,7 +15,10 @@ Modul kennt weder Pfade noch das Speichern.
 
 from __future__ import annotations
 
+import logging
 from dataclasses import dataclass, field
+
+log = logging.getLogger(__name__)
 
 # Beschriftung fuer „kein Profil von Hand gewaehlt" — es gilt, was die Apps-Seite
 # fuer die gerade fokussierte Anwendung vorsieht. Hiess bis v4.9.2 „Automatisch
@@ -40,9 +43,12 @@ def _default_profiles() -> list:
         {"name": "Privat", "intervention": "minimal",
          "tags": [], "apps": []},
         {"name": "Coding", "intervention": "minimal", "tags": [], "apps": []},
-        # mode="math": Diktate in zugewiesene Apps laufen automatisch im Formel-Modus.
+        # Einen Formel-Modus gibt es seit v3.0.0 nicht mehr — Formeln entstehen
+        # global ueber Einstellungen → Ausgabe, nie ueber ein Profil (Befund E-14).
+        # „Mathe" bleibt deshalb ein reines Eingriffsgrad-Profil; die violette
+        # Farbe traegt es fest, damit es aussieht wie bisher.
         {"name": "Mathe", "intervention": "standard", "tags": [], "apps": [],
-         "mode": "math"},
+         "color": "#AA78F0"},
         # Die beiden UMFORMULIERENDEN Profile. Sie sind bewusst KEINER App fest
         # zugewiesen: ob dieses Diktat eine Mail wird, weiss nur der Sprecher —
         # deshalb ueber den Profil-Knopf in der Pille waehlbar.
@@ -68,11 +74,35 @@ def ensure_default_profile(items: list) -> None:
     if not any(isinstance(i, dict) and i.get("default") for i in items):
         items.insert(0, {"name": "Standard", "default": True, "intervention": "",
                          "tags": [], "apps": []})
+    _entschaerfe_formel_format(items)
     vorhandene = {profile_mode(i) for i in items if isinstance(i, dict)}
     for vorlage in _default_profiles():
         mode = profile_mode(vorlage)
         if mode in REWRITING_FORMATS and mode not in vorhandene:
             items.append(dict(vorlage))
+
+
+def _entschaerfe_formel_format(items: list) -> None:
+    """Befund E-14: Das Ausgabeformat „Formeln" hat nie etwas bewirkt.
+
+    Es gab dafuer nie einen Codepfad — ein Formel-Modus existiert seit v3.0.0
+    nicht mehr, `pipeline.auto_latex` kommt ausschliesslich global aus
+    Einstellungen → Ausgabe. Ein Profil damit versprach also etwas, das es nicht
+    halten konnte. Die Migration nimmt nur den wirkungslosen Slot heraus; Name,
+    Eingriffsgrad, Apps und Farbe bleiben — die Farbe wird dabei festgeschrieben,
+    damit das Profil in der Liste aussieht wie bisher."""
+    for item in items:
+        if not isinstance(item, dict):
+            continue
+        if str(item.get("mode", "") or "").lower() != "math" and not item.get("math"):
+            continue
+        item.pop("mode", None)
+        item.pop("math", None)
+        if not str(item.get("color", "") or "").strip():
+            item["color"] = _FORMAT_FARBEN["math"]
+        log.info("Profil %r: Ausgabeformat „Formeln“ entfernt — es hat nie gewirkt "
+                 "(Formeln laufen global ueber Einstellungen → Ausgabe).",
+                 item.get("name", ""))
 
 
 @dataclass
@@ -117,10 +147,16 @@ def profile_in_quickswitch(item: dict) -> bool:
 
 
 def quickswitch_profiles(items: list) -> list:
-    """Namen der Profile fuer den Schnellwechsel, in Listenreihenfolge."""
+    """Namen der Profile fuer den Schnellwechsel, in Listenreihenfolge.
+
+    OHNE das Standardprofil (Befund G-B1). Es von Hand zu waehlen sah aus wie
+    „App-Standard" — gleicher Name, gleiche Farbe —, legte aber die gesamte
+    App-Zuordnung stumm, dauerhaft und ueber Neustarts hinweg: Ein von Hand
+    gewaehltes Profil sticht die Zuordnung. Die Station daneben („App-Standard",
+    das Ende des Zyklus) leistet dasselbe und laesst die Zuordnung zu."""
     return [str(i.get("name", "")) for i in (items or [])
             if isinstance(i, dict) and str(i.get("name", "")).strip()
-            and profile_in_quickswitch(i)]
+            and not i.get("default") and profile_in_quickswitch(i)]
 
 
 def quickswitch_for_app(items: list, app_quick: dict, app: str) -> list:
@@ -211,15 +247,24 @@ PROFILE_SPRACHEN = [
 ]
 
 
+# „Formeln" stand hier bis 5.10.2 mit drin und war das einzige Format ohne jeden
+# Codepfad — angeboten, gewaehlt, wirkungslos (Befund E-14). Jedes Format hier ist
+# jetzt ein umformulierendes Format, siehe REWRITING_FORMATS.
 PROFILE_FORMATS = [
     ("", "Diktat (Standard)"),
     ("summary", "Stichpunkte"),
     ("email", "E-Mail"),
     ("prompt", "KI-Prompt"),
-    ("math", "Formeln"),
 ]
 # Formate, die den Text ueber einen eigenen System-Prompt neu formulieren.
 REWRITING_FORMATS = ("summary", "email", "prompt")
+
+# Nach welchen Diktat-Modi darf „Diktat direkt abschicken" (auto_send) Enter
+# druecken? Bis 5.10.2 stand dort nur „cleanup" — der Haken feuerte damit
+# ausgerechnet in den Profilen NICHT, fuer die er gedacht ist (Befund E-2).
+# „email" fehlt hier mit Absicht: Eine Mail, die sich selbst abschickt, ist der
+# eine Fall, in dem ein Versehen echte Folgen hat.
+AUTO_SEND_MODES = ("cleanup", "prompt", "summary")
 
 # Farbe je Profil — waehlbar, und JEDES Profil hat eine. Vorher trugen nur die
 # vier Format-Profile einen Punkt; Profile ohne Format blieben farblos, und in
@@ -251,6 +296,11 @@ ACCENT_RESERVIERT = "#35C0D8"
 
 # Welche Farbe ein Format MITBRINGT, solange nichts eigenes gewaehlt wurde. Damit
 # sehen bestehende Installationen nach dem Update genau aus wie vorher.
+#
+# „math" ist kein Format mehr (Befund E-14), der Eintrag bleibt trotzdem: Er ist
+# die Farbe, die die Migration einem frueheren Formel-Profil festschreibt, und er
+# haelt die freie Palette unten unveraendert — waere Violett dort ploetzlich frei,
+# bekaemen namensbasierte Profile reihum andere Farben.
 _FORMAT_FARBEN = {"math": "#AA78F0", "prompt": "#E8A13C",
                   "email": "#6E86C8", "summary": "#7FD1A6"}
 
@@ -287,13 +337,14 @@ def profile_color(item: dict) -> str:
 
 
 def profile_mode(item: dict) -> str:
-    """Ausgabeformat eines Profils: "" | "math" | "prompt" | "email" (exklusiv).
+    """Ausgabeformat eines Profils: "" | "summary" | "email" | "prompt" (exklusiv).
 
-    Migration: aeltere Profile hatten ein Bool-Feld "math" statt "mode"."""
+    „math" ist hier bewusst KEIN Wert mehr (Befund E-14): Es gab nie einen Pfad,
+    der es auswertet. Alte Eintraege (`mode: "math"` oder das noch aeltere Bool-Feld
+    `math: true`) lesen sich damit als „kein Format" — `_entschaerfe_formel_format`
+    raeumt sie beim naechsten Speichern auch aus der Datei."""
     mode = str(item.get("mode", "") or "").lower()
-    if mode in ("math", "prompt", "email", "summary"):
-        return mode
-    return "math" if item.get("math") else ""
+    return mode if mode in REWRITING_FORMATS else ""
 
 
 @dataclass

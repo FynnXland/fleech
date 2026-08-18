@@ -84,13 +84,12 @@ class GeneralSettings:
 class RecordingSettings:
     mode: str = "hold"          # hold | toggle
     hotkey: str = "f9"
-    # Mathe-Hotkeys sind seit v3.0.0 nicht mehr belegt: Formeln laufen ueber die
-    # automatische Erkennung, es gibt keinen Umschalt-Modus mehr. Die Felder
-    # bleiben (leer) erhalten, damit alte settings.json weiter laden.
-    math_hotkey: str = ""
-    math_toggle_hotkey: str = ""
-    # KI-Prompting-Umschalt: rastet den Speech-Prompt-Engineer ein/aus (Diktat →
-    # strukturierter Prompt). Exklusiv zum Mathe-Latch. Default: Ctrl+Alt+P.
+    # Die Mathe-Hotkeys (math_hotkey, math_toggle_hotkey) sind nach 5.10.2 auch als
+    # Felder entfallen: Seit v3.0.0 band sie niemand mehr, gelesen wurden sie nie.
+    # Alte settings.json laden trotzdem weiter — `load()` setzt nur Schluessel,
+    # zu denen es ein Feld gibt (`hasattr`), der Rest wird still uebergangen.
+    # KI-Prompting-Umschalt: markiert das LAUFENDE Diktat als KI-Prompt (Diktat →
+    # strukturierter Prompt). Default: Ctrl+Alt+P.
     prompt_toggle_hotkey: str = "ctrl+alt+p"
     # Letzte Ausgabe durch das ROH-Transkript ersetzen. Fuer den Fall, dass die
     # Bereinigung danebengriff — Wort fuer Wort das, was gesprochen wurde, statt
@@ -177,8 +176,13 @@ MATH_LEVELS = ("off", "auto")
 
 
 def math_level(m: MathSettings) -> str:
-    """Aktuelle Stufe aus den drei technischen Feldern ableiten."""
-    if not m.enabled:
+    """Aktuelle Stufe aus den drei technischen Feldern ableiten.
+
+    Befund A-1: Hier zaehlte lange nur `enabled`. Wirksam ist aber `auto_latex`
+    (`pipeline_factory`: `enabled and auto_latex`) — und dessen Vorgabe ist False.
+    Eine frische Installation zeigte deshalb „Automatisch" und erkannte trotzdem
+    keine einzige Formel. Anzeige und Wirkung fragen jetzt dieselben Felder."""
+    if not m.enabled or not m.auto_latex:
         return "off"
     return "auto"
 
@@ -187,9 +191,12 @@ def apply_math_level(m: MathSettings, level: str) -> None:
     """Stufe → die drei technischen Felder.
 
     Seit v3.0.0 gibt es nur noch „an" oder „aus": Der Umschalt-Weg ueber ein
-    Cloud-Modell ist entfallen, Formeln entstehen immer im lokalen Parser."""
+    Cloud-Modell ist entfallen, Formeln entstehen immer im lokalen Parser.
+    „off" loescht auch `auto_latex` — sonst bliebe ein Feld auf „an" stehen, das
+    die Stufe hinterher wieder als „Automatisch" lesen wuerde (A-1)."""
     if level == "off":
         m.enabled = False
+        m.auto_latex = False
         return
     m.enabled = True
     m.priority, m.auto_latex, m.math_focus = "mixed", True, True
@@ -380,9 +387,10 @@ class OutputSettings:
     # Persoenliches Woerterbuch: rohe Zeilen ("Begriff" = Vokabular-Priming fuer
     # Whisper; "falsch => richtig" = zusaetzlich deterministische Ersetzung).
     dictionary: list = field(default_factory=list)
-    # App-Profile: rohe Zeilen "prozess.exe => minimal|standard|strong" — der
-    # Eingriffsgrad wird fuer Diktate in diese App automatisch uebersteuert.
-    app_modes: list = field(default_factory=list)
+    # `app_modes` (rohe Zeilen "prozess.exe => minimal|standard|strong") ist nach
+    # 5.10.2 entfallen: Das koennen die App-Profile (fleech/profiles.py) seit
+    # v3.7.2, gelesen hat das Feld projektweit niemand mehr. Alte settings.json
+    # laden weiter, der Schluessel wird beim Laden still uebergangen.
     # DIE eine Ignorier-Liste ("falsch => richtig"): abgelehnte Woerterbuch-
     # Rueckfragen UND weggeklickte Insights-Vorschlaege. Dauerhaft, weil sichtbar:
     # Die Liste steht als Editor auf der Woerterbuch-Seite — Zeile loeschen holt

@@ -1087,3 +1087,14 @@ def test_der_riegel_laesst_sich_an_einer_stelle_loesen():
     # sie ist weiterhin ohne Riegel testbar.
     assert quelle.count("STILLGELEGT = ") == 1
     assert "STILLGELEGT" not in quelle.split("class Lauscher")[1]
+
+
+def test_das_tray_meldet_freihand_nicht_als_an_solange_es_stillgelegt_ist():
+    """Befund E-8: Beim Start ging die gespeicherte Einstellung ungeprüft an das
+    Tray — wer vor 5.10.1 `aktiv: true` stehen hatte, las dort „Freihand: an
+    (Kimono)", während in Wirklichkeit nichts lauschte. Bei einer Funktion,
+    deren ganzer Sinn Vertrauen ist, ist genau diese Richtung die schlimmere."""
+    from pathlib import Path
+
+    quelle = Path("fleech/ui/desktop.py").read_text(encoding="utf-8")
+    assert "set_freihand(self.settings.freihand.aktiv and not STILLGELEGT" in quelle

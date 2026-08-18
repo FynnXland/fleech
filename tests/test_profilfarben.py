@@ -43,12 +43,24 @@ def test_selbst_gewaehlt_schlaegt_alles():
 
 
 def test_ohne_wahl_gilt_die_formatfarbe():
-    """Wer nie eine Farbe waehlt, soll vom Umbau nichts merken — die vier
+    """Wer nie eine Farbe waehlt, soll vom Umbau nichts merken — die
     Format-Profile sehen aus wie vorher."""
-    assert profile_color({"name": "Formeln", "mode": "math"}) == "#AA78F0"
     assert profile_color({"name": "KI-Prompt", "mode": "prompt"}) == "#E8A13C"
     assert profile_color({"name": "E-Mail", "mode": "email"}) == "#6E86C8"
     assert profile_color({"name": "Stichpunkte", "mode": "summary"}) == "#7FD1A6"
+
+
+def test_ein_frueheres_formel_profil_behaelt_sein_violett():
+    """„Formeln" ist seit Befund E-14 kein Ausgabeformat mehr — es hat nie etwas
+    bewirkt. Damit das Profil in der Liste trotzdem aussieht wie bisher,
+    schreibt die Migration ihm die alte Format-Farbe fest."""
+    from fleech.profiles import ensure_default_profile
+
+    alt = {"name": "Mathe", "intervention": "standard", "mode": "math"}
+    ensure_default_profile([{"name": "Standard", "default": True}, alt])
+    assert "mode" not in alt                    # der wirkungslose Slot ist weg
+    assert alt["intervention"] == "standard"    # der Eingriffsgrad bleibt
+    assert profile_color(alt) == "#AA78F0"
 
 
 def test_unbekannte_farbe_wird_nicht_uebernommen():

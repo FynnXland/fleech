@@ -21,6 +21,7 @@ from ..app import DictationApp
 from ..audio import Recorder, list_input_devices
 from ..config import load_config
 from ..hotkey import HotkeyManager, HotkeySpec
+from ..profiles import AUTO_SEND_MODES, REWRITING_FORMATS
 from ..recording_control import RecordingController
 from ..stt import create_stt
 from ..usersettings import UserSettings
@@ -176,7 +177,6 @@ class DesktopApp(
         self.controller = RecordingController(
             self.settings.recording.mode, self._on_record_start, self._on_record_stop
         )
-        self._prompt_latched = False  # KI-Prompting-Latch
         self._prompt_oneshot = False  # KI-Prompting NUR fuer die laufende Aufnahme
         # Inline-Formel-Segmente (Umschalten MITTEN in der Aufnahme):
         self.hotkeys = HotkeyManager(
@@ -189,9 +189,13 @@ class DesktopApp(
         self._freihand = None
         self._freihand_audio = None
         try:
-            from ..freihand import woerter_als_text
+            from ..freihand import STILLGELEGT, woerter_als_text
 
-            self.tray.set_freihand(self.settings.freihand.aktiv,
+            # Befund E-8: Solange Freihand stillgelegt ist, lauscht nichts — dann
+            # darf das Tray auch nicht „Freihand: an" melden. Bei einer Funktion,
+            # deren ganzer Sinn Vertrauen ist, ist genau diese Richtung der
+            # falschen Anzeige die unangenehme.
+            self.tray.set_freihand(self.settings.freihand.aktiv and not STILLGELEGT,
                                    woerter_als_text(self.settings.freihand.startwort))
         except Exception:
             log.debug("Tray-Text nicht setzbar.", exc_info=True)
@@ -360,10 +364,10 @@ class DesktopApp(
         audio = self.recorder.stop()
         # One-Shot-Prompt-Modus hier (UI-Thread) einsammeln + zuruecksetzen — der
         # Verarbeitungs-Thread bekommt den Schnappschuss; die Pille faellt sofort
-        # auf den persistenten Latch-Zustand zurueck.
+        # in den Normalzustand zurueck.
         prompt_oneshot, self._prompt_oneshot = self._prompt_oneshot, False
         if prompt_oneshot:
-            self.overlay.set_prompt_latched(self._prompt_latched)
+            self.overlay.set_prompt_latched(False)
         self.notifier.sound("stop")
         self.bus.set_state(AppState.PROCESSING)
         threading.Thread(
@@ -388,7 +392,7 @@ class DesktopApp(
             log.info("Abbrechen ohne laufende Aufnahme — nichts zu verwerfen.")
             return
         self._prompt_oneshot = False
-        self.overlay.set_prompt_latched(self._prompt_latched)
+        self.overlay.set_prompt_latched(False)
         self._stop_preview()
         threading.Thread(target=self.focus.on_recording_stop, daemon=True).start()
         self.recorder.stop()  # Audio bewusst verwerfen
@@ -441,15 +445,18 @@ class DesktopApp(
             prof = self._app_profile_overrides()
             override, style_hints = prof.intervention, prof.style_hints
             slot_mode = prof.mode_slot
-            # KI-Prompting: Latch, Profil-Slot oder One-Shot (Hotkey WAEHREND der
-            # Aufnahme, gilt nur fuer dieses Diktat). Einen Formel-Modus gibt es
+            # KI-Prompting ausserhalb eines Profils: nur noch der One-Shot (Hotkey
+            # WAEHREND der Aufnahme, gilt fuer genau dieses Diktat). Dauerhaft
+            # macht das heute das Profil „KI-Prompt". Einen Formel-Modus gibt es
             # seit v3.0.0 nicht mehr — Formeln werden vor dem Cleanup determi-
             # nistisch uebersetzt und brauchen kein Umschalten.
-            prompt_active = (self._prompt_latched or prompt_oneshot)
-            # Ausgabeformat des Profils: „E-Mail"/„KI-Prompt" formulieren das
-            # Diktat ueber einen eigenen System-Prompt um, statt es nur zu
-            # glaetten. „math" ist kein Umformulieren und laeuft weiter im Parser.
-            output_format = slot_mode if slot_mode in ("email", "prompt") else ""
+            prompt_active = prompt_oneshot
+            # Ausgabeformat des Profils: die umformulierenden Formate schreiben das
+            # Diktat ueber einen eigenen System-Prompt um, statt es nur zu glaetten.
+            # Befund E-3: Hier stand ein hartes ("email", "prompt") — „Stichpunkte"
+            # kam spaeter dazu und fiel deshalb still auf normales Cleanup zurueck.
+            # Jetzt gilt die EINE Liste, die auch die Pipeline kennt.
+            output_format = slot_mode if slot_mode in REWRITING_FORMATS else ""
             # Gesprochenes Safe-Word je Profil abschaltbar (Meetings/Grossraum): der
             # »-Knopf bleibt immer nutzbar, nur das laute Wort entfaellt.
             suppress_command = not prof.command_allowed(
@@ -501,7 +508,13 @@ class DesktopApp(
             # Automatisch absenden — nur wo das Profil es ausdruecklich erlaubt und
             # nur bei einem normalen Diktat. Nach einem Befehl oder einem Rohtext-
             # Rueckfall waere es falsch: Dort will man erst sehen, was ankam.
-            if prof.auto_send and result == "ok" and self.pipeline.last_mode == "cleanup":
+            # Befund E-2: Die Bedingung war auf "cleanup" allein — ausgerechnet in
+            # den Profilen, fuer die der Haken gedacht ist (KI-Prompt, Stichpunkte),
+            # feuerte er nie. „email" bleibt bewusst draussen: Eine Mail, die sich
+            # selbst abschickt, ist ein Versehen mit Folgen — genau davor warnt der
+            # Hilfetext am Schalter.
+            if prof.auto_send and result == "ok" \
+                    and self.pipeline.last_mode in AUTO_SEND_MODES:
                 self._auto_send()
             if result == "fallback":
                 # Vor transcript_ready: die Blase soll direkt amber gerahmt kommen.
@@ -607,22 +620,15 @@ class DesktopApp(
         except Exception:
             log.debug("Statusmeldung fehlgeschlagen.", exc_info=True)
 
-    def _toggle_prompt_latch(self) -> None:
-        """KI-Prompting ein-/ausrasten: alle folgenden Diktate werden zu strukturierten
-        Prompts umformuliert. Sichtbar ueber die getoente Overlay-Pille + kurzer Ton;
-        Toasts waeren hier der falsche Kanal (Cooldown/DND-/Gaming-Unterdrueckung)."""
-        self._prompt_latched = not self._prompt_latched
-        self._safe_overlay_latch("prompt", self._prompt_latched)
-        self.notifier.sound("start" if self._prompt_latched else "stop")
-        log.info("KI-Prompting-Latch %s.", "an" if self._prompt_latched else "aus")
-
     def _toggle_prompt_oneshot(self) -> None:
         """KI-Prompting NUR fuer die laufende Aufnahme markieren (Hotkey mitten im
         Diktat). Kein persistenter Latch: nach der Verarbeitung (oder Abbruch) faellt
         der Modus automatisch zurueck — die Pille zeigt solange amber."""
         self._prompt_oneshot = not self._prompt_oneshot
         on = self._prompt_oneshot
-        self._safe_overlay_latch("prompt", on or self._prompt_latched)
+        # Den dauerhaften Latch gab es hier bis 5.10.2 noch als Feld — ohne jeden
+        # Aufrufer, seit der Punkt in der Pille das Profil wechselt. Entfernt.
+        self._safe_overlay_latch("prompt", on)
         self.notifier.sound("start" if on else "stop")
         log.info("KI-Prompting fuer DIESES Diktat %s.", "an" if on else "aus")
 
