@@ -33,12 +33,15 @@ von Wörterbuch + Profilen + Einstellungen als eine Datei.
 zum Datenschutz-Versprechen („deine Daten gehören dir").
 **Aufwand: S**
 
-### 3. Privacy-Karte in den Insights
+### 3. Privacy-Karte in den Insights — HINFÄLLIG
 „100 % lokal: X von Y Diktaten · Z nutzten den Formel-Cloud-Pfad." Die Daten stehen
 bereits in der Historie (`mode`-Spalte).
 **Warum:** Macht das zentrale Verkaufsargument sichtbar und ehrlich — inklusive des
 einzigen Cloud-Pfads.
 **Aufwand: S**
+**Hinfällig (Bahn F, Befund F-B10):** Die Prämisse gilt seit v3.0.0 nicht mehr —
+Formeln entstehen im lokalen Parser, es gibt keinen Cloud-Pfad mehr zu zeigen;
+`history.privacy_split()`/`CLOUD_MODES` wurden ersatzlos entfernt.
 
 ### 4. Befehlstypen-Statistik
 Die Befehls-Historie nicht nur als Fallback-Quote, sondern als Karte „häufigste

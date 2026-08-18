@@ -161,6 +161,21 @@ def test_productivity_pattern_detects_daypart_and_weekday(store):
     assert s.productive_weekday == "Montag"
 
 
+def test_productivity_pattern_vergleicht_je_stunde_nicht_als_summe(store):
+    """F-B8: Die Faecher sind unterschiedlich breit (nachts 6 h, nachmittags 4 h) —
+    als reine Summe gewinnt strukturell das breitere Fach, selbst wenn es je
+    Stunde weniger traegt. Hier: nachts=30 Woerter (5/h), nachmittags=24 (6/h) —
+    ohne Normalisierung wuerde "nachts" faelschlich gewinnen."""
+    nachts = dt.datetime(2024, 1, 1, 2, 0, 0)
+    nachmittags = dt.datetime(2024, 1, 2, 15, 0, 0)
+    for _ in range(3):
+        store.add(rec(ts=nachts.timestamp(), cleaned="a b c d e f g h i j"))  # 10 Woerter
+    for _ in range(3):
+        store.add(rec(ts=nachmittags.timestamp(), cleaned="a b c d e f g h"))  # 8 Woerter
+    s = store.stats()
+    assert s.productive_daypart == "nachmittags"   # 24/4=6 je h schlaegt 30/6=5 je h
+
+
 # -- Serie (Streak) ---------------------------------------------------------------------
 
 
@@ -197,13 +212,20 @@ def test_daily_counts_keyed_by_local_date(store):
 # -- Verarbeitungs-Telemetrie + Schema-Migration ---------------------------------------
 
 
-def test_latency_and_tier_stats(store):
+def test_latency_median_und_p90_statt_mittelwert(store):
+    """F-B4: Ein Mittelwert ueberzeichnet die Erkennung durch Kaltstart-
+    Ausreisser und wird durch Diktate ohne Modelllauf (llm_ms=0) nach unten
+    verzerrt. Median/p90 werden per Index auf sortierten Listen gegriffen
+    (nearest-rank) statt AVG() — hier von Hand nachgerechnet: stt=[200,300,400]
+    -> Median=300/p90=400, llm (NUR llm_ms>0)=[400,1200] -> Median=400/p90=1200."""
     store.add(rec(cleaned="a b c", tier="simple", stt_ms=200, llm_ms=400))
     store.add(rec(cleaned="d e f", tier="complex", stt_ms=400, llm_ms=1200, status="fallback"))
     store.add(rec(cleaned="g h", tier="trivial", stt_ms=300, llm_ms=0))
     s = store.stats()
-    assert s.avg_stt_ms == 300
-    assert abs(s.avg_llm_ms - 533) <= 1
+    assert s.stt_median_ms == 300
+    assert s.stt_p90_ms == 400
+    assert s.llm_median_ms == 400   # NUR llm_ms>0 — die 0 aus "trivial" faellt raus
+    assert s.llm_p90_ms == 1200
     assert s.tier_shares["simple"] == pytest.approx(1 / 3)
     assert s.tier_shares["complex"] == pytest.approx(1 / 3)
     assert s.fallback_rate == pytest.approx(1 / 3)
@@ -212,7 +234,8 @@ def test_latency_and_tier_stats(store):
 def test_stats_without_latency_data(store):
     store.add(rec(cleaned="alt"))  # stt_ms/llm_ms default 0
     s = store.stats()
-    assert s.avg_stt_ms == 0 and s.avg_llm_ms == 0
+    assert s.stt_median_ms == 0 and s.llm_median_ms == 0
+    assert s.stt_p90_ms == 0 and s.llm_p90_ms == 0
     assert s.fallback_rate == 0.0
 
 
@@ -243,7 +266,7 @@ def test_schema_migration_adds_latency_columns(tmp_path):
     store.add(rec(cleaned="neu", stt_ms=150, llm_ms=250))
     s = store.stats()
     assert s.total_dictations == 2    # Altbestand blieb erhalten
-    assert s.avg_stt_ms == 150
+    assert s.stt_median_ms == 150
 
 
 # -- Aktionable Auswertungen ------------------------------------------------------
@@ -333,19 +356,60 @@ def test_top_corrections_skips_rewritten_passages(tmp_path):
     assert store.top_corrections() == []
 
 
-# -- Privacy-Verteilung + Befehlsarten -------------------------------------------
-
-def test_privacy_split_zaehlt_nur_den_cloud_pfad(tmp_path):
+def test_top_corrections_ignoriert_umformulierende_modi(tmp_path):
+    """F-1/Befund 1a: In math/math_mix/prompt/email/command ist eine Abweichung
+    ABSICHT (Formel, Umschreibung, Befehlsantwort), keine Fehlerkennung — z. B.
+    "omega" -> "$\\Omega$" aus dem Formel-Modus. Ein automatischer Vorschlag
+    daraus wuerde kuenftig JEDES Diktat verfaelschen."""
     store = HistoryStore(tmp_path / "h.db")
-    for mode in ("cleanup", "cleanup", "command", "prompt", "math", "math_mix"):
-        store.add(rec(mode=mode))
-    total, cloud = store.privacy_split()
-    assert (total, cloud) == (6, 2)   # math + math_mix
+    for _ in range(2):
+        store.add(rec(raw="omega ist wichtig hier",
+                      cleaned="$\\Omega$ ist wichtig dort", mode="math"))
+    assert store.top_corrections() == []
 
 
-def test_privacy_split_leere_datenbank(tmp_path):
-    assert HistoryStore(tmp_path / "h.db").privacy_split() == (0, 0)
+def test_top_corrections_ignoriert_typografische_apostrophe(tmp_path):
+    """F-1/Befund 1b: "geht's" (ASCII-Apostroph, wie das Roh-Transkript es liefert)
+    vs. "geht’s" (typografischer Apostroph nach der Bereinigung) ist keine
+    Fehlerkennung, sondern derselbe Text in zwei Schreibweisen — nach
+    Normalisierung identisch, darf also keine Regel vorschlagen."""
+    store = _store_with(tmp_path, [
+        ("na klar geht's doch", "na klar geht’s doch", "ok", 900, 0),
+        ("na klar geht's doch", "na klar geht’s doch", "ok", 900, 0),
+    ])
+    assert store.top_corrections() == []
 
+
+def test_top_corrections_konsistenz_verwirft_grammatikfaelle(tmp_path):
+    """F-1/Befund 1c: Ein Wort, das im eigenen bereinigten Textbestand selbst
+    haeufig als "richtig" steht, ist eine Fehlerkennung nie — Grammatik/Flexion
+    (kann/wird/...), keine Systematik. Die Schwelle 0,5 laesst echte
+    Fehlerkennungen durch (Wort taucht sonst so gut wie nie korrekt auf)."""
+    entries = [
+        # "kann" wird 2x zu "können" "korrigiert" (gleich lange Bloecke), steht
+        # aber daneben zigfach unveraendert als "kann" im bereinigten Text —
+        # klassischer Grammatikfall, der NICHT vorgeschlagen werden darf.
+        ("man kann das schon machen", "man können das schon machen", "ok", 900, 0),
+        ("man kann das schon machen", "man können das schon machen", "ok", 900, 0),
+    ]
+    # Viele weitere Zeilen, in denen "kann" im bereinigten Text KORREKT steht.
+    entries += [("egal", "Ich kann das gut.", "ok", 900, 0) for _ in range(20)]
+    store = _store_with(tmp_path, entries)
+    assert all(w != "kann" for w, _r, _c in store.top_corrections())
+
+
+def test_top_corrections_laesst_echte_fehlerkennung_durch(tmp_path):
+    """Gegenprobe zum Konsistenz-Test: Ein Wort, das NIE korrekt im bereinigten
+    Text auftaucht, ist die Sorte Fund, fuer die die Karte gebaut ist."""
+    store = _store_with(tmp_path, [
+        ("wir nutzen matrize dafuer", "wir nutzen Matrix dafuer", "ok", 900, 0),
+        ("die matrize ist neu", "die Matrix ist neu", "ok", 900, 0),
+    ])
+    hits = dict(((w, r), c) for w, r, c in store.top_corrections())
+    assert hits.get(("matrize", "Matrix")) == 2
+
+
+# -- Befehlsarten ------------------------------------------------------------------
 
 def test_command_kinds_klassifiziert_die_anweisung(tmp_path):
     store = HistoryStore(tmp_path / "h.db")
@@ -366,6 +430,24 @@ def test_command_kinds_ohne_befehle(tmp_path):
     store = HistoryStore(tmp_path / "h.db")
     store.add(rec(raw="ganz normal", cleaned="Ganz normal.", mode="cleanup"))
     assert store.command_kinds() == []
+
+
+def test_command_kinds_folgt_dem_zeitraum(tmp_path):
+    """F-B5: Die Karte darf nicht "immer" zeigen, ohne es zu sagen — `since`
+    grenzt genau wie bei `stats()`/`top_words()` ein."""
+    import time
+
+    store = HistoryStore(tmp_path / "h.db")
+    jetzt = time.time()
+    store.add(rec(ts=jetzt - 40 * 86400, raw="Redax, lösch das.",
+                  cleaned="…", mode="command"))
+    store.add(rec(ts=jetzt - 600, raw="Redax, entferne das.",
+                  cleaned="…", mode="command"))
+
+    heute = dict(store.command_kinds(since=jetzt - 86400))
+    alle = dict(store.command_kinds())
+    assert heute == {"Löschen": 1}
+    assert alle == {"Löschen": 2}
 
 
 def test_stats_zeitraum_grenzt_wirklich_ein(tmp_path):
@@ -413,6 +495,42 @@ def test_stats_serie_bleibt_ungefiltert(tmp_path):
 
     heute = store.stats(since=jetzt - 86400)
     assert len(heute.daily_counts) == 3          # alle drei Tage, nicht nur heute
+
+
+def test_stats_lifetime_words_bleibt_ungefiltert(tmp_path):
+    """F-B2/F-B3: Die Meilenstein-Karte vergleicht IMMER gegen alles je Diktierte,
+    nicht gegen den gewaehlten Zeitraum — sonst behauptet sie auf "Heute"
+    faelschlich, kaum etwas erreicht zu sein, obwohl die Lebenszeit-Summe laengst
+    viel weiter ist. Bewusst ungefiltert wie die Serie (Docstring von stats())."""
+    import time
+
+    store = HistoryStore(tmp_path / "h.db")
+    jetzt = time.time()
+    store.add(DictationRecord(ts=jetzt - 40 * 86400, raw="alt", cleaned="a b c d e",
+                              audio_seconds=5.0))         # 5 Woerter, ausserhalb "Heute"
+    store.add(DictationRecord(ts=jetzt - 600, raw="neu", cleaned="f g",
+                              audio_seconds=5.0))         # 2 Woerter, "Heute"
+
+    heute = store.stats(since=jetzt - 86400)
+    assert heute.total_words == 2          # zeitraum-gefiltert
+    assert heute.lifetime_words == 7       # ungefiltert: 5 + 2
+
+
+def test_stats_korrekturen_nur_mode_cleanup(tmp_path):
+    """F-B11: Umformulierende Modi (prompt/math/…) aendern Text ABSICHTLICH — das
+    ist keine "Korrektur von Fleech" und darf die Kennzahl nicht aufblaehen. Sie
+    zaehlen stattdessen als eigene Zeile (`non_cleanup_dictations`)."""
+    store = HistoryStore(tmp_path / "h.db")
+    store.add(rec(mode="cleanup"))                         # corrected: aus rec()-Diff
+    store.add(rec(raw="wandle das um bitte hier",
+                  cleaned="Ein komplett umformulierter Satz mit vielen Woertern.",
+                  mode="prompt"))
+    s = store.stats()
+    cleanup_only = corrected_word_count(
+        "also äh der test läuft gut", "Der Test läuft gut.")
+    assert s.corrected_words == cleanup_only    # NICHT die prompt-Zeile mit
+    assert s.non_cleanup_dictations == 1
+    assert s.total_dictations == 2
 
 
 def test_top_words_folgt_dem_zeitraum(tmp_path):

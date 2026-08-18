@@ -8,6 +8,7 @@ die drei handlungsfaehigen Hinweise. Die Konstanten oben stehen hier und nicht i
 from __future__ import annotations
 
 import logging
+import random
 import time as _time
 
 from PySide6.QtCore import Qt
@@ -26,6 +27,15 @@ from ..widgets import (
 )
 
 log = logging.getLogger(__name__)
+
+
+def _ganzzahl(n: int) -> str:
+    """Deutsche Tausendertrennung fuer Stueckzahlen. `:n` folgt der C-Locale und
+    liefert ohne `locale.setlocale()` (kommt im Projekt nirgends vor) gar keinen
+    Trenner (F-9/Befund 9) — `milestones._zahl` haengt bei Werten < 10 eine
+    Nachkommastelle an (fuer Faktoren gedacht), das waere fuer eine Stueckzahl
+    falsch, deshalb dieser einfachere Zwilling."""
+    return f"{int(n):,}".replace(",", ".")
 
 
 def _tier_names() -> tuple:
@@ -53,16 +63,28 @@ def _tier_names() -> tuple:
 
 
 def _processing_summary(stats) -> str:
-    """Text der "Verarbeitung"-Karte: Ø Latenzen, Routing-Verteilung, Fallback-Quote."""
-    if not stats.avg_stt_ms and not (stats.tier_shares or {}):
+    """Text der "Verarbeitung"-Karte: Median/p90-Latenzen, Routing-Verteilung,
+    Fallback-Quote.
+
+    Median/p90 statt Mittelwert (F-B4): Ein Mittelwert ueberzeichnet den Normalfall
+    durch seltene Kaltstart-Ausreisser nach oben UND wird durch Diktate ohne
+    Modelllauf (`llm_ms=0`, "trivial") nach unten verzerrt — zwei Fehler, die sich
+    gegenseitig verwischen. Die KI-Zeile filtert deshalb eigenstaendig auf
+    `llm_ms > 0`, nicht auf `stt_ms > 0` wie die Erkennung."""
+    if not stats.stt_median_ms and not (stats.tier_shares or {}):
         return "Noch keine Daten — Latenzen werden ab dem nächsten Diktat erfasst."
     lines = []
-    if stats.avg_stt_ms or stats.avg_llm_ms:
-        total_s = (stats.avg_stt_ms + stats.avg_llm_ms) / 1000
+    if stats.stt_median_ms or stats.llm_median_ms:
+        median_s = (stats.stt_median_ms + stats.llm_median_ms) / 1000
+        p90_s = (stats.stt_p90_ms + stats.llm_p90_ms) / 1000
         lines.append(
-            f"Ø Verarbeitung: {total_s:.1f} s — davon {stats.avg_stt_ms / 1000:.1f} s "
-            f"Erkennung · {stats.avg_llm_ms / 1000:.1f} s KI-Bereinigung"
+            f"Verarbeitung: die Hälfte deiner Diktate war nach {median_s:.1f} s da, "
+            f"neun von zehn nach {p90_s:.1f} s"
         )
+        detail = f"davon {stats.stt_median_ms / 1000:.1f} s Erkennung (Median)"
+        if stats.llm_median_ms:
+            detail += f" · {stats.llm_median_ms / 1000:.1f} s KI-Bereinigung (Median)"
+        lines.append(detail)
     shares = stats.tier_shares or {}
     if shares:
         parts = [f"{round(shares[key] * 100)} % {label}"
@@ -208,15 +230,14 @@ class InsightsPage(QWidget):
         row1.addWidget(self._fix_frame, 1)
         row1.addWidget(self._words_frame, 1)
 
-        # Reihe 2 — App-Nutzung und Serie, gleich breit (Design).
+        # Reihe 2 — App-Nutzung und Serie, gleich breit (Design). Die fruehere
+        # "Befehle"-Karte ist entfallen (Bahn F/Bahn I: 8 Befehle in 1399 Diktaten
+        # belegten ein Drittel der Reihe und ignorierten den Zeitraum) — ihr Inhalt
+        # steht jetzt als eine Zeile in "Deine Muster", siehe `_commands_line`.
         row2 = QHBoxLayout()
         row2.setSpacing(12)
         outer.addLayout(row2)
         self._usage_frame, self._usage_box = _card("App-Nutzung")
-        # Befehle — welche Art Anweisung nutzt du wirklich? Gleiche Rangliste wie
-        # die App-Nutzung; Karte bleibt weg, solange es keine Befehle gab.
-        self._commands_frame, self._commands_box = _card("Befehle")
-        self._commands_rows: list[QWidget] = []
         self._streak_frame, streak_box = _card("Serie")
         self._calendar = StreakCalendar()
         streak_box.addWidget(self._calendar)
@@ -224,7 +245,6 @@ class InsightsPage(QWidget):
         self._streak_label.setStyleSheet(f"color: {MUTED}; font-size: 8.5pt; border: none;")
         streak_box.addWidget(self._streak_label)
         row2.addWidget(self._usage_frame, 1)
-        row2.addWidget(self._commands_frame, 1)
         row2.addWidget(self._streak_frame, 1)
 
         # Reihe 3 — Haeufigste Woerter · Deine Muster · Verarbeitung, je ein Drittel.
@@ -270,7 +290,6 @@ class InsightsPage(QWidget):
         self._usage_rows: list[QWidget] = []
         self._words_freq_rows: list[QWidget] = []
         self._advice_allowed = True
-        self._commands_allowed = True
 
     # -- Vorschlaege ------------------------------------------------------------------
 
@@ -286,7 +305,13 @@ class InsightsPage(QWidget):
         h = QHBoxLayout(row)
         h.setContentsMargins(0, 2, 0, 2)
         h.setSpacing(10)
-        label = QLabel(f"„{wrong}“ wurde {count}× zu „{right}“ korrigiert")
+        # F-1: sagen, was der Klick TUT (nicht nur, was bisher passiert ist) —
+        # "Als Regel übernehmen" wirkt global, wortgrenzenbasiert, in jedem
+        # künftigen Diktat, nicht nur an dieser einen Stelle.
+        label = QLabel(
+            f"„{wrong}“ wurde {count}× zu „{right}“ korrigiert — die Regel ersetzt "
+            f"„{wrong}“ künftig überall durch „{right}“."
+        )
         label.setStyleSheet(f"color: {TEXT}; font-size: 9pt; border: none;")
         button = style_button(QPushButton("Als Regel übernehmen"))
         # Daten am Button statt in einem Lambda: ein Lambda, das `self` faengt und in
@@ -423,13 +448,6 @@ class InsightsPage(QWidget):
         self._processing_frame.setVisible(ui.insights_show_processing)
         self._advice_allowed = getattr(ui, "insights_show_advice", True)
         self._update_advice_visibility()
-        # Die Befehls-Karte kennt zwei Gruende, weg zu sein: abgeschaltet ODER es
-        # gab noch keine Befehle. Der Sichtbarkeits-Stand aus refresh() darf hier
-        # nicht ueberschrieben werden — deshalb nur die Erlaubnis merken und die
-        # tatsaechliche Sichtbarkeit dem naechsten refresh() ueberlassen.
-        self._commands_allowed = getattr(ui, "insights_show_commands", True)
-        if not self._commands_allowed:
-            self._commands_frame.setVisible(False)
 
     def enable_hiding(self, settings, on_changed) -> None:
         """Jede Karte per Rechtsklick ausblendbar machen (statt Checkbox-Liste)."""
@@ -438,7 +456,6 @@ class InsightsPage(QWidget):
             (self._fix_frame, "Korrekturen", "insights_show_corrections"),
             (self._words_frame, "Wörter diktiert", "insights_show_words"),
             (self._usage_frame, "App-Nutzung", "insights_show_app_usage"),
-            (self._commands_frame, "Befehle", "insights_show_commands"),
             (self._streak_frame, "Serie", "insights_show_streak"),
             (self._words_freq_frame, "Häufigste Wörter", "insights_show_top_words"),
             (self._pattern_frame, "Deine Muster", "insights_show_patterns"),
@@ -489,18 +506,44 @@ class InsightsPage(QWidget):
         tage = _RANGE_DAYS.get(self._range)
         return None if not tage else _time.time() - tage * 86400
 
+    def _range_days(self) -> int | None:
+        """Laenge des gewaehlten Zeitraums in Tagen — None = "Alle" (gesamter
+        Verlauf, NICHT "kurz"). Steuert, ab wann ein Muster-Satz ueberhaupt eine
+        Aussage ist (F-B7): Ein Wochentag-Satz auf "Heute" waere Tautologie."""
+        return _RANGE_DAYS.get(self._range)
+
+    def _commands_line(self) -> str:
+        """Eine Zeile fuer "Deine Muster": welche Befehlsart wird benutzt, im
+        gewaehlten Zeitraum. Ersetzt die fruehere eigene "Befehle"-Karte (Bahn F/I:
+        8 Befehle in 1399 Diktaten belegten dort ein Drittel einer Reihe und
+        ignorierten obendrein den Zeitraum)."""
+        try:
+            kinds = self.store.command_kinds(since=self._range_since())
+        except Exception:
+            kinds = []
+        if not kinds:
+            return ""
+        teile = " · ".join(f"{name} {count}×" for name, count in kinds)
+        return f"\nBefehle: {teile}"
+
     def refresh(self) -> None:
         stats = self.store.stats(since=self._range_since())
         self._gauge.set_wpm(stats.wpm)  # Kennzahl steht IM Gauge (Design)
         self._time_label.setText(_diktierzeit_text(stats))
-        self._fix_value.setText(f"{stats.corrected_words:n}")
-        per_dictation = (stats.corrected_words / stats.total_dictations
-                         if stats.total_dictations else 0.0)
-        self._fix_detail.setText(
+        self._fix_value.setText(_ganzzahl(stats.corrected_words))
+        # NUR mode='cleanup' (F-B11) — Diktate mit umformulierenden Modi (prompt/
+        # command/email/math) zaehlen separat, nicht in den Korrektur-Schnitt hinein.
+        cleanup_dictations = stats.total_dictations - stats.non_cleanup_dictations
+        per_dictation = (stats.corrected_words / cleanup_dictations
+                         if cleanup_dictations else 0.0)
+        fix_detail = (
             f"Wörter korrigiert oder entfernt\n"
-            f"aus {stats.total_dictations:n} Diktaten · Ø {per_dictation:.1f} je Diktat"
+            f"aus {_ganzzahl(cleanup_dictations)} Diktaten · Ø {per_dictation:.1f} je Diktat"
         )
-        self._words_value.setText(f"{stats.total_words:n}")
+        if stats.non_cleanup_dictations:
+            fix_detail += f"\n{_ganzzahl(stats.non_cleanup_dictations)} Diktate umformuliert"
+        self._fix_detail.setText(fix_detail)
+        self._words_value.setText(_ganzzahl(stats.total_words))
         self._streak_label.setText(
             f"Aktuell {stats.streak} Tage · längste Serie {stats.longest_streak} Tage"
         )
@@ -514,25 +557,17 @@ class InsightsPage(QWidget):
             self._usage_box, self._usage_rows, usage_entries, "Noch keine Daten."
         )
 
-        try:
-            kinds = self.store.command_kinds()
-        except Exception:
-            kinds = []
-        kind_total = sum(count for _name, count in kinds)
-        command_entries = [
-            (name, (count / kind_total) if kind_total else 0.0, f"{count}×")
-            for name, count in kinds
-        ]
-        self._commands_rows = _rebuild_ranked_list(
-            self._commands_box, self._commands_rows, command_entries,
-            "Noch keine Befehle genutzt."
+        # Deterministisch aus der (ungefilterten) LEBENSZEIT-Wortzahl gewuerfelt,
+        # nicht aus der Zeitraum-Zahl (F-B2) — sonst behauptet die Karte auf
+        # "Heute" faelschlich, kaum etwas erreicht zu sein. Der feste Seed
+        # (`lifetime // 1000`) sorgt dafuer, dass der Titel nur wechselt, wenn
+        # wirklich 1000 Woerter dazugekommen sind — `refresh()` laeuft bei jedem
+        # Diktat, solange die Seite offen ist, und wuerfelte vorher jedes Mal neu
+        # (F-B3).
+        lifetime = int(stats.lifetime_words or 0)
+        self._local_label.setText(
+            word_milestone(lifetime, rng=random.Random(lifetime // 1000))
         )
-        self._commands_frame.setVisible(self._commands_allowed and bool(kinds))
-
-        # Groessenvergleich statt nackter Zahl. Bewusst NICHT bei jedem Neuzeichnen
-        # neu gewuerfelt, sondern einmal je Aufbau der Seite — sonst wechselte der
-        # Titel bei jedem Repaint und die Karte flackerte.
-        self._local_label.setText(word_milestone(int(stats.total_words or 0)))
 
         word_entries = [
             (word, share, f"{count}×")
@@ -542,16 +577,35 @@ class InsightsPage(QWidget):
             self._words_freq_box, self._words_freq_rows, word_entries, "Noch keine Daten."
         )
 
-        if stats.productive_daypart and stats.productive_weekday:
-            self._pattern_label.setText(
-                f"Du diktierst am meisten {_DAYPART_LABELS.get(stats.productive_daypart, stats.productive_daypart)}. "
-                f"Dein aktivster Wochentag ist {stats.productive_weekday}."
-            )
+        # Wochentag-/Tageszeit-Satz erst ab einem Zeitraum, der ueberhaupt eine
+        # Aussage zulaesst (F-B7): "Heute" hat nur einen Wochentag — die Aussage
+        # waere eine Tautologie, kein Muster.
+        range_days = self._range_days()
+        zeigt_tageszeit = bool(stats.productive_daypart) and \
+            (range_days is None or range_days >= 2)
+        zeigt_wochentag = bool(stats.productive_weekday) and \
+            (range_days is None or range_days >= 7)
+        if zeigt_tageszeit or zeigt_wochentag:
+            saetze = []
+            if zeigt_tageszeit:
+                saetze.append(
+                    f"Du diktierst am meisten "
+                    f"{_DAYPART_LABELS.get(stats.productive_daypart, stats.productive_daypart)}."
+                )
+            if zeigt_wochentag:
+                saetze.append(f"Dein aktivster Wochentag ist {stats.productive_weekday}.")
+            pattern_text = " ".join(saetze)
+        elif stats.productive_daypart or stats.productive_weekday:
+            # Genug Diktate insgesamt fuer ein Muster, aber der gewaehlte Zeitraum
+            # ist zu kurz dafuer — ein anderer Grund als "noch nicht genug Diktate".
+            pattern_text = ("Für diesen Zeitraum noch kein verlässliches Muster — "
+                            "ein längerer Zeitraum zeigt mehr.")
         else:
-            self._pattern_label.setText(
+            pattern_text = (
                 "Noch nicht genug Diktate für eine Auswertung — nach ein paar Tagen "
                 "zeigen wir dir hier, wann du am produktivsten bist."
             )
+        self._pattern_label.setText(pattern_text + self._commands_line())
 
         self._processing_label.setText(
             _processing_summary(stats) + _latency_trend_line(self.store)
