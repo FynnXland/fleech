@@ -76,7 +76,7 @@ Loopback-Schutz.
 *< 5 ms · `pipeline.py`*
 
 **3 · Spracherkennung** — auf der Grafikkarte, mit CPU-Rückfall. Bekommt vorab
-einen Priming-Satz aus Wörterbuch, Bausteinen und gelerntem Vokabular. Sprache je
+einen Priming-Satz aus Wörterbuch und gelerntem Vokabular. Sprache je
 Profil: Deutsch, Englisch oder automatisch.
 *810 ms Ø · `stt/faster_whisper_stt.py`*
 

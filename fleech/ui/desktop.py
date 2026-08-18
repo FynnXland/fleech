@@ -751,9 +751,6 @@ class DesktopApp(
                                          self.settings.output.dictionary_usage)
         elif section == "onboarding":
             self.show_onboarding()
-        elif section == "snippets":
-            self.pipeline.set_snippets(self.settings.output.snippets,
-                                       self.settings.output.snippet_keyword)
         elif section == "adaptive":
             self.pipeline.adaptive = self.settings.advanced.adaptive_cleanup
             if self.settings.advanced.adaptive_cleanup:

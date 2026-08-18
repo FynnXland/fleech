@@ -1,21 +1,24 @@
-"""Ausgabeformate und Bausteine: Was aus dem Diktat wird, statt nur wie geglaettet.
+"""Ausgabeformate und Formel-Platzhalter: Was aus dem Diktat wird, statt nur wie
+geglaettet.
 
 Beide teilen dieselbe Rueckfallebene: Liefert das Format nicht (Prompt-Datei
-fehlt, Modell antwortet leer), landet der Text als normales Cleanup im Feld.
+fehlt, Modell antwortet leer) oder verschluckt das Modell einen Platzhalter,
+landet der Text als normales Cleanup bzw. als Rohtext-Geruest im Feld.
+
+Die Baustein-Tests dieser Datei sind mit den Text-Bausteinen in 5.11.0 entfallen
+(Befund E-1): kein Baustein in 1399 Diktaten, kein wiederkehrender Text im
+Verlauf. Was daran wirklich schuetzte — die Formel-Platzhalter-Pruefung aus C-3 —
+wird hier weiter geprueft, jetzt am verbliebenen Formel-Zweig.
 """
 
 
 from pipelinehelpers import (
     AUDIO,
-    CLEAN_NONTRIVIAL,
     FakeLLM,
-    RAW_NONTRIVIAL,
     make_pipeline,
 )
 
 PE_RAW = "ähm kannst du mir den code cleaner machen also vor allem parse config"
-
-SNIPPET_LINES = ["Signatur => Viele Grüße\nAlex"]
 
 
 def test_prompt_mode_structures_dictation():
@@ -51,95 +54,44 @@ def test_prompt_mode_without_prompt_file_degrades_to_cleanup():
     assert injector.injected == [PE_RAW]
 
 
-def test_reiner_baustein_aufruf_ohne_llm():
-    """„Baustein Signatur" allein: nichts zu bereinigen → kein Modell-Roundtrip."""
-    p, llm, injector = make_pipeline("Baustein Signatur")
-    p.set_snippets(SNIPPET_LINES)
-    assert p.process(AUDIO, 16000) == "ok"
-    assert injector.injected == ["Viele Grüße\nAlex"]
-    assert llm.calls == []          # kein LLM angefasst
+FORMEL_RAW = "vielen dank die formel lautet x hoch zwei plus eins bis bald"
 
 
-def test_baustein_im_satz_geht_als_marker_ans_modell():
-    raw = "vielen dank für ihre nachricht bis bald Baustein Signatur"
-    # Das Modell sieht den Marker und gibt ihn (regelkonform) zurueck.
-    llm = FakeLLM(reply="Vielen Dank für Ihre Nachricht, bis bald. [[B1]]")
-    p, _, injector = make_pipeline(raw, llm=llm)
-    p.set_snippets(SNIPPET_LINES)
-    assert p.process(AUDIO, 16000) == "ok"
-    # Der Baustein-Inhalt darf dem Modell NIE gezeigt werden.
-    _system, user = llm.calls[0]
-    assert "[[B1]]" in user
-    assert "Viele Grüße" not in user
-    assert injector.injected == ["Vielen Dank für Ihre Nachricht, bis bald. Viele Grüße\nAlex"]
-
-
-def test_verschluckter_marker_rettet_den_baustein():
-    """Verliert das Modell den Platzhalter, gewinnt das Rohtext-Gerüst — der
-    Baustein darf nie ersatzlos verschwinden."""
-    raw = "vielen dank für ihre nachricht bis bald Baustein Signatur"
-    llm = FakeLLM(reply="Vielen Dank für Ihre Nachricht, bis bald.")  # Marker weg
-    p, _, injector = make_pipeline(raw, llm=llm)
-    p.set_snippets(SNIPPET_LINES)
-    assert p.process(AUDIO, 16000) == "fallback"
-    assert "Viele Grüße\nAlex" in injector.injected[0]
-
-
-def test_formel_und_baustein_im_selben_diktat_verliert_die_formel_nicht():
-    """C-3: Der Baustein-Zweig prüfte nur die [[B…]]-Marker. Verschluckte das Modell
-    den Formel-Marker, ersetzte `restore_formulas` ihn durch NICHTS — die Formel war
-    spurlos weg, mit grünem Haken und Bestätigungston."""
-    raw = "vielen dank die formel lautet x hoch zwei plus eins bis bald Baustein Signatur"
-    llm = FakeLLM(reply="Vielen Dank, die Formel lautet. Bis bald. [[B1]]")  # [[M1]] weg
-    p, _, injector = make_pipeline(raw, llm=llm)
+def test_formel_im_satz_geht_als_marker_ans_modell():
+    """Der Parser ersetzt die Formel VOR dem Modell — das Modell sieht nur `[[M1]]`
+    und bekommt die Regel dazu im System-Prompt."""
+    llm = FakeLLM(reply="Vielen Dank, die Formel lautet [[M1]]. Bis bald.")
+    p, _, injector = make_pipeline(FORMEL_RAW, llm=llm)
     p.auto_latex = True
-    p.set_snippets(SNIPPET_LINES)
+    assert p.process(AUDIO, 16000) == "ok"
+    system, user = llm.calls[0]
+    assert "[[M1]]" in user and "[[M1]]" in system
+    assert injector.injected == ["Vielen Dank, die Formel lautet $x^{2} + 1$. Bis bald."]
 
+
+def test_verschluckter_formel_marker_rettet_die_formel():
+    """C-3: Verschluckt das Modell den Platzhalter, ersetzt `restore_formulas` ihn
+    durch NICHTS — die Formel wäre spurlos weg, mit grünem Haken. Stattdessen
+    gewinnt das Rohtext-Gerüst.
+
+    Bis 5.10.x prüfte das derselbe Test am Baustein-Zweig (der Zweig, in dem C-3
+    entstand). Mit den Text-Bausteinen (Befund E-1) ist er entfallen; geprüft wird
+    jetzt der verbliebene Formel-Zweig, in dem dieselbe Prüfung sitzt."""
+    llm = FakeLLM(reply="Vielen Dank, die Formel lautet. Bis bald.")  # [[M1]] weg
+    p, _, injector = make_pipeline(FORMEL_RAW, llm=llm)
+    p.auto_latex = True
     assert p.process(AUDIO, 16000) == "fallback"
     assert "x^{2} + 1" in injector.injected[0]      # die Formel ist noch da
-    assert "Viele Grüße\nAlex" in injector.injected[0]
-    # Das Modell bekommt die Regel für BEIDE Platzhalter-Familien zu hören.
-    system, _user = llm.calls[0]
-    assert "[[B1]]" in system and "[[M1]]" in system
 
 
-def test_formel_und_baustein_gehen_gemeinsam_durch():
-    """Der Normalfall daneben: Bleiben beide Marker stehen, gibt es keinen Rückfall."""
-    raw = "vielen dank die formel lautet x hoch zwei plus eins bis bald Baustein Signatur"
-    llm = FakeLLM(reply="Vielen Dank, die Formel lautet [[M1]]. Bis bald. [[B1]]")
-    p, _, injector = make_pipeline(raw, llm=llm)
-    p.auto_latex = True
-    p.set_snippets(SNIPPET_LINES)
-
-    assert p.process(AUDIO, 16000) == "ok"
-    assert "$x^{2} + 1$" in injector.injected[0]
-    assert injector.injected[0].endswith("Viele Grüße\nAlex")
-
-
-def test_baustein_kuerzel_wird_der_erkennung_genannt():
-    p, _llm, _injector = make_pipeline("egal")
-    p.set_snippets(SNIPPET_LINES)
-    p.process(AUDIO, 16000)
-    assert "Baustein Signatur" in p.stt.prompts[0]
-
-
-def test_ohne_bausteine_bleibt_alles_wie_bisher():
-    p, llm, injector = make_pipeline(RAW_NONTRIVIAL, llm=FakeLLM(reply=CLEAN_NONTRIVIAL))
-    p.set_snippets([])
-    assert p.process(AUDIO, 16000) == "ok"
-    assert injector.injected == [CLEAN_NONTRIVIAL]
-    assert llm.calls
-
-
-def test_bausteine_gehen_immer_ans_grosse_modell():
-    """Live gemessen: das kleine Modell verschluckt Marker. Kurzer Satz + Baustein
-    darf trotzdem nie beim schnellen Modell landen."""
-    big = FakeLLM(reply="Danke, bis morgen. [[B1]]")
+def test_formeln_gehen_immer_ans_grosse_modell():
+    """Live gemessen: das kleine Modell verschluckt Platzhalter. Ein kurzer Satz mit
+    Formel darf trotzdem nie beim schnellen Modell landen."""
+    big = FakeLLM(reply="Vielen Dank, die Formel lautet [[M1]]. Bis bald.")
     fast = FakeLLM(reply="verschluckt den Marker")
-    p, _, injector = make_pipeline("danke bis morgen Baustein Signatur",
-                                   llm=big, fast_llm=fast)
-    p.set_snippets(SNIPPET_LINES)
+    p, _, injector = make_pipeline(FORMEL_RAW, llm=big, fast_llm=fast)
+    p.auto_latex = True
     assert p.process(AUDIO, 16000) == "ok"
     assert fast.calls == []          # das kleine Modell wurde nie gefragt
     assert big.calls
-    assert injector.injected == ["Danke, bis morgen. Viele Grüße\nAlex"]
+    assert "$x^{2} + 1$" in injector.injected[0]

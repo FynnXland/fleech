@@ -575,8 +575,8 @@ hinten verworfen, solange ihre Inhaltswörter im Rohtranskript keine Entsprechun
 haben; der erste gestützte Satz stoppt die Prüfung. Konservativ abgesichert: Der erste
 Satz bleibt immer stehen, und Sätze mit Formeln oder Platzhaltern werden nie
 angetastet (LaTeX teilt naturgemäß keine Wörter mit dem Gesprochenen). Erkannt wird das
-am Platzhalter-Präfix `[[M` (Formeln, `formula.formula_marker`) bzw. `[[B` (Bausteine,
-8a) im Satz. Der Prompt verbietet das Anhängen zusätzlich ausdrücklich („dein Text
+am Platzhalter-Präfix `[[M` (Formeln, `formula.formula_marker`) im Satz — seit 5.11.0
+die einzige Platzhalter-Familie. Der Prompt verbietet das Anhängen zusätzlich ausdrücklich („dein Text
 endet genau dort, wo der Sprecher aufgehört hat — auch mitten im Satz").
 
 ### 5.4a Ausschmückung — der häufigste reale Fehler
@@ -923,52 +923,21 @@ des Projekt-Gedächtnisses sind in [9](#9-verlauf-und-statistiken) bzw.
 
 ---
 
-## 8a. Text-Bausteine
+## 8a. Text-Bausteine (3.x–5.10) — entfernt in 5.11.0
 
-Ein gesprochenes Kürzel fügt einen festen Textblock ein — „Baustein Signatur" am Ende
-einer Mail, „Baustein Absage" für die Standardantwort. Format wie beim Wörterbuch, eine
-Zeile je Baustein:
+Ein gesprochenes Kürzel fügte einen festen Textblock ein („Baustein Signatur" am Ende
+einer Mail). Die Funktion ist in 5.11.0 **entfernt**: In 1399 gemessenen Diktaten war
+kein einziger Baustein angelegt, und im gesamten Verlauf gibt es keinen wiederkehrenden
+Text, der einer geworden wäre — ein Opt-in, das nie eingelöst wurde. Mit ihr entfallen
+`fleech/snippets.py`, die Baustein-Sektion der Seite „Textersetzung", die
+Platzhalter-Familie `[[B…]]` im Cleanup und die Felder `output.snippets` /
+`output.snippet_keyword` (alte `settings.json` laden weiter, die Schlüssel werden
+übergangen).
 
-```
-Signatur => Viele Grüße\nVorname Nachname
-Absage => Vielen Dank für die Anfrage — leider muss ich absagen.
-```
-
-Bausteine sind bewusst **deterministisch**: Kein Sprachmodell entscheidet über ihren
-Inhalt. Technisch läuft das über denselben Platzhalter-Mechanismus wie die Inline-Formeln
-(Kapitel 4.5): Der Aufruf wird **vor** dem Cleanup durch einen Marker `[[B1]]` ersetzt,
-das Modell sieht also nur den Marker, und erst **nach** allen Ausgabe-Guards tritt der
-echte Text an dessen Stelle. Das hat zwei Gründe:
-
-- Eine Signatur oder ein Code-Gerüst kann so nicht umformuliert werden.
-- Die Guards (Grounding, Wortgetreue) vergleichen Marker mit Marker — ein langer
-  dazugekommener Textblock löst also keinen Fehlalarm aus.
-
-Drei Details aus der Praxis:
-
-**Reine Baustein-Aufrufe überspringen das Modell.** Sagst du nur „Baustein Signatur",
-gibt es nichts zu bereinigen — der Text wird ohne LLM-Roundtrip eingefügt.
-
-**Historisch: Bausteine gingen immer ans große Modell.** Damals verschluckte das
-kleine Zweitmodell (`qwen2.5:3b`) im Live-Test die Marker in der Mehrzahl der kurzen
-Sätze. Seit 3.5.0 gibt es nur noch **ein** Modell (`gemma3:4b`) — damit erübrigt sich
-die Unterscheidung; siehe [13.2](#132-der-llm-zugang).
-
-**Formel und Baustein im selben Diktat.** Sagt man in einem Zug „Baustein Signatur"
-*und* eine Formel, sieht das Modell beide Platzhalter-Arten (`[[M…]]`, `[[B…]]`) und
-braucht für beide eine Ansage — sonst kannte es nur die Baustein-Regel und warf den
-Formel-Marker weg. Geht trotzdem ein Marker verloren, fällt Fleech auf das
-unbereinigte Roh-Gerüst zurück statt den Platzhalter ersatzlos verschwinden zu lassen
-— ein verlorener Baustein oder eine verlorene Formel wäre schlimmer als ein Diktat
-ohne jede Bereinigung.
-
-**Die Kürzel werden der Erkennung genannt.** Sie gehen als `initial_prompt` an Whisper —
-ohne dieses Priming wird „Baustein Signatur" gern zu „Bau Stein Signatur". Wird das
-Signalwort erkannt, aber kein Kürzel getroffen, steht das im Log: dann hat die Erkennung
-das Kürzel verhört, und ein kürzeres, deutlicheres Wort hilft.
-
-Das Signalwort ist bewusst vom Safe-Word für Befehle getrennt: Bausteine fügen nur ein,
-Befehle verändern vorhandenen Text — zwei sehr verschiedene Risiken.
+Die **Wortprobe für Wörterbuch-Einträge** bleibt: Sie ist die Brücke zwischen Erkenner
+und Wörterbuch und hat mit den Bausteinen nichts zu tun. Die Formel-Platzhalter
+(`[[M…]]`, Kapitel 4.5) bleiben ebenfalls — sie sind seither die einzige
+Platzhalter-Familie.
 
 ---
 
@@ -1372,8 +1341,7 @@ gesprochene Delimiter gibt es seit v3.0.0 nicht mehr.
 
 ### Textersetzung
 
-Drei Blöcke auf einer Seite (frühere Namen „Wörterbuch" und „Bausteine" sind
-zusammengelegt):
+Drei Blöcke auf einer Seite:
 
 - **Wörterbuch** (Format siehe [Kapitel 8](#8-das-persönliche-wörterbuch)) und
   **Ignoriert** — zwei mehrzeilige Editoren, je eine Zeile pro Eintrag, automatisch
@@ -1381,9 +1349,6 @@ zusammengelegt):
   `falsch => richtig`, die nie mehr vorgeschlagen werden — gespeist aus abgelehnten
   Rückfragen und dem „Ignorieren"-Knopf der Insights-Vorschläge; eine Zeile löschen
   holt den jeweiligen Vorschlag zurück.
-- **Bausteine** — ein mehrzeiliger Editor im Format `Kürzel => Text` (`\n` im Text
-  erzeugt einen Zeilenumbruch), plus ein Feld für das Signalwort (Standard
-  „Baustein"). Format und Wirkweise siehe [Kapitel 8a](#8a-text-bausteine).
 - **Gelerntes Vokabular** (Projekt-Gedächtnis, Kapitel 20) — eine Auswahlliste der in
   der aktuellen App gelernten Begriffe, häufigste zuerst, mit „Begriff vergessen" für
   genau einen. Bis 5.10.5 ließ sich dort nur alles auf einmal löschen — ein einzelner
@@ -1784,7 +1749,6 @@ fleech/
 ├── routing.py           Modus-Erkennung auf dem Rohtranskript
 ├── commands.py          Befehls-JSON, Plausibilitäts- und Löschguards
 ├── formula.py           gesprochene Mathematik → LaTeX (Parser, kein Modell)
-├── snippets.py          Text-Bausteine
 ├── textfilter.py        ▶ die Qualitäts-Guards: erfundene Ergänzungen, Wortsalat,
 │                          fremde Schrift, Sinnumkehr — Kern-Fachlogik
 ├── textutils.py         nur noch der Rahmen um den LLM-Call
@@ -1977,7 +1941,7 @@ Datei zur „letzten guten Fassung" gemacht und die Rettung wäre mit ihr weg ge
 
 `load()` erkennt zusätzlich einen **Rücksetzer, der wie eine gültige Datei aussieht**:
 Steht die `settings.json` auf allen „wertvollen" Feldern (Lizenz, Onboarding,
-Wörterbuch, Bausteine, Schnellwechsel, Profilliste, Hotkeys) auf Werkszustand, während
+Wörterbuch, Schnellwechsel, Profilliste, Hotkeys) auf Werkszustand, während
 die `.bak` in mindestens zweien davon abweicht — oder steht der Lizenzschlüssel leer,
 während er in der `.bak` gesetzt ist —, gilt die Datei als zurückgesetzt. Sie wird dann
 nicht geladen, sondern als `settings.json.zurueckgesetzt` beiseitegelegt, und Fleech

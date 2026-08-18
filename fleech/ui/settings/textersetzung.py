@@ -1,4 +1,4 @@
-"""Textersetzung — Woerterbuch, Bausteine, Kontext.
+"""Textersetzung — Woerterbuch, Ignorier-Liste, Projekt-Gedaechtnis.
 
 Baut die Seite in das uebergebene SettingsPanel; die Widget-Bauer
 (`panel._combo`, `panel._check`, ...) bleiben dort.
@@ -6,7 +6,7 @@ Baut die Seite in das uebergebene SettingsPanel; die Widget-Bauer
 
 from __future__ import annotations
 
-from PySide6.QtWidgets import QComboBox, QHBoxLayout, QLineEdit, QPushButton
+from PySide6.QtWidgets import QComboBox, QHBoxLayout, QPushButton
 
 from ..theme import style_button
 from .common import hint
@@ -93,41 +93,7 @@ def build(panel) -> None:
     vergessen.clicked.connect(panel._kontext_vergessen)
     form.addRow("", vergessen)
     panel._refresh_kontext_zeile()
-
-    # Bausteine — gesprochenes Kuerzel fuegt einen festen Textblock ein.
-    # BEWUSST auf derselben Seite wie das Woerterbuch (v3.12.0, aus einem
-    # externen Gutachten): Beides sind Text-Ersetzungen — eines wortbasiert,
-    # eines kuerzelbasiert. Als zwei getrennte Bereiche musste man raten, wo
-    # man sucht.
-    form.addRow("", hint(
-        "Feste Textblöcke, die du per Sprache abrufst — z. B. „Baustein Signatur“ "
-        "am Ende einer Mail. Der Text wird genau so eingefügt, wie er hier steht: "
-        "keine KI schaut ihn an, nichts wird umformuliert."
-    ))
-    panel._snippets_editor = panel._lines_editor(
-        form, "Bausteine", s.output.snippets, "snippets",
-        lambda lines: setattr(s.output, "snippets", lines),
-        placeholder=("Signatur => Viele Grüße\\nVorname Nachname\n"
-                     "Absage => Vielen Dank für die Anfrage — leider muss ich absagen.\n"
-                     "Docstring => \\\"\\\"\\\"\\n\\n\\\"\\\"\\\""),
-        hint_text="Eine Zeile pro Baustein: „Kürzel => Text“. „\\n“ im Text "
-                  "erzeugt einen Zeilenumbruch.",
-        height=220,
-    )
-    keyword = QLineEdit(s.output.snippet_keyword)
-    keyword.setPlaceholderText("leer = „Baustein“")
-    keyword.editingFinished.connect(
-        lambda: (setattr(s.output, "snippet_keyword", keyword.text().strip()),
-                 panel._changed("snippets"))
-    )
-    label_w, _ = panel._row_label(
-        "Signalwort",
-        "Das gesprochene Wort vor dem Kürzel. Bewusst getrennt vom Safe-Word für "
-        "Befehle: Bausteine fügen nur ein, Befehle verändern vorhandenen Text.",
-    )
-    form.addRow(label_w, keyword)
-    form.addRow("", hint(
-        "Wird das Signalwort erkannt, aber kein Kürzel getroffen, steht das im "
-        "Log — dann hat die Erkennung das Kürzel verhört und ein kürzeres, "
-        "deutlicheres Wort hilft."
-    ))
+    # Der Abschnitt „Bausteine" (gesprochenes Kuerzel → fester Textblock) stand bis
+    # 5.10.x hier. Entfernt in 5.11.0: In 1399 Diktaten war kein einziger Baustein
+    # angelegt, und im gesamten Verlauf gab es keinen wiederkehrenden Text, der
+    # einer gewesen waere. Die Wortprobe fuer Woerterbuch-Eintraege bleibt.

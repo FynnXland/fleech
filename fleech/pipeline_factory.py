@@ -48,7 +48,6 @@ def build_pipeline(config: AppConfig, settings: UserSettings, injector=None,
     pipeline = _build(config, settings, injector, status)
     pipeline.set_dictionary(settings.output.dictionary,
                             settings.output.dictionary_usage)
-    pipeline.set_snippets(settings.output.snippets, settings.output.snippet_keyword)
     pipeline.auto_latex = settings.math.enabled and settings.math.auto_latex
     pipeline.spoken_symbols = settings.output.spoken_symbols
     # Weitere Ausgabeformate: eine Prompt-Datei je Format. Fehlt sie, faellt genau

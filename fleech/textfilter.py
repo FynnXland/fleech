@@ -696,12 +696,13 @@ def trim_unsupported_tail(cleaned: str, raw: str, min_support: float = 0.5,
     removed = 0
     while len(parts) > 1:
         candidate = parts[-1]
-        # Platzhalter: Formeln heissen `[[M1]]` (`formula.formula_marker`),
-        # Bausteine `[[B1]]`. Frueher stand hier `[[F` — ein Name, den es im Code
-        # nirgends gibt; ein Schlusssatz mit Formel wurde deshalb als „erfunden"
-        # abgeschnitten (C-5).
-        if "$" in candidate or "\\" in candidate or "[[M" in candidate \
-                or "[[B" in candidate:
+        # Platzhalter: Formeln heissen `[[M1]]` (`formula.formula_marker`).
+        # Frueher stand hier `[[F` — ein Name, den es im Code nirgends gibt; ein
+        # Schlusssatz mit Formel wurde deshalb als „erfunden" abgeschnitten (C-5).
+        # `[[B` (Text-Bausteine) ist mit ihnen in 5.11.0 entfallen: Ein Schutz fuer
+        # eine Marker-Form, die niemand mehr erzeugt, waere nur noch eine Falle fuer
+        # den naechsten Leser.
+        if "$" in candidate or "\\" in candidate or "[[M" in candidate:
             break
         words = content_words(candidate)
         if len(words) < min_content_words:

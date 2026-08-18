@@ -400,13 +400,11 @@ class OutputSettings:
     # unsichtbares Feld advice_dismissed mit 30-Tage-Frist; die Frist war nur der
     # Ersatz fuer die fehlende Oberflaeche.)
     dictionary_ignores: list = field(default_factory=list)
-    # Text-Bausteine: rohe Zeilen "Kuerzel => Text" ("\n" im Text = Zeilenumbruch).
-    # Gesprochen als "<Signalwort> <Kuerzel>" — der Text wird deterministisch
-    # eingefuegt, ohne dass ein Modell ihn zu sehen bekommt.
-    snippets: list = field(default_factory=list)
-    # Signalwort fuer Bausteine. Leer = "Baustein". Bewusst getrennt vom Safe-Word:
-    # Bausteine sind stumpfes Einfuegen, Befehle veraendern vorhandenen Text.
-    snippet_keyword: str = ""
+    # `snippets` und `snippet_keyword` (Text-Bausteine: "<Signalwort> <Kuerzel>" →
+    # fester Textblock) sind nach 5.10.2 entfallen. In 1399 Diktaten war kein
+    # Baustein angelegt, und der Verlauf enthaelt keinen wiederkehrenden Text, der
+    # einer geworden waere. Alte settings.json laden weiter, die Schluessel werden
+    # beim Laden still uebergangen.
     # Wie oft kam ein Woerterbuch-Begriff zuletzt in eingefuegtem Text vor?
     # {begriff_klein: treffer}. Entscheidet, welche Begriffe ueber dem 60er-
     # Priming-Limit Vorrang haben — sonst verlieren Power-User das Priming
