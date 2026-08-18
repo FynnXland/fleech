@@ -43,7 +43,7 @@ _SHELL_WINDOW_CLASSES = {"Progman", "WorkerW"}
 # Fenstertitel koennen sehr lang werden (ganze Dateipfade). Fuer den Zweck
 # (Teilstring-Vergleich in Profil-Regeln) reicht ein Ausschnitt; die Grenze haelt
 # zugleich Log-Zeilen und die Historie lesbar.
-_MAX_TITLE_LEN = 300
+MAX_TITLE_LEN = 300
 
 
 def _window_title(hwnd) -> str:
@@ -54,7 +54,7 @@ def _window_title(hwnd) -> str:
         length = user32.GetWindowTextLengthW(hwnd)
         if length <= 0:
             return ""
-        buf = ctypes.create_unicode_buffer(min(length, _MAX_TITLE_LEN) + 1)
+        buf = ctypes.create_unicode_buffer(min(length, MAX_TITLE_LEN) + 1)
         user32.GetWindowTextW(hwnd, buf, len(buf))
         return buf.value.strip()
     except Exception:

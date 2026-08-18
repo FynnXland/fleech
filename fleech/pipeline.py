@@ -15,6 +15,7 @@ from .commands import (
     sounds_like_deletion,
 )
 from .document import DocumentTracker
+from . import gruende
 from .formula import apply_formulas, restore_formulas
 from .formula import markers_survived as formula_markers_survived
 from .routing import (
@@ -203,6 +204,11 @@ class Pipeline:
         # umformulierenden Formate.
         self.sprache = "de"
         self.last_error_kind = ""  # "" | "quota" | "provider" — fuer UI-Toasts
+        # Warum lief das letzte Diktat nicht glatt? Kurzer deutscher Grund, leer =
+        # alles glatt. Bis 5.10.3 stand das NUR im Protokoll — der Verlauf konnte
+        # nicht sagen, ob ein Rueckfall an Ollama, an der Sinnumkehr oder am
+        # Kontextfenster lag (H-2). Texte in `fleech/gruende.py`.
+        self.last_reason = ""
         # Fuer die Historie (Home/Insights): was ist beim letzten process() passiert?
         self.last_raw = ""
         self.last_injected = ""
@@ -227,6 +233,17 @@ class Pipeline:
         # STT-Serialisierung: faster-whisper ist nicht garantiert thread-sicher fuer
         # konkurrierende transcribe-Aufrufe auf demselben Modell.
         self._stt_lock = threading.Lock()
+
+    def _merke_grund(self, grund: str) -> None:
+        """Einen Grund festhalten — mehrere sammeln sich in EINER Zeile.
+
+        Ein Diktat kann zweierlei treffen (Rohtext gekuerzt UND danach ein
+        Rueckfall); den zweiten Grund den ersten ueberschreiben zu lassen waere
+        genau die Unschaerfe, gegen die das Feld angetreten ist."""
+        if not grund or grund in self.last_reason:
+            return
+        self.last_reason = (f"{self.last_reason}{gruende.TRENNER}{grund}"
+                            if self.last_reason else grund)
 
     def _finalize(self, text: str) -> str:
         """Letzte Textstufe vor dem Einfuegen — nach allen Pruefungen.
@@ -301,6 +318,7 @@ class Pipeline:
         self._ziel_app = app
         self._ziel_fenster = window_title
         self.last_error_kind = ""
+        self.last_reason = ""
         self.last_raw = ""
         self.last_injected = ""
         self.last_mode = "cleanup"
@@ -390,6 +408,7 @@ class Pipeline:
             if self._handle_command(f"{trig}, {raw}"):
                 return "ok"
             # Befehl fehlgeschlagen → Cleanup-Fallback (nichts geht verloren).
+            self._merke_grund(gruende.BEFEHL_GESCHEITERT)
             fallback = True
         elif output_format in REWRITING_FORMATS or prompt_mode:
             # Umformulierendes Ausgabeformat (Profil „E-Mail"/„KI-Prompt" oder der
@@ -399,6 +418,7 @@ class Pipeline:
             self.last_mode = Mode.PROMPT.value if fmt == "prompt" else fmt
             if self._handle_format(raw, fmt):
                 return "ok"
+            self._merke_grund(gruende.FORMAT_GESCHEITERT)
             fallback = True
         else:
             self.last_mode = mode.value
@@ -519,12 +539,14 @@ class Pipeline:
         # Formel verschwand hier bisher spurlos, mit gruenem Haken (C-3).
         if formulas and not formula_markers_survived(expanded, text, len(formulas)):
             log.warning("Cleanup hat Formel-Platzhalter verloren — nutze Rohtext-Gerüst.")
+            self._merke_grund(gruende.FORMEL_MARKER)
             text, fallback = expanded, True
         text = restore_formulas(text, formulas)
         if not markers_survived(expanded, text, len(snippet_texts)):
             # Ein verschluckter Marker hiesse: der Baustein faellt ersatzlos weg.
             # Lieber das unbereinigte Geruest — der Baustein ist der Zweck der Uebung.
             log.warning("Cleanup hat Baustein-Platzhalter verloren — nutze Rohtext-Gerüst.")
+            self._merke_grund(gruende.BAUSTEIN_MARKER)
             text, fallback = expanded, True
         return restore_snippets(text, snippet_texts), fallback
 
@@ -542,6 +564,7 @@ class Pipeline:
                                              force_big=True)
         if not formula_markers_survived(text, cleaned, len(formulas)):
             log.warning("Cleanup hat Formel-Platzhalter verloren — nutze Rohtext-Gerüst.")
+            self._merke_grund(gruende.FORMEL_MARKER)
             return text, True
         return cleaned, fallback
 
@@ -597,6 +620,7 @@ class Pipeline:
                     tier = "complex"
                 except Exception as exc2:
                     log.warning("Cleanup fehlgeschlagen (%s) — Roh-Transkript.", exc2)
+                    self._merke_grund(gruende.OLLAMA)
                     return raw, True
             else:
                 log.warning(
@@ -604,6 +628,7 @@ class Pipeline:
                     "Laeuft Ollama bzw. stimmt die LLM-Config?",
                     exc,
                 )
+                self._merke_grund(gruende.OLLAMA)
                 return raw, True
         self.last_llm_ms = int((time.perf_counter() - t0) * 1000)
         log.info("Cleanup (%.2f s, %s)", time.perf_counter() - t0, tier)
@@ -617,6 +642,7 @@ class Pipeline:
                 "fuege Roh-Transkript ein. num_ctx in der config.yaml erhoehen.",
                 len(raw.split()),
             )
+            self._merke_grund(gruende.KONTEXT_VOLL)
             return raw.strip(), True
         # Ankuendigungszeile ("Hier ist der bereinigte Text:") deterministisch weg —
         # Prompt-Regeln allein halten das nicht bei jedem Modell.
@@ -626,6 +652,7 @@ class Pipeline:
             # (C-4): Der Nutzer bekam gruenen Haken und Bestaetigungston fuer ein
             # unbereinigtes Transkript. Wie jeder andere Rueckfall hier: fallback.
             log.warning("Cleanup lieferte eine leere Antwort — fuege Roh-Transkript ein.")
+            self._merke_grund(gruende.LEERE_ANTWORT)
             return raw, True
         # Schicht 3: Divergenz-Netz. Hat das Modell den Text als Prompt AUSGEFUEHRT
         # statt ihn zu bereinigen, ist die Ausgabe erfundener Inhalt → niedriges
@@ -644,6 +671,7 @@ class Pipeline:
                     "fuege Roh-Transkript ein. Ausgabe war: %s",
                     blocks, len(raw.split()), cleaned[:120],
                 )
+                self._merke_grund(gruende.FORMEL_UNPLAUSIBEL)
                 return raw.strip(), True
         else:
             check_text = cleaned
@@ -655,6 +683,7 @@ class Pipeline:
                     "fuege Roh-Transkript ein. Ausgabe war: %s",
                     grounding, cleaned[:120],
                 )
+                self._merke_grund(gruende.AUSGEFUEHRT)
                 return raw.strip(), True
         return self._enforce_verbatim(raw, cleaned, system, llm, intervention)
 
@@ -684,6 +713,7 @@ class Pipeline:
         if collapsed != raw:
             log.warning("STT-Wiederholung am Ende gekuerzt (%d → %d Zeichen): %s",
                         len(raw), len(collapsed), raw[len(collapsed):].strip()[:120])
+            self._merke_grund(gruende.ENDE_GEKUERZT)
         # Fremde Schrift zuerst: Der sicherste Marker (Kyrillisch/CJK/Ersatzzeichen
         # in einem deutschen Diktat kann nur geraten sein) und der einzige, der auch
         # bei voellig unstrukturiertem Sprachensalat greift.
@@ -693,10 +723,12 @@ class Pipeline:
                 "STT-Halluzination verworfen (fremde Schrift, %d Woerter) — lief "
                 "Musik oder Sprache mit? %s", len(dropped.split()), dropped[:160],
             )
+            self._merke_grund(gruende.FREMDE_SCHRIFT)
         rest, dropped2 = strip_hallucinated_tail(cleaned)
         if dropped2:
             log.warning("STT-Halluzination am Ende verworfen (%d Woerter): %s",
                         len(dropped2.split()), dropped2[:160])
+            self._merke_grund(gruende.DOMINANZ_SCHWANZ)
             cleaned = rest
         # Vierter Fall: fremdsprachiger Wortsalat, der die drei Filter oben
         # unterlaeuft — lateinische Schrift, kurze Woerter, kein sauberer Loop
@@ -710,6 +742,7 @@ class Pipeline:
         if dropped3:
             log.warning("STT-Wortsalat am Ende verworfen (%d Woerter): %s",
                         len(dropped3.split()), dropped3[:160])
+            self._merke_grund(gruende.WORTSALAT)
             cleaned = rest3
         # Fuenfter Fall: die Schleife steht MITTEN im Text. Die vier Guards oben
         # sehen nur den Schwanz — real eingefuegt wurden „G-G-G-G-…" (34x),
@@ -721,6 +754,7 @@ class Pipeline:
         if gekuerzt:
             log.warning("STT-Wiederholung im Text gekuerzt (%d Woerter): %s",
                         len(gekuerzt.split()), gekuerzt[:160])
+            self._merke_grund(gruende.WIEDERHOLUNG_INNEN)
             cleaned = rest4
         verworfen = " ".join(
             x for x in (gekuerzt, dropped3, dropped2, dropped) if x).strip()
@@ -843,6 +877,7 @@ class Pipeline:
                 "Auch der Zweitversuch formuliert um (wortgetreu %.2f) — fuege das "
                 "Roh-Transkript ein. Ausgabe war: %s", ratio, cleaned[:120],
             )
+            self._merke_grund(gruende.UMFORMULIERT)
             return raw.strip(), True
         log.info("Wortgetreue nach Zweitversuch: %.2f", ratio)
         return self._check_meaning(raw, cleaned, system, llm)
@@ -877,6 +912,9 @@ class Pipeline:
             "Auch der Zweitversuch dreht die Aussage (%s) — fuege das Roh-Transkript "
             "ein. Ausgabe war: %s", problem, cleaned[:120],
         )
+        # MIT Detail: „Aussage verändert: 1 Zahl fehlt" ist nachpruefbar, die
+        # blosse Feststellung waere es nicht.
+        self._merke_grund(gruende.mit_detail(gruende.SINN_GEDREHT, problem))
         return raw.strip(), True
 
     def _verbatim_retry(self, raw: str, system: str, llm) -> str:
@@ -901,6 +939,7 @@ class Pipeline:
         """Fallback nach gescheitertem Befehl: NUR den Diktat-Teil vor dem Safe-Word
         (plus ggf. die Fortsetzung nach „<Trigger> Ende") bereinigen und einfuegen —
         Safe-Word und Anweisung tauchen so nie im Ergebnis auf."""
+        self._merke_grund(gruende.BEFEHL_GESCHEITERT)
         pre = text_before_trigger(command_part, self.trigger_word)
         parts = [p for p in (pre, continuation) if p and p.strip()]
         if not parts:

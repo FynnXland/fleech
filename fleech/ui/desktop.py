@@ -41,7 +41,7 @@ from .desktopapp import (
 # re-exportiert, weil `packaging/stop_fleech.py` ihn von `fleech.ui.desktop` holt —
 # und weil `_wake_running_instance()` unten die Gegenstelle ist.
 from .desktopapp.lebenszyklus import IPC_NAME  # noqa: F401
-from .windowsfocus import FocusProbe
+from .windowsfocus import MAX_TITLE_LEN, FocusProbe
 
 log = logging.getLogger(__name__)
 
@@ -495,6 +495,14 @@ class DesktopApp(
                 status=result,
                 stt_ms=self.pipeline.last_stt_ms,
                 llm_ms=self.pipeline.last_llm_ms,
+                # Warum, unter welchem Profil, in welchem Fenster — und was die
+                # Roh-Guards weggeschnitten haben (V-1). Der Titel haengt an
+                # derselben Schranke wie der uebrige Verlauf (`save_history`, die
+                # Bedingung oben) und wird wie dort gekuerzt: kein zweiter Weg.
+                reason=self.pipeline.last_reason,
+                profile=prof.name,
+                title=(getattr(self, "_record_title", "") or "")[:MAX_TITLE_LEN],
+                dropped=self.pipeline.last_dropped_tail,
             )
             self.store.add(record)
             self.bus.history_changed.emit()

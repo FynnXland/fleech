@@ -22,7 +22,7 @@ from ...profiles import PROFILE_FORMATS
 from ...usersettings import UserSettings
 from ..dialogs import TranscriptDetailDialog
 from ..theme import (
-    ACCENT, MUTED, NAV_ACTIVE_BG, PAGE_MARGINS, PAGE_SPACING, ROW_HOVER,
+    ACCENT, AMBER, MUTED, NAV_ACTIVE_BG, PAGE_MARGINS, PAGE_SPACING, ROW_HOVER,
     SIDEBAR, TEXT, TRACK, page_title_qss,
 )
 from ..widgets import _ElidedLabel, _card, _x_icon, enable_card_hiding
@@ -82,6 +82,19 @@ class HistoryEntryRow(QFrame):
         del_btn.hide()
         row.addWidget(time_label)
         row.addWidget(text_label, 1)
+        # Amberner Punkt, wenn etwas nicht glatt lief (V-1). Bisher sah ein Diktat,
+        # bei dem der Rohtext einsprang oder Woerter wegfielen, im Verlauf aus wie
+        # jedes andere — der Grund war nur im Moment des Einfuegens sichtbar.
+        # Feste Breite und nur ein Zeichen: kein Layoutbruch in der Zeile.
+        grund = str(entry.get("reason", "") or "").strip()
+        if grund:
+            mark = QLabel("●")
+            mark.setStyleSheet(
+                f"color: {AMBER}; font-size: 8pt; background: transparent;")
+            mark.setFixedWidth(12)
+            mark.setToolTip(grund)
+            row.addWidget(mark)
+            self.setToolTip(f"{grund} — klicken für den vollen Text")
         row.addWidget(del_btn)
 
     def mousePressEvent(self, event) -> None:

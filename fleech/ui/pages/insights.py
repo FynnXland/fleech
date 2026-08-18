@@ -52,8 +52,30 @@ def _tier_names() -> tuple:
             ("complex", "großes Modell"))
 
 
-def _processing_summary(stats) -> str:
-    """Text der "Verarbeitung"-Karte: Ø Latenzen, Routing-Verteilung, Fallback-Quote."""
+def _gruende_zeile(gruende_zaehler) -> str:
+    """„Rückfälle: 2× Ollama · 1× Sinnumkehr" ("" = nichts zu melden).
+
+    Die Fallback-Quote sagt WIE OFT, nie WARUM (H-2). Kurzform statt vollem Satz:
+    In einer Aufzaehlung zaehlt die Unterscheidbarkeit, den ganzen Grund zeigt der
+    Detail-Dialog des Eintrags."""
+    from collections import Counter
+
+    from ...gruende import kurzform
+
+    kurz: Counter = Counter()
+    for grund, anzahl in (gruende_zaehler or {}).items():
+        kurz[kurzform(grund)] += anzahl
+    if not kurz:
+        return ""
+    teile = [f"{anzahl}× {name}" for name, anzahl in kurz.most_common(4)]
+    return "\nRückfälle: " + " · ".join(teile)
+
+
+def _processing_summary(stats, gruende_zaehler=None) -> str:
+    """Text der "Verarbeitung"-Karte: Ø Latenzen, Routing-Verteilung, Fallback-Quote.
+
+    `gruende_zaehler`: {Grund: Anzahl} aus `HistoryStore.reasons(since)` — None
+    laesst die Gruende-Zeile weg (Aufrufer ohne Verlauf, z. B. Tests)."""
     if not stats.avg_stt_ms and not (stats.tier_shares or {}):
         return "Noch keine Daten — Latenzen werden ab dem nächsten Diktat erfasst."
     lines = []
@@ -70,7 +92,7 @@ def _processing_summary(stats) -> str:
         lines.append("Routing: " + " · ".join(parts))
     lines.append(f"Fallback-Quote: {round(stats.fallback_rate * 100)} % "
                  f"(Diktate, die auf das Roh-Transkript zurückfielen)")
-    return "\n".join(lines)
+    return "\n".join(lines) + _gruende_zeile(gruende_zaehler)
 
 
 # Vorschlaege: wie viele gleichzeitig gezeigt werden und wie viele dafuer geprueft
@@ -490,7 +512,8 @@ class InsightsPage(QWidget):
         return None if not tage else _time.time() - tage * 86400
 
     def refresh(self) -> None:
-        stats = self.store.stats(since=self._range_since())
+        seit = self._range_since()
+        stats = self.store.stats(since=seit)
         self._gauge.set_wpm(stats.wpm)  # Kennzahl steht IM Gauge (Design)
         self._time_label.setText(_diktierzeit_text(stats))
         self._fix_value.setText(f"{stats.corrected_words:n}")
@@ -553,7 +576,10 @@ class InsightsPage(QWidget):
                 "zeigen wir dir hier, wann du am produktivsten bist."
             )
 
+        # Gruende aus DEMSELBEN Zeitraum wie die Quote darueber — eine Zeile, die
+        # anders rechnet als die Zahl direkt ueber ihr, wuerde nur verwirren.
         self._processing_label.setText(
-            _processing_summary(stats) + _latency_trend_line(self.store)
+            _processing_summary(stats, self.store.reasons(since=seit))
+            + _latency_trend_line(self.store)
         )
         self._refresh_advice()

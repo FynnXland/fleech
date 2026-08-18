@@ -89,7 +89,11 @@ CREATE TABLE IF NOT EXISTS dictations (
     tier TEXT NOT NULL DEFAULT '',
     status TEXT NOT NULL DEFAULT 'ok',
     stt_ms INTEGER NOT NULL DEFAULT 0,
-    llm_ms INTEGER NOT NULL DEFAULT 0
+    llm_ms INTEGER NOT NULL DEFAULT 0,
+    reason TEXT NOT NULL DEFAULT '',
+    profile TEXT NOT NULL DEFAULT '',
+    title TEXT NOT NULL DEFAULT '',
+    dropped TEXT NOT NULL DEFAULT ''
 );
 CREATE INDEX IF NOT EXISTS idx_dictations_ts ON dictations(ts);
 """
@@ -99,6 +103,13 @@ CREATE INDEX IF NOT EXISTS idx_dictations_ts ON dictations(ts);
 _MIGRATION_COLUMNS = {
     "stt_ms": "INTEGER NOT NULL DEFAULT 0",
     "llm_ms": "INTEGER NOT NULL DEFAULT 0",
+    # Warum lief es nicht glatt, welches Profil galt, in welchem Fenster, und was
+    # haben die Roh-Guards weggeschnitten (H-2/F-9/G-5/C-6). Altzeilen bleiben leer
+    # — jede Auswertung muss das aushalten, wie bei `tier`.
+    "reason": "TEXT NOT NULL DEFAULT ''",
+    "profile": "TEXT NOT NULL DEFAULT ''",
+    "title": "TEXT NOT NULL DEFAULT ''",
+    "dropped": "TEXT NOT NULL DEFAULT ''",
 }
 
 
@@ -126,6 +137,13 @@ class DictationRecord:
     status: str = "ok"
     stt_ms: int = 0
     llm_ms: int = 0
+    # Der erklaerende Teil: Grund des Rueckfalls/der Kuerzung (leer = lief glatt),
+    # wirksames Profil, gekuerzter Fenstertitel und der von den Roh-Guards
+    # verworfene Transkript-Schwanz (damit ein Fehlgriff heilbar ist, C-6).
+    reason: str = ""
+    profile: str = ""
+    title: str = ""
+    dropped: str = ""
 
 
 @dataclass
@@ -172,8 +190,9 @@ class HistoryStore:
             with self._connect() as con:
                 con.execute(
                     "INSERT INTO dictations (ts, raw, cleaned, words, corrected, "
-                    "audio_seconds, app, mode, tier, status, stt_ms, llm_ms) "
-                    "VALUES (?,?,?,?,?,?,?,?,?,?,?,?)",
+                    "audio_seconds, app, mode, tier, status, stt_ms, llm_ms, "
+                    "reason, profile, title, dropped) "
+                    "VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
                     (
                         record.ts, record.raw, record.cleaned,
                         len(record.cleaned.split()),
@@ -181,6 +200,8 @@ class HistoryStore:
                         record.audio_seconds, record.app, record.mode,
                         record.tier, record.status,
                         int(record.stt_ms), int(record.llm_ms),
+                        record.reason, record.profile, record.title,
+                        record.dropped,
                     ),
                 )
         except Exception:
@@ -206,8 +227,11 @@ class HistoryStore:
             rows = con.execute(
                 # Bewusst OHNE `raw`: Die Liste zeigt 50 Eintraege, der Rohtext
                 # wird nur fuer den Einzelfall gebraucht (Detailansicht,
-                # Nachbearbeitung) — dafuer gibt es `raw_text(id)`.
-                "SELECT id, ts, cleaned, app, mode, words FROM dictations "
+                # Nachbearbeitung) — dafuer gibt es `raw_text(id)`. Der
+                # erklaerende Teil kommt dagegen mit: Die Timeline markiert
+                # damit die Eintraege, bei denen etwas nicht glatt lief.
+                "SELECT id, ts, cleaned, app, mode, words, reason, profile, "
+                "title, dropped FROM dictations "
                 "ORDER BY ts DESC LIMIT ?", (limit,),
             ).fetchall()
         return [dict(r) for r in rows]
@@ -284,6 +308,37 @@ class HistoryStore:
             log.exception("Historie: Fallback-Trend nicht ermittelbar.")
             return 0.0, 0.0, 0
         return recent, previous, count
+
+    def reasons(self, since: float | None = None) -> Counter:
+        """{Grund: Anzahl} — warum lief etwas nicht glatt?
+
+        Zaehlt die Rueckfaelle (`status='fallback'`) UND die Kuerzungen am
+        Rohtext, denn beide sind erklaerungsbeduerftig: Ein gekuerztes Diktat
+        traegt einen gruenen Haken und hat trotzdem Woerter verloren. Ein
+        Eintrag kann mehrere Gruende tragen (Trenner `gruende.TRENNER`); die
+        werden einzeln gezaehlt, sonst entstuende fuer jede Kombination eine
+        eigene Kategorie.
+
+        Altzeilen ohne die Spalte bleiben leer und faerben nichts ein.
+        """
+        from .gruende import TRENNER
+
+        where = " AND ts >= ?" if since else ""
+        p: tuple = (since,) if since else ()
+        try:
+            with self._connect() as con:
+                rows = con.execute(
+                    "SELECT reason FROM dictations WHERE reason != ''" + where, p
+                ).fetchall()
+        except Exception:
+            log.exception("Historie: Gruende nicht ermittelbar.")
+            return Counter()
+        counts: Counter = Counter()
+        for (reason,) in rows:
+            for teil in str(reason or "").split(TRENNER):
+                if teil.strip():
+                    counts[teil.strip()] += 1
+        return counts
 
     def latency_by_day(self, days: int = 14) -> list[tuple[str, int]]:
         """[(Datum, Ø KI-Latenz in ms)] — macht Modell-Kaltstarts sichtbar."""
