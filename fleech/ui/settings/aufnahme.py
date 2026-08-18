@@ -61,7 +61,7 @@ def build(panel) -> None:
     panel._add_hotkey_field(
         form, "Diktat-Hotkey", "hotkey", "dictate", "f9",
         hint_text="„Aufnehmen“ klicken, dann Taste, Kombination oder Maustaste "
-                  "4/5/Mitte drücken. Esc = abbrechen.",
+                  "4/5/Mitte drücken. Esc, Entf oder Backspace = Bindung löschen.",
     )
     # Das Feld „Mathe-Umschalt" ist mit v3.7.2 entfallen: Den Modus gibt es seit
     # v3.0.0 nicht mehr (Formeln entstehen im lokalen Parser), die Taste war also
@@ -69,7 +69,7 @@ def build(panel) -> None:
     panel._add_hotkey_field(
         form, "KI-Prompting", "prompt_toggle_hotkey", "prompt_toggle", "ctrl+alt+p",
         hint_text="Nur WÄHREND einer Aufnahme: dieses Diktat wird als strukturierter "
-                  "KI-Prompt formuliert. Dauerhaft umschalten: Punkt in der Pille.",
+                  "KI-Prompt formuliert. Dauerhaft: Profil „KI-Prompt“ wählen.",
     )
     panel._add_hotkey_field(
         form, "Rohtext einsetzen", "undo_hotkey", "undo", "ctrl+alt+z",
@@ -189,7 +189,7 @@ def _freihand_block(panel, s, form) -> None:
         )
         panel._startwort_probe_btn.clicked.connect(panel._startwort_probe_starten)
         form.addRow("", panel._startwort_probe_btn)
-    panel._combo(
+    panel._freihand_genauigkeit = panel._combo(
         form, "Genauigkeit", [
             ("diktat", "Wie beim Diktat — empfohlen"),
             ("tiny", "Sparsam (schwache Rechner)"),
@@ -206,17 +206,17 @@ def _freihand_block(panel, s, form) -> None:
                   "brauchbare Grafikkarte, dafür deutlich schlechter im Hören. "
                   "Wirkt nach einem Neustart von Fleech.",
     )
-    panel._text_field(
+    panel._freihand_abbruchwort = panel._text_field(
         form, "Abbruchwort", f.abbruchwort, "freihand",
         lambda v: setattr(f, "abbruchwort", v),
-        hint_text="Fällt dieses Wort im Diktat, wird verworfen statt eingefügt. "
-                  "Es startet bewusst KEINE neue Aufnahme — sonst würde ein "
-                  "Versprecher zur Endlosschleife.",
+        hint_text="Nur im Freihand-Modus: Fällt dieses Wort im Diktat, wird "
+                  "verworfen statt eingefügt. Es startet bewusst KEINE neue "
+                  "Aufnahme — sonst würde ein Versprecher zur Endlosschleife.",
     )
     # „Sprechpause bis Ende" steht jetzt oben beim Bedienmodus: Sie beendet
     # auch den Anstupsen-Modus, und derselbe Wert an zwei Stellen zu regeln
     # wäre eine Einladung, ihn zweimal verschieden einzustellen.
-    panel._check(
+    panel._freihand_fehlersuche = panel._check(
         form, "Fehlersuche", getattr(f, "diagnose", False), "freihand",
         lambda v: setattr(f, "diagnose", v),
         hint_text="NUR zur Fehlersuche: Hebt die geprüften Startwort-Fenster "
@@ -227,7 +227,7 @@ def _freihand_block(panel, s, form) -> None:
                   "ausschalten — sonst wird dauerhaft Ton mitgeschrieben. "
                   "Wirkt nach einem Neustart von Fleech.",
     )
-    panel._lines_editor(
+    panel._freihand_ausgeschlossen = panel._lines_editor(
         form, "Nicht lauschen in", f.ausgeschlossene_apps, "freihand",
         lambda lines: setattr(f, "ausgeschlossene_apps", lines),
         placeholder="Teams.exe\nDiscord.exe\ncs2.exe",
@@ -243,7 +243,9 @@ def _freihand_block(panel, s, form) -> None:
         # damit etwas erreichen. Nur die Widgets, die das Panel ohnehin
         # festhaelt — ein Durchlauf durch das Layout waere ein Umweg ueber eine
         # Qt-API, die je nach Bindung anders heisst.
-        for name in ("_freihand_cb", "_startwort_liste", "_startwort_probe_btn"):
+        for name in ("_freihand_cb", "_startwort_liste", "_startwort_probe_btn",
+                     "_freihand_genauigkeit", "_freihand_abbruchwort",
+                     "_freihand_fehlersuche", "_freihand_ausgeschlossen"):
             widget = getattr(panel, name, None)
             if widget is not None:
                 widget.setEnabled(False)

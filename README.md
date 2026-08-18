@@ -92,9 +92,9 @@ Vier Modi:
   letzten Satz formeller."* Das wirkt nur auf selbst diktierten Text derselben Sitzung:
   Fleech kann fremde Textfelder nicht lesen, es führt Buch über das eigene Einfügen und
   ersetzt per Backspaces. Ein Fensterwechsel verwirft den Kontext bewusst.
-- **Formeln** — `Strg+Alt+M` oder „Formel … Formel Ende": gesprochene Mathematik wird zu
-  LaTeX, in einem deterministischen Parser ohne Modell. Mehrdeutiges wird als unsicher
-  markiert und vor dem Einfügen gezeigt.
+- **Formeln** — automatisch im Fließtext erkannt (abschaltbar unter Einstellungen →
+  Ausgabe): gesprochene Mathematik wird zu LaTeX, in einem deterministischen Parser
+  ohne Modell. Mehrdeutiges wird als unsicher markiert und vor dem Einfügen gezeigt.
 - **KI-Prompting** — `Strg+Alt+P`: aus dem Diktat wird ein strukturierter Prompt.
 
 **Profile bestimmen, WAS aus dem Diktat wird.** Drei Wege zum Wechseln, alle auch

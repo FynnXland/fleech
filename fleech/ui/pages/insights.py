@@ -28,6 +28,30 @@ from ..widgets import (
 log = logging.getLogger(__name__)
 
 
+def _tier_names() -> tuple:
+    """Beschriftung der Routing-Stufen fuer die "Verarbeitung"-Karte.
+
+    A-2/E-10: „schnelles Modell / großes Modell" behauptet ein zweites, kleineres
+    Modell, das es seit v3.5.0 nicht mehr gibt (cleanup_fast ist BEWUSST dasselbe
+    Modell wie cleanup, siehe config.yaml). Solange das so ist, heissen die Stufen
+    ehrlich „kurzer Weg" (weniger Pruefung) und „voller Weg" — taucht kuenftig ein
+    wirklich anderes, schnelleres Modell auf, tragen sie wieder die alten Namen.
+    """
+    gleich = True
+    try:
+        from ...config import load_config
+
+        cfg = load_config()
+        gleich = cfg.llm_cleanup.model == cfg.llm_cleanup_fast.model
+    except Exception:
+        log.debug("Konfiguration fuer Routing-Beschriftung nicht lesbar.", exc_info=True)
+    if gleich:
+        return (("trivial", "ohne KI"), ("simple", "kurzer Weg"),
+                ("complex", "voller Weg"))
+    return (("trivial", "ohne KI"), ("simple", "schnelles Modell"),
+            ("complex", "großes Modell"))
+
+
 def _processing_summary(stats) -> str:
     """Text der "Verarbeitung"-Karte: Ø Latenzen, Routing-Verteilung, Fallback-Quote."""
     if not stats.avg_stt_ms and not (stats.tier_shares or {}):
@@ -41,10 +65,8 @@ def _processing_summary(stats) -> str:
         )
     shares = stats.tier_shares or {}
     if shares:
-        tier_names = (("trivial", "ohne KI"), ("simple", "schnelles Modell"),
-                      ("complex", "großes Modell"))
         parts = [f"{round(shares[key] * 100)} % {label}"
-                 for key, label in tier_names if key in shares]
+                 for key, label in _tier_names() if key in shares]
         lines.append("Routing: " + " · ".join(parts))
     lines.append(f"Fallback-Quote: {round(stats.fallback_rate * 100)} % "
                  f"(Diktate, die auf das Roh-Transkript zurückfielen)")

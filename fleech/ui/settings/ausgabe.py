@@ -56,8 +56,18 @@ def build(panel) -> None:
                  lambda v: setattr(s.output, "restore_focus", v),
                  "Fügt den Text dort ein, wo das Diktat begann — auch wenn du "
                  "zwischendurch woanders hingeklickt hast.")
-    trigger = QLineEdit(s.output.trigger_word)
-    trigger.setPlaceholderText("leer = Wert aus config.yaml")
+    panel._trigger_field = trigger = QLineEdit(s.output.trigger_word)
+    # E-17: Der Platzhalter nannte nur die Herkunft ("Wert aus config.yaml"), nie
+    # den WERT selbst — genau die Frage ("auf welches Wort reagiert Fleech?") blieb
+    # unbeantwortet. Best-Effort: schlaegt das Lesen fehl, bleibt wenigstens der
+    # alte Hinweis auf die Herkunft stehen.
+    try:
+        from ...config import load_config
+
+        _effektiv = load_config().command.trigger_word or "Kimono"
+        trigger.setPlaceholderText(f"leer = {_effektiv} (aus config.yaml)")
+    except Exception:
+        trigger.setPlaceholderText("leer = Wert aus config.yaml")
     trigger.editingFinished.connect(
         lambda: (setattr(s.output, "trigger_word", trigger.text().strip()),
                  panel._changed("output"))

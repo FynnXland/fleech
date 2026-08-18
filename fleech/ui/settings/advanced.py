@@ -101,7 +101,7 @@ def build(panel) -> None:
             "smart": "KI bleibt nach dem letzten Diktat geladen (Zeit unten "
                      "einstellbar). Danach — oder sobald ein Spiel läuft — wird "
                      "sie sofort entladen (RAM/Grafikspeicher frei).",
-            "always": "KI bleibt dauerhaft geladen (~8 GB Speicher) — "
+            "always": "KI bleibt dauerhaft geladen (~3,5 GB Speicher, ein Modell) — "
                       "schnellste Antwort, auch beim Zocken belegt.",
             "off": "Kein Warmhalten — maximal freier Speicher, erstes "
                    "Diktat langsamer.",
@@ -116,8 +116,8 @@ def build(panel) -> None:
         int(s.advanced.llm_idle_unload_minutes), "warmhold",
         lambda v: setattr(s.advanced, "llm_idle_unload_minutes", int(v)),
         help_map={
-            3: "Gibt RAM schnell frei. Erstes Diktat nach einer Pause ~8 s "
-               "langsamer (teils vom Parallel-Laden verdeckt).",
+            3: "Gibt RAM schnell frei. Erstes Diktat nach einer Pause um einige "
+               "Sekunden langsamer (teils vom Parallel-Laden verdeckt).",
             10: "Guter Mittelweg: kurze Arbeitspausen bleiben schnell, danach "
                 "wird RAM frei.",
             30: "Modelle bleiben lange warm — RAM länger belegt.",
@@ -126,7 +126,8 @@ def build(panel) -> None:
     )
     panel._check(form, "Adaptive Geschwindigkeit (Cleanup)", s.advanced.adaptive_cleanup,
                  "adaptive", lambda v: setattr(s.advanced, "adaptive_cleanup", v),
-                 "Kurze Diktate laufen über ein kleines, schnelleres Modell.")
+                 "Kurze Diktate nehmen den kurzen Weg (weniger Prüfung, schneller "
+                 "fertig) — derzeit läuft für beide Wege dasselbe Modell.")
 
     from ...usersettings import SETTINGS_DIR
 

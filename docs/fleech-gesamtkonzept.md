@@ -74,7 +74,9 @@ Absätze nach Bedeutung gesetzt.
 4. **Prompts bauen** — ein unstrukturiert hingesprochener Auftrag wird zu einem
    sauber gegliederten KI-Prompt.
 5. **Freihand** — seit 5.3.0 auch ganz ohne Taste: Startwort sagen, sprechen,
-   aufhören (siehe [21](#21-freihand--diktieren-ohne-taste)).
+   aufhören (siehe [21](#21-freihand--diktieren-ohne-taste)). **Seit 5.10.1
+   stillgelegt** — nicht entfernt, aber im Auslieferungszustand deaktiviert und in
+   den Einstellungen ausgegraut (Details in Kapitel 21).
 
 Alles läuft auf dem eigenen Rechner: Spracherkennung über
 [faster-whisper](https://github.com/SYSTRAN/faster-whisper), Nachbearbeitung über ein
@@ -1097,9 +1099,8 @@ der Knopf „Alle Karten wieder einblenden" unter **Allgemein**.
 | Bedienmodus | **Hold** (halten) · **Toggle** (drücken/drücken) · **Anstupsen** (drücken, endet von selbst) | Hold |
 | Sprechpause bis Ende | nur bei *Anstupsen* sichtbar: so lange still = fertig (1–4 s) | 2,0 s |
 | Diktat-Hotkey | Taste, Kombination oder Maustaste 4/5/Mitte | F9 |
-| Mathe-Umschalt | **nur während einer Aufnahme**: markiert ein Formel-Segment | Strg+Alt+M |
-| KI-Prompting | **nur während einer Aufnahme**: dieses Diktat wird zum Prompt | Strg+Alt+P |
-| Freihand | dauerhaft auf ein Startwort lauschen (Abschnitt 21) | aus |
+| KI-Prompting | **nur während einer Aufnahme**: dieses Diktat wird zum Prompt (dauerhaft: Profil „KI-Prompt" wählen) | Strg+Alt+P |
+| Freihand | dauerhaft auf ein Startwort lauschen (Abschnitt 21) — **stillgelegt seit 5.10.1**, Feld ausgegraut | aus |
 | Startwörter | ein Wort pro Zeile; Fleech startet bei **jedem** davon | Kimono |
 | Genauigkeit | welches Modell das Startwort prüft: *wie beim Diktat* oder ein sparsames eigenes | wie beim Diktat |
 | Abbruchwort | fällt es im Diktat, wird verworfen statt eingefügt | Abbrechen |
@@ -1118,8 +1119,8 @@ Mittel — das ehrlich zu benennen ist besser, als eine Heuristik als Gewissheit
 auszugeben. Die Prüfung läuft seit v1.10.0 auch bei jedem **Gerätewechsel** neu, nicht
 mehr nur beim App-Start.
 
-Die beiden Modus-Hotkeys wirken bewusst **nur während einer laufenden Aufnahme** —
-außerhalb bleiben die Tasten für andere Programme frei nutzbar. Das ist besonders für
+Der KI-Prompting-Hotkey wirkt bewusst **nur während einer laufenden Aufnahme** —
+außerhalb bleibt die Taste für andere Programme frei nutzbar. Das ist besonders für
 Makro-/G-Tasten relevant.
 
 ### Audio-Fokus
@@ -1128,21 +1129,6 @@ Makro-/G-Tasten relevant.
 |---|---|---|
 | Fokus-Modus | *Aus* / *Leiser stellen* / *Stark absenken* | Leiser stellen |
 | Restlautstärke anderer Apps | 0 % = stumm bis 100 % = unverändert | 25 % |
-
-### Mathe
-
-Seit v2.1.0 **eine** Auswahl statt dreier Schalter:
-
-| Stufe | Bedeutung |
-|---|---|
-| **Automatisch** | erkennt gesprochene Formeln im Fließtext und schreibt sie als LaTeX — ohne Umschalten. Für gemischte Arbeit (Text, Code und Mathe im selben Programm). Schaltet die Vokabular-Härtung mit ein. |
-| **Auf Ansage** | Formeln nur per Umschalt-Taste oder gesprochen („Formel … Formel Ende") |
-| **Nur Umschalt-Taste** | „Formel" bleibt ein normales Wort im Text |
-| **Aus** | keine Formel-Erkennung |
-
-Intern setzt die Stufe weiterhin die drei technischen Felder (`priority`,
-`math_focus`, `auto_latex`) — bestehende Konfigurationen bleiben also gültig. Der
-Grund für die Zusammenfassung: Für *ein* Ziel musste man dreimal richtig raten.
 
 ### Overlay
 
@@ -1186,27 +1172,40 @@ aus.
 
 ### Ausgabe
 
+Seit dem Wegfall der eigenen Mathe-Seite sitzt die Formel-Erkennung hier, **eine**
+Auswahl statt der frühere drei Schalter:
+
+| Stufe | Bedeutung |
+|---|---|
+| **Automatisch** | erkennt gesprochene Formeln im Fließtext und schreibt sie als LaTeX — ohne Umschalten. Für gemischte Arbeit (Text, Code und Mathe im selben Programm). |
+| **Aus** | keine Formel-Erkennung |
+
+Intern setzt die Stufe die beiden Felder `enabled`/`auto_latex`
+(`usersettings.MATH_LEVELS = ("off", "auto")`) — eine eigene Umschalt-Taste oder
+gesprochene Delimiter gibt es seit v3.0.0 nicht mehr.
+
 | Einstellung | Bedeutung | Standard |
 |---|---|---|
+| Formel-Erkennung | Automatisch / Aus (siehe oben) | Automatisch |
 | Eingriffsgrad | Minimal / Standard / Strong | Standard |
 | Safe-Word-Befehle aktiv | Befehlsmodus insgesamt an/aus | an |
 | Cursor-Rückkehr | fügt den Text dort ein, wo das Diktat begann | an |
 | Safe-Word | Auslösewort für Befehle; leer = Wert aus `config.yaml` | Kimono |
 
-### Wörterbuch
+### Textersetzung
 
-Zwei mehrzeilige Editoren, je eine Zeile pro Eintrag, automatisch gespeichert (800 ms
-nach der letzten Eingabe): oben das **Wörterbuch** (Format siehe
-[Kapitel 8](#8-das-persönliche-wörterbuch)), darunter **Ignoriert** — die Paare
-`falsch => richtig`, die nie mehr vorgeschlagen werden. Gespeist aus abgelehnten
-Rückfragen und dem „Ignorieren"-Knopf der Insights-Vorschläge; eine Zeile löschen
-holt den jeweiligen Vorschlag zurück.
+Drei Blöcke auf einer Seite (frühere Namen „Wörterbuch" und „Bausteine" sind
+zusammengelegt):
 
-### Bausteine
-
-Ein mehrzeiliger Editor im Format `Kürzel => Text` (`\n` im Text erzeugt einen
-Zeilenumbruch), plus ein Feld für das Signalwort (Standard „Baustein"). Format und
-Wirkweise siehe [Kapitel 8a](#8a-text-bausteine).
+- **Wörterbuch** (Format siehe [Kapitel 8](#8-das-persönliche-wörterbuch)) und
+  **Ignoriert** — zwei mehrzeilige Editoren, je eine Zeile pro Eintrag, automatisch
+  gespeichert (800 ms nach der letzten Eingabe). „Ignoriert" sind die Paare
+  `falsch => richtig`, die nie mehr vorgeschlagen werden — gespeist aus abgelehnten
+  Rückfragen und dem „Ignorieren"-Knopf der Insights-Vorschläge; eine Zeile löschen
+  holt den jeweiligen Vorschlag zurück.
+- **Bausteine** — ein mehrzeiliger Editor im Format `Kürzel => Text` (`\n` im Text
+  erzeugt einen Zeilenumbruch), plus ein Feld für das Signalwort (Standard
+  „Baustein"). Format und Wirkweise siehe [Kapitel 8a](#8a-text-bausteine).
 
 ### Advanced
 
@@ -1220,7 +1219,7 @@ Wirkweise siehe [Kapitel 8a](#8a-text-bausteine).
 | GPU-Beschleunigung (STT) | Erkennung auf der Grafikkarte; aus = CPU erzwingen | an |
 | Modell-Warmhaltung | *Nach Nutzung* / *Dauerhaft* / *Aus* | Nach Nutzung |
 | Im Leerlauf entladen nach | 3 / 10 / 30 / 45 Minuten | 10 Minuten |
-| Adaptive Geschwindigkeit | kurze Diktate über das kleine Modell | an |
+| Adaptive Geschwindigkeit | kurze Diktate nehmen den kurzen Weg (weniger Prüfung) — derzeit dasselbe Modell für beide Wege | an |
 | Debug-Logging | ausführliches Protokoll | aus |
 
 ---
@@ -1239,7 +1238,9 @@ zuverlässig funktioniert — und der in einem Rutsch einfügt statt sichtbar zu
 
 Der exakte Ablauf:
 
-1. Alte Zwischenablage sichern (sofern aktiviert)
+1. Alte Zwischenablage sichern (sofern aktiviert) — **nur als Text.** Lag vorher ein
+   Bild oder eine Datei in der Zwischenablage, ist es nach dem Diktat weg; `paste_text`/
+   `copy_text` (`fleech/clipboard.py`) kennen nur die Textebene.
 2. Text in die Zwischenablage schreiben
 3. **Warten, bis die Zwischenablage den Text bestätigt** — zurücklesen im 20-ms-Takt,
    Obergrenze 400 ms. Eine feste Wartezeit reichte für Electron-Apps, VMs und
@@ -1264,7 +1265,8 @@ steht noch direkt hinter dem eigenen Text.
 Eine Nahtstelle, zwei Backends: unter **Windows** `pyperclip` (bewährt, ohne
 Zusatzwerkzeuge), unter **Linux** `copykitten` — weil das sowohl unter X11 als auch
 unter Wayland funktioniert, ohne `xclip`/`xsel` vorauszusetzen. `pyperclip` bleibt als
-Rückfallebene.
+Rückfallebene. Beide Backends transportieren **nur Text** — Bilder oder Dateien in der
+Zwischenablage sichert und stellt Fleech nicht wieder her (siehe 12.1).
 
 Die Fehlerpolitik ist bewusst asymmetrisch: **Lesen** darf still fehlschlagen (dann gibt
 es eben keine Wiederherstellung). **Schreiben** wirft, wenn kein Backend funktioniert —
@@ -1957,6 +1959,15 @@ Verlauf.
 ---
 
 ## 21. Freihand — diktieren ohne Taste (seit 5.3.0)
+
+> **Stillgelegt seit 5.10.1.** Ein dauerhaft offenes Mikrofon per Startwort
+> auszulösen war in einem Raum mit Nebengeräuschen nicht zuverlässig zu bekommen —
+> und jeder Fehlstart tippt Text in das gerade fokussierte Fenster. Der Modus ist
+> nicht entfernt (dieses Kapitel beschreibt weiterhin, wie er arbeitet), aber in den
+> Einstellungen ausgegraut und `freihand.STILLGELEGT` verhindert den Start. Wer das
+> automatische Ende wollte, bekommt es über den Bedienmodus **Anstupsen** (Kapitel
+> 4a): einmal drücken, reden, es hört von selbst auf — auslösbar aber nur, wer die
+> Taste drückt.
 
 Startwort sagen, sprechen, aufhören. Kommt **zusätzlich** zum Hotkey und ist
 standardmäßig **aus**: Eine App, die ungefragt dauerhaft mithört, wäre ein

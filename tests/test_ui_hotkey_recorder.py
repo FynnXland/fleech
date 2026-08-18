@@ -99,6 +99,24 @@ def test_hotkey_recorder_pynput_fallback_captures_gkeys(qapp):
     assert d3.result_spec is None
     assert not d3.cleared
 
+def test_hotkey_recorder_hat_sichtbaren_abbrechen_knopf(qapp):
+    """E-1: Der Recorder greift die Tastatur und hatte keinen sichtbaren Ausgang
+    ausser 'Taste druecken' — ein Klick auf 'Abbrechen' muss schliessen, OHNE die
+    bestehende Bindung zu loeschen (das bleibt Esc vorbehalten, dokumentiertes
+    Verhalten)."""
+    from PySide6.QtWidgets import QDialog
+
+    from fleech.ui.hotkey_recorder import HotkeyRecorderDialog
+
+    d = HotkeyRecorderDialog()
+    assert d._cancel_btn.text() == "Abbrechen"
+    assert not d._cancel_btn.isHidden()
+    d._cancel_btn.click()
+    assert d._done is True
+    assert d.result_spec is None
+    assert not d.cleared          # NICHT geloescht — nur geschlossen
+
+
 def test_hotkey_recorder_ignores_autorepeat(qapp):
     from PySide6.QtCore import Qt
 

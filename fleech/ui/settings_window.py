@@ -79,6 +79,23 @@ QSlider::handle:horizontal {{
 }}
 """
 
+def _combo_help_text(values, help_map, current) -> str:
+    """Badge-Tooltip einer Auswahlliste: JEDE Option mit ihrer Erklaerung, die
+    aktive fett markiert.
+
+    E-5: Vorher zeigte der Tooltip nur die Erklaerung der GEWAEHLTEN Option — um
+    zu erfahren, was „Strong" tut, musste man Strong erst einschalten und hatte es
+    damit schon getan. Jetzt stehen alle Optionen zusammen; keine Aenderung noetig,
+    um sie zu lesen.
+    """
+    lines = []
+    for value, label in values:
+        text = help_map.get(value, "")
+        marked = f"<b>{label}</b>" if value == current else label
+        lines.append(f"{marked}: {text}" if text else marked)
+    return "<br>".join(lines)
+
+
 class SettingsPanel(WortprobeMixin, QWidget):
     # „Oberfläche" ist entfallen: Die zwölf Sichtbarkeits-Checkboxen sind an die
     # Karten selbst gewandert (Rechtsklick → Ausblenden). Zurueckholen sammelt der
@@ -406,15 +423,17 @@ class SettingsPanel(WortprobeMixin, QWidget):
             box.addItem(text, value)
         box.setCurrentIndex(max(0, [v for v, _ in values].index(current) if current in
                                 [v for v, _ in values] else 0))
-        # help_map = auswahlabhaengige Erklaerung → Badge-Tooltip wird live aktualisiert.
-        initial_tip = hint_text or (help_map.get(current, "") if help_map else "")
+        # help_map = alle Optionen mit Erklaerung stehen zusammen im Tooltip (E-5) —
+        # die aktive fett. Ohne help_map bleibt es beim statischen hint_text.
+        initial_tip = (_combo_help_text(values, help_map, current) if help_map
+                       else hint_text)
         label_w, badge = self._row_label(label, initial_tip)
 
         def on_change(_index):
             value = box.currentData()
             setter(value)
             if badge is not None and help_map is not None:
-                badge.set_tip(help_map.get(value, ""))
+                badge.set_tip(_combo_help_text(values, help_map, value))
             self._changed(section)
 
         box.currentIndexChanged.connect(on_change)
