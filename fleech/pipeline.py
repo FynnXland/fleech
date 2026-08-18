@@ -361,6 +361,14 @@ class Pipeline:
             return "error"
         self.last_stt_ms = int((time.perf_counter() - t0) * 1000)
         log.info("STT (%.1f s Audio, %.2f s): %s", duration, time.perf_counter() - t0, raw or "<leer>")
+        # Schwanz ohne Ton: Das Backend hat Segmente hinter dem letzten echten Wort
+        # verworfen (Whisper-Floskeln auf Stille, siehe `fleech/stt/nachlauf.py`).
+        # Der Text ist weg, bevor die Pipeline ihn sieht — der Nutzer soll ihn
+        # trotzdem erfahren, deshalb hier abgeholt statt still verschluckt.
+        schwanz_ohne_ton = getattr(self.stt, "letzter_schwanz_ohne_ton", "") or ""
+        if schwanz_ohne_ton:
+            self._merke_grund(gruende.SCHWANZ_OHNE_TON)
+            self.last_dropped_tail = schwanz_ohne_ton
         if not raw:
             return "empty"
         raw = self._collapse_repetitions(raw)
@@ -712,8 +720,11 @@ class Pipeline:
                         len(gekuerzt.split()), gekuerzt[:160])
             self._merke_grund(gruende.WIEDERHOLUNG_INNEN)
             cleaned = rest4
+        # Der STT-Schwanz ohne Ton steht schon drin (in `process` abgeholt) und
+        # gehoert nach vorn: Er lag im Audio VOR allem, was hier faellt.
         verworfen = " ".join(
-            x for x in (gekuerzt, dropped3, dropped2, dropped) if x).strip()
+            x for x in (self.last_dropped_tail, gekuerzt, dropped3, dropped2, dropped)
+            if x).strip()
         if verworfen:
             self.last_dropped_tail = verworfen
         return cleaned

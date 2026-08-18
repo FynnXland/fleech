@@ -39,6 +39,7 @@ FREMDE_SCHRIFT = "fremde Schrift entfernt"
 WORTSALAT = "Wortsalat entfernt"
 DOMINANZ_SCHWANZ = "Dominanz-Schwanz entfernt"
 WIEDERHOLUNG_INNEN = "Wiederholung im Text gekürzt"
+SCHWANZ_OHNE_TON = "Text ohne Ton am Ende entfernt"
 
 # Etikett fuer die Zaehlzeile der Insights („Rückfälle: 2× Ollama, 1× Sinnumkehr").
 # Der volle Satz gehoert in den Einzelfall, nicht in eine Aufzaehlung.
@@ -58,6 +59,7 @@ KURZFORM = {
     WORTSALAT: "Wortsalat",
     DOMINANZ_SCHWANZ: "Halluzination",
     WIEDERHOLUNG_INNEN: "Wiederholung",
+    SCHWANZ_OHNE_TON: "ohne Ton",
 }
 
 
