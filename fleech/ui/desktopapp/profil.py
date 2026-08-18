@@ -58,13 +58,7 @@ class ProfilMixin:
 
         Kein zugewiesenes Profil → Standardprofil ("Alle") als Fallback; Profile
         global aus → leere Overrides = Verhalten wie in den Einstellungen."""
-        from ...profiles import (
-            ProfileOverrides,
-            app_rule_matches,
-            parse_app_rule,
-            profile_command_mode,
-            profile_mode,
-        )
+        from ...profiles import ProfileOverrides, profil_fuer_app
 
         prof = self.settings.profiles
         if not prof.enabled:
@@ -90,49 +84,18 @@ class ProfilMixin:
         app = getattr(self, "_record_app", "") or ""
         title = getattr(self, "_record_title", "") or ""
 
-        # Zwei Durchlaeufe nach Spezifitaet: Eintraege MIT Titel-Bedingung gewinnen
-        # immer gegen den blossen Prozessnamen. Sonst haenge die Zuordnung an der
-        # Reihenfolge der Profile — „Code.exe" in einem Profil wuerde
-        # „Code.exe :: Fleech" in einem anderen je nach Listenposition verdecken,
-        # und der Nutzer haette keine Handhabe, das zu steuern.
-        chosen = None
-        default_item = None
-        candidates = []
-        for item in prof.items or []:
-            if not isinstance(item, dict):
-                continue
-            if item.get("default"):
-                default_item = item
-                continue
-            candidates.append(item)
-
-        for want_title in (True, False):
-            paare = [(item, entry) for item in candidates
-                     for entry in item.get("apps", [])
-                     if bool(parse_app_rule(entry)[1]) == want_title]
-            # Innerhalb des Titel-Durchgangs entschied bisher die Reihenfolge der
-            # Profile (Befund G-B7): „chrome.exe :: Gmail" fing „chrome.exe ::
-            # Gmail - Entwurf" ab, wenn es weiter oben stand — die feinere Regel
-            # griff nie. Genauer schlaegt allgemeiner, also die laengere Bedingung
-            # zuerst. Gleich lange Bedingungen behalten ihre Reihenfolge (stabil).
-            if want_title:
-                paare.sort(key=lambda p: len(parse_app_rule(p[1])[1]), reverse=True)
-            for item, entry in paare:
-                if app and app_rule_matches(entry, app, title):
-                    chosen = item
-                    # Befund G-B9: Die AUTOMATISCHE Auflösung protokollierte bisher
-                    # nichts — ob eine Regel griff und welche, war nach dem Diktat
-                    # nicht mehr feststellbar, auch nicht im Log.
-                    log.info("Profil %s ueber Regel %r fuer %s / %r",
-                             item.get("name", ""), entry, app, title)
-                    break
-            if chosen is not None:
-                break
-
-        if chosen is None:
-            chosen = default_item
+        # Die Aufloesung selbst steht in `profiles.profil_fuer_app` — sie wird auch
+        # von `active_profile_name()` (Ring an der Pille) und von der Apps-Seite
+        # gebraucht, und drei Kopien derselben Schleife waeren drei Antworten.
+        chosen, regel = profil_fuer_app(prof.items, app, title)
         if chosen is None:
             return ProfileOverrides()
+        if regel:
+            # Befund G-B9: Die AUTOMATISCHE Aufloesung protokollierte bisher
+            # nichts — ob eine Regel griff und welche, war nach dem Diktat nicht
+            # mehr feststellbar, auch nicht im Log.
+            log.info("Profil %s ueber Regel %r fuer %s / %r",
+                     chosen.get("name", ""), regel, app, title)
         return overrides_from(chosen)
 
     def current_app(self) -> str:
@@ -176,15 +139,80 @@ class ProfilMixin:
             self.current_app(),
         )
 
+    def ziel_app_und_titel(self) -> tuple[str, str]:
+        """(Prozessname, Fenstertitel) der App, fuer die das naechste Diktat gilt.
+
+        Waehrend einer Aufnahme die beim Start festgehaltenen Werte — dort landet
+        der Text, und danach richtet sich das Profil. Sonst der frische
+        Vordergrund; der 3-s-Poll waere hier zu traege (siehe `foreground_now`).
+        """
+        recorder = getattr(self, "recorder", None)
+        if recorder is not None and getattr(recorder, "recording", False):
+            return (getattr(self, "_record_app", "") or "",
+                    getattr(self, "_record_title", "") or "")
+        prozess, titel = "", ""
+        try:
+            from ..windowsfocus import foreground_now
+
+            prozess, titel = foreground_now()
+        except Exception:
+            log.debug("Vordergrund nicht abfragbar.", exc_info=True)
+        if not prozess:
+            try:
+                kontext = self.notifier.context
+                prozess = getattr(kontext, "foreground_process", "") or ""
+                titel = titel or getattr(kontext, "foreground_title", "") or ""
+            except Exception:
+                pass
+        return prozess or "", titel or ""
+
     def active_profile_name(self) -> str:
-        """Profil, das fuer das naechste Diktat gilt — gewaehlt oder automatisch."""
+        """Profil, das fuer das naechste Diktat gilt — gewaehlt oder automatisch.
+
+        Befund G-B4: Ohne Wahl von Hand nannte diese Methode immer das
+        Standardprofil und war damit blind fuer die App-Zuordnung — der Ring an
+        der Pille (ihr einziger Dauer-Anzeiger) zeigte in Outlook dieselbe Farbe
+        wie im Editor. Jetzt loest sie fuer die aktuelle Ziel-App auf, genau wie
+        die Verarbeitung es spaeter tut.
+        """
         gewaehlt = getattr(self.settings.profiles, "active", "")
         if gewaehlt:
             return gewaehlt
-        for item in self.settings.profiles.items or []:
-            if isinstance(item, dict) and item.get("default"):
-                return str(item.get("name", "Standard"))
+        from ...profiles import profil_fuer_app
+
+        app, titel = self.ziel_app_und_titel()
+        treffer, _regel = profil_fuer_app(self.settings.profiles.items, app, titel)
+        if treffer is not None:
+            return str(treffer.get("name", "") or "Standard")
         return "Standard"
+
+    def _on_profil_pruefen(self) -> None:
+        """GUI-Thread: Eine Aufnahme hat begonnen — welches Profil gilt JETZT?
+
+        Der Aufnahmestart laeuft im pynput-Thread; von dort darf nichts direkt an
+        Qt (dieselbe Regel wie bei `prompt_latch_changed`), deshalb der Umweg
+        ueber den Bus.
+
+        Der Ring wird immer nachgezogen, die Namens-Kapsel nur bei einem
+        Wechsel: Sie bei jedem Diktat zu zeigen waere nach drei Tagen Tapete —
+        interessant ist der Moment, in dem eine andere App ein anderes Profil
+        mitbringt.
+        """
+        self._melde_profilfarbe()
+        if not getattr(self.settings.profiles, "enabled", True):
+            return
+        try:
+            aktiv = self.active_profile_name()
+        except Exception:
+            log.debug("Aktives Profil nicht ermittelbar.", exc_info=True)
+            return
+        if aktiv == getattr(self, "_zuletzt_gemeldetes_profil", None):
+            return
+        self._zuletzt_gemeldetes_profil = aktiv
+        try:
+            self.overlay.show_profile(aktiv)
+        except Exception:
+            log.debug("Profil-Anzeige fehlgeschlagen.", exc_info=True)
 
     def cycle_profile(self) -> None:
         """Naechstes Profil waehlen; hinter dem letzten wieder „App-Standard".
@@ -193,6 +221,8 @@ class ProfilMixin:
         hinweg. Waehrend einer laufenden Aufnahme gilt sie fuer GENAU dieses
         Diktat (die Aufloesung passiert erst beim Verarbeiten).
         """
+        if not self._profile_aktiv():
+            return
         namen = self.profile_names()
         if not namen:
             return
@@ -213,11 +243,34 @@ class ProfilMixin:
         """
         self._set_profile("")
 
+    def _profile_aktiv(self) -> bool:
+        """Sind Profile global eingeschaltet? Wenn nicht, sagt die Kapsel das.
+
+        Befund G-B11: Punkt und Auswahlliste wechselten weiter munter das Profil,
+        die Kapsel nannte einen Namen — und gewirkt hat nichts, weil
+        `_app_profile_overrides` bei `enabled=False` sofort leere Overrides
+        liefert. Ein Widerspruch genau an der Stelle, die Vertrauen schaffen soll.
+        """
+        if getattr(self.settings.profiles, "enabled", True):
+            return True
+        log.info("Profilwechsel abgelehnt — Profile sind global ausgeschaltet.")
+        try:
+            self.overlay.show_profile("Profile sind ausgeschaltet")
+        except Exception:
+            log.debug("Profil-Anzeige fehlgeschlagen.", exc_info=True)
+        return False
+
     def _set_profile(self, name: str) -> None:
         """Profil festlegen, merken und kurz anzeigen. "" = automatisch nach App."""
+        if not self._profile_aktiv():
+            return
         self.settings.profiles.active = name
         self.settings.save()
-        anzeige = name or f"{APP_STANDARD} ({self.active_profile_name()})"
+        aktiv = self.active_profile_name()
+        anzeige = name or f"{APP_STANDARD} ({aktiv})"
+        # Merken, was zuletzt zu sehen war: Sonst zeigte der naechste
+        # Aufnahmestart dieselbe Kapsel gleich noch einmal.
+        self._zuletzt_gemeldetes_profil = aktiv
         log.info("Profil gewaehlt: %s", anzeige)
         try:
             self.overlay.show_profile(anzeige)

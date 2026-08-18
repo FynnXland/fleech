@@ -240,6 +240,50 @@ def app_rule_matches(entry, process: str, title: str) -> bool:
     return want_title.lower() in (title or "").lower()
 
 
+def profil_fuer_app(items: list, app: str, title: str = "") -> tuple[dict | None, str]:
+    """Welches Profil gilt in dieser App? → (Profil-Eintrag | None, Regeltext).
+
+    Diese Schleife lag bis 5.10.4 MITTEN in `_app_profile_overrides` und war
+    damit nur beim Verarbeiten eines Diktats erreichbar. Der Ring an der Pille
+    fragt aber `active_profile_name()`, und das kannte die Zuordnung nicht — bei
+    leerem `active` nannte es immer das Standardprofil (Befund G-B4). Eine reine
+    Modulfunktion, damit beide Wege dieselbe Antwort geben; sie kennt weder App
+    noch Einstellungen und laesst sich ohne Attrappe pruefen.
+
+    Zwei Durchlaeufe nach Spezifitaet: Eintraege MIT Titel-Bedingung gewinnen
+    immer gegen den blossen Prozessnamen — sonst haenge die Zuordnung an der
+    Reihenfolge der Profile. Innerhalb des Titel-Durchgangs schlaegt die laengere
+    Bedingung die kuerzere (Befund G-B7). Kein Treffer → das Standardprofil
+    („Alle") als Fallback; gibt es auch das nicht → None.
+
+    Der zweite Rueckgabewert ist der Eintrag, ueber den der Treffer kam
+    ("" = ueber den Fallback) — Grundlage fuer Log-Zeile und Anzeige.
+    """
+    default_item = None
+    candidates = []
+    for item in items or []:
+        if not isinstance(item, dict):
+            continue
+        if item.get("default"):
+            default_item = item
+        else:
+            candidates.append(item)
+
+    if app:
+        for want_title in (True, False):
+            paare = [(item, entry) for item in candidates
+                     for entry in item.get("apps", [])
+                     if bool(parse_app_rule(entry)[1]) == want_title]
+            # Gleich lange Bedingungen behalten ihre Reihenfolge (stabile Sortierung).
+            if want_title:
+                paare.sort(key=lambda p: len(parse_app_rule(p[1])[1]), reverse=True)
+            for item, entry in paare:
+                if app_rule_matches(entry, app, title or ""):
+                    return item, str(entry)
+
+    return default_item, ""
+
+
 # Ausgabeformate eines Profils: WAS aus dem Diktat wird, nicht nur wie stark
 # geglaettet wird. Ein Diktat ist je nach Ziel etwas anderes — dieselbe Aeusserung
 # gehoert in einer Mail anders formuliert als in einem KI-Chat.

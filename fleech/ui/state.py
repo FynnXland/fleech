@@ -69,6 +69,11 @@ class StateBus(QObject):
     # Aufraeumen selbst speichert die Einstellungen und faerbt die Pille, gehoert
     # also in den GUI-Thread.
     profil_zuruecksetzen = Signal()
+    # Eine Aufnahme hat begonnen — Ring (und bei einem Wechsel die Namens-Kapsel)
+    # an der Pille nachziehen. Vorher folgte der Ring nur der Wahl von Hand und
+    # war blind fuer die App-Zuordnung (Befund G-B4). Der Aufnahmestart laeuft im
+    # pynput-Thread, deshalb ueber den Bus statt direkt an die Pille.
+    profil_pruefen = Signal()
     # Rohtranskript, sobald die Erkennung fertig ist (~0,8 s) — also LANGE bevor
     # die Bereinigung durch ist (~4 s). Wer schon lesen kann, waehrend das Modell
     # arbeitet, wartet gefuehlt nicht mehr. Wird spaeter von `transcript_ready`

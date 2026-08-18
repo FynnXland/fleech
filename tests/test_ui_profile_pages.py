@@ -34,6 +34,10 @@ def test_punkt_schaltet_reihum_durch_die_profile(qapp):
     fake.current_app = lambda: ""        # kein App-Filter in diesem Test
     fake.profile_names = lambda: DesktopApp.profile_names(fake)
     fake.active_profile_name = lambda: DesktopApp.active_profile_name(fake)
+    # Seit Befund G-B4 loest `active_profile_name` bei leerer Wahl die Ziel-App
+    # auf — im Test fest verdrahtet, damit kein echter Vordergrund hineinspielt.
+    fake.ziel_app_und_titel = lambda: ("", "")
+    fake._profile_aktiv = lambda: DesktopApp._profile_aktiv(fake)
     fake._set_profile = lambda n: DesktopApp._set_profile(fake, n)
     # Seit 5.5.0 faerbt _set_profile zusaetzlich den Ring an der Pille.
     fake._melde_profilfarbe = lambda: DesktopApp._melde_profilfarbe(fake)
@@ -64,6 +68,8 @@ def test_profilwechsel_geht_auch_waehrend_der_aufnahme(qapp):
     fake.current_app = lambda: ""        # kein App-Filter in diesem Test
     fake.profile_names = lambda: DesktopApp.profile_names(fake)
     fake.active_profile_name = lambda: DesktopApp.active_profile_name(fake)
+    fake.ziel_app_und_titel = lambda: ("", "")
+    fake._profile_aktiv = lambda: DesktopApp._profile_aktiv(fake)
     fake._set_profile = lambda n: DesktopApp._set_profile(fake, n)
     # Seit 5.5.0 faerbt _set_profile zusaetzlich den Ring an der Pille.
     fake._melde_profilfarbe = lambda: DesktopApp._melde_profilfarbe(fake)
@@ -147,6 +153,87 @@ def test_profiles_page_assign_tags_and_default(qapp, tmp_path, monkeypatch):
     items[coding_row]["mode"] = "prompt"
     page._refresh_detail()                        # darf nicht werfen
     assert items[coding_row]["mode"] == "prompt"  # und nichts stillschweigend loeschen
+
+def test_profilseite_stellt_die_diktiersprache_ein(qapp, tmp_path, monkeypatch):
+    """Befund G-B6: Der Wirkungspfad (profile_sprache → ProfileOverrides.sprache →
+    desktop._setze_sprache) stand seit 5.4.0 vollstaendig und war getestet —
+    einstellen konnte man die Sprache nur von Hand in der settings.json."""
+    from fleech.profiles import PROFILE_SPRACHEN, profile_sprache
+
+    window, _p, _store, settings, _c = make_main_window(tmp_path, monkeypatch,
+                                                        with_data=True)
+    page = window.profiles
+    page.refresh()
+    items = settings.profiles.items
+    zeile = next(i for i, p in enumerate(items) if not p.get("default"))
+    page._profiles_list.setCurrentRow(zeile)
+    page._refresh_detail()
+    assert page._profile_sprache_combo.currentData() == ""       # wie Einstellungen
+
+    page._profile_sprache_combo.setCurrentIndex(
+        [v for v, _l in PROFILE_SPRACHEN].index("en"))
+    assert profile_sprache(items[zeile]) == "en"
+
+    # Und beim naechsten Blick steht sie auch wieder da.
+    page._refresh_detail()
+    assert page._profile_sprache_combo.currentData() == "en"
+
+
+def test_profilseite_waehlt_das_aktive_profil(qapp, tmp_path, monkeypatch):
+    """Befund E-4/G-B5: `profiles.active` liess sich nur ueber den Punkt an der
+    Pille (nur waehrend einer Aufnahme) oder den ab Werk unbelegten Profil-Hotkey
+    setzen — der Tooltip verwies dabei auf „die Profilseite", die es nicht konnte.
+
+    Die Seite fasst die Pille NICHT selbst an: Sie meldet die Wahl ueber dasselbe
+    Signal, das auch die Auswahlliste am Hotkey nimmt."""
+    from fleech.profiles import APP_STANDARD
+
+    window, _p, _store, settings, _c = make_main_window(tmp_path, monkeypatch,
+                                                        with_data=True)
+    page = window.profiles
+    page.refresh()
+    gemeldet = []
+    page.profil_aktiv_gewaehlt.connect(gemeldet.append)
+
+    # Erste Station ist „App-Standard" (= automatisch nach App), das Standardprofil
+    # steht bewusst NICHT zur Wahl (Befund G-B1).
+    assert page._aktiv_combo.itemText(0) == APP_STANDARD
+    namen = [page._aktiv_combo.itemData(i) for i in range(page._aktiv_combo.count())]
+    assert "Standard" not in namen
+
+    ziel = next(p["name"] for p in settings.profiles.items if not p.get("default"))
+    page._aktiv_combo.setCurrentIndex(page._aktiv_combo.findData(ziel))
+    assert settings.profiles.active == ziel
+    assert gemeldet == [ziel]
+
+    page._aktiv_combo.setCurrentIndex(0)
+    assert settings.profiles.active == ""
+    assert gemeldet == [ziel, ""]
+
+    # Profile global aus: die Zeile bleibt sichtbar, ist aber nicht mehr bedienbar
+    # — ein Wechsel wuerde dort nichts bewirken (Befund G-B11).
+    page._global_cb.setChecked(False)
+    assert page._aktiv_combo.isEnabled() is False
+    page._global_cb.setChecked(True)
+    assert page._aktiv_combo.isEnabled() is True
+
+
+def test_umbenanntes_profil_steht_auch_oben_richtig(qapp, tmp_path, monkeypatch):
+    """Die Auswahlliste „Jetzt aktiv" darf keinen Namen zeigen, den es nicht mehr
+    gibt — sonst zeigte sie eine Wahl an, die beim naechsten Diktat ins Leere
+    liefe (`_app_profile_overrides` faellt dann auf automatisch zurueck)."""
+    window, _p, _store, settings, _c = make_main_window(tmp_path, monkeypatch,
+                                                        with_data=True)
+    page = window.profiles
+    page.refresh()
+    zeile = next(i for i, p in enumerate(settings.profiles.items)
+                 if not p.get("default"))
+    page._profiles_list.setCurrentRow(zeile)
+    page._detail_title.setText("Ganz neuer Name")
+    page._on_rename_profile()
+    namen = [page._aktiv_combo.itemData(i) for i in range(page._aktiv_combo.count())]
+    assert "Ganz neuer Name" in namen
+
 
 def test_apps_page_assigns_profile_per_app(qapp, tmp_path, monkeypatch):
     """Die Apps-Seite dreht die Blickrichtung um: App waehlen → Profil bestimmen.
@@ -378,6 +465,128 @@ def test_profil_zuordnung_ohne_titel_attribut_bleibt_kompatibel(qapp):
     fake = types.SimpleNamespace(
         settings=types.SimpleNamespace(profiles=profiles), _record_app="Code.exe")
     assert DesktopApp._app_profile_overrides(fake) == ProfileOverrides(intervention="minimal")
+
+
+# -- Der Ring an der Pille folgt der App (Befund G-B4) --------------------------------
+
+
+def _fake_app(items, app="", titel="", active=""):
+    """Schlanke DesktopApp-Attrappe fuer die Profil-Anzeige.
+
+    Nur die Methoden, die die Anzeige braucht — Vordergrund fest verdrahtet,
+    damit kein echtes Fenster ins Ergebnis spielt."""
+    import types
+
+    from fleech.ui.desktop import DesktopApp
+
+    fake = types.SimpleNamespace(
+        settings=types.SimpleNamespace(
+            profiles=types.SimpleNamespace(enabled=True, active=active, items=items),
+            save=lambda: None,
+        ),
+        gezeigt=[], farben=[],
+    )
+    fake.overlay = types.SimpleNamespace(
+        show_profile=fake.gezeigt.append, set_profile_color=fake.farben.append)
+    fake.ziel_app_und_titel = lambda: (app, titel)
+    fake.active_profile_name = lambda: DesktopApp.active_profile_name(fake)
+    fake._melde_profilfarbe = lambda: DesktopApp._melde_profilfarbe(fake)
+    fake._profile_aktiv = lambda: DesktopApp._profile_aktiv(fake)
+    return fake
+
+
+_ANZEIGE_PROFILE = [
+    {"name": "Standard", "default": True, "intervention": "", "tags": [], "apps": []},
+    {"name": "Coding", "intervention": "minimal", "tags": [], "apps": ["Code.exe"],
+     "color": "#6E86C8"},
+    {"name": "Mail", "intervention": "strong", "tags": [], "apps": ["olk.exe"],
+     "color": "#E8A13C"},
+]
+
+
+def test_der_ring_folgt_der_app_und_nicht_nur_der_wahl_von_hand(qapp):
+    """Befund G-B4: `active_profile_name` nannte ohne Wahl von Hand IMMER das
+    Standardprofil — der Ring an der Pille zeigte in Outlook dieselbe Farbe wie im
+    Editor, obwohl die Zuordnung ein anderes Profil vorsah. Jetzt loest er die
+    Ziel-App auf, genau wie die Verarbeitung es spaeter tut."""
+    from fleech.ui.desktop import DesktopApp
+
+    fake = _fake_app(_ANZEIGE_PROFILE, app="Code.exe")
+    assert DesktopApp.active_profile_name(fake) == "Coding"
+    DesktopApp._melde_profilfarbe(fake)
+    assert fake.farben[-1] == "#6E86C8"
+
+    fake.ziel_app_und_titel = lambda: ("olk.exe", "Posteingang")
+    assert DesktopApp.active_profile_name(fake) == "Mail"
+    DesktopApp._melde_profilfarbe(fake)
+    assert fake.farben[-1] == "#E8A13C"
+
+    # Nicht zugewiesene App → weiterhin das Standardprofil.
+    fake.ziel_app_und_titel = lambda: ("Discord.exe", "")
+    assert DesktopApp.active_profile_name(fake) == "Standard"
+
+    # Von Hand gewaehlt sticht die Zuordnung — unveraendert.
+    fake.settings.profiles.active = "Mail"
+    fake.ziel_app_und_titel = lambda: ("Code.exe", "")
+    assert DesktopApp.active_profile_name(fake) == "Mail"
+
+
+def test_die_namens_kapsel_erscheint_nur_beim_wechsel(qapp):
+    """Der Ring wird bei jedem Aufnahmestart nachgezogen, die Kapsel nicht: Sie
+    bei jedem Diktat zu zeigen waere nach drei Tagen Tapete. Interessant ist der
+    Moment, in dem eine andere App ein anderes Profil mitbringt."""
+    from fleech.ui.desktop import DesktopApp
+
+    fake = _fake_app(_ANZEIGE_PROFILE, app="Code.exe")
+    DesktopApp._on_profil_pruefen(fake)
+    assert fake.gezeigt == ["Coding"]
+    DesktopApp._on_profil_pruefen(fake)          # zweites Diktat, gleiche App
+    assert fake.gezeigt == ["Coding"]
+    assert fake.farben == ["#6E86C8", "#6E86C8"]  # der Ring wird trotzdem gesetzt
+
+    fake.ziel_app_und_titel = lambda: ("olk.exe", "")
+    DesktopApp._on_profil_pruefen(fake)
+    assert fake.gezeigt == ["Coding", "Mail"]
+
+
+def test_ziel_app_faellt_waehrend_der_aufnahme_auf_die_gemerkte_app(qapp):
+    """Waehrend einer Aufnahme gilt die beim Start festgehaltene App — dort landet
+    der Text. Der frische Vordergrund waere waehrend des Sprechens die falsche
+    Antwort (man kann zwischendurch klicken)."""
+    import types
+
+    from fleech.ui.desktop import DesktopApp
+
+    fake = types.SimpleNamespace(
+        recorder=types.SimpleNamespace(recording=True),
+        _record_app="Code.exe", _record_title="pipeline.py — Fleech",
+    )
+    assert DesktopApp.ziel_app_und_titel(fake) == ("Code.exe", "pipeline.py — Fleech")
+
+
+def test_profile_global_aus_nimmt_keinen_profilwechsel_an(qapp):
+    """Befund G-B11: Punkt und Auswahlliste wechselten weiter munter das Profil und
+    die Kapsel nannte einen Namen — gewirkt hat nichts, weil `_app_profile_overrides`
+    bei `enabled=False` sofort leere Overrides liefert."""
+    from fleech.ui.desktop import DesktopApp
+
+    fake = _fake_app(_ANZEIGE_PROFILE, app="Code.exe")
+    fake.settings.profiles.enabled = False
+    fake.profile_names = lambda: DesktopApp.profile_names(fake)
+    fake._set_profile = lambda n: DesktopApp._set_profile(fake, n)
+
+    DesktopApp._set_profile(fake, "Mail")
+    assert fake.settings.profiles.active == ""       # nichts geschrieben
+    assert fake.gezeigt == ["Profile sind ausgeschaltet"]
+
+    DesktopApp.cycle_profile(fake)
+    assert fake.settings.profiles.active == ""
+    assert fake.gezeigt == ["Profile sind ausgeschaltet"] * 2
+
+    fake.settings.profiles.enabled = True            # wieder an: es geht wieder
+    DesktopApp._set_profile(fake, "Mail")
+    assert fake.settings.profiles.active == "Mail"
+
 
 def test_schnellwechsel_haelt_sich_an_die_app(qapp):
     """In Claude nur die zwei Profile durchtippen, die dort Sinn ergeben.
