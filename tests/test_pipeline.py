@@ -38,8 +38,11 @@ def test_llm_failure_falls_back_to_raw_transcript():
 
 
 def test_empty_llm_reply_falls_back_to_raw():
+    """Leere Modellantwort ist ein Rueckfall wie jeder andere — und wird seit
+    Befund C-4 auch so gemeldet. Vorher meldete die Oberflaeche gruenen Haken und
+    Bestaetigungston fuer ein unbereinigtes Transkript."""
     p, _, injector = make_pipeline(RAW_NONTRIVIAL, llm=FakeLLM(reply=""))
-    p.process(AUDIO, 16000)
+    assert p.process(AUDIO, 16000) == "fallback"
     assert injector.injected == [RAW_NONTRIVIAL]
 
 

@@ -122,6 +122,31 @@ def test_zeichenwort_am_satzende_bleibt_wort():
     assert spoken_symbols("Setz da einen Slash.") == "Setz da einen Slash."
 
 
+def test_gewoehnliche_deutsche_zeichenwoerter_bleiben_text():
+    """Befund A-9: „Raute", „Unterstrich" und „Schrägstrich" sind ganz normale
+    deutsche Wörter. An 1399 echten Diktaten waren beide gemessenen Fehltreffer
+    genau von dieser Art (id 47: „Also Schrägstrich und dann halt" → „Also /und
+    dann halt")."""
+    from fleech.dictionary import spoken_symbols
+
+    for satz in ("Zeichne eine Raute darunter",
+                 "Die Raute ist ein Viereck",
+                 "Ein Unterstrich im Namen",
+                 "Also Schrägstrich und dann halt"):
+        assert spoken_symbols(satz) == satz
+
+
+def test_zeichen_vor_gewoehnlichem_wort_behaelt_das_leerzeichen():
+    """Befund A-9, zweite Hälfte: id 1141 „Kontext oder Hashtag oder Slash" wurde zu
+    „Kontext oder #oder /oder" — das verschluckte Leerzeichen machte aus zwei Wörtern
+    eines. An einen Namen (Großbuchstabe) oder ein einzelnes Zeichen klebt es weiter."""
+    from fleech.dictionary import spoken_symbols
+
+    assert spoken_symbols("Kontext oder Hashtag oder Slash") == "Kontext oder # oder Slash"
+    assert spoken_symbols("die Befehle alle also Slash Hunter") == \
+        "die Befehle alle also /Hunter"
+
+
 def test_minus_und_plus_bleiben_text():
     """Gewöhnliche deutsche Wörter — eine Ersetzung macht hier mehr kaputt als sie
     hilft. Rechnende Minuszeichen entstehen ohnehin im Formel-Parser."""

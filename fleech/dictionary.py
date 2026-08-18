@@ -91,16 +91,32 @@ def find_terms_in_text(text: str, terms: list[str]) -> list[str]:
 # und eine Ersetzung wuerde dort mehr kaputt machen als sie hilft. Rechnende Minus-
 # Zeichen entstehen ohnehin im Formel-Parser. Wer mehr braucht, legt sich eine eigene
 # Ersetzungsregel unter „Textersetzung" an.
+#
+# Aus demselben Grund sind „Raute", „Unterstrich" und „Schraegstrich" nicht mehr
+# dabei (Befund A-9): Auch das sind gewoehnliche deutsche Woerter
+# („zeichne eine Raute darunter", „ein Unterstrich im Namen"), und an 1399 echten
+# Diktaten waren beide gemessenen Fehltreffer genau von dieser Art.
 _GESPROCHENE_ZEICHEN = {
-    "slash": "/", "schrägstrich": "/", "schraegstrich": "/",
-    "backslash": "\\", "hashtag": "#", "raute": "#",
-    "unterstrich": "_", "klammeraffe": "@",
+    "slash": "/", "backslash": "\\", "hashtag": "#", "klammeraffe": "@",
 }
 # Das Zeichen klebt am FOLGENDEN Wort ("Slash Hunter" → "/Hunter"): so wird es
 # gesprochen (Pfade, Handles, Kanaele). Am Satzende bleibt es allein stehen.
 _ZEICHEN_RE = re.compile(
     r"\b(" + "|".join(sorted(_GESPROCHENE_ZEICHEN, key=len, reverse=True)) + r")\b"
-    r"(\s+)(?=\S)", re.IGNORECASE)
+    r"\s+(?=(\S+))", re.IGNORECASE)
+
+
+def _klebt_am_folgewort(folgewort: str) -> bool:
+    """Gehoert das Zeichen an das naechste Wort — oder gehoert ein Leerzeichen dazwischen?
+
+    Gemeint ist ein Name, ein Handle oder ein Pfadstueck: „Slash Hunter" → „/Hunter",
+    „Backslash n" → „\\n". Folgt dagegen ein gewoehnliches kleingeschriebenes Wort,
+    war das Zeichenwort Fliesstext — dort verschluckte die Ersetzung bisher das
+    Leerzeichen und machte daraus ein kaputtes Wort (Befund A-9, real: „Kontext oder
+    Hashtag oder …" → „Kontext oder #oder …").
+    """
+    kern = folgewort.strip(".,;:!?)]}»«\"'")
+    return len(kern) <= 1 or not kern[:1].islower()
 
 
 def spoken_symbols(text: str) -> str:
@@ -109,7 +125,8 @@ def spoken_symbols(text: str) -> str:
         return text
 
     def ersetze(m):
-        return _GESPROCHENE_ZEICHEN[m.group(1).lower()]
+        zeichen = _GESPROCHENE_ZEICHEN[m.group(1).lower()]
+        return zeichen if _klebt_am_folgewort(m.group(2)) else zeichen + " "
 
     return _ZEICHEN_RE.sub(ersetze, text)
 

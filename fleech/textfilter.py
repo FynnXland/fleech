@@ -263,6 +263,51 @@ def _entstottern(wort: str) -> str:
     return wort
 
 
+def _entkette(wort: str, min_reps: int) -> str:
+    """„No-no-no-no-no." → „No." — dieselbe Gruppe per Bindestrich verkettet.
+
+    Ergaenzt `_entstottern`: Das dortige Verfahren vergleicht buchstabengenau und
+    verlangt ein langes Token — „No-no-no-…" faellt an der Grossschreibung durch.
+    """
+    kern = wort.rstrip(".,;:!?…-")
+    teile = kern.split("-")
+    if len(teile) < min_reps or not any(c.isalnum() for c in teile[0]):
+        return wort
+    if any(t.lower() != teile[0].lower() for t in teile):
+        return wort
+    return teile[0] + wort[len(kern):]
+
+
+def collapse_inner_repetitions(raw: str, min_reps: int = 5) -> tuple[str, str]:
+    """Wiederholungs-Lauf MITTEN im Text kuerzen — (Text, Gekuerztes).
+
+    `collapse_trailing_repetitions` sieht nur den Schwanz; sieben Diktate im
+    Verlauf trugen die Schleife davor und wurden mit gruenem Haken eingefuegt:
+    „G-G-G-G-…" (34x), „um, um, um, um, um.", „No-no-no-no-no." (Befund H-B6).
+    Schwelle wie dort fuer Einzelwoerter: erst ab fuenf Nennungen, damit
+    rhetorisches „nein, nein, nein" stehen bleibt. Erhalten bleibt die LETZTE
+    Nennung — sie traegt die Interpunktion des Laufs.
+    """
+    woerter, entfernt = [], []
+    for wort in (raw or "").split():
+        gekuerzt = _entkette(wort, min_reps)
+        if gekuerzt != wort:
+            entfernt.append(wort)
+        woerter.append(gekuerzt)
+    ergebnis, i = [], 0
+    while i < len(woerter):
+        kern, j = _norm_unit(woerter[i]), i + 1
+        while kern and j < len(woerter) and _norm_unit(woerter[j]) == kern:
+            j += 1
+        if kern and j - i >= min_reps:
+            entfernt.append(" ".join(woerter[i:j - 1]))
+            ergebnis.append(woerter[j - 1])
+        else:
+            ergebnis.extend(woerter[i:j])
+        i = j
+    return " ".join(ergebnis).strip(), " ".join(entfernt).strip()
+
+
 # Wortsalat-Schwanz: Schwellen an 1043 echten Diktaten kalibriert (siehe Docstring).
 _SALAD_MIN_TAIL = 8        # kuerzere Schwaenze sind statistisch nicht beurteilbar
 _SALAD_MAX_TAIL = 40       # weiter zurueck liegt normaler Text
@@ -334,10 +379,47 @@ def strip_foreign_tail(raw: str) -> tuple[str, str]:
 _NEGATION = re.compile(
     r"\b(nicht|nichts|kein|keine|keinen|keinem|keiner|keines|nie|niemals|niemand|"
     r"ohne|weder|nirgends|nirgendwo|kaum|unmöglich)\b", re.IGNORECASE)
-_ZAHL = re.compile(r"\d+(?:[.,]\d+)?")
+# Zahl MIT ihren Trennern: „22,60", „18.50", „18:50", „15.07". Der Doppelpunkt
+# gehoert bewusst dazu — sonst zerfaellt eine korrekt gesetzte Uhrzeit in zwei
+# Zahlen und die richtige Fassung galt als „Zahl fehlt" (C-1).
+_ZAHL = re.compile(r"\d+(?:[.,:]\d+)*")
 # Ab dieser Laenge gilt ein Diktat als lang — dort ist EINE fehlende Verneinung zu
 # unsicher, weil oft ein ganzer vom Sprecher verworfener Halbsatz entfaellt.
 _MEANING_LONG_WORDS = 60
+
+# Monatsnamen fuer den Datumsfall („15.07." → „15. Juli"). BEWUSST nur der NAME
+# zaehlt, nicht die Monatszahl: „6.7." wurde real zu „der 6., oder der 7.?" —
+# dort stehen beide Zahlen im Text, und das muss ein Treffer bleiben.
+_MONATSNAMEN = {
+    1: ("januar",), 2: ("februar",), 3: ("märz", "maerz"), 4: ("april",),
+    5: ("mai",), 6: ("juni",), 7: ("juli",), 8: ("august",), 9: ("september",),
+    10: ("oktober",), 11: ("november",), 12: ("dezember",),
+}
+_DATUM = re.compile(r"^(\d{1,2})\.(\d{1,2})$")
+
+
+def _zahlen(text: str) -> list[str]:
+    """Zahlen in Originalschreibweise. LaTeX setzt Dezimalzahlen als `3{,}5`."""
+    return _ZAHL.findall((text or "").replace("{,}", ",").replace("{.}", "."))
+
+
+def _zahl_norm(zahl: str) -> str:
+    """Trenner zwischen Ziffern auf EIN Zeichen: „18:50" = „18.50" = „18,50"."""
+    return zahl.replace(",", ".").replace(":", ".")
+
+
+def _datum_ausgeschrieben(zahl: str, sauber: str) -> bool:
+    """Ist aus „15.07." ein „15. Juli" geworden? Verlangt Tag als Zahl UND Monat
+    als NAMEN im bereinigten Text (die Monatszahl allein reicht nicht)."""
+    treffer = _DATUM.match(zahl)
+    if not treffer:
+        return False
+    tag, monat = int(treffer.group(1)), int(treffer.group(2))
+    if not 1 <= tag <= 31 or monat not in _MONATSNAMEN:
+        return False
+    klein = sauber.lower()
+    return (any(name in klein for name in _MONATSNAMEN[monat])
+            and re.search(rf"\b0*{tag}\b", sauber) is not None)
 
 
 def meaning_flipped(raw: str, cleaned: str) -> str:
@@ -357,6 +439,15 @@ def meaning_flipped(raw: str, cleaned: str) -> str:
 
     Bewusst KEINE Prüfung auf Zugewinn: Ein zusätzliches „nicht" ist zwar auch falsch,
     kommt aber praktisch nicht vor, und die Regel bliebe schwerer zu begründen.
+
+    Zahlen werden vor dem Vergleich normalisiert (C-1): Trenner zwischen Ziffern
+    zählen als EIN Zeichen, „18.50 Uhr" und „18:50 Uhr" sind dieselbe Zahl. Ohne
+    das meldete der Guard jede deutsche Uhrzeit, die das Modell korrekt umschreibt
+    — an 967 echten Paaren waren das 10 von 16 Zahl-Treffern, jeder davon ein
+    Fehlalarm mit Fehlerton und unbereinigtem Text im Feld.
+    Bekannter Rest: Datumsangaben werden nur in der Form „15.07." → „15. Juli"
+    erkannt (Tag als Zahl, Monat als Name). Wird ein Datum anders umgeschrieben
+    („am fünfzehnten Juli"), gilt die Zahl weiterhin als verloren.
     """
     roh, sauber = raw or "", cleaned or ""
 
@@ -374,13 +465,12 @@ def meaning_flipped(raw: str, cleaned: str) -> str:
     # Nur Zahlen, die ausgeschrieben NICHT plausibel sind: Beträge und Jahreszahlen
     # mit Dezimaltrenner oder ab drei Stellen. „22,60" oder „2026" schreibt niemand
     # aus, „drei" dagegen schon.
-    # LaTeX schreibt Dezimalzahlen als `3{,}5` — die Zahl ist erhalten, nur anders
-    # gesetzt. Ohne diese Normalisierung meldete der Guard genau die Formel-Diktate,
-    # für die er nicht gedacht ist.
-    zahlen_sauber = _ZAHL.findall(sauber.replace("{,}", ",").replace("{.}", "."))
-    fehlend = [z for z in _ZAHL.findall(roh)
-               if z not in zahlen_sauber
-               and (("," in z or "." in z) or len(z) >= 3)]
+    # Verglichen wird die normalisierte Form, gemeldet die Originalschreibweise.
+    zahlen_sauber = {_zahl_norm(z) for z in _zahlen(sauber)}
+    fehlend = [z for z in _zahlen(roh)
+               if _zahl_norm(z) not in zahlen_sauber
+               and ("." in _zahl_norm(z) or len(_zahl_norm(z)) >= 3)
+               and not _datum_ausgeschrieben(_zahl_norm(z), sauber)]
     if fehlend:
         return "Zahl(en) fehlen: " + ", ".join(fehlend[:4])
     return ""
@@ -606,7 +696,11 @@ def trim_unsupported_tail(cleaned: str, raw: str, min_support: float = 0.5,
     removed = 0
     while len(parts) > 1:
         candidate = parts[-1]
-        if "$" in candidate or "\\" in candidate or "[[F" in candidate \
+        # Platzhalter: Formeln heissen `[[M1]]` (`formula.formula_marker`),
+        # Bausteine `[[B1]]`. Frueher stand hier `[[F` — ein Name, den es im Code
+        # nirgends gibt; ein Schlusssatz mit Formel wurde deshalb als „erfunden"
+        # abgeschnitten (C-5).
+        if "$" in candidate or "\\" in candidate or "[[M" in candidate \
                 or "[[B" in candidate:
             break
         words = content_words(candidate)

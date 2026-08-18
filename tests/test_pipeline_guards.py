@@ -57,6 +57,17 @@ def test_formula_sentences_are_never_trimmed():
     assert removed == 0 and text == cleaned
 
 
+def test_formel_platzhalter_wird_nie_abgeschnitten():
+    """C-5: Geschuetzt war „[[F" — ein Name, den es im Code nie gab. Formeln heissen
+    „[[M1]]", und genau der Normalfall („… und das ergibt dann [[M1]]") wurde als
+    erfundener Schlusssatz verworfen."""
+    from fleech.textfilter import trim_unsupported_tail
+
+    cleaned = "Der Server ist offline gewesen. Und das ergibt dann [[M1]]."
+    text, removed = trim_unsupported_tail(cleaned, "der server ist offline gewesen")
+    assert removed == 0 and text == cleaned
+
+
 def test_paraphrase_triggers_stricter_retry():
     """Straffen ist Umformulieren: die Ausgabe erfindet nichts (Grounding bleibt hoch),
     laesst aber die Haelfte weg → EIN strengerer Zweitversuch, dessen wortgetreues
@@ -83,13 +94,44 @@ def test_persistent_paraphrase_falls_back_to_raw():
 
 def test_strong_intervention_may_reformulate():
     """Eingriffsgrad „strong" ist die ausdrueckliche Erlaubnis zu staerkerem Glaetten —
-    dort darf der Wortgetreue-Guard nicht dazwischenfunken."""
-    smoothed = "Das Ding ist komplett kaputt gegangen."
+    dort darf der Wortgetreue-Guard nicht dazwischenfunken.
+
+    Die Antwort haelt seit Befund A-3 die Verneinung („nicht mehr") fest: Sie darf
+    kuerzen und umformulieren, aber nicht die Aussage drehen. Bis 5.10.2 stand hier
+    eine Fassung ohne „nicht" — die kam durch, weil „strong" ALLE drei Pruefungen
+    abschaltete, auch die auf Zahlen und Verneinungen.
+    """
+    smoothed = "Das Ding ist komplett kaputt — reparieren können wir es nicht mehr."
     p, llm, injector = make_pipeline(VERBATIM_RAW, llm=FakeLLM(reply=smoothed))
     p.intervention = "strong"
     assert p.process(AUDIO, 16000) == "ok"
     assert injector.injected == [smoothed]
     assert len(llm.calls) == 1                      # kein Zweitversuch
+
+
+def test_strong_intervention_prueft_weiterhin_verneinungen():
+    """A-3: „Strong" glaettet staerker — die Aussage drehen darf es trotzdem nicht.
+
+    Die beiden mitgelieferten Profile auf „strong" („Geschäftlich", „E-Mail") sind
+    genau die, in denen Termine, Betraege und Zusagen stehen.
+    """
+    gedreht = "Das Ding ist komplett kaputt gegangen, und wir kriegen das wieder hin."
+    p, llm, injector = make_pipeline(VERBATIM_RAW, llm=FakeLLM(reply=gedreht))
+    p.intervention = "strong"
+    assert p.process(AUDIO, 16000) == "fallback"
+    assert injector.injected == [VERBATIM_RAW]
+    assert len(llm.calls) == 2                      # ein Zweitversuch wie sonst auch
+
+
+def test_strong_intervention_prueft_weiterhin_zahlen():
+    zahlen_raw = ("also der rechnungsbetrag liegt bei 1249,90 euro und das team "
+                  "braucht die freigabe bis freitag")
+    ohne_zahl = ("Der Rechnungsbetrag liegt vor, und das Team braucht die Freigabe "
+                 "bis Freitag.")
+    p, llm, injector = make_pipeline(zahlen_raw, llm=FakeLLM(reply=ohne_zahl))
+    p.intervention = "strong"
+    assert p.process(AUDIO, 16000) == "fallback"
+    assert injector.injected == [zahlen_raw]
 
 
 def test_self_correction_gets_milder_verbatim_threshold():
