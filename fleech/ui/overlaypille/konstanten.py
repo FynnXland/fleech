@@ -39,9 +39,11 @@ _KEIN_TON = QColor(226, 96, 88)  # Warnrot — ausschliesslich fuer „kein Ton"
 # eingestelltes Scarlett liefert schon im Ruherauschen ~0,02. 0,002 liegt damit
 # eine Zehnerpotenz UNTER dem leisesten echten Mikrofon und zwanzigfach ueber
 # der beobachteten Stille — Fehlalarm ist teurer als ein verpasster Fall.
-# ACHTUNG: noch nicht am Geraet kalibriert. Der Wert muss einmal gegen das echte
-# Mikrofon gegengeprueft werden (stumm / sehr leise / normal gesprochen), erst
-# dann ist er belegt statt hergeleitet.
+# Am Geraet geprueft (18.08.2026, Scarlett Solo, ein 54-s-Diktat mit normal /
+# leiser / noch leiser / stumm): Bei "leiser" (Whisper verstand noch) blieb die
+# Wache still; bei "noch leiser" (Whisper registrierte nichts mehr) und in der
+# Stille loeste sie aus — lautester Rohpegel 0,0004 in 5 s. Die Schwelle trennt
+# damit genau dort, wo die Erkennung selbst aufgibt. Belegt, nicht nur hergeleitet.
 KEIN_TON_SCHWELLE = 0.002
 # Erst ab dieser Aufnahmedauer pruefen: Am Anfang ist Stille normal (Taste
 # gedrueckt, Luft geholt, nachgedacht).

@@ -232,7 +232,7 @@ class ZustandMixin:
             self._caption_is_live = False
             self._caption_is_status = True
             self._caption.show_above(
-                self.frameGeometry(), "Kein Ton vom Mikrofon — Gerät prüfen",
+                self.frameGeometry(), "Kein Ton vom Mikrofon — zu leise oder Gerät prüfen",
                 sticky=True, accent_color=_KEIN_TON,
             )
         else:
