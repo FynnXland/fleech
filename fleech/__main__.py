@@ -53,11 +53,16 @@ def _debug_logging_gewuenscht() -> bool:
     Der Schalter wurde bis 5.10.2 gespeichert und von niemandem gelesen (Befund
     B-6) — der Tooltip versprach ein ausfuehrliches Protokoll, das nie entstand.
     Bewusst defensiv: Laesst sich die settings.json hier nicht lesen, startet
-    Fleech normal weiter; die Datei wird gleich darauf ohnehin regulaer geladen."""
+    Fleech normal weiter; die Datei wird gleich darauf ohnehin regulaer geladen.
+    Bewusst NUR ein Blick in die JSON, kein `UserSettings.load()`: das wuerde die
+    Ladezeile („Einstellungen geladen: …") doppelt schreiben und die Heilung aus
+    der .bak einen Moment zu frueh anstossen."""
     try:
-        from .usersettings import UserSettings
+        from .usersettings import SETTINGS_PATH, AdvancedSettings, _lies_json
 
-        return bool(UserSettings.load().advanced.debug_logging)
+        daten = _lies_json(SETTINGS_PATH) or {}
+        vorgabe = AdvancedSettings.debug_logging
+        return bool((daten.get("advanced") or {}).get("debug_logging", vorgabe))
     except Exception:
         return False
 

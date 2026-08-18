@@ -11,6 +11,60 @@ GitHub-Release-Notizen (`packaging/release.py`).
 
 ---
 
+## 5.10.4 — 2026-08-18
+
+*Nicht einzeln veröffentlicht.* Zweite Runde aus der Tiefenanalyse: Der Verlauf
+kann jetzt „warum" beantworten, der Aufnahmeweg verliert seine Klemmen, die Insights
+zeigen ehrliche Zahlen.
+
+**Der Verlauf sagt, warum ein Diktat nicht glattlief.** Statt nur „Fallback" steht am
+Eintrag der Grund — „Ollama hat nicht geantwortet", „Ende gekürzt (Wiederholung)",
+„Formel-Platzhalter verloren", „Sinnumkehr: 1 Zahl fehlt". Jeder Eintrag merkt sich
+außerdem, welches Profil galt und in welchem Fenster du diktiert hast; Wörter, die
+Fleech am Ende des Rohtranskripts verworfen hat, werden mitgespeichert und im
+Detail-Dialog gezeigt — ein Fehlgriff der Filter lässt sich so zurückholen. In der
+Verlaufsliste tragen solche Diktate einen kleinen ambernen Punkt. Die Insights-Karte
+„Verarbeitung" zeigt unter der Fallback-Quote, woran es lag („Rückfälle: 2× Ollama ·
+1× Sinnumkehr"). Bestehende Verläufe bleiben vollständig erhalten. Das Protokoll
+(`fleech.log`) trägt jetzt bei jeder Zeile das Datum und wächst nicht mehr endlos —
+ab 20 MB wird rotiert, drei ältere Stände bleiben.
+
+**Hotkeys, die ankommen.** Diktier-Hotkeys auf Makro- oder G-Tasten (Corsair iCUE,
+Logitech G HUB) funktionieren jetzt zuverlässig: Ein verschlucktes Loslassen macht die
+Taste nicht mehr wirkungslos. Wer eine Taste länger hält, löst sie nicht mehr
+versehentlich zweimal aus — Pause, KI-Prompting und Profilwechsel richten sich nach
+der in Windows eingestellten Tastenwiederholung. Während „Rohtext einsetzen" läuft,
+reagieren die übrigen Hotkeys weiter (bisher war die Tastatur bei langen Diktaten
+bis zu 20 Sekunden für Fleech blockiert), und die Backspaces landen nicht mehr im
+falschen Dokument, wenn du das Fenster gewechselt hast; der Hinweis dazu sagt, was
+Fleech erkennen kann und was nicht.
+
+**Weniger stille Fehler.** Schlägt der Mikrofon-Start fehl oder fehlt der
+Lizenzschlüssel, bleibt die Fehlermeldung stehen statt von „nichts erkannt"
+überschrieben zu werden. Fehlt das gewählte Mikrofon, sagt Fleech es in der Pille
+und nennt das Gerät, über das jetzt aufgenommen wird. Läuft die lokale KI gar nicht,
+sagt Fleech einmal pro Sitzung, wo die Einrichtung steht. Ein kopiertes Bild bleibt
+nach einem Diktat in der Zwischenablage — zurückgeschrieben wird nur Text, der
+vorher auch Text war. Beim Beenden werden Discord, Spotify & Co. wieder laut gestellt,
+auch mitten in einer Aufnahme; die Lautstärke fremder Apps sinkt nicht mehr von
+Diktat zu Diktat weiter ab. Im Anstupsen-Modus gibt es keinen doppelten Stoppton
+mehr, wenn Sprechpause und Tastendruck zusammentreffen. Ein gelöschtes Profil fasst
+Einstellungen und Pille nicht mehr mitten in der Verarbeitung an.
+
+**Insights, die stimmen.** „Als Regel übernehmen" schlägt nur noch echte
+Erkennungsfehler vor — keine Grammatik („kann → können"), Formeln oder
+Anführungszeichen mehr, die künftig jedes Diktat verfälscht hätten; die Zeile sagt,
+was die Regel tut. „Verarbeitung" zeigt, wie schnell die Hälfte bzw. neun von zehn
+Diktaten wirklich fertig waren, statt eines Mittelwerts, den Kaltstarts verzerren.
+Der Buchvergleich bezieht sich auf alle je diktierten Wörter und wechselt nicht mehr
+bei jedem Diktat den Titel. „Deine Muster" schweigt bei zu kurzen Zeiträumen statt
+Banales zu verkünden und vergleicht Tageszeiten pro Stunde. „Korrekturen" zählt nur
+echte Bereinigungen; umformulierte Diktate stehen als eigene Zeile. Große Zahlen
+haben einen Tausenderpunkt. Die Karte „Befehle" ist als Zeile in „Deine Muster"
+gewandert — zeitraum-richtig, sie zeigte bisher immer den ganzen Verlauf.
+
+---
+
 ## 5.10.3 — 2026-08-18
 
 *Nicht einzeln veröffentlicht.* Erste Runde aus der Tiefenanalyse vom 17./18. August:

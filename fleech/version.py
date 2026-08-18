@@ -7,7 +7,7 @@
 
 from __future__ import annotations
 
-APP_VERSION = "5.10.3"  # 5.10.3: Tiefenanalyse Runde 1 — Anzeige=Wirkung, Waechter, Einstellungs-Heilung
+APP_VERSION = "5.10.4"  # 5.10.4: Tiefenanalyse Runde 2 — Verlauf mit Grund, Hotkeys, Insights
 
 
 def _read_build() -> str:

@@ -58,7 +58,8 @@ Provider/Modelle/Prompts sind in `config.yaml` + `prompts/` konfigurierbar
   Importiert `profiles`, **nie umgekehrt**. `save()` läuft unter einem Modul-Lock mit
   eindeutiger Nebendatei; `load()` heilt eine gültige, aber zurückgesetzte Datei aus
   der `.bak` (Erkennung in `fleech/settingsheilung.py`, kennt weder Pfade noch Schreiben).
-- `fleech/history.py` — SQLite-Verlauf (`history.db`), Stats für Insights.
+- `fleech/history.py` — SQLite-Verlauf (`history.db`), Stats für Insights; je Eintrag seit 5.10.4
+  auch `reason`/`profile`/`title`/`dropped`. `fleech/gruende.py` — die Grund-Texte dazu.
 - `fleech/ui/` — `desktop.py` (Aufbau, Aufnahme-Lebenszyklus, Hotkeys, Verdrahtung),
   `main_window.py` (Fenstergerüst), `settings_window.py` (Panel + Widget-Bauer),
   `overlay_qt.py` (das Pillen-Fenster: Aufbau, Hintergrund, Qt-Ereignisse),
