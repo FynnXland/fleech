@@ -18,8 +18,8 @@ import logging
 log = logging.getLogger(__name__)
 
 # Hotkeys, die der Nutzer belegt haben kann. Zusammen mit Lizenz, Onboarding,
-# Woerterbuch, Bausteinen, Schnellwechsel und Profilliste bilden sie den
-# „wertvollen" Teil der Einstellungen — nur an ihm wird gemessen (Befund A-5).
+# Woerterbuch, Schnellwechsel und Profilliste bilden sie den „wertvollen" Teil der
+# Einstellungen — nur an ihm wird gemessen (Befund A-5).
 HOTKEY_FELDER = ("hotkey", "prompt_toggle_hotkey", "undo_hotkey", "pause_hotkey",
                  "profile_hotkey")
 
@@ -51,7 +51,6 @@ def wertvoller_abzug(fabrik, data) -> dict:
         "lizenz": str(s.general.license_key or ""),
         "onboarding": bool(s.general.onboarding_done),
         "woerterbuch": list(s.output.dictionary or []),
-        "bausteine": list(s.output.snippets or []),
         "app_quick": dict(s.profiles.app_quick or {}),
         "profile": list(s.profiles.items or []),
         "hotkeys": {n: str(getattr(s.recording, n, "") or "") for n in HOTKEY_FELDER},

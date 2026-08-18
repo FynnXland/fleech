@@ -27,7 +27,9 @@ UMFORMULIERT = "KI hat umformuliert statt bereinigt"
 SINN_GEDREHT = "Aussage verändert"          # + Detail, siehe mit_detail()
 FORMEL_UNPLAUSIBEL = "Unplausibel viele Formel-Blöcke"
 FORMEL_MARKER = "Formel-Platzhalter verloren"
-BAUSTEIN_MARKER = "Baustein-Platzhalter verloren"
+# `BAUSTEIN_MARKER` ist mit den Text-Bausteinen in 5.11.0 entfallen. Kein Verlauf
+# kann ihn tragen: Er entstand nur, wenn Bausteine konfiguriert waren — und das
+# waren sie nie.
 BEFEHL_GESCHEITERT = "Befehl nicht ausführbar"
 FORMAT_GESCHEITERT = "Ausgabeformat lieferte nichts"
 
@@ -49,7 +51,6 @@ KURZFORM = {
     SINN_GEDREHT: "Sinnumkehr",
     FORMEL_UNPLAUSIBEL: "Formel-Ausreißer",
     FORMEL_MARKER: "Formel verloren",
-    BAUSTEIN_MARKER: "Baustein verloren",
     BEFEHL_GESCHEITERT: "Befehl",
     FORMAT_GESCHEITERT: "Ausgabeformat",
     ENDE_GEKUERZT: "Wiederholung",

@@ -93,37 +93,10 @@ class FreihandMixin:
         self._freihand = None
         self.bus.freihand_zustand.emit("aus")
 
-    def toggle_freihand(self) -> None:
-        """Schnellschalter (Tray/Hotkey): sofort aufhoeren mitzuhoeren.
-
-        Der Nutzer muss das Lauschen jederzeit mit einem Griff beenden koennen —
-        ohne Einstellungen zu oeffnen und ohne zu suchen.
-        """
-        from ...freihand import STILLGELEGT
-
-        if STILLGELEGT:
-            # Nicht stumm ignorieren: Der Eintrag steht im Tray, ein Klick darauf
-            # muss eine Antwort geben — sonst sucht man den Fehler beim Mikrofon.
-            self._flash_status("Freihand ist vorerst abgeschaltet")
-            return
-        an = not self.settings.freihand.aktiv
-        self.settings.freihand.aktiv = an
-        self.settings.save()
-        try:
-            from ...freihand import woerter_als_text
-
-            self.tray.set_freihand(an, woerter_als_text(self.settings.freihand.startwort))
-        except Exception:
-            log.debug("Tray-Text nicht aktualisierbar.", exc_info=True)
-        if an:
-            self._starte_freihand()
-            from ...freihand import woerter_als_text
-
-            self._flash_status("Freihand an — sag „%s“"
-                               % woerter_als_text(self.settings.freihand.startwort))
-        else:
-            self._stoppe_freihand()
-            self._flash_status("Freihand aus")
+    # `toggle_freihand` (Tray-Schnellschalter) ist mit der Freihand-Oberflaeche in
+    # 5.11.0 entfallen: Der Eintrag meldete einen Zustand, den der stillgelegte
+    # Modus nicht mehr einnehmen kann (Befund E-8). Es gibt seither keinen Weg
+    # mehr, `freihand.aktiv` zur Laufzeit umzustellen — genau das ist der Zweck.
 
     def _freihand_ereignis(self, ereignis, audio) -> None:
         """AUDIO-THREAD! Nur weiterreichen — alles andere gehoert in den UI-Thread."""
@@ -235,13 +208,6 @@ class FreihandMixin:
             )
         except Exception:
             log.debug("Freihand-Fehlermeldung nicht zeigbar.", exc_info=True)
-        try:
-            from ...freihand import woerter_als_text
-
-            self.tray.set_freihand(False,
-                                   woerter_als_text(self.settings.freihand.startwort))
-        except Exception:
-            log.debug("Tray-Text nicht setzbar.", exc_info=True)
 
     def _baue_freihand_mitschnitt(self, s):
         """Diagnose-Aufzeichnung, oder None (der Normalfall).

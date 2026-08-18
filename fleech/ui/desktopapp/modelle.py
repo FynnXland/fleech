@@ -141,10 +141,13 @@ class ModelleMixin:
     def _llm_endpoints(self) -> list:
         models = {self.config.llm_cleanup.model: self.config.llm_cleanup}
         models.setdefault(self.config.llm_command.model, self.config.llm_command)
-        if self.settings.advanced.adaptive_cleanup:
-            models.setdefault(
-                self.config.llm_cleanup_fast.model, self.config.llm_cleanup_fast
-            )
+        # Der schnelle Endpunkt gehoert seit 5.11.0 fest dazu (Befund E-4: der
+        # Schalter „Adaptive Geschwindigkeit" stand ohnehin bei jedem auf „an").
+        # `setdefault` sorgt dafuer, dass daraus kein zweites Warmhalten wird,
+        # solange `cleanup_fast` dasselbe Modell nennt wie `cleanup`.
+        models.setdefault(
+            self.config.llm_cleanup_fast.model, self.config.llm_cleanup_fast
+        )
         return list(models.values())
 
     def _keep_llm_warm(self) -> None:

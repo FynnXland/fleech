@@ -119,7 +119,7 @@ und lässt sich Anwendungen zuweisen; die Handauswahl sticht die Zuweisung.
 
 Außerdem: **gesprochene Zeichen** („Slash Hunter" → „/Hunter"; nur vier eindeutige
 Wörter — Slash, Backslash, Hashtag, Klammeraffe —, alles andere bleibt Text),
-**Textbausteine** („Baustein Signatur"), ein **Wörterbuch** für Fachbegriffe (primt
+ein **Wörterbuch** für Fachbegriffe (primt
 zusätzlich die Erkennung), **Ersetzungsregeln**, **Profile** je Anwendung
 (Eingriffsgrad, Safe-Word an/aus, automatisch absenden, exportierbar/importierbar),
 **Rückgängig** nach einer Fehlausgabe (`Strg+Alt+Z`) und ein durchsuchbarer

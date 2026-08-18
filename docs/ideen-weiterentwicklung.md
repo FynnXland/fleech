@@ -15,15 +15,15 @@ erst, wenn der Kern ausgereizt ist.
 
 ## Stufe 1 — klein, sofort lohnend (je ≤ 1 Sitzung)
 
-### 1. Text-Snippets („Baustein: …")
+### 1. Text-Snippets („Baustein: …") — gebaut in 3.x, in 5.11.0 wieder entfernt (unbenutzt)
 Gesprochenes Kürzel fügt einen festen Textblock ein: „Baustein Signatur" → die
-E-Mail-Signatur, „Baustein Absage" → die Standard-Absage, „Baustein Docstring" →
-ein Code-Gerüst.
-**Warum zuerst:** Größter Alltagsnutzen pro Aufwandsstunde; die komplette
-Infrastruktur existiert (Erkennungs-Priming wie beim Safe-Word, Injection,
-Zeilen-Editor-UI wie beim Wörterbuch). Ein neues Settings-Blatt „Snippets" mit
-`Kürzel => Text`-Zeilen, Erkennung vor dem Modus-Routing.
-**Aufwand: S**
+E-Mail-Signatur, „Baustein Absage" → die Standard-Absage.
+**Was daraus wurde:** gebaut wie hier beschrieben — und in 1399 gemessenen Diktaten
+kein einziges Mal benutzt; im Verlauf gibt es auch keinen wiederkehrenden Text, der
+ein Baustein geworden wäre. In 5.11.0 wieder entfernt. Der Eintrag bleibt als
+Warnung stehen: Was Vorab-Handarbeit verlangt, passiert nicht — was von selbst
+lernt (Projekt-Gedächtnis), lebt.
+**Aufwand: S — und trotzdem verlorene Zeit.**
 
 ### 2. Verlauf-Export (Markdown/Text)
 Den Diktat-Verlauf (gefiltert nach Zeitraum/App) als Markdown-Datei exportieren;

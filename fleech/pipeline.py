@@ -22,10 +22,6 @@ from .routing import (
     Mode, detect_mode, split_command_continuation, split_format_suffix,
     text_before_trigger,
 )
-from .snippets import (
-    DEFAULT_KEYWORD, expand_snippets, markers_survived, mentions_keyword,
-    parse_snippets, restore_snippets, snippet_initial_prompt,
-)
 from .textutils import (
     TRANSCRIPT_CLOSE,
     TRANSCRIPT_OPEN,
@@ -124,8 +120,8 @@ _AUTO_LATEX_ADDENDUM = (
     "Erklaerungen aus, nur den Text mit den eingebetteten $…$-Formeln."
 )
 
-# Ansage fuer die Formel-Platzhalter. Steht hier und nicht zweimal im Code: Sie gilt
-# im reinen Formel-Zweig UND im Baustein-Zweig, wenn beides im selben Diktat vorkommt.
+# Ansage fuer die Formel-Platzhalter — die einzige Platzhalter-Familie, seit die
+# Text-Bausteine mit ihrem `[[B…]]`-Zweig entfallen sind (5.11.0).
 _FORMEL_MARKER_HINWEIS = (
     "Platzhalter der Form [[M1]], [[M2]] … sind fertige Formeln: EXAKT und "
     "unveraendert an ihrer Position lassen, niemals entfernen oder umschreiben."
@@ -247,10 +243,6 @@ class Pipeline:
         self.vocab_terms: list[str] = []
         self._vocab_rules: list[tuple[str, str]] = []
         self._vocab_prompt = ""
-        # Text-Bausteine (gesprochenes Kuerzel → fester Textblock).
-        self._snippets: list[tuple[str, str]] = []
-        self._snippet_keyword = DEFAULT_KEYWORD
-        self._snippet_prompt = ""
         # STT-Serialisierung: faster-whisper ist nicht garantiert thread-sicher fuer
         # konkurrierende transcribe-Aufrufe auf demselben Modell.
         self._stt_lock = threading.Lock()
@@ -293,17 +285,6 @@ class Pipeline:
             primed = len(primed_terms(terms, usage))
             log.info("Woerterbuch: %d Begriffe (%d geprimt), %d Ersetzungsregeln.",
                      len(terms), primed, len(rules))
-
-    def set_snippets(self, lines: list, keyword: str = "") -> None:
-        """Text-Bausteine uebernehmen ("Kuerzel => Text"-Zeilen aus den Settings)."""
-        self._snippets = parse_snippets(lines)
-        self._snippet_keyword = (keyword or "").strip() or DEFAULT_KEYWORD
-        self._snippet_prompt = snippet_initial_prompt(
-            self._snippets, self._snippet_keyword
-        )
-        if self._snippets:
-            log.info("Bausteine: %d (Signalwort %r).",
-                     len(self._snippets), self._snippet_keyword)
 
     def process(self, audio: np.ndarray, samplerate: int,
                 intervention_override: str | None = None,
@@ -360,10 +341,6 @@ class Pipeline:
         hints = []
         if self._vocab_prompt:
             hints.append(self._vocab_prompt)
-        if self._snippet_prompt:
-            # Baustein-Kuerzel sind kurze Kunstwoerter im Redefluss — ohne Priming
-            # verhoert sich Whisper genau dort ("Bau Stein Signatur").
-            hints.append(self._snippet_prompt)
         gelernt = self._kontext_begriffe(app, window_title)
         if gelernt:
             # NACH dem Woerterbuch: Das ist von Hand gepflegt und damit praeziser
@@ -489,10 +466,9 @@ class Pipeline:
                  force_big: bool = False) -> tuple[str, bool]:
         """(bereinigter Text, ueber Fehler-Fallback?)
 
-        Klammert das eigentliche Bereinigen um die Baustein-Aufloesung: Aufrufe wie
-        „Baustein Signatur" werden VOR dem Modell zu Markern und erst NACH allen
-        Guards wieder zu Text. Das Modell sieht den Baustein-Inhalt nie und kann ihn
-        deshalb weder umformulieren noch als Halluzination missverstehen.
+        Klammert das eigentliche Bereinigen um die Formel-Aufloesung: Was der Parser
+        sicher uebersetzen kann, wird VOR dem Modell zu einem Platzhalter und erst
+        NACH allen Guards wieder zu LaTeX.
         """
         self._status("Bereinige …")
         # Formeln ZUERST und ohne Modell: Was der Parser sicher uebersetzen kann,
@@ -505,80 +481,28 @@ class Pipeline:
         # Fuer die Vorschau in der Pille: was wurde erkannt, was davon geraten?
         self.last_formulas = list(zip(formulas, uncertain))
 
-        expanded, snippet_texts = expand_snippets(
-            raw, self._snippets, self._snippet_keyword
-        )
-        if formulas and not snippet_texts:
+        if formulas:
             # Reines Formel-Diktat („Wurzel x Quadrat plus c"): Nach dem Ersetzen
             # bleibt nur der Platzhalter uebrig — es gibt nichts zu bereinigen.
             # Das Modell trotzdem zu fragen war schaedlich: Es verschluckte den
             # Platzhalter regelmaessig (real im Log: „Formel-Platzhalter
             # verloren"), was den Fallback ausloeste und Zeit kostete.
-            if not re.sub(r"\[\[M\d+\]\]", " ", expanded).strip(" .,;:!?"):
+            if not re.sub(r"\[\[M\d+\]\]", " ", raw).strip(" .,;:!?"):
                 log.info("Reines Formel-Diktat — Cleanup uebersprungen.")
-                return restore_formulas(expanded, formulas), False
+                return restore_formulas(raw, formulas), False
             text, fallback = self._clean_with_markers(
-                expanded, intervention_override, style_hints, formulas)
+                raw, intervention_override, style_hints, formulas)
             return restore_formulas(text, formulas), fallback
-        if not snippet_texts:
-            if self._snippets and mentions_keyword(raw, self._snippet_keyword):
-                # Signalwort gehoert, aber kein Kuerzel getroffen: fast immer ein
-                # verhoertes Kuerzel. Sichtbar loggen, sonst sucht der Nutzer den
-                # Fehler bei sich statt in der Erkennung.
-                log.info("Signalwort %r erkannt, aber kein Baustein-Kuerzel getroffen: %s",
-                         self._snippet_keyword, raw[:120])
-            return self._clean_text(raw, intervention_override, style_hints, force_big)
-
-        if not re.sub(r"\[\[B\d+\]\]", " ", expanded).strip():
-            # Reiner Baustein-Aufruf ("Baustein Signatur") — es gibt nichts zu
-            # bereinigen. Ohne diese Abkuerzung ginge der Marker wegen seiner Ziffer
-            # als "komplex" ans grosse Modell: Sekunden Latenz fuer nichts.
-            log.info("Reiner Baustein-Aufruf — Cleanup uebersprungen.")
-            return restore_snippets(expanded, snippet_texts), False
-
-        hints = list(style_hints or [])
-        hints.append(
-            "Platzhalter der Form [[B1]], [[B2]] … sind Text-Bausteine: EXAKT und "
-            "unveraendert an ihrer Position lassen, niemals entfernen oder umschreiben."
-        )
-        if formulas:
-            # Formel UND Baustein im selben Diktat: Ohne diesen Hinweis kannte das
-            # Modell nur die [[B…]]-Regel und warf den Formel-Marker weg (C-3).
-            hints.append(_FORMEL_MARKER_HINWEIS)
-        # Immer das grosse Modell: live gemessen verschluckte das frueher genutzte
-        # kleine Zweitmodell die Marker in der Mehrzahl der Faelle (kurze Saetze mit
-        # Platzhalter ueberfordern es). Seit beide Stufen dasselbe Modell nutzen, ist
-        # das faktisch wirkungslos — bleibt aber stehen, damit ein wieder getrenntes
-        # Zweitmodell nicht sofort dieselbe Falle aufreisst.
-        # Der Fallback rettet zwar den Baustein, liefert dann aber unbereinigten
-        # Text — bei einer Funktion, die man mehrmals taeglich nutzt, ist das der
-        # falsche Handel. Gleiche Logik wie bei Code-Diktaten: subtiler Fall → gross.
-        text, fallback = self._clean_text(expanded, intervention_override, hints,
-                                          force_big=True)
-        # Derselbe Rueckfall wie im reinen Formel-Zweig (`_clean_with_markers`):
-        # `restore_formulas` ersetzt einen fehlenden Marker durch NICHTS — die
-        # Formel verschwand hier bisher spurlos, mit gruenem Haken (C-3).
-        if formulas and not formula_markers_survived(expanded, text, len(formulas)):
-            log.warning("Cleanup hat Formel-Platzhalter verloren — nutze Rohtext-Gerüst.")
-            self._merke_grund(gruende.FORMEL_MARKER)
-            text, fallback = expanded, True
-        text = restore_formulas(text, formulas)
-        if not markers_survived(expanded, text, len(snippet_texts)):
-            # Ein verschluckter Marker hiesse: der Baustein faellt ersatzlos weg.
-            # Lieber das unbereinigte Geruest — der Baustein ist der Zweck der Uebung.
-            log.warning("Cleanup hat Baustein-Platzhalter verloren — nutze Rohtext-Gerüst.")
-            self._merke_grund(gruende.BAUSTEIN_MARKER)
-            text, fallback = expanded, True
-        return restore_snippets(text, snippet_texts), fallback
+        return self._clean_text(raw, intervention_override, style_hints, force_big)
 
     def _clean_with_markers(self, text: str, intervention_override, style_hints,
                             formulas: list) -> tuple[str, bool]:
         """Bereinigen, wenn Formel-Platzhalter im Text stehen.
 
-        Gleiche Vorsicht wie bei Bausteinen: immer das grosse Modell (das kleine
-        verschluckt Platzhalter nachweislich) und Rueckfall auf das Rohgeruest,
-        wenn ein Marker verloren geht — eine verschwundene Formel waere schlimmer
-        als ein unbereinigter Satz."""
+        Zwei Vorsichtsmassnahmen: immer das grosse Modell (das kleine verschluckt
+        Platzhalter nachweislich) und Rueckfall auf das Rohgeruest, wenn ein Marker
+        verloren geht — eine verschwundene Formel waere schlimmer als ein
+        unbereinigter Satz."""
         hints = list(style_hints or [])
         hints.append(_FORMEL_MARKER_HINWEIS)
         cleaned, fallback = self._clean_text(text, intervention_override, hints,
@@ -1246,7 +1170,7 @@ class Pipeline:
         if self.kontext is None or not app or not self.kontext_lernen:
             return []
         # Der initial_prompt hat bei Whisper ein hartes Limit (~224 Token, halbes
-        # Kontextfenster). Woerterbuch, Bausteine und Signalwort teilen es sich
+        # Kontextfenster). Woerterbuch und Signalwort teilen es sich
         # mit den gelernten Begriffen — wer viel Vokabular pflegt, soll dadurch
         # nicht das Handgepflegte verlieren, das praeziser ist. Gemessen: 25
         # gelernte Begriffe ~90 Token, ein volles Woerterbuch (60) ~130.

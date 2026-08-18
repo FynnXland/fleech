@@ -72,31 +72,36 @@ def test_combo_badge_traegt_alle_optionen_und_wandert_mit(qapp):
     assert "Erklärung A" in badge._tip    # A bleibt lesbar, auch nicht mehr aktiv
 
 
-# -- E-9/E-12: Freihand-Block komplett ausgegraut, Abbruchwort-Hinweis --------------
+# -- E-5/E-9/E-12: Freihand-Block ganz weg, Sprechpause bleibt beim Anstupsen ------
 
-def test_freihand_block_ist_komplett_ausgegraut(qapp):
-    """STILLGELEGT=True (5.10.1): NICHT nur Checkbox/Startwortliste/Probe-Knopf,
-    sondern auch Genauigkeit, Abbruchwort, Fehlersuche und Nicht-lauschen-in —
-    sonst stehen vier bedienbare Zeilen unter einem toten Schalter (E-9)."""
+def test_freihand_block_steht_nicht_mehr_auf_der_aufnahme_seite(qapp):
+    """Befund E-5: Bis 5.10.x war der Block nur AUSGEGRAUT — dieser Test prüfte
+    genau das. Ausgegraute Zeilen unter einem toten Schalter erklären trotzdem
+    nichts; in 5.11.0 ist die Oberfläche entfernt (Code eingefroren, STILLGELEGT
+    bleibt). Was der Nutzer sehen kann, muss wahr sein."""
     from fleech.freihand import STILLGELEGT
 
     assert STILLGELEGT is True
     panel, _ = _panel()
-    namen = ("_freihand_cb", "_startwort_liste", "_freihand_genauigkeit",
-             "_freihand_abbruchwort", "_freihand_fehlersuche",
-             "_freihand_ausgeschlossen")
+    namen = ("_freihand_cb", "_startwort_liste", "_startwort_probe_btn",
+             "_freihand_genauigkeit", "_freihand_abbruchwort",
+             "_freihand_fehlersuche", "_freihand_ausgeschlossen")
     for name in namen:
-        widget = getattr(panel, name)
-        assert not widget.isEnabled(), f"{name} ist noch bedienbar"
+        assert getattr(panel, name, None) is None, f"{name} steht noch in der Seite"
 
 
-def test_abbruchwort_hinweis_nennt_freihand_modus(qapp):
+def test_sprechpause_bleibt_und_spricht_vom_anstupsen(qapp):
+    """Der Regler gehört zum Anstupsen-Modus, nicht zu Freihand — er darf mit dem
+    Freihand-Block NICHT verschwunden sein (er teilt sich nur das Settings-Feld)."""
     import inspect
 
     from fleech.ui.settings import aufnahme
 
-    quelle = inspect.getsource(aufnahme._freihand_block)
-    assert "Nur im Freihand-Modus:" in quelle
+    panel, _ = _panel()
+    assert getattr(panel, "_sprechpause_box", None) is not None
+    quelle = inspect.getsource(aufnahme.build)
+    assert "Nur beim Anstupsen:" in quelle
+    assert "Freihand" not in quelle
 
 
 # -- E-11: Click-Through nennt die betroffenen Knoepfe ------------------------------
@@ -164,16 +169,25 @@ def test_safe_word_platzhalter_faellt_bei_kaputter_config_zurueck(qapp, monkeypa
     assert panel._trigger_field.placeholderText() == "leer = Wert aus config.yaml"
 
 
-# -- A-2/E-10: "Adaptive Geschwindigkeit" nennt kein zweites Modell -----------------
+# -- A-2/E-10/E-4: "Adaptive Geschwindigkeit" gibt es gar nicht mehr ----------------
 
-def test_adaptive_tooltip_verspricht_kein_zweites_modell(qapp):
+def test_es_gibt_keinen_schalter_fuer_adaptive_geschwindigkeit_mehr(qapp):
+    """Bis 5.10.x stand hier ein Schalter, dessen Tooltip ein „kleines, schnelleres
+    Modell" versprach — dieser Test prüfte nur noch, dass der Tooltip nicht mehr
+    lügt. Befund E-4: Der Schalter stand bei jedem auf „an" und konnte gar nichts
+    bewirken, weil `cleanup` und `cleanup_fast` bewusst dasselbe Modell fahren.
+    In 5.11.0 ist er entfernt; das Routing läuft fest weiter."""
     import inspect
 
     from fleech.ui.settings import advanced
+    from fleech.usersettings import AdvancedSettings
 
     quelle = inspect.getsource(advanced.build)
+    # Kein Bedienelement mehr (der erklärende Kommentar im Code darf bleiben).
+    assert 'form, "Adaptive Geschwindigkeit' not in quelle
     assert "kleines, schnelleres Modell" not in quelle
-    assert "kurzen Weg" in quelle
+    assert "kurzen Weg" not in quelle
+    assert not hasattr(AdvancedSettings(), "adaptive_cleanup")
 
 
 # -- A-14/E-16: Warmhaltung-Zahlen auf dem heutigen Stand ---------------------------

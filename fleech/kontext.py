@@ -46,7 +46,7 @@ log = logging.getLogger(__name__)
 DB_PATH = user_data_dir() / "kontext.db"
 
 # Wie viele Begriffe hoechstens zurueckgegeben werden. Das Whisper-Kontextfenster
-# teilt sich der Priming-Satz mit Woerterbuch, Bausteinen und Signalwort — mehr
+# teilt sich der Priming-Satz mit Woerterbuch und Signalwort — mehr
 # Begriffe verdraengen dort die handgepflegten, die praeziser sind.
 MAX_BEGRIFFE = 25
 

@@ -48,7 +48,6 @@ def build_pipeline(config: AppConfig, settings: UserSettings, injector=None,
     pipeline = _build(config, settings, injector, status)
     pipeline.set_dictionary(settings.output.dictionary,
                             settings.output.dictionary_usage)
-    pipeline.set_snippets(settings.output.snippets, settings.output.snippet_keyword)
     pipeline.auto_latex = settings.math.enabled and settings.math.auto_latex
     pipeline.spoken_symbols = settings.output.spoken_symbols
     # Weitere Ausgabeformate: eine Prompt-Datei je Format. Fehlt sie, faellt genau
@@ -97,7 +96,10 @@ def _build(config, settings, injector, status=None) -> Pipeline:
         stt=create_stt(config.stt),
         cleanup_llm=ChatClient(config.llm_cleanup),
         fast_llm=ChatClient(config.llm_cleanup_fast),
-        adaptive=settings.advanced.adaptive_cleanup,
+        # Fest an, seit der Schalter „Adaptive Geschwindigkeit" entfallen ist
+        # (Befund E-4). `cleanup_fast` bleibt als Nahtstelle in config.yaml —
+        # heute derselbe Endpunkt wie `cleanup`, aber wieder trennbar.
+        adaptive=True,
         injector=injector if injector is not None else TextInjector(
             config.injection.restore_clipboard, config.injection.paste_delay_ms
         ),

@@ -62,7 +62,7 @@ Absätze nach Bedeutung gesetzt.
 | Verarbeitung | Cloud | **vollständig lokal**, ohne Ausnahme |
 | Ergebnis | Wort-für-Wort-Transkript | **redigierter Text** (LLM-Nachbearbeitung) |
 | Anpassung | kaum | Profile pro App, Wörterbuch, Prompts editierbar, Projekt-Gedächtnis |
-| Sonderfälle | — | Formeln als LaTeX, Sprachbefehle, Prompts, Freihand ohne Taste |
+| Sonderfälle | — | Formeln als LaTeX, Sprachbefehle, Prompts, Anstupsen (Diktat endet von selbst) |
 | Kosten | Abo | keine (lokale Modelle) |
 
 ### Die fünf Dinge, die Fleech kann
@@ -73,10 +73,10 @@ Absätze nach Bedeutung gesetzt.
 3. **Formeln** — gesprochene Mathematik landet als LaTeX im Text, auch mitten im Satz.
 4. **Prompts bauen** — ein unstrukturiert hingesprochener Auftrag wird zu einem
    sauber gegliederten KI-Prompt.
-5. **Freihand** — seit 5.3.0 auch ganz ohne Taste: Startwort sagen, sprechen,
-   aufhören (siehe [21](#21-freihand--diktieren-ohne-taste)). **Seit 5.10.1
-   stillgelegt** — nicht entfernt, aber im Auslieferungszustand deaktiviert und in
-   den Einstellungen ausgegraut (Details in Kapitel 21).
+5. **Anstupsen** — einmal drücken, reden, aufhören: das Diktat endet von selbst.
+   Der Nachfolger von **Freihand** (5.3.0–5.10.0, Startwort statt Taste), das seit
+   5.10.1 stillgelegt ist und dessen **Oberfläche in 5.11.0 entfernt** wurde. Der
+   Code bleibt eingefroren im Projekt (Details in Kapitel 21).
 
 Alles läuft auf dem eigenen Rechner: Spracherkennung über
 [faster-whisper](https://github.com/SYSTRAN/faster-whisper), Nachbearbeitung über ein
@@ -575,8 +575,8 @@ hinten verworfen, solange ihre Inhaltswörter im Rohtranskript keine Entsprechun
 haben; der erste gestützte Satz stoppt die Prüfung. Konservativ abgesichert: Der erste
 Satz bleibt immer stehen, und Sätze mit Formeln oder Platzhaltern werden nie
 angetastet (LaTeX teilt naturgemäß keine Wörter mit dem Gesprochenen). Erkannt wird das
-am Platzhalter-Präfix `[[M` (Formeln, `formula.formula_marker`) bzw. `[[B` (Bausteine,
-8a) im Satz. Der Prompt verbietet das Anhängen zusätzlich ausdrücklich („dein Text
+am Platzhalter-Präfix `[[M` (Formeln, `formula.formula_marker`) im Satz — seit 5.11.0
+die einzige Platzhalter-Familie. Der Prompt verbietet das Anhängen zusätzlich ausdrücklich („dein Text
 endet genau dort, wo der Sprecher aufgehört hat — auch mitten im Satz").
 
 ### 5.4a Ausschmückung — der häufigste reale Fehler
@@ -707,8 +707,12 @@ Bei „Minimal" läuft gar kein Modell.
 **Fällt das kleine Modell aus**, wird automatisch das große nachgeschoben, bevor auf den
 Rohtext zurückgefallen wird.
 
-Das adaptive Routing lässt sich in den Einstellungen abschalten (dann immer das große
-Modell). Die tatsächliche Verteilung ist in den Insights unter „Verarbeitung" sichtbar.
+Das Routing läuft **immer**. Bis 5.10.x gab es dazu den Schalter „Adaptive
+Geschwindigkeit (Cleanup)"; er ist in 5.11.0 entfallen (Befund E-4): Er stand bei jedem
+Nutzer auf „an" und konnte nichts bewirken, weil beide Stufen dasselbe Modell fahren —
+an einer Nahtstelle kann der Nutzer nichts entscheiden, nur falsch informiert werden.
+Die tatsächliche Verteilung bleibt in den Insights unter „Verarbeitung" sichtbar
+(„kurzer Weg" gegen „voller Weg").
 
 **Gemessene Größenordnungen** (RTX 4070): Erkennung ~0,2 s bei warmem Modell;
 Bereinigung ~4,8 s mit warmem großem Modell gegenüber ~12,9 s bei kaltem.
@@ -923,52 +927,21 @@ des Projekt-Gedächtnisses sind in [9](#9-verlauf-und-statistiken) bzw.
 
 ---
 
-## 8a. Text-Bausteine
+## 8a. Text-Bausteine (3.x–5.10) — entfernt in 5.11.0
 
-Ein gesprochenes Kürzel fügt einen festen Textblock ein — „Baustein Signatur" am Ende
-einer Mail, „Baustein Absage" für die Standardantwort. Format wie beim Wörterbuch, eine
-Zeile je Baustein:
+Ein gesprochenes Kürzel fügte einen festen Textblock ein („Baustein Signatur" am Ende
+einer Mail). Die Funktion ist in 5.11.0 **entfernt**: In 1399 gemessenen Diktaten war
+kein einziger Baustein angelegt, und im gesamten Verlauf gibt es keinen wiederkehrenden
+Text, der einer geworden wäre — ein Opt-in, das nie eingelöst wurde. Mit ihr entfallen
+`fleech/snippets.py`, die Baustein-Sektion der Seite „Textersetzung", die
+Platzhalter-Familie `[[B…]]` im Cleanup und die Felder `output.snippets` /
+`output.snippet_keyword` (alte `settings.json` laden weiter, die Schlüssel werden
+übergangen).
 
-```
-Signatur => Viele Grüße\nVorname Nachname
-Absage => Vielen Dank für die Anfrage — leider muss ich absagen.
-```
-
-Bausteine sind bewusst **deterministisch**: Kein Sprachmodell entscheidet über ihren
-Inhalt. Technisch läuft das über denselben Platzhalter-Mechanismus wie die Inline-Formeln
-(Kapitel 4.5): Der Aufruf wird **vor** dem Cleanup durch einen Marker `[[B1]]` ersetzt,
-das Modell sieht also nur den Marker, und erst **nach** allen Ausgabe-Guards tritt der
-echte Text an dessen Stelle. Das hat zwei Gründe:
-
-- Eine Signatur oder ein Code-Gerüst kann so nicht umformuliert werden.
-- Die Guards (Grounding, Wortgetreue) vergleichen Marker mit Marker — ein langer
-  dazugekommener Textblock löst also keinen Fehlalarm aus.
-
-Drei Details aus der Praxis:
-
-**Reine Baustein-Aufrufe überspringen das Modell.** Sagst du nur „Baustein Signatur",
-gibt es nichts zu bereinigen — der Text wird ohne LLM-Roundtrip eingefügt.
-
-**Historisch: Bausteine gingen immer ans große Modell.** Damals verschluckte das
-kleine Zweitmodell (`qwen2.5:3b`) im Live-Test die Marker in der Mehrzahl der kurzen
-Sätze. Seit 3.5.0 gibt es nur noch **ein** Modell (`gemma3:4b`) — damit erübrigt sich
-die Unterscheidung; siehe [13.2](#132-der-llm-zugang).
-
-**Formel und Baustein im selben Diktat.** Sagt man in einem Zug „Baustein Signatur"
-*und* eine Formel, sieht das Modell beide Platzhalter-Arten (`[[M…]]`, `[[B…]]`) und
-braucht für beide eine Ansage — sonst kannte es nur die Baustein-Regel und warf den
-Formel-Marker weg. Geht trotzdem ein Marker verloren, fällt Fleech auf das
-unbereinigte Roh-Gerüst zurück statt den Platzhalter ersatzlos verschwinden zu lassen
-— ein verlorener Baustein oder eine verlorene Formel wäre schlimmer als ein Diktat
-ohne jede Bereinigung.
-
-**Die Kürzel werden der Erkennung genannt.** Sie gehen als `initial_prompt` an Whisper —
-ohne dieses Priming wird „Baustein Signatur" gern zu „Bau Stein Signatur". Wird das
-Signalwort erkannt, aber kein Kürzel getroffen, steht das im Log: dann hat die Erkennung
-das Kürzel verhört, und ein kürzeres, deutlicheres Wort hilft.
-
-Das Signalwort ist bewusst vom Safe-Word für Befehle getrennt: Bausteine fügen nur ein,
-Befehle verändern vorhandenen Text — zwei sehr verschiedene Risiken.
+Die **Wortprobe für Wörterbuch-Einträge** bleibt: Sie ist die Brücke zwischen Erkenner
+und Wörterbuch und hat mit den Bausteinen nichts zu tun. Die Formel-Platzhalter
+(`[[M…]]`, Kapitel 4.5) bleiben ebenfalls — sie sind seither die einzige
+Platzhalter-Familie.
 
 ---
 
@@ -1267,19 +1240,16 @@ der Knopf „Alle Karten wieder einblenden" unter **Allgemein**.
 | Sprechpause bis Ende | nur bei *Anstupsen* sichtbar: so lange still = fertig (1–4 s) | 2,0 s |
 | Diktat-Hotkey | Taste, Kombination oder Maustaste 4/5/Mitte | F9 |
 | KI-Prompting | **nur während einer Aufnahme**: dieses Diktat wird zum Prompt (dauerhaft: Profil „KI-Prompt" wählen) | Strg+Alt+P |
-| Freihand | dauerhaft auf ein Startwort lauschen (Abschnitt 21) — **stillgelegt seit 5.10.1** | aus |
-| Startwörter | ein Wort pro Zeile; Fleech startet bei **jedem** davon | Kimono |
-| Genauigkeit | welches Modell das Startwort prüft: *wie beim Diktat* oder ein sparsames eigenes | wie beim Diktat |
-| Abbruchwort | fällt es im Diktat, wird verworfen statt eingefügt | Abbrechen |
-| Fehlersuche | hebt geprüfte Startwort-Fenster als Tondateien auf (Abschnitt 21) | aus |
-| Nicht lauschen in | Prozessnamen, in denen Freihand ruht | leer |
 | Mikrofon | Gerätewahl; wirkt ab der nächsten Aufnahme | Systemstandard |
 | Gesperrte Geräte | Namensteile, die nie als Mikrofon gelten sollen | leer |
 
-Solange Freihand stillgelegt ist, ist der **gesamte Block ausgegraut** — nicht mehr nur
-der Ein-Schalter selbst und die Startwortliste, sondern auch Genauigkeit, Abbruchwort,
-Fehlersuche und „Nicht lauschen in". Vorher ließen sich diese vier Felder trotz
-stillgelegtem Modus weiter bearbeiten, ohne dass es etwas bewirkt hätte.
+Die Freihand-Zeilen (Ein-Schalter, Startwörter samt Probe-Knopf, Genauigkeit,
+Abbruchwort, Fehlersuche, „Nicht lauschen in") sind in **5.11.0 entfernt**. Bis 5.10.x
+standen sie ausgegraut da; ein ausgegrautes Feld erklärt aber nichts, und vier davon
+waren zwischenzeitlich sogar bedienbar, ohne etwas zu bewirken. Der Code bleibt
+eingefroren (Abschnitt 21) — was der Nutzer sehen kann, muss wahr sein. Der Regler
+„Sprechpause bis Ende" ist geblieben: Er gehört zum Bedienmodus *Anstupsen* und steht
+deshalb dort oben.
 
 Zu den gesperrten Geräten: Fleech erkennt gängige Loopback-Geräte („Stereomix",
 „CABLE Output", Monitor-Quellen) selbst — sie würden Systemton statt Stimme
@@ -1372,8 +1342,7 @@ gesprochene Delimiter gibt es seit v3.0.0 nicht mehr.
 
 ### Textersetzung
 
-Drei Blöcke auf einer Seite (frühere Namen „Wörterbuch" und „Bausteine" sind
-zusammengelegt):
+Drei Blöcke auf einer Seite:
 
 - **Wörterbuch** (Format siehe [Kapitel 8](#8-das-persönliche-wörterbuch)) und
   **Ignoriert** — zwei mehrzeilige Editoren, je eine Zeile pro Eintrag, automatisch
@@ -1381,9 +1350,6 @@ zusammengelegt):
   `falsch => richtig`, die nie mehr vorgeschlagen werden — gespeist aus abgelehnten
   Rückfragen und dem „Ignorieren"-Knopf der Insights-Vorschläge; eine Zeile löschen
   holt den jeweiligen Vorschlag zurück.
-- **Bausteine** — ein mehrzeiliger Editor im Format `Kürzel => Text` (`\n` im Text
-  erzeugt einen Zeilenumbruch), plus ein Feld für das Signalwort (Standard
-  „Baustein"). Format und Wirkweise siehe [Kapitel 8a](#8a-text-bausteine).
 - **Gelerntes Vokabular** (Projekt-Gedächtnis, Kapitel 20) — eine Auswahlliste der in
   der aktuellen App gelernten Begriffe, häufigste zuerst, mit „Begriff vergessen" für
   genau einen. Bis 5.10.5 ließ sich dort nur alles auf einmal löschen — ein einzelner
@@ -1402,7 +1368,6 @@ zusammengelegt):
 | GPU-Beschleunigung (STT) | Erkennung auf der Grafikkarte; aus = CPU erzwingen | an |
 | Modell-Warmhaltung | *Nach Nutzung* / *Dauerhaft* (~3,5 GB dauerhaft belegt) / *Aus* | Nach Nutzung |
 | Im Leerlauf entladen nach | 3 / 10 / 30 / 45 Minuten | 10 Minuten |
-| Adaptive Geschwindigkeit | kurze Diktate nehmen den kurzen Weg (weniger Prüfung) — derzeit dasselbe Modell für beide Wege | an |
 | Debug-Logging | wirkt **ab dem nächsten Start** (Log-Level DEBUG statt INFO) — bis 5.10.2 wurde der Haken zwar gespeichert, aber von nichts gelesen | aus |
 
 ---
@@ -1784,7 +1749,6 @@ fleech/
 ├── routing.py           Modus-Erkennung auf dem Rohtranskript
 ├── commands.py          Befehls-JSON, Plausibilitäts- und Löschguards
 ├── formula.py           gesprochene Mathematik → LaTeX (Parser, kein Modell)
-├── snippets.py          Text-Bausteine
 ├── textfilter.py        ▶ die Qualitäts-Guards: erfundene Ergänzungen, Wortsalat,
 │                          fremde Schrift, Sinnumkehr — Kern-Fachlogik
 ├── textutils.py         nur noch der Rahmen um den LLM-Call
@@ -1977,7 +1941,7 @@ Datei zur „letzten guten Fassung" gemacht und die Rettung wäre mit ihr weg ge
 
 `load()` erkennt zusätzlich einen **Rücksetzer, der wie eine gültige Datei aussieht**:
 Steht die `settings.json` auf allen „wertvollen" Feldern (Lizenz, Onboarding,
-Wörterbuch, Bausteine, Schnellwechsel, Profilliste, Hotkeys) auf Werkszustand, während
+Wörterbuch, Schnellwechsel, Profilliste, Hotkeys) auf Werkszustand, während
 die `.bak` in mindestens zweien davon abweicht — oder steht der Lizenzschlüssel leer,
 während er in der `.bak` gesetzt ist —, gilt die Datei als zurückgesetzt. Sie wird dann
 nicht geladen, sondern als `settings.json.zurueckgesetzt` beiseitegelegt, und Fleech
@@ -2250,14 +2214,19 @@ eine Regel, vergisst Fleech die als falsch erkannte Form auch hier.
 
 ## 21. Freihand — diktieren ohne Taste (seit 5.3.0)
 
-> **Stillgelegt seit 5.10.1.** Ein dauerhaft offenes Mikrofon per Startwort
-> auszulösen war in einem Raum mit Nebengeräuschen nicht zuverlässig zu bekommen —
-> und jeder Fehlstart tippt Text in das gerade fokussierte Fenster. Der Modus ist
-> nicht entfernt (dieses Kapitel beschreibt weiterhin, wie er arbeitet), aber in den
-> Einstellungen ausgegraut und `freihand.STILLGELEGT` verhindert den Start. Wer das
-> automatische Ende wollte, bekommt es über den Bedienmodus **Anstupsen** (Kapitel
-> 4a): einmal drücken, reden, es hört von selbst auf — auslösbar aber nur, wer die
-> Taste drückt.
+> **Stillgelegt seit 5.10.1, Oberfläche entfernt in 5.11.0.** Ein dauerhaft offenes
+> Mikrofon per Startwort auszulösen war in einem Raum mit Nebengeräuschen nicht
+> zuverlässig zu bekommen — und jeder Fehlstart tippt Text in das gerade fokussierte
+> Fenster. 5.10.1 hat den Start per `freihand.STILLGELEGT` verriegelt und die
+> Einstellungen ausgegraut; 5.11.0 hat den ganzen Block aus der Aufnahme-Seite
+> genommen, dazu den Tray-Eintrag „Freihand: an/aus" und die Startwort-Probe. Der
+> **Code bleibt eingefroren** — dieses Kapitel beschreibt weiterhin, wie er arbeitet,
+> und ein einziges `False` in `fleech/freihand.py` macht ihn wieder verfügbar (die
+> Oberfläche dazu müsste dann neu entstehen). Der **Nachfolger** ist der Bedienmodus
+> **Anstupsen** (Kapitel 4a): einmal drücken, reden, es hört von selbst auf —
+> auslösen kann dort nur, wer die Taste drückt. Sein Regler „Sprechpause bis Ende"
+> teilt sich das Settings-Feld `freihand.stille_s` und steht deshalb weiter auf der
+> Aufnahme-Seite, beim Bedienmodus.
 
 Startwort sagen, sprechen, aufhören. Kommt **zusätzlich** zum Hotkey und ist
 standardmäßig **aus**: Eine App, die ungefragt dauerhaft mithört, wäre ein
@@ -2359,8 +2328,10 @@ Idee. Gemessen am unscharfen Vergleich:
 
 ### 21.3 Das Startwort einsprechen
 
-Unter *Einstellungen → Aufnahme → „Startwort einsprechen …"*: Wort sagen, und Fleech
-zeigt, was ankommt und ob Freihand anspringen würde. Geprüft wird mit dem Erkenner, der
+Der Knopf „Startwort einsprechen …" stand unter *Einstellungen → Aufnahme* und ist mit
+der Freihand-Oberfläche in 5.11.0 entfallen; der Weg dorthin
+(`wortprobe(…, zweck="startwort")`) bleibt eingefroren im Code. Er sagte: Wort sagen, und
+Fleech zeigt, was ankommt und ob Freihand anspringen würde. Geprüft wird mit dem Erkenner, der
 im Betrieb **läuft** — nicht mit dem Diktat-Weg. Der hört ungleich besser, und ein Test,
 der besteht während der Alltag scheitert, ist schlimmer als keiner.
 
@@ -2394,9 +2365,10 @@ stehen unter CC-BY-NC-SA — bei einer Anwendung mit Lizenzschlüssel ein echtes
 und jedes neue Startwort hieße rund eine Stunde Training. Porcupine ist kostenlos nur
 zur Evaluation.
 
-**Deshalb ist „Anstupsen" (Abschnitt 4a) der empfohlene Weg**, wenn es um das
-automatische Ende geht. Freihand bleibt vorhanden für den, der es will; in den
-Einstellungen steht dabei, was die zuverlässigere Wahl ist.
+**Deshalb ist „Anstupsen" (Abschnitt 4a) der Weg**, wenn es um das automatische Ende
+geht. Freihand ist seit 5.10.1 verriegelt, seit 5.11.0 auch ohne Oberfläche — in den
+Einstellungen steht deshalb gar nichts mehr darüber, statt eines ausgegrauten
+Versprechens.
 
 **Entscheidungen, die im Alltag zählen:**
 
@@ -2426,8 +2398,9 @@ Einstellungen steht dabei, was die zuverlässigere Wahl ist.
   dieselben zwei Prüfungen (Abbruchwort, „war überhaupt Sprache drin"). Der Fertig-Knopf
   umging sie zunächst; damit wäre Mikrofonrauschen in die Pipeline gegangen.
 
-Der Zustand ist am Punkt der Pille sichtbar (ruhiger Ring beim Lauschen, kein Blinken)
-und im Infobereich, wo ein Schnellschalter das Mithören sofort beendet.
+Der Zustand ist am Punkt der Pille sichtbar (ruhiger Ring beim Lauschen, kein Blinken).
+Der Schnellschalter im Infobereich ist mit 5.11.0 entfallen: Er meldete einen Zustand,
+den der verriegelte Modus nicht mehr einnehmen kann.
 
 Die Zustandsmaschine (`fleech/freihand.py`) kennt weder Audio-Gerät noch Qt: Audio kommt
 herein, Ereignisse kommen heraus. Damit ist der heikle Teil — wann startet, wann endet

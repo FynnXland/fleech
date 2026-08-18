@@ -1,13 +1,15 @@
 """Einsprech-Probe: hoert Fleech den Begriff so, wie er eingetragen ist?
 
-Zwei Einstiege in dieselbe Sache — das Startwort auf der Aufnahme-Seite und ein
-Woerterbuch-Eintrag auf der Textersetzung-Seite. Beide oeffnen den
-`WortprobeDialog`; geprueft wird jeweils mit dem Erkenner, der im BETRIEB
-laeuft, nicht mit dem genaueren Diktat-Weg: Ein Test, der besteht, waehrend der
-Alltag scheitert, ist schlimmer als keiner.
+Einstieg ist ein Woerterbuch-Eintrag auf der Textersetzung-Seite. Geprueft wird
+mit dem Erkenner samt Woerterbuch-Priming, also genau dem, was im BETRIEB laeuft:
+Ein Test, der besteht, waehrend der Alltag scheitert, ist schlimmer als keiner.
+
+Der zweite Einstieg — die Startwort-Probe der Aufnahme-Seite — ist mit der
+Freihand-Oberflaeche in 5.11.0 entfallen. Der Weg dorthin
+(`wortprobe(..., zweck="startwort")`) bleibt eingefroren im Code.
 
 Mixin statt Methoden im Panel: Es ist ein eigenes Thema mit eigenem Dialog, und
-settings_window.py war mit den drei Methoden ueber seine Groessengrenze gelaufen.
+settings_window.py war mit den Methoden ueber seine Groessengrenze gelaufen.
 """
 
 from __future__ import annotations
@@ -33,29 +35,6 @@ class WortprobeMixin:
         if "=>" in zeile:
             zeile = zeile.split("=>", 1)[1]
         return zeile.strip()
-
-    def _startwort_probe_starten(self) -> None:
-        """Das Startwort einsprechen und sehen, ob Freihand darauf anspringen würde.
-
-        Geprüft wird mit dem Erkenner, der im Betrieb LÄUFT — nicht mit dem
-        Diktat-Weg. Der hört ungleich besser, und ein Test, der besteht, während
-        der Alltag scheitert, ist schlimmer als keiner.
-        """
-        if self._wortprobe_fn is None:
-            return
-        liste = getattr(self, "_startwort_liste", None)
-        woerter = liste.woerter() if liste is not None else []
-        if not woerter:
-            self._startwort_probe_btn.setText("Erst ein Startwort eintragen")
-            return
-        # Bei mehreren wird das ERSTE geprüft: Es ist das, das man im Alltag sagt
-        # — die anderen stehen als Rückfalloption da. Alle nacheinander abzufragen
-        # wäre ein Testlauf statt einer Probe.
-        wort = woerter[0]
-        from ..dialogs import WortprobeDialog
-
-        WortprobeDialog(wort, self._wortprobe_fn, self, zweck="startwort").exec()
-        self._startwort_probe_btn.setText("Startwort einsprechen …")
 
     def _wortprobe_starten(self) -> None:
         if self._wortprobe_fn is None:

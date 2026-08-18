@@ -159,17 +159,9 @@ class DesktopApp(
         # Arbeitsspeicher — Grundlage von „noch einmal erkennen" und „als WAV
         # sichern" (V-15, `desktopapp/nachbereitung.py`).
         self._letzte_aufnahme = None
-        try:
-            from ..freihand import STILLGELEGT, woerter_als_text
-
-            # Befund E-8: Solange Freihand stillgelegt ist, lauscht nichts — dann
-            # darf das Tray auch nicht „Freihand: an" melden. Bei einer Funktion,
-            # deren ganzer Sinn Vertrauen ist, ist genau diese Richtung der
-            # falschen Anzeige die unangenehme.
-            self.tray.set_freihand(self.settings.freihand.aktiv and not STILLGELEGT,
-                                   woerter_als_text(self.settings.freihand.startwort))
-        except Exception:
-            log.debug("Tray-Text nicht setzbar.", exc_info=True)
+        # Der Tray meldete hier den Freihand-Zustand (Befund E-8). Mit der
+        # Freihand-Oberflaeche ist der Eintrag in 5.11.0 entfallen — der Lauscher
+        # selbst bleibt eingefroren im Code und startet wegen STILLGELEGT nicht.
         self._starte_freihand()
         self._starte_stille_wache()
         # Ring am Punkt gleich beim Start faerben — sonst bliebe er bis zum
@@ -603,7 +595,6 @@ class DesktopApp(
         return {
             "toggle_recording": lambda: self.controller.start_via_ui("dictate"),
             "toggle_overlay": self._toggle_overlay,
-            "toggle_freihand": self.toggle_freihand,
             "open_home": lambda: self.window.open_page("home"),
             "open_settings": self._open_settings,
             "reload": self._reload,
@@ -751,13 +742,8 @@ class DesktopApp(
                                          self.settings.output.dictionary_usage)
         elif section == "onboarding":
             self.show_onboarding()
-        elif section == "snippets":
-            self.pipeline.set_snippets(self.settings.output.snippets,
-                                       self.settings.output.snippet_keyword)
-        elif section == "adaptive":
-            self.pipeline.adaptive = self.settings.advanced.adaptive_cleanup
-            if self.settings.advanced.adaptive_cleanup:
-                self._keep_warm_tick()
+        # Der Abschnitt „adaptive" ist mit dem Schalter „Adaptive Geschwindigkeit"
+        # in 5.11.0 entfallen (Befund E-4) — das Routing laeuft fest weiter.
         elif section == "warmhold":
             self._keep_warm_tick()  # bei "always"/"smart" sofort vorladen
         elif section == "focus":
