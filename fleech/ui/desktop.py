@@ -34,7 +34,7 @@ from .state import AppState, StateBus
 from .settings_window import SettingsPanel
 from .tray import TrayController
 from .desktopapp import (
-    FreihandMixin, LebenszyklusMixin, LizenzUpdateMixin, ModelleMixin,
+    FreihandMixin, KeinTonMixin, LebenszyklusMixin, LizenzUpdateMixin, ModelleMixin,
     NachbereitungMixin, ProfilMixin,
 )
 # Der Name des IPC-Kanals gehoert zum Server (desktopapp/lebenszyklus.py). Hier
@@ -47,8 +47,8 @@ log = logging.getLogger(__name__)
 
 
 class DesktopApp(
-    ProfilMixin, FreihandMixin, ModelleMixin, NachbereitungMixin, LizenzUpdateMixin,
-    LebenszyklusMixin,
+    ProfilMixin, FreihandMixin, KeinTonMixin, ModelleMixin, NachbereitungMixin,
+    LizenzUpdateMixin, LebenszyklusMixin,
 ):
     """Verdrahtung der App: Aufbau, Aufnahme-Lebenszyklus, Hotkeys, Fenster.
 
@@ -71,10 +71,9 @@ class DesktopApp(
         self.overlay = OverlayWindow(
             self.settings.overlay,
             on_geometry_changed=self.settings.save,
-            # late-bound (Mic-Wechsel!) und BEIDE Aufnahmewege: Beim Freihand-
-            # Diktat laeuft der Recorder nicht, sein Pegel bleibt 0 — die Pille
-            # zeigte dort eine tote Linie, obwohl aufgenommen wurde.
-            level_provider=lambda: max(self.recorder.level, self._freihand_level()),
+            # late-bound (Mic-Wechsel!) und BEIDE Aufnahmewege — und im selben
+            # 50-ms-Takt laeuft die Kein-Ton-Wache mit (desktopapp/keinton.py).
+            level_provider=self._pegel_fuer_pille,
         )
         self.overlay.cancel_requested.connect(self._cancel_recording)
         self.overlay.finish_requested.connect(self._finish_recording)
@@ -350,6 +349,10 @@ class DesktopApp(
         if self.settings.advanced.llm_keep_warm != "always":
             threading.Thread(target=self._keep_llm_warm, daemon=True).start()
         self._prompt_oneshot = False    # One-Shot gilt immer nur fuer EINE Aufnahme
+        # Kein-Ton-Wache scharf machen: die Warnung gilt je Aufnahme. Bewusst nur
+        # das Flag — die Pille selbst raeumt `set_app_state` auf, denn diese
+        # Methode laeuft im pynput-Thread (Befund D-6).
+        self._kein_ton_gemeldet = False
         self.notifier.sound("start")
         self.bus.set_state(AppState.LISTENING)
         if kind == "command":

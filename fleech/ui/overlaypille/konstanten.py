@@ -29,6 +29,26 @@ _AGC_MAX_FACTOR = 45.0
 
 _BAR = QColor(232, 232, 236)
 _BAR_DIM = QColor(150, 150, 158)
+_KEIN_TON = QColor(226, 96, 88)  # Warnrot — ausschliesslich fuer „kein Ton"
+
+# Kein-Ton-Wache (Befund H-B2): Liefert das Mikrofon nichts, sagt die Pille es,
+# solange man noch etwas dagegen tun kann — statt am Ende ein leeres Ergebnis.
+#
+# SCHWELLE = roher RMS, unter dem „da kommt nichts" gilt. Bewusst konservativ:
+# Die real gemessenen Leerfaelle lagen bei RMS 0,0000–0,0001, ein leise
+# eingestelltes Scarlett liefert schon im Ruherauschen ~0,02. 0,002 liegt damit
+# eine Zehnerpotenz UNTER dem leisesten echten Mikrofon und zwanzigfach ueber
+# der beobachteten Stille — Fehlalarm ist teurer als ein verpasster Fall.
+# ACHTUNG: noch nicht am Geraet kalibriert. Der Wert muss einmal gegen das echte
+# Mikrofon gegengeprueft werden (stumm / sehr leise / normal gesprochen), erst
+# dann ist er belegt statt hergeleitet.
+KEIN_TON_SCHWELLE = 0.002
+# Erst ab dieser Aufnahmedauer pruefen: Am Anfang ist Stille normal (Taste
+# gedrueckt, Luft geholt, nachgedacht).
+KEIN_TON_AB_S = 4.0
+# Fenster, ueber das der lauteste Rohpegel zaehlt — laenger als jede Sprechpause,
+# kurz genug, dass die Warnung noch waehrend des Diktats erscheint.
+KEIN_TON_FENSTER_S = 5.0
 _ACCENT = QColor(53, 192, 216)  # #35C0D8 — Brand-Akzent (✓, Edit-Modus-Rahmen)
 _MARGIN = 24  # Abstand zum Bildschirmrand fuer die Presets
 _FALLBACK_FLASH_MS = 3000  # so lange bleibt der Haken nach einem Fallback amber

@@ -10,6 +10,7 @@ from __future__ import annotations
 
 from ..state import AppState
 from .bausteine import _GLYPH_COLORS, _glyph_icon
+from .konstanten import _KEIN_TON
 
 
 class ZustandMixin:
@@ -72,6 +73,9 @@ class ZustandMixin:
 
     def set_app_state(self, state: AppState) -> None:
         self._state = state
+        # Die Kein-Ton-Warnung gehoert zur laufenden Aufnahme: Jeder
+        # Zustandswechsel — Start, Ende, Abbruch — nimmt sie zurueck.
+        self.set_kein_ton(False)
         self._wave.set_state(state)
         busy = state in (AppState.LISTENING, AppState.PROCESSING)
         self._cancel_btn.setEnabled(state is AppState.LISTENING)
@@ -192,10 +196,44 @@ class ZustandMixin:
         # Verarbeitung. Hier laeuft die Aufnahme (Zustand LISTENING) und steht
         # trotzdem still — der Hinweis muss genau dann erscheinen.
         if paused:
+            # In der Pause kommt absichtlich nichts an — eine Kein-Ton-Warnung
+            # waere dort schlicht falsch und wuerde ausserdem um dieselbe Blase
+            # streiten.
+            self.set_kein_ton(False)
             self._caption_is_live = False
             self._caption_is_status = True
             self._caption.show_above(
                 self.frameGeometry(), "Pause — es wird nichts aufgenommen", sticky=True,
+            )
+        else:
+            self._clear_status_caption()
+        self.update()
+
+    def set_kein_ton(self, an: bool) -> None:
+        """Warnen, dass vom Mikrofon nichts ankommt — waehrend man noch handeln kann.
+
+        Befund H-B2: Bis 5.10.4 fiel eine stumme Aufnahme erst auf, wenn das
+        Diktat vorbei war — im schlimmsten belegten Fall nach zweieinhalb Minuten
+        Rede, die niemand wiederherstellen kann.
+
+        Bewusst ein eigener kleiner Zustand und nicht `AppState.ERROR`: Der
+        beendet die Aufnahme und leitet den Ruecksprung nach IDLE ein. Hier laeuft
+        die Aufnahme WEITER — die Warnung stoppt nichts, aendert nichts und
+        verschwindet von selbst, sobald wieder Ton kommt. Sie faerbt nur den
+        Punkt rot und stellt eine Blase dazu.
+        """
+        an = bool(an)
+        if an == self._kein_ton:
+            return
+        self._kein_ton = an
+        self._math_dot.set_kein_ton(an)
+        if an:
+            self._math_dot.show()  # muss sichtbar sein, sonst warnt niemand
+            self._caption_is_live = False
+            self._caption_is_status = True
+            self._caption.show_above(
+                self.frameGeometry(), "Kein Ton vom Mikrofon — Gerät prüfen",
+                sticky=True, accent_color=_KEIN_TON,
             )
         else:
             self._clear_status_caption()

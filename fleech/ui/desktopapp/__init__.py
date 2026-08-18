@@ -19,6 +19,7 @@ bleibt deshalb auf EINEM Objekt, nur die Definition zieht um.
 from __future__ import annotations
 
 from .freihand import FreihandMixin
+from .keinton import KeinTonMixin
 from .lebenszyklus import LebenszyklusMixin
 from .lizenz import LizenzUpdateMixin
 from .modelle import ModelleMixin
@@ -26,6 +27,6 @@ from .nachbereitung import NachbereitungMixin
 from .profil import ProfilMixin
 
 __all__ = [
-    "FreihandMixin", "LebenszyklusMixin", "LizenzUpdateMixin", "ModelleMixin",
-    "NachbereitungMixin", "ProfilMixin",
+    "FreihandMixin", "KeinTonMixin", "LebenszyklusMixin", "LizenzUpdateMixin",
+    "ModelleMixin", "NachbereitungMixin", "ProfilMixin",
 ]
