@@ -17,8 +17,8 @@ import logging
 import numpy as np
 from PySide6.QtCore import Qt, QTimer
 from PySide6.QtWidgets import (
-    QComboBox, QDialog, QHBoxLayout, QLabel, QProgressBar, QPushButton,
-    QRadioButton, QStackedWidget, QVBoxLayout, QWidget,
+    QCheckBox, QComboBox, QDialog, QHBoxLayout, QLabel, QProgressBar,
+    QPushButton, QRadioButton, QStackedWidget, QVBoxLayout, QWidget,
 )
 
 from .chevron import apply_chevrons
@@ -103,6 +103,9 @@ class OnboardingDialog(QDialog):
         self._add_page("microphone", self._page_microphone(list_microphones))
         self._add_page("controls", self._page_controls())
         self._add_page("modes", self._page_modes())
+        # Direkt hinter den Modi und VOR dem Probediktat: Wer gleich etwas
+        # diktiert, soll vorher entschieden haben, ob es aufgehoben wird.
+        self._add_page("verlauf", self._page_verlauf())
         self._add_page("finish", self._page_finish())
 
         nav = QHBoxLayout()
@@ -259,6 +262,52 @@ class OnboardingDialog(QDialog):
         ))
         lay.addStretch(1)
         return page
+
+    def _page_verlauf(self) -> QWidget:
+        """Wird der Wortlaut aufgehoben? — eine bewusste Entscheidung, kein Schalter.
+
+        Der Verlauf war immer schon abschaltbar, aber standardmaessig AN und nur
+        unter Einstellungen → Allgemein zu finden. Ein externes Gutachten hat das
+        als Opt-out bei sensiblen Inhalten benannt, und der Punkt traegt: Der
+        vollstaendige Wortlaut jedes Diktats landet unverschluesselt in einer
+        SQLite-Datei. Wer Gesundheitliches, Finanzielles oder versehentlich ein
+        Passwort diktiert, sollte das entschieden haben und nicht entdecken.
+
+        Der Standardwert bleibt AN — Home und Insights leben davon, und ihn
+        umzudrehen wuerde Fleech fuer alle verschlechtern, um einen Fall zu
+        adressieren, der eine Frage loest. Also: die Frage.
+        """
+        page = QWidget()
+        lay = QVBoxLayout(page)
+        lay.setSpacing(12)
+        lay.addWidget(_title("Was Fleech sich merkt"))
+        lay.addWidget(_body(
+            "Fleech kann jedes Diktat aufheben — den gesprochenen Rohtext und den "
+            "fertigen Text. Daraus entstehen die Startseite, die Auswertungen und "
+            "die Wörterbuch-Vorschläge."
+        ))
+        lay.addWidget(_body(
+            "Gespeichert wird lokal in einer Datei auf diesem Rechner, unverschlüsselt. "
+            "Nichts davon wird gesendet — aber es steht danach dort."
+        ))
+        self._verlauf_cb = QCheckBox("Diktate im Verlauf aufheben")
+        self._verlauf_cb.setChecked(bool(self.settings.general.save_history))
+        self._verlauf_cb.setStyleSheet(f"color: {TEXT}; font-size: 10pt;")
+        self._verlauf_cb.toggled.connect(self._on_verlauf_toggled)
+        lay.addWidget(self._verlauf_cb)
+        lay.addSpacing(4)
+        lay.addWidget(_muted(
+            "Ohne Verlauf funktioniert das Diktieren genau gleich — nur Startseite "
+            "und Auswertungen bleiben leer. Jederzeit änderbar unter Einstellungen → "
+            "Allgemein, samt Knopf zum Löschen des bisherigen Verlaufs."
+        ))
+        lay.addStretch(1)
+        return page
+
+    def _on_verlauf_toggled(self, an: bool) -> None:
+        self.settings.general.save_history = bool(an)
+        if self._on_changed is not None:
+            self._on_changed("general")
 
     def _page_finish(self) -> QWidget:
         page = QWidget()

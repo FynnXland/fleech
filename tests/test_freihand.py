@@ -1041,3 +1041,49 @@ def test_kurze_pruefung_schneidet_die_stille_weg():
     quelle = inspect.getsource(FasterWhisperSTT.transcribe_kurz)
     assert "vad_filter=True" in quelle
     assert "beam_size=1" in quelle
+
+
+# -- Vorerst stillgelegt (5.10.1) --------------------------------------------------------
+
+
+def test_freihand_ist_stillgelegt():
+    """Auf ausdrückliche Anweisung abgeschaltet — der Riegel steht an EINER Stelle."""
+    from fleech.freihand import STILLGELEGT
+
+    assert STILLGELEGT is True
+
+
+def test_der_riegel_greift_auch_bei_aktiv_true():
+    """Eine bestehende settings.json mit `aktiv: true` darf ihn nicht umgehen —
+    deshalb sitzt die Prüfung im Startpfad und nicht in der Oberfläche."""
+    import inspect
+
+    from fleech.ui.desktopapp.freihand import FreihandMixin
+
+    quelle = inspect.getsource(FreihandMixin._starte_freihand)
+    assert "STILLGELEGT" in quelle
+    # Der Riegel muss VOR der aktiv-Abfrage stehen, sonst greift er nicht.
+    assert quelle.index("STILLGELEGT") < quelle.index("freihand.aktiv")
+
+
+def test_der_tray_schalter_meldet_sich_statt_stumm_zu_bleiben():
+    """Der Eintrag steht im Tray; ein Klick ohne jede Rückmeldung liesse den
+    Nutzer den Fehler beim Mikrofon suchen."""
+    import inspect
+
+    from fleech.ui.desktopapp.freihand import FreihandMixin
+
+    quelle = inspect.getsource(FreihandMixin.toggle_freihand)
+    assert "STILLGELEGT" in quelle and "_flash_status" in quelle
+
+
+def test_der_riegel_laesst_sich_an_einer_stelle_loesen():
+    """„Vorerst" heisst umkehrbar: Ein einziges False muss reichen, der Code
+    bleibt vollständig erhalten."""
+    from pathlib import Path
+
+    quelle = Path("fleech/freihand.py").read_text(encoding="utf-8")
+    # Genau eine Zuweisung, und die Zustandsmaschine kennt das Flag gar nicht —
+    # sie ist weiterhin ohne Riegel testbar.
+    assert quelle.count("STILLGELEGT = ") == 1
+    assert "STILLGELEGT" not in quelle.split("class Lauscher")[1]

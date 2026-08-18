@@ -11,6 +11,45 @@ GitHub-Release-Notizen (`packaging/release.py`).
 
 ---
 
+## 5.10.2 — 2026-08-17
+
+*Nicht einzeln veröffentlicht.*
+
+**Der Profil-Punkt an der Pille wechselt das Profil nur noch während einer
+laufenden Aufnahme.** Vorher ging das jederzeit — die Pille liegt am
+Bildschirmrand, und ein beiläufiger Klick stellte still auf ein anderes Profil
+um. Gemerkt hat man es erst beim nächsten Diktat, wenn plötzlich eine E-Mail
+herauskam statt normalem Text.
+
+Der Punkt bleibt außerhalb der Aufnahme sichtbar und zeigt weiter in seiner Farbe,
+welches Profil gerade gilt — er nimmt nur keine Klicks mehr an. Wer vorher wählen
+will, nimmt den Profil-Hotkey (tippen = nächstes Profil, halten = Auswahlliste)
+oder die Profilseite.
+
+---
+
+## 5.10.1 — 2026-08-05
+
+*Nicht einzeln veröffentlicht.*
+
+**Fleech fragt beim Erststart, ob es die Diktate aufheben soll.** Bisher war der
+Verlauf einfach an, und der Schalter lag versteckt unter Einstellungen →
+Allgemein. Er bleibt standardmäßig an — Startseite und Auswertungen leben davon —,
+aber jetzt ist es eine Entscheidung statt einer Voreinstellung, die man nie zu
+Gesicht bekommt. Der Anlass war ein externes Gutachten: Gespeichert wird der
+vollständige Wortlaut, unverschlüsselt; wer Vertrauliches diktiert, sollte das
+wissen.
+
+**Freihand ist vorerst abgeschaltet.** Der Modus, bei dem Fleech dauerhaft auf ein
+Startwort lauscht, lässt sich nicht mehr einschalten. Er ist nicht entfernt, nur
+stillgelegt — in den Einstellungen steht, warum: Ein offenes Mikrofon per Sprache
+auszulösen war in einem Raum mit Nebengeräuschen nicht zuverlässig zu bekommen,
+und jeder Fehlstart tippt Text in das Fenster, in dem du gerade arbeitest.
+
+Was Freihand eigentlich können sollte, kann der Bedienmodus **Anstupsen**: einmal
+drücken, reden, es hört von selbst auf. Auslösen kann dort nur, wer die Taste
+drückt.
+
 ## 5.10.0 — 2026-08-05
 
 Die erste Veröffentlichung seit 5.5. Alles aus 5.6 bis 5.9 ist enthalten; unten

@@ -318,3 +318,71 @@ def test_stop_all_ohne_listener_ist_harmlos():
 
     HotkeyManager._lebende.clear()
     assert HotkeyManager.stop_all() == 0
+
+
+# -- Nebenläufigkeit: GUI-Timer liest, während der Audio-Thread schreibt -----------------
+
+
+def test_tail_liest_sauber_waehrend_der_audio_thread_schreibt():
+    """Aus dem externen Gutachten (2026-08-05) als möglicher Torn Read gemeldet.
+
+    Die Lage ist real: `_nudge_tick` läuft alle 300 ms im GUI-Thread und ruft
+    `recorder.tail()`, während der PortAudio-Callback aus dem Audio-Thread neue
+    Blöcke anhängt. Beide fassen `_frames` an.
+
+    Der Befund selbst trifft nicht zu — `tail()` und `_callback` teilen sich
+    `Recorder._lock`. Dieser Test hält das fest, statt es nur zu behaupten: Er
+    lässt beide Seiten gegeneinander laufen und prüft, dass jedes gelesene
+    Stück in sich stimmig ist (jeder Block trägt seine Nummer als Wert).
+    """
+    import threading
+
+    from fleech.audio import Recorder
+
+    r = Recorder(samplerate=SR)
+    r._capture_rate = SR
+    blockgroesse = SR // 5                      # 0,2 s wie im Betrieb
+    fehler, laeuft = [], threading.Event()
+    laeuft.set()
+
+    def schreiber():
+        n = 0
+        while laeuft.is_set() and n < 400:
+            n += 1
+            with r._lock:
+                r._frames.append(np.full((blockgroesse, 1), float(n), dtype=np.float32))
+                r._samples += blockgroesse
+
+    def leser():
+        while laeuft.is_set():
+            stueck = r.tail(1.0)
+            if not len(stueck):
+                continue
+            # Jeder Wert muss eine ganze Blocknummer sein. Ein Torn Read (halb
+            # geschriebener Block) oder eine Race auf der Liste zeigte sich hier
+            # als Bruchzahl, als 0 mitten drin oder als Absturz.
+            werte = np.unique(stueck)
+            if not np.all(werte == np.floor(werte)) or np.any(werte <= 0):
+                fehler.append(f"unstimmiges Stück: {werte[:5]}")
+
+    faeden = [threading.Thread(target=schreiber), threading.Thread(target=leser)]
+    for f in faeden:
+        f.start()
+    faeden[0].join(timeout=10)
+    laeuft.clear()
+    for f in faeden:
+        f.join(timeout=5)
+
+    assert not fehler, f"{len(fehler)} unstimmige Lesevorgänge: {fehler[:3]}"
+
+
+def test_tail_und_callback_teilen_sich_dasselbe_schloss():
+    """Wächter gegen den Rückfall: Würde `tail()` das Schloss verlieren, wäre der
+    Test darüber je nach Zeitverhalten still — dieser hier nicht."""
+    import inspect
+
+    from fleech.audio import Recorder
+
+    for name in ("tail", "_callback", "snapshot", "stop"):
+        quelle = inspect.getsource(getattr(Recorder, name))
+        assert "self._lock" in quelle, f"Recorder.{name} fasst _frames ohne Schloss an"

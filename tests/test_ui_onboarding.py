@@ -26,12 +26,12 @@ def test_onboarding_navigation_und_abschluss(qapp, monkeypatch):
     monkeypatch.setattr(UserSettings, "save", lambda self, path=None: None)
     dlg, settings = _onboarding()
     assert not settings.general.onboarding_done
-    assert dlg._stack.count() == 5
+    assert dlg._stack.count() == 6   # + Verlauf-Seite (5.10.1)
     assert not dlg._back_btn.isEnabled()          # Seite 1: kein Zurueck
 
-    for _ in range(4):
+    for _ in range(5):        # eine Seite mehr seit der Verlauf-Frage (5.10.1)
         dlg._go_next()
-    assert dlg._stack.currentIndex() == 4
+    assert dlg._stack.currentIndex() == 5
     assert dlg._next_btn.text() == "Los geht's"
     assert dlg._skip_btn.isHidden() or not dlg._skip_btn.isVisible()
 
@@ -214,7 +214,7 @@ def test_onboarding_zeigt_einrichtung_nur_wenn_noetig(qapp, monkeypatch):
 
     _fake_setup_lage(monkeypatch, lage="missing", modelle=(), whisper=False)
     dlg = bauen()
-    assert dlg._stack.count() == 6
+    assert dlg._stack.count() == 7   # 6 + Einrichtungsseite
     assert dlg._pages["setup"] == 1               # direkt nach dem Willkommen
     assert dlg._pages["microphone"] == 2
     dlg.reject()
@@ -222,7 +222,7 @@ def test_onboarding_zeigt_einrichtung_nur_wenn_noetig(qapp, monkeypatch):
     # Fertig eingerichtet: keine Seite mit drei Haken zum Durchklicken.
     _fake_setup_lage(monkeypatch)
     dlg2 = bauen()
-    assert dlg2._stack.count() == 5
+    assert dlg2._stack.count() == 6
     assert "setup" not in dlg2._pages
     dlg2.reject()
 
@@ -245,3 +245,51 @@ def test_onboarding_pegel_haengt_am_namen_nicht_am_index(qapp, monkeypatch):
     dlg._go_next()                                # → Mikrofon
     assert gestartet == [2]
     dlg.reject()
+
+
+# -- Verlauf-Frage (5.10.1) --------------------------------------------------------------
+
+
+def test_onboarding_fragt_nach_dem_verlauf(qapp, monkeypatch):
+    """Aus dem externen Gutachten: Der volle Wortlaut jedes Diktats landet
+    unverschlüsselt in einer SQLite-Datei, standardmäßig an, und der Schalter lag
+    nur unter Einstellungen → Allgemein.
+
+    Der Standardwert bleibt AN — Home und Insights leben davon. Was fehlte, war
+    die bewusste Entscheidung: ein Opt-out, das niemand sieht, ist keins.
+    """
+    from fleech.usersettings import UserSettings
+
+    monkeypatch.setattr(UserSettings, "save", lambda self, path=None: None)
+    dlg, settings = _onboarding()
+
+    assert "verlauf" in dlg._pages, "Keine Seite zum Verlauf im Onboarding"
+    assert settings.general.save_history is True          # Vorgabe unverändert
+    assert dlg._verlauf_cb.isChecked() is True
+
+    dlg._verlauf_cb.setChecked(False)
+    assert settings.general.save_history is False, "Abwahl wirkt nicht"
+    dlg._verlauf_cb.setChecked(True)
+    assert settings.general.save_history is True
+
+
+def test_die_verlauf_seite_kommt_vor_dem_probediktat(qapp, monkeypatch):
+    """Wer gleich etwas diktiert, soll vorher entschieden haben, ob es
+    aufgehoben wird."""
+    from fleech.usersettings import UserSettings
+
+    monkeypatch.setattr(UserSettings, "save", lambda self, path=None: None)
+    dlg, _ = _onboarding()
+    assert dlg._pages["verlauf"] < dlg._pages["finish"]
+
+
+def test_verlauf_abwahl_meldet_sich_beim_aufrufer(qapp, monkeypatch):
+    """Ohne die Meldung bliebe der HistoryStore weiterschreiben, bis Fleech neu
+    startet."""
+    from fleech.usersettings import UserSettings
+
+    monkeypatch.setattr(UserSettings, "save", lambda self, path=None: None)
+    gemeldet: list = []
+    dlg, _ = _onboarding(changed=gemeldet)
+    dlg._verlauf_cb.setChecked(False)
+    assert "general" in gemeldet

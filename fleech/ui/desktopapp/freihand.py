@@ -23,11 +23,25 @@ log = logging.getLogger(__name__)
 
 class FreihandMixin:
     def _starte_freihand(self) -> None:
-        """Dauerlauschen aufbauen — im Hintergrund, weil tiny geladen werden muss.
+        """Dauerlauschen aufbauen — im Hintergrund, weil ein Modell geladen wird.
 
         Standardmaessig aus: Eine App, die ungefragt dauerhaft mithoert, waere ein
         Vertrauensbruch, auch wenn technisch nichts gespeichert wird.
+
+        Seit 5.10.1 ausserdem STILLGELEGT (`freihand.STILLGELEGT`) — der Riegel
+        steht hier und nicht in der Oberflaeche, damit auch eine bestehende
+        `settings.json` mit `aktiv: true` und der Tray-Schnellschalter davon
+        erfasst sind. Ein einziges `False` in `fleech/freihand.py` macht den Modus
+        wieder verfuegbar.
         """
+        from ...freihand import STILLGELEGT
+
+        if STILLGELEGT:
+            if self.settings.freihand.aktiv:
+                log.info("Freihand ist vorerst stillgelegt — Einstellung wird "
+                         "ignoriert (siehe freihand.STILLGELEGT).")
+            self.bus.freihand_zustand.emit("aus")
+            return
         if not self.settings.freihand.aktiv:
             return
 
@@ -85,6 +99,13 @@ class FreihandMixin:
         Der Nutzer muss das Lauschen jederzeit mit einem Griff beenden koennen —
         ohne Einstellungen zu oeffnen und ohne zu suchen.
         """
+        from ...freihand import STILLGELEGT
+
+        if STILLGELEGT:
+            # Nicht stumm ignorieren: Der Eintrag steht im Tray, ein Klick darauf
+            # muss eine Antwort geben — sonst sucht man den Fehler beim Mikrofon.
+            self._flash_status("Freihand ist vorerst abgeschaltet")
+            return
         an = not self.settings.freihand.aktiv
         self.settings.freihand.aktiv = an
         self.settings.save()

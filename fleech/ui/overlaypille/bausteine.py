@@ -206,14 +206,35 @@ class _StatusDot(QWidget):
         # Profile nutzt, soll keinen bunten Punkt bekommen, der etwas ankuendigt,
         # das es bei ihm gar nicht gibt.
         self._profil_farbe = ""
+        # Klickbar NUR waehrend einer laufenden Aufnahme (siehe set_klickbar).
+        # Bewusst hier und nicht per setEnabled(): Der Punkt bleibt ausserhalb
+        # der Aufnahme voll sichtbar — er ist dort die Anzeige „welches Profil
+        # gilt", und die soll nicht ausgegraut werden, nur weil man sie gerade
+        # nicht anklicken kann.
+        self._klickbar = False
         self.setFixedSize(28, 28)
-        self.setCursor(Qt.PointingHandCursor)
+        self.setCursor(Qt.ArrowCursor)
+
+    def set_klickbar(self, an: bool) -> None:
+        """Darf der Punkt gerade das Profil wechseln?
+
+        Ausserhalb der Aufnahme nicht: Ein Klick haette dort keine sichtbare
+        Folge ausser der kurzen Namens-Kapsel, waehrend die Pille am Bildschirm-
+        rand liegt und beilaeufig getroffen wird. Wer vorher waehlen will,
+        nimmt den Profil-Hotkey oder die Profilseite."""
+        an = bool(an)
+        if an == self._klickbar:
+            return
+        self._klickbar = an
+        self.setCursor(Qt.PointingHandCursor if an else Qt.ArrowCursor)
 
     def mousePressEvent(self, event) -> None:
-        if event.button() == Qt.LeftButton:
+        if event.button() == Qt.LeftButton and self._klickbar:
             self.clicked.emit()
             event.accept()
             return
+        # Nicht klickbar: Ereignis bewusst NICHT annehmen — dann traegt es die
+        # Pille weiter und man kann sie auch am Punkt anfassen und verschieben.
         super().mousePressEvent(event)
 
     def enterEvent(self, event) -> None:

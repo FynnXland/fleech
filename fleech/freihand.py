@@ -47,6 +47,24 @@ log = logging.getLogger(__name__)
 
 SAMPLERATE = 16000
 
+# Freihand ist VORERST STILLGELEGT (ab 5.10.1, auf ausdrueckliche Anweisung).
+#
+# Der Modus laesst sich nicht mehr einschalten, und ein bestehendes `aktiv: true`
+# in der settings.json wird ignoriert. Der Code bleibt vollstaendig erhalten —
+# das hier ist ein Riegel, keine Entfernung: Ein `False` an dieser Stelle macht
+# ihn wieder verfuegbar, ohne dass sonst etwas anzufassen waere.
+#
+# Der Grund steht ausfuehrlich in docs/fleech-gesamtkonzept.md, Abschnitt 21.5:
+# Ein dauerhaft offenes Mikrofon per Sprache auszuloesen ist in einem Raum mit
+# Nebengeraeuschen nicht zuverlaessig zu bekommen — und jeder Fehlstart tippt
+# Text in das gerade fokussierte Fenster. Der Bedienmodus „Anstupsen" liefert
+# den eigentlich gewollten Teil (automatisches Ende) ohne diese Schwaeche.
+#
+# Die Teile, die Freihand mitgebracht hat, bleiben in Benutzung: das VAD-Fenster
+# und seine Messwerte tragen `stillewache.py`, `enthaelt_wort`/`zerlege_woerter`
+# die Wortprobe.
+STILLGELEGT = True
+
 # Wie viel Audio das Startwort-Fenster umfasst. Zwei Sekunden fassen ein
 # mehrsilbiges Wort samt Anlauf; laenger kostet nur Rechenzeit und erhoeht die
 # Chance, dass ein zufaelliges Wort aus dem Vorsatz mit hineinrutscht.

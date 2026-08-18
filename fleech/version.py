@@ -7,7 +7,7 @@
 
 from __future__ import annotations
 
-APP_VERSION = "5.10.0"  # 5.10.0: Sammel-Release 5.6-5.9 — Anstupsen, Startwoerter, Freihand-Reparatur
+APP_VERSION = "5.10.2"  # 5.10.2: Profil-Punkt wechselt nur waehrend der Aufnahme
 
 
 def _read_build() -> str:

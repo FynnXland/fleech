@@ -768,3 +768,61 @@ def test_pause_knopf_wechselt_zustand_und_beruhigt_die_waveform(qapp):
     o.set_paused(False)
     assert o._wave._state is AppState.LISTENING
     o.deleteLater()
+
+
+def test_profil_punkt_wechselt_nur_waehrend_der_aufnahme(qapp):
+    """Klick auf den Profil-Punkt wirkt nur bei laufender Aufnahme.
+
+    Grund: Die Pille liegt am Bildschirmrand und wird beilaeufig getroffen.
+    Ausserhalb der Aufnahme haette ein Klick keine sichtbare Folge ausser der
+    kurzen Namens-Kapsel — man wuerde erst beim naechsten Diktat merken, dass
+    ein anderes Profil gilt.
+    """
+    from PySide6.QtCore import QEvent, QPointF, Qt
+    from PySide6.QtGui import QMouseEvent
+
+    from fleech.ui.overlay_qt import OverlayWindow
+
+    s = UserSettings().overlay
+    s.visibility = "always"
+    o = OverlayWindow(s)
+    gerufen = []
+    o.profile_cycle_requested.connect(lambda: gerufen.append(True))
+
+    def klick():
+        punkt = QPointF(o._math_dot.rect().center())
+        ereignis = QMouseEvent(QEvent.MouseButtonPress, punkt, punkt,
+                               Qt.LeftButton, Qt.LeftButton, Qt.NoModifier)
+        o._math_dot.mousePressEvent(ereignis)
+        qapp.processEvents()
+
+    # Frisch gebaut: noch keine Aufnahme → Klick laeuft ins Leere.
+    klick()
+    assert gerufen == []
+
+    o.set_app_state(AppState.LISTENING)
+    klick()
+    assert gerufen == [True]
+
+    # Verarbeitung ist keine Aufnahme mehr — das Profil steht bereits fest.
+    o.set_app_state(AppState.PROCESSING)
+    klick()
+    o.set_app_state(AppState.IDLE)
+    klick()
+    assert gerufen == [True]
+    o.close()
+
+
+def test_profil_punkt_bleibt_ausserhalb_der_aufnahme_sichtbar(qapp):
+    """Nicht klickbar heisst nicht ausgegraut: der Ring zeigt weiter das Profil."""
+    from fleech.ui.overlay_qt import OverlayWindow
+
+    s = UserSettings().overlay
+    s.visibility = "always"
+    o = OverlayWindow(s)
+    o.set_profile_color("#7FD1A6")
+    o.set_app_state(AppState.IDLE)
+    assert o._math_dot.isEnabled()          # kein setEnabled(False)
+    assert o._math_dot._profil_farbe == "#7FD1A6"
+    assert not o._math_dot._klickbar
+    o.close()

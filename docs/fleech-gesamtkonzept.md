@@ -608,6 +608,31 @@ Textende dieselbe Einheit (ab 3× bei Phrasen, ab 5× bei Einzelwörtern — ein
 rhetorisches „nein, nein, nein" überlebt), bleibt genau eine Nennung stehen. Jede
 Kürzung wird sichtbar geloggt.
 
+### 5.4b Sinnumkehr — und was der Guard NICHT abdeckt
+
+`meaning_flipped` (in `fleech/textfilter.py`) fängt den Fall, für den alle anderen
+Prüfungen blind sind: Die Wörter stimmen fast vollständig überein, aber die Aussage ist
+gedreht. Beispiel aus einem echten Diktat: „Die Miete ist im Januar noch **nicht**
+überwiesen" → „…ist im Januar überwiesen". Wortüberlappung praktisch 100 %,
+Wortgetreue hoch — `verbatim_ratio`, `added_ratio` und `trim_unsupported_tail`
+vergleichen Wort*mengen* und melden nichts.
+
+Geprüft werden **genau zwei Träger**:
+
+- **Verneinungen** — aus „nicht bezahlt" wird „bezahlt".
+- **Zahlen** — real gemessen: „Heute ist der 6.7." wurde zu „der 6., oder der 7.?"; in
+  einem anderen Diktat verschwanden zwei Geldbeträge ersatzlos.
+
+**Was er nicht abdeckt, ausdrücklich:** vertauschte Modalverben („kann" ↔ „muss"),
+gedrehte Zeitbezüge („vor" ↔ „nach"), verlorene Einschränkungen („nur", „außer"). Alle
+vier Schichten arbeiten wortmengenbasiert; für diese Fälle bräuchte es eine semantische
+Prüfung, die es hier nicht gibt.
+
+Das ist bewusst so — aber es heißt eben *nicht* „die Bedeutung ist geprüft", sondern
+„zwei besonders verlustanfällige Träger sind geprüft". Der Unterschied ist wichtig,
+weil die Messung, auf der der Guard beruht, nur die Frage „wie oft fehlt eine
+Negation oder Zahl" beantwortet — nicht „wie oft dreht sich die Bedeutung insgesamt".
+
 ### 5.5 Sonstige Absicherungen
 
 - **Anführungszeichen-Strip** — Modelle wickeln Antworten gern in Anführungszeichen.
@@ -2264,10 +2289,31 @@ Kennzahl würde dort die Formel messen, nicht das Umformulieren. Der Grounding-S
 läuft in diesem Modus dagegen sehr wohl (auf dem formelbereinigten Fließtext), ergänzt
 um eine Obergrenze für die Zahl erzeugter Formelblöcke.
 
+**Alle Schwellwerte sind an EINEM Sprecher kalibriert.** Das ist die wichtigste
+Einschränkung dieses Dokuments, und sie steht bewusst am Schluss, weil sie fast jede
+Zahl darin betrifft.
+
+Die Guards sind an „994 echten Diktaten", „1043 Diktaten", „15 Diktaten" gemessen — es
+sind durchweg die Diktate des Entwicklers: deutsches Fachvokabular aus Software,
+Mathematik und Philosophie, ein Sprechtempo, ein Akzent, ein Mikrofon (Focusrite
+Scarlett Solo). Werte wie der Fremdanteil von 0,35, die Salat-Wortlänge, die
+Levenshtein-Toleranz beim Startwort oder die 2 s Sprechpause sind daran optimiert und
+**an keinem zweiten Sprecher gegengeprüft**.
+
+Praktisch heißt das: Wer schneller spricht, stärker mit Anglizismen mischt, einen
+Dialekt hat oder in einem anderen Fachgebiet arbeitet, kann andere Fehlalarmraten
+sehen — nach oben wie nach unten. Die Guards sind durchgehend so gebaut, dass sie im
+Zweifel *nichts* tun (Rückfall auf den Rohtext statt Schnitt), was den Schaden
+begrenzt; aber die Zahlen selbst tragen diese Herkunft.
+
+Dieser Punkt stammt aus einem externen Gutachten (2026-08-05) und war dessen
+treffendster Befund: eine Annahme, die durchgehend getroffen, aber nie als Frage
+gestellt wurde.
+
 ---
 
-*Diese Datei beschreibt den Stand von Version 5.4.0 — 20.645 Zeilen Programm,
-11.987 Zeilen Tests in 48 Dateien. Bei Verhaltensfragen ist der Quellcode maßgeblich:
-Die Kommentare dort dokumentieren zu fast jeder Konstante auch den Grund ihres Werts,
-meist mit dem konkret aufgetretenen Fehlerbild. Was sich Version für Version geändert
-hat, steht in [CHANGELOG.md](../CHANGELOG.md).*
+*Diese Datei beschreibt den Stand von Version 5.10.0 — rund 23.800 Zeilen Programm in
+101 Dateien, dazu die Testsuite mit 1211 Tests. Bei Verhaltensfragen ist der Quellcode
+maßgeblich: Die Kommentare dort dokumentieren zu fast jeder Konstante auch den Grund
+ihres Werts, meist mit dem konkret aufgetretenen Fehlerbild. Was sich Version für
+Version geändert hat, steht in [CHANGELOG.md](../CHANGELOG.md).*

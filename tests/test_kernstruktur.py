@@ -144,3 +144,40 @@ def test_die_pipeline_haengt_nicht_an_den_einstellungen():
                 "pipeline.py importiert usersettings — die Verdrahtung gehoert in "
                 "pipeline_factory.py."
             )
+
+
+def test_die_doppelte_formatliste_bleibt_deckungsgleich():
+    """Der Preis der Entkopplung, jetzt abgesichert.
+
+    `REWRITING_FORMATS` steht bewusst zweimal: in `pipeline.py` (die ohne
+    settings.json laufen muss, siehe Test darueber) und in `profiles.py`. Bis
+    5.10.0 war das nur durch einen Kommentar zusammengehalten — ein neues Format,
+    das nur in `profiles.py` landet, faellt in der Pipeline lautlos auf Cleanup
+    zurueck. Kein Fehler, kein Log, einfach das falsche Ergebnis.
+
+    Der Befund stammt aus dem externen Gutachten vom 2026-08-05 und war der
+    einzige der sechs Punkte, der eine echte, unbemerkte Luecke traf.
+    """
+    from fleech.pipeline import REWRITING_FORMATS as in_pipeline
+    from fleech.profiles import REWRITING_FORMATS as in_profiles
+
+    assert in_pipeline == in_profiles, (
+        "Die beiden Kopien von REWRITING_FORMATS sind auseinandergelaufen:\n"
+        f"  pipeline.py: {in_pipeline}\n"
+        f"  profiles.py: {in_profiles}\n"
+        "Beide Stellen pflegen — die Trennung ist Absicht, das Auseinanderlaufen nicht."
+    )
+
+
+def test_jedes_umformulierende_format_hat_eine_prompt_datei():
+    """Ein Format ohne Prompt-Datei faellt zur Laufzeit auf Cleanup zurueck — auch
+    das lautlos. Die Liste und die Dateien muessen zusammenpassen."""
+    from pathlib import Path
+
+    from fleech.pipeline import REWRITING_FORMATS
+
+    prompts = Path(__file__).resolve().parent.parent / "prompts"
+    fehlend = [f for f in REWRITING_FORMATS
+               if not (prompts / f"{f}.md").is_file()
+               and not (prompts / f"{f}_engineer.md").is_file()]
+    assert not fehlend, f"Formate ohne Prompt-Datei in prompts/: {fehlend}"

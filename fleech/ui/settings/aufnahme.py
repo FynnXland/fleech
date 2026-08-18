@@ -90,25 +90,72 @@ def build(panel) -> None:
                   "aufgezeichnet, du kannst also frei sprechen. Nochmal drücken "
                   "setzt dasselbe Diktat fort. Auch als Knopf in der Pille.",
     )
+    _freihand_block(panel, s, form)
+
+    mics = [(None, "Systemstandard")] + [(name, name) for name in panel._list_microphones()]
+    panel._combo(
+        form, "Mikrofon", mics, s.recording.microphone, "microphone",
+        lambda v: setattr(s.recording, "microphone", v),
+        hint_text="Wirkt ab der nächsten Aufnahme.",
+    )
+    panel._lines_editor(
+        form, "Gesperrte Geräte", s.recording.blocked_devices, "microphone",
+        lambda lines: setattr(s.recording, "blocked_devices", lines),
+        placeholder="Stereomix\nCABLE Output\nAufnahmesumme",
+        hint_text="Geräte, die nie als Mikrofon gelten sollen — ein Namensteil "
+                  "je Zeile. Fleech erkennt die gängigen Loopback-Geräte schon "
+                  "selbst; diese Liste ist für die Fälle, die dabei durchrutschen.",
+        height=90,
+    )
+
+
+def _freihand_block(panel, s, form) -> None:
+    """Der Freihand-Abschnitt der Seite.
+
+    Eigene Funktion, seit `build()` mit dem Stillgelegt-Hinweis ueber die
+    Zeilengrenze gewachsen ist. Die Antwort darauf ist laut CLAUDE.md ein
+    eigener Ort fuer das Thema, nicht eine groessere Zahl im Test.
+    """
     # -- Freihand: diktieren ohne Taste (F1) ---------------------------------
     # Bewusst HIER, direkt unter den Hotkeys: Es ist der zweite Weg, eine
     # Aufnahme zu starten — wer nach „wie beginne ich" sucht, schaut hier.
+    from ...freihand import STILLGELEGT
+
     f = s.freihand
-    form.addRow("", hint(
-        "— Freihand —  Startwort sagen, sprechen, aufhören. Kommt zusätzlich "
-        "zum Hotkey, ersetzt ihn nicht.\n"
-        "Wenn dir am automatischen Ende gelegen ist: Der Bedienmodus "
-        "„Anstupsen“ oben kann das auch — und kann nicht durch ein Video oder "
-        "ein Gespräch im Raum ausgelöst werden."
-    ))
+    if STILLGELEGT:
+        form.addRow("", hint(
+            "— Freihand —  vorerst abgeschaltet.\n"
+            "Ein dauerhaft offenes Mikrofon per Startwort auszulösen war in einem "
+            "Raum mit Nebengeräuschen nicht zuverlässig zu bekommen — und jeder "
+            "Fehlstart tippt Text in das Fenster, in dem du gerade arbeitest.\n"
+            "Was du eigentlich wolltest, kann der Bedienmodus „Anstupsen“ oben: "
+            "einmal drücken, reden, es hört von selbst auf. Auslösen kann dort nur, "
+            "wer die Taste drückt."
+        ))
+    else:
+        form.addRow("", hint(
+            "— Freihand —  Startwort sagen, sprechen, aufhören. Kommt zusätzlich "
+            "zum Hotkey, ersetzt ihn nicht.\n"
+            "Wenn dir am automatischen Ende gelegen ist: Der Bedienmodus "
+            "„Anstupsen“ oben kann das auch — und kann nicht durch ein Video oder "
+            "ein Gespräch im Raum ausgelöst werden."
+        ))
     panel._freihand_cb = panel._check(
-        form, "Freihand", f.aktiv, "freihand",
+        form, "Freihand", f.aktiv and not STILLGELEGT, "freihand",
         lambda v: setattr(f, "aktiv", v),
-        hint_text="Fleech hört dauerhaft auf das Startwort. Ein sparsamer "
-                  "Sprach-Erkenner läuft dafür mit (~1 % CPU); Audio wird nie "
-                  "gespeichert, erst ab dem Startwort überhaupt gesammelt. "
-                  "Wirkt nach einem Neustart von Fleech.",
+        hint_text=("Vorerst abgeschaltet. Der Modus ist nicht entfernt, nur "
+                   "stillgelegt — die Erklärung steht darüber."
+                   if STILLGELEGT else
+                   "Fleech hört dauerhaft auf das Startwort. Ein sparsamer "
+                   "Sprach-Erkenner läuft dafür mit (~1 % CPU); Audio wird nie "
+                   "gespeichert, erst ab dem Startwort überhaupt gesammelt. "
+                   "Wirkt nach einem Neustart von Fleech."),
     )
+    if STILLGELEGT:
+        # Ausgegraut statt versteckt: Wer den Modus kennt, soll sehen, dass es
+        # ihn noch gibt und warum er gerade nicht geht — ein spurlos
+        # verschwundener Schalter wirkt wie ein Fehler.
+        panel._freihand_cb.setEnabled(False)
     # Mehrere Startwörter: Welches Wort die eigene Aussprache zuverlässig
     # trifft, lässt sich nicht vorhersagen — mit zwei oder drei Kandidaten
     # nebeneinander entfällt das Herumprobieren mit einem einzigen.
@@ -190,18 +237,13 @@ def build(panel) -> None:
         height=80,
     )
 
-    mics = [(None, "Systemstandard")] + [(name, name) for name in panel._list_microphones()]
-    panel._combo(
-        form, "Mikrofon", mics, s.recording.microphone, "microphone",
-        lambda v: setattr(s.recording, "microphone", v),
-        hint_text="Wirkt ab der nächsten Aufnahme.",
-    )
-    panel._lines_editor(
-        form, "Gesperrte Geräte", s.recording.blocked_devices, "microphone",
-        lambda lines: setattr(s.recording, "blocked_devices", lines),
-        placeholder="Stereomix\nCABLE Output\nAufnahmesumme",
-        hint_text="Geräte, die nie als Mikrofon gelten sollen — ein Namensteil "
-                  "je Zeile. Fleech erkennt die gängigen Loopback-Geräte schon "
-                  "selbst; diese Liste ist für die Fälle, die dabei durchrutschen.",
-        height=90,
-    )
+    if STILLGELEGT:
+        # Den ganzen Block ausgrauen, nicht nur den Schalter: Ein aktives
+        # Startwort-Feld unter einem toten Schalter sieht aus, als koennte man
+        # damit etwas erreichen. Nur die Widgets, die das Panel ohnehin
+        # festhaelt — ein Durchlauf durch das Layout waere ein Umweg ueber eine
+        # Qt-API, die je nach Bindung anders heisst.
+        for name in ("_freihand_cb", "_startwort_liste", "_startwort_probe_btn"):
+            widget = getattr(panel, name, None)
+            if widget is not None:
+                widget.setEnabled(False)

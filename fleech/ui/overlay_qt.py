@@ -149,10 +149,11 @@ class OverlayWindow(GeometrieMixin, EinblendungenMixin, ZustandMixin, QWidget):
         self._cancel_btn.setToolTip("Abbrechen — nichts einfügen")
         self._finish_btn.setToolTip("Fertig — Text einfügen")
         self._dot_tooltip_base = (
-            "Profil wechseln (Klick): reihum durch deine Profile und zurück auf "
-            "automatisch. Das Profil bestimmt, WAS aus dem Diktat wird — normaler "
-            "Text, eine E-Mail oder ein KI-Prompt. Wechseln geht auch mitten in "
-            "der Aufnahme."
+            "Zeigt das Profil, das für das nächste Diktat gilt — es bestimmt, "
+            "WAS aus dem Diktat wird: normaler Text, eine E-Mail oder ein "
+            "KI-Prompt. Ein Klick wechselt reihum durch deine Profile, aber nur "
+            "während einer laufenden Aufnahme. Vorher: Profil-Hotkey oder "
+            "Profilseite."
         )
         self._math_dot.setToolTip(self._dot_tooltip_base)
         # Tooltips auch bei INAKTIVEM Fenster zeigen: das Overlay ist ein Tool-Fenster

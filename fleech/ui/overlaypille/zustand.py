@@ -77,6 +77,10 @@ class ZustandMixin:
         self._cancel_btn.setEnabled(state is AppState.LISTENING)
         self._finish_btn.setEnabled(state is AppState.LISTENING)
         self._pause_btn.setEnabled(state is AppState.LISTENING)
+        # Profil-Punkt ebenso: wechseln nur waehrend der Aufnahme. Bewusst
+        # set_klickbar statt setEnabled — der Punkt bleibt sichtbar und zeigt
+        # weiter die Profilfarbe, er nimmt nur keine Klicks mehr an.
+        self._math_dot.set_klickbar(state is AppState.LISTENING)
         if state is not AppState.LISTENING:
             self.set_command_armed(False)  # Befehls-Optik endet mit der Aufnahme
             # Profil-Kapsel gehoert zur Auswahl, nicht zum Ergebnis: spaetestens
