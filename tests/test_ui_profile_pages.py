@@ -235,6 +235,95 @@ def test_umbenanntes_profil_steht_auch_oben_richtig(qapp, tmp_path, monkeypatch)
     assert "Ganz neuer Name" in namen
 
 
+# -- „Wenn du jetzt diktierst" (Vorschlag G-2) ---------------------------------------
+
+
+def _settings_mit_zuordnung():
+    from fleech.usersettings import UserSettings
+
+    settings = UserSettings()
+    settings.profiles.enabled = True
+    settings.profiles.active = ""
+    settings.profiles.items = [
+        {"name": "Standard", "default": True, "intervention": "", "apps": []},
+        {"name": "KI-Prompt", "intervention": "standard", "mode": "prompt",
+         "apps": ["claude.exe"], "sprache": "en", "auto_send": True},
+        {"name": "Notizen", "intervention": "strong", "apps": ["obsidian.exe :: Tagebuch"]},
+    ]
+    return settings
+
+
+def test_jetzt_zeile_nennt_regel_und_wirkung():
+    """Vorschlag G-2: Die Zeile fuehrt die Zuordnung vor, statt sie zu behaupten —
+    inklusive der Regel, ueber die das Profil kam. Ohne sie faellt ein Tippfehler
+    in einer Titel-Bedingung nie auf: Die Regel greift stumm einfach nie."""
+    from fleech.ui.pages.jetztzeile import beschreibe_jetzt
+
+    settings = _settings_mit_zuordnung()
+    text = beschreibe_jetzt(settings, "claude.exe", "Fleech — Claude")
+    assert "claude.exe" in text and "Fleech — Claude" in text
+    assert "Profil KI-Prompt" in text and "Regel: claude.exe" in text
+    assert "Ausgabe: KI-Prompt" in text
+    assert "Sprache: Englisch" in text
+    assert "schickt direkt ab" in text          # der Haken, der Enter drueckt
+
+    # Titelregel: derselbe Prozess, anderer Kontext.
+    text = beschreibe_jetzt(settings, "obsidian.exe", "2026-08-18 — Tagebuch")
+    assert "Profil Notizen" in text and "Regel: obsidian.exe :: Tagebuch" in text
+    text = beschreibe_jetzt(settings, "obsidian.exe", "Projektplan")
+    assert "Profil Standard (Standardprofil)" in text
+
+    # Von Hand gewaehlt sticht die Zuordnung — und sagt das auch.
+    settings.profiles.active = "Notizen"
+    text = beschreibe_jetzt(settings, "claude.exe", "")
+    assert "Profil Notizen (von Hand gewählt)" in text
+
+    # Global aus: kein Profil-Theater, sondern die ehrliche Auskunft.
+    settings.profiles.enabled = False
+    assert "ausgeschaltet" in beschreibe_jetzt(settings, "claude.exe", "")
+
+
+def test_jetzt_zeile_kommt_ohne_vordergrund_klar():
+    from fleech.ui.pages.jetztzeile import beschreibe_jetzt, ist_fleech_selbst
+
+    settings = _settings_mit_zuordnung()
+    assert "keine Anwendung erkennbar" in beschreibe_jetzt(settings, "", "")
+    assert ist_fleech_selbst("Fleech.exe") and not ist_fleech_selbst("claude.exe")
+    assert not ist_fleech_selbst("")
+
+
+def test_apps_seite_zeigt_was_jetzt_passieren_wuerde(qapp, tmp_path, monkeypatch):
+    """Und sie zeigt NICHT sich selbst: Wer die Seite ansieht, hat Fleech im
+    Vordergrund — interessant ist die Anwendung, aus der er gerade kam."""
+    window, _p, _store, settings, _c = make_main_window(tmp_path, monkeypatch,
+                                                        with_data=True)
+    monkeypatch.setattr("fleech.ui.windowsfocus.list_visible_window_processes",
+                        lambda: ["claude.exe"])
+    monkeypatch.setattr("fleech.ui.windowsfocus.foreground_now",
+                        lambda: ("claude.exe", "Fleech — Claude"))
+    page = window.apps
+    settings.profiles.items = _settings_mit_zuordnung().profiles.items
+    page.refresh()
+    page._jetzt_aktualisieren()
+    assert "Profil KI-Prompt" in page._jetzt.text()
+
+    monkeypatch.setattr("fleech.ui.windowsfocus.foreground_now",
+                        lambda: ("Fleech.exe", "Fleech"))
+    page._jetzt_aktualisieren()
+    text = page._jetzt.text()
+    assert "(Fleech selbst)" in text
+    assert "zuletzt claude.exe" in text          # der gemerkte fremde Vordergrund
+    assert "Profil KI-Prompt" in text
+
+    # Der Takt laeuft nur, solange die Seite sichtbar ist.
+    from PySide6.QtGui import QHideEvent, QShowEvent
+
+    page.showEvent(QShowEvent())
+    assert page._jetzt_timer.isActive() is True
+    page.hideEvent(QHideEvent())
+    assert page._jetzt_timer.isActive() is False
+
+
 def test_apps_page_assigns_profile_per_app(qapp, tmp_path, monkeypatch):
     """Die Apps-Seite dreht die Blickrichtung um: App waehlen → Profil bestimmen.
 

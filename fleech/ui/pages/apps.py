@@ -75,6 +75,7 @@ class AppsPage(QWidget):
         unter.setWordWrap(True)
         unter.setStyleSheet(f"color: {MUTED}; font-size: 9pt;")
         layout.addWidget(unter)
+        self._baue_jetzt_zeile(layout)
 
         body = QHBoxLayout()
         body.setSpacing(PAGE_SPACING)   # 12 wie Home, Insights und Profile (war 14)
@@ -188,6 +189,64 @@ class AppsPage(QWidget):
         rechts_box.addLayout(neu_row)
         body.addWidget(rechts, 5)
         body.addWidget(dritte, 4)
+
+    # -- „Wenn du jetzt diktierst" (Vorschlag G-2) ----------------------------------
+
+    def _baue_jetzt_zeile(self, layout) -> None:
+        """Mitlaufende Zeile unter der Ueberschrift: was die Regeln JETZT ergaeben.
+
+        Reine Anzeige. Der Takt laeuft nur, solange die Seite sichtbar ist —
+        `foreground_now()` ist billig, aber ein Timer, der im Tray weiterlaeuft,
+        ist trotzdem Unfug."""
+        from PySide6.QtCore import QTimer
+
+        self._letzter_fremder: tuple = ("", "")
+        self._jetzt = QLabel("")
+        self._jetzt.setWordWrap(True)
+        self._jetzt.setStyleSheet(
+            f"color: {TEXT}; font-size: 8.5pt; background: {CARD};"
+            f"  border: 1px solid {BORDER_HAIRLINE}; border-radius: 8px;"
+            f"  padding: 7px 10px;")
+        self._jetzt.setToolTip(
+            "Führt die Zuordnung vor, statt sie zu behaupten: Vordergrund-App, "
+            "das daraus aufgelöste Profil samt Regel, und was es am Diktat ändert. "
+            "Ein Tippfehler in einer Titel-Regel fällt sonst nie auf — sie greift "
+            "einfach stumm nie.")
+        layout.addWidget(self._jetzt)
+        # Gebundene Methode statt Lambda (CLAUDE.md, Referenzzyklus): ein Lambda mit
+        # `self` als Attribut eines Kind-Objekts baut einen Zyklus.
+        self._jetzt_timer = QTimer(self)
+        self._jetzt_timer.setInterval(1000)
+        self._jetzt_timer.timeout.connect(self._jetzt_aktualisieren)
+
+    def showEvent(self, event) -> None:
+        super().showEvent(event)
+        self._jetzt_aktualisieren()
+        self._jetzt_timer.start()
+
+    def hideEvent(self, event) -> None:
+        super().hideEvent(event)
+        self._jetzt_timer.stop()
+
+    def _jetzt_aktualisieren(self) -> None:
+        from .jetztzeile import beschreibe_jetzt, ist_fleech_selbst
+
+        try:
+            from ..windowsfocus import foreground_now
+
+            app, titel = foreground_now()
+        except Exception:
+            log.debug("Vordergrund nicht abfragbar.", exc_info=True)
+            app, titel = "", ""
+        # Wer diese Seite ansieht, hat Fleech im Vordergrund. Interessant ist die
+        # Anwendung, aus der er gerade kam — sonst zeigte die Zeile dauerhaft sich
+        # selbst und beantwortete nie die Frage, um die es geht.
+        selbst = ist_fleech_selbst(app)
+        if app and not selbst:
+            self._letzter_fremder = (app, titel)
+        ziel = self._letzter_fremder if selbst else (app, titel)
+        self._jetzt.setText(
+            beschreibe_jetzt(self.settings, ziel[0], ziel[1], fleech_selbst=selbst))
 
     # -- Daten ---------------------------------------------------------------------
 
