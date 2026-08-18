@@ -9,7 +9,7 @@ from __future__ import annotations
 
 import logging
 
-from PySide6.QtCore import QPointF, Qt
+from PySide6.QtCore import QPointF, Qt, Signal
 from PySide6.QtGui import QColor, QIcon, QPainter, QPixmap
 from PySide6.QtWidgets import (
     QCheckBox, QComboBox, QHBoxLayout, QLabel, QLineEdit, QListWidget, QListWidgetItem,
@@ -18,8 +18,9 @@ from PySide6.QtWidgets import (
 
 from ...history import HistoryStore
 from ...profiles import (
-    PROFILE_FORMATS, PROFIL_FARBEN, ensure_default_profile, profile_color,
-    profile_command_mode, profile_in_quickswitch, profile_mode,
+    APP_STANDARD, PROFILE_FORMATS, PROFILE_SPRACHEN, PROFIL_FARBEN,
+    ensure_default_profile, profile_color, profile_command_mode,
+    profile_in_quickswitch, profile_mode, profile_sprache,
 )
 from ...usersettings import UserSettings
 from ..chevron import apply_chevrons
@@ -96,6 +97,12 @@ class ProfilesPage(QWidget):
     neben der Ueberschrift schaltet Profile global — aus = alles ausgegraut.
     """
 
+    # „Jetzt aktiv" von Hand gewaehlt. Die Seite schreibt `profiles.active` NICHT
+    # allein: Zum Profilwechsel gehoeren Ring und Kapsel an der Pille, und eine
+    # Seite fasst das Overlay nicht an. Dieses Signal ist dieselbe Nahtstelle, die
+    # auch die Auswahlliste am Profil-Hotkey nimmt (`_set_profile`).
+    profil_aktiv_gewaehlt = Signal(str)
+
     _INTERVENTION_LABELS = [("", "Wie Einstellungen (Ausgabe)"),
                             ("minimal", "Minimal (kein LLM-Eingriff)"),
                             ("standard", "Standard"),
@@ -160,7 +167,73 @@ class ProfilesPage(QWidget):
         hint.setStyleSheet(f"color: {MUTED}; font-size: 9pt;")
         hint.setWordWrap(True)
         outer.addWidget(hint)
+        self._baue_jetzt_aktiv(outer)
         outer.addSpacing(6)
+
+    def _baue_jetzt_aktiv(self, outer) -> None:
+        """„Jetzt aktiv": das Profil VOR dem Diktat waehlen (Befund E-4/G-B5).
+
+        Bis 5.10.4 ging das nur ueber den Punkt an der Pille — und der nimmt
+        Klicks nur waehrend einer laufenden Aufnahme an — oder ueber den
+        Profil-Hotkey, der von Haus aus unbelegt ist. Sein eigener Tooltip
+        verwies dabei auf „die Profilseite", die es gar nicht konnte. Jetzt kann
+        sie es.
+        """
+        zeile = QHBoxLayout()
+        zeile.setSpacing(8)
+        beschriftung = QLabel("Jetzt aktiv")
+        beschriftung.setStyleSheet(f"color: {MUTED}; font-size: 9pt;")
+        zeile.addWidget(beschriftung)
+        self._aktiv_combo = QComboBox()
+        self._aktiv_combo.setStyleSheet(apply_chevrons(_COMBO_QSS))
+        self._aktiv_combo.setMinimumWidth(220)
+        self._aktiv_combo.setToolTip(
+            "Gilt fuer alle folgenden Diktate, bis du es aenderst — auch nach "
+            "einem Neustart. „App-Standard“ heißt: es gilt, was auf der Seite "
+            "„Apps“ für die jeweilige Anwendung hinterlegt ist."
+        )
+        self._aktiv_combo.currentIndexChanged.connect(self._on_aktiv_gewaehlt)
+        zeile.addWidget(self._aktiv_combo)
+        zeile.addWidget(HelpBadge(
+            "Dasselbe, was der Profil-Hotkey und der Punkt an der Pille tun — nur "
+            "ohne laufende Aufnahme. Das Standardprofil steht bewusst nicht zur "
+            "Wahl: Von Hand gewählt legte es die App-Zuordnung still, dafür gibt "
+            "es „App-Standard“."))
+        zeile.addStretch(1)
+        outer.addLayout(zeile)
+        self._fuelle_aktiv_combo()
+
+    def _fuelle_aktiv_combo(self) -> None:
+        """Auswahlliste „Jetzt aktiv" mit dem gespeicherten Stand fuellen.
+
+        Ohne das Standardprofil (Befund G-B1) — es von Hand zu waehlen sah aus wie
+        „App-Standard", legte aber die App-Zuordnung still."""
+        vorher = self._loading
+        self._loading = True
+        self._aktiv_combo.clear()
+        self._aktiv_combo.addItem(APP_STANDARD, "")
+        for profile in self._items():
+            if isinstance(profile, dict) and not profile.get("default"):
+                name = str(profile.get("name", ""))
+                if name:
+                    self._aktiv_combo.addItem(name, name)
+        aktiv = str(getattr(self.settings.profiles, "active", "") or "")
+        index = self._aktiv_combo.findData(aktiv)
+        self._aktiv_combo.setCurrentIndex(max(0, index))
+        self._loading = vorher
+
+    def _on_aktiv_gewaehlt(self, _index: int) -> None:
+        if self._loading:
+            return
+        name = str(self._aktiv_combo.currentData() or "")
+        # Bewusst BEIDES: selbst schreiben (die Seite darf nicht davon abhaengen,
+        # dass jemand am Signal haengt — sonst zeigte sie eine Wahl, die nirgends
+        # ankommt) und melden, damit Ring und Kapsel an der Pille nachziehen.
+        self.settings.profiles.active = name
+        self._save()
+        self._on_changed("profiles")
+        self.profil_aktiv_gewaehlt.emit(name)
+        log.info("Profil ueber die Profilseite gewaehlt: %s", name or APP_STANDARD)
 
     def _baue_profil_spalte(self) -> QWidget:
         """Links: Profil-Liste (Klick = Auswahl) mit Suche und Hinzufuegen/Loeschen.
@@ -314,6 +387,25 @@ class ProfilesPage(QWidget):
             self._intervention_combo.addItem(label, value)
         self._intervention_combo.currentIndexChanged.connect(self._on_intervention_changed)
         adv.addWidget(self._intervention_combo)
+
+        # Diktiersprache je Profil. Der Wirkungspfad steht seit 5.4.0 vollstaendig
+        # (profile_sprache → ProfileOverrides.sprache → desktop._setze_sprache) und
+        # ist getestet — nur einstellen konnte man sie nirgends ausser von Hand in
+        # der settings.json (Befund G-B6). Genau die Trennung, fuer die Profile da
+        # sind: deutscher Prompt im Chat, englischer Kommentar in der IDE.
+        adv.addWidget(_abschnitt(
+            "Sprache", "In welcher Sprache in diesen Apps diktiert wird. „Wie "
+            "Einstellungen“ = globaler Wert aus Einstellungen → Allgemein. "
+            "„Automatisch erkennen“ kostet Genauigkeit bei kurzen Diktaten.",
+        ))
+        self._profile_sprache_combo = QComboBox()
+        self._profile_sprache_combo.setStyleSheet(apply_chevrons(_COMBO_QSS))
+        for value, label in PROFILE_SPRACHEN:
+            self._profile_sprache_combo.addItem(label, value)
+        self._profile_sprache_combo.currentIndexChanged.connect(
+            self._on_profile_sprache_changed
+        )
+        adv.addWidget(self._profile_sprache_combo)
 
         # Gesprochenes Safe-Word je Profil: im Meeting/Grossraum unpassend und
         # zufaellig ausloesbar. Der »-Knopf in der Pille bleibt immer verfuegbar.
@@ -477,6 +569,9 @@ class ProfilesPage(QWidget):
                       if self._profiles_list.item(i).data(Qt.UserRole) == previous]
             self._profiles_list.setCurrentRow(zeilen[0] if zeilen else 0)
         self._refresh_detail()
+        # Umbenannte, neue und geloeschte Profile muessen auch oben in „Jetzt
+        # aktiv" stimmen — sonst zeigt die Zeile einen Namen, den es nicht mehr gibt.
+        self._fuelle_aktiv_combo()
 
     def _refresh_detail(self) -> None:
         profile = self._current_profile()
@@ -485,6 +580,7 @@ class ProfilesPage(QWidget):
             self._detail_title.setText("")
             self._detail_title.setEnabled(False)
             self._profile_command_combo.setCurrentIndex(0)
+            self._profile_sprache_combo.setCurrentIndex(0)
             self._refresh_farb_reihe(None)
             self._loading = False
             return
@@ -493,6 +589,10 @@ class ProfilesPage(QWidget):
         self._refresh_farb_reihe(profile)
         self._profile_command_combo.setCurrentIndex(
             ["", "on", "off"].index(profile_command_mode(profile))
+        )
+        sprachen = [v for v, _l in PROFILE_SPRACHEN]
+        self._profile_sprache_combo.setCurrentIndex(
+            sprachen.index(profile_sprache(profile))
         )
         self._autosend_cb.setChecked(bool(profile.get("auto_send", False)))
         values = [v for v, _l in self._INTERVENTION_LABELS]
@@ -525,6 +625,9 @@ class ProfilesPage(QWidget):
         from PySide6.QtWidgets import QGraphicsOpacityEffect
 
         self._body.setEnabled(on)
+        # „Jetzt aktiv" steht im Kopf und bliebe sonst bedienbar, obwohl ein
+        # Profilwechsel bei global-aus nichts bewirkt (Befund G-B11).
+        self._aktiv_combo.setEnabled(on)
         if on:
             self._body.setGraphicsEffect(None)
         else:
@@ -544,6 +647,15 @@ class ProfilesPage(QWidget):
         profile = self._current_profile()
         if profile is not None:
             profile["auto_send"] = bool(on)
+            self._save()
+
+    def _on_profile_sprache_changed(self, _index: int) -> None:
+        """Diktiersprache des Profils (Befund G-B6). "" = wie Einstellungen."""
+        if self._loading:
+            return
+        profile = self._current_profile()
+        if profile is not None:
+            profile["sprache"] = self._profile_sprache_combo.currentData()
             self._save()
 
     def _on_profile_command_changed(self, _index: int) -> None:

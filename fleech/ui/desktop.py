@@ -121,32 +121,7 @@ class DesktopApp(
             self.settings, self.store, panel, self._on_window_closed_to_tray,
             on_reprocess=self._reprocess_entry,
         )
-        self.bus.history_changed.connect(self.window.refresh_data)
-
-        self.bus.state_changed.connect(self.tray.set_state)
-        self.bus.state_changed.connect(self.overlay.set_app_state)
-        self.bus.command_armed.connect(self.overlay.set_command_armed)
-        self.bus.feedback.connect(self.overlay.set_feedback)
-        # Reihenfolge wichtig: der Fallback-Hinweis muss VOR transcript_ready
-        # ankommen, damit die Blase schon amber gerahmt erscheint.
-        self.bus.progress.connect(self.overlay.show_progress)
-        self.bus.formula_preview.connect(self.overlay.show_formula_preview)
-        self.bus.tail_dropped.connect(self.overlay.show_dropped_tail)
-        self.bus.injection_fallback.connect(self.overlay.flash_fallback)
-        self.bus.transcript_ready.connect(self.overlay.show_transcript)
-        self.bus.raw_ready.connect(self.overlay.show_raw_preview)
-        self.bus.reprocessed.connect(self._on_reprocessed)
-        self.bus.freihand_ereignis.connect(self._on_freihand)
-        self.bus.freihand_zustand.connect(self.overlay.set_freihand)
-        self.bus.freihand_fehler.connect(self._on_freihand_fehler)
-        self.bus.preview_text.connect(self._on_preview_text)
-        self.bus.dictionary_suggestion.connect(self._on_dictionary_suggestion)
-        self.bus.update_ready.connect(self._on_update_ready)
-        self.bus.profile_key.connect(self._on_profile_key)
-        self.bus.license_needed.connect(self.show_license_dialog)
-        self.bus.paused_changed.connect(self.overlay.set_paused)
-        self.bus.prompt_latch_changed.connect(self.overlay.set_prompt_latched)
-        self.bus.profil_zuruecksetzen.connect(self._on_profil_zuruecksetzen)
+        self._verdrahte_signale()
         # Live-Vorschau (Opt-in): kleines separates Whisper-Modell + Streamer, beide
         # lazy — wer das Feature nie einschaltet, zahlt keinerlei Kosten.
         self._preview_model = None
@@ -255,6 +230,45 @@ class DesktopApp(
                 "deaktiviert — Windows startet Fleech deshalb NICHT mit."
             )
 
+    def _verdrahte_signale(self) -> None:
+        """Alle Verbindungen Bus/Seiten → DesktopApp an EINER Stelle.
+
+        Stand bis 5.10.4 mitten im Konstruktor. Eigene Methode, weil der
+        Konstruktor damit an die 200-Zeilen-Grenze stiess (tests/test_ui_struktur)
+        — und weil „welches Signal landet wo" eine eigene Frage ist, die man
+        nachschlagen will, ohne den Aufbau der halben App zu lesen.
+        """
+        self.bus.history_changed.connect(self.window.refresh_data)
+        self.bus.state_changed.connect(self.tray.set_state)
+        self.bus.state_changed.connect(self.overlay.set_app_state)
+        self.bus.command_armed.connect(self.overlay.set_command_armed)
+        self.bus.feedback.connect(self.overlay.set_feedback)
+        # Reihenfolge wichtig: der Fallback-Hinweis muss VOR transcript_ready
+        # ankommen, damit die Blase schon amber gerahmt erscheint.
+        self.bus.progress.connect(self.overlay.show_progress)
+        self.bus.formula_preview.connect(self.overlay.show_formula_preview)
+        self.bus.tail_dropped.connect(self.overlay.show_dropped_tail)
+        self.bus.injection_fallback.connect(self.overlay.flash_fallback)
+        self.bus.transcript_ready.connect(self.overlay.show_transcript)
+        self.bus.raw_ready.connect(self.overlay.show_raw_preview)
+        self.bus.reprocessed.connect(self._on_reprocessed)
+        self.bus.freihand_ereignis.connect(self._on_freihand)
+        self.bus.freihand_zustand.connect(self.overlay.set_freihand)
+        self.bus.freihand_fehler.connect(self._on_freihand_fehler)
+        self.bus.preview_text.connect(self._on_preview_text)
+        self.bus.dictionary_suggestion.connect(self._on_dictionary_suggestion)
+        self.bus.update_ready.connect(self._on_update_ready)
+        self.bus.profile_key.connect(self._on_profile_key)
+        self.bus.license_needed.connect(self.show_license_dialog)
+        self.bus.paused_changed.connect(self.overlay.set_paused)
+        self.bus.prompt_latch_changed.connect(self.overlay.set_prompt_latched)
+        self.bus.profil_zuruecksetzen.connect(self._on_profil_zuruecksetzen)
+        self.bus.profil_pruefen.connect(self._on_profil_pruefen)
+        # „Jetzt aktiv" auf der Profilseite nimmt denselben Weg wie die
+        # Auswahlliste am Profil-Hotkey (Befund E-4/G-B5) — die Seite selbst
+        # fasst weder Pille noch Overlay an.
+        self.window.profiles.profil_aktiv_gewaehlt.connect(self._set_profile)
+
     # ------------------------------------------------------------------- Engine --
 
         # Kein Preview-Streamer mehr: die Overlay-Pille zeigt den Audiopegel statt
@@ -352,6 +366,11 @@ class DesktopApp(
         self._prompt_oneshot = False    # One-Shot gilt immer nur fuer EINE Aufnahme
         self.notifier.sound("start")
         self.bus.set_state(AppState.LISTENING)
+        # Welches Profil gilt fuer DIESE App? Der Ring folgte bisher nur der Wahl
+        # von Hand (Befund G-B4). Ueber den Bus, weil diese Methode im
+        # pynput-Thread laeuft — und NACH set_state, damit die Pille sichtbar ist,
+        # wenn die Namens-Kapsel daneben erscheint.
+        self.bus.profil_pruefen.emit()
         if kind == "command":
             # Befehls-Aufnahme per »-Button: Pille sofort in Befehls-Optik (cyan) armen.
             self.bus.command_armed.emit(True)

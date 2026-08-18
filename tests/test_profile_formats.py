@@ -215,3 +215,45 @@ def test_titel_bedingung_greift_als_teilstring():
     assert app_rule_matches(rule, "Code.exe", "FLEECH gross geschrieben")  # case-insensitiv
     assert not app_rule_matches(rule, "Code.exe", "andere-app — Visual Studio Code")
     assert not app_rule_matches(rule, "Code.exe", "")   # kein Titel ermittelbar
+
+
+# -- Aufloesung als reine Funktion (Befund G-B4 / Vorschlag G-1) ----------------------
+
+
+_ZUORDNUNG = [
+    {"name": "Standard", "default": True, "intervention": "", "tags": [], "apps": []},
+    {"name": "Coding", "intervention": "minimal", "apps": ["Code.exe"]},
+    {"name": "Notizen", "intervention": "strong", "apps": ["Code.exe :: Tagebuch"]},
+]
+
+
+def test_profil_fuer_app_antwortet_ohne_overrides_zu_bauen():
+    """Die Aufloesung lag bis 5.10.4 mitten in `_app_profile_overrides` und war
+    damit nur beim Verarbeiten eines Diktats erreichbar — der Ring an der Pille
+    kam nicht heran (Befund G-B4). Jetzt eine reine Funktion: Profil-Eintrag plus
+    die Regel, ueber die der Treffer kam."""
+    from fleech.profiles import profil_fuer_app
+
+    treffer, regel = profil_fuer_app(_ZUORDNUNG, "Code.exe", "pipeline.py")
+    assert (treffer["name"], regel) == ("Coding", "Code.exe")
+
+    # Titel schlaegt Prozess, unabhaengig von der Listenreihenfolge.
+    treffer, regel = profil_fuer_app(_ZUORDNUNG, "Code.exe", "2026-08-18 — Tagebuch")
+    assert (treffer["name"], regel) == ("Notizen", "Code.exe :: Tagebuch")
+
+    # Nicht zugewiesen → Standardprofil, und zwar OHNE Regel (es war der Fallback).
+    treffer, regel = profil_fuer_app(_ZUORDNUNG, "Discord.exe", "")
+    assert (treffer["name"], regel) == ("Standard", "")
+
+    # Keine App ermittelbar → ebenfalls der Fallback, kein Raten.
+    assert profil_fuer_app(_ZUORDNUNG, "", "")[0]["name"] == "Standard"
+
+
+def test_profil_fuer_app_ohne_standardprofil_liefert_nichts():
+    """Ohne Standardprofil gibt es keinen Fallback — dann lieber None als ein
+    zufaelliges Profil aus der Liste."""
+    from fleech.profiles import profil_fuer_app
+
+    assert profil_fuer_app([{"name": "Coding", "apps": ["Code.exe"]}], "x.exe", "") == (None, "")
+    assert profil_fuer_app([], "Code.exe", "") == (None, "")
+    assert profil_fuer_app(["kaputt", None], "Code.exe", "") == (None, "")
