@@ -423,3 +423,8 @@ class ProfilesSettings:
     # geschrieben) — Titel-Bedingungen bleiben der App-Zuordnung vorbehalten, hier
     # waeren sie eine Genauigkeit, die niemand pflegen will.
     app_quick: dict = field(default_factory=dict)
+    # Anwendungen (klein geschrieben), fuer die kein Zuordnungsvorschlag mehr
+    # erscheinen soll — „Nicht mehr fragen" auf der Apps-Seite (V-13/G-4).
+    # Dasselbe Muster wie `output.dictionary_ignores`: dauerhaft statt befristet.
+    # Eine Vorschlagskarte, die man nicht wegbekommt, ist schlimmer als keine.
+    vorschlag_ignores: list = field(default_factory=list)

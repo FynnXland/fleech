@@ -19,7 +19,7 @@ from PySide6.QtWidgets import (
 from ...history import HistoryStore
 from ...usersettings import UserSettings
 from ..theme import (
-    ACCENT, BORDER_HAIRLINE, CARD, MUTED, NAV_ACTIVE_BG, PAGE_MARGINS,
+    ACCENT, ACCENT_DIM, BORDER_HAIRLINE, CARD, MUTED, NAV_ACTIVE_BG, PAGE_MARGINS,
     PAGE_SPACING, ROW_HOVER, SIDEBAR, TEXT, TRACK, page_title_qss, style_button,
 )
 from ..widgets import _card, _no_hscroll, _passt, _suchfeld
@@ -48,11 +48,17 @@ class AppsPage(QWidget):
 
     KEIN_PROFIL = "— kein Profil (Standard)"
 
-    def __init__(self, settings: UserSettings, store: HistoryStore, on_changed=None):
+    def __init__(self, settings: UserSettings, store: HistoryStore, on_changed=None,
+                 kontext_fn=None):
         super().__init__()
         self.settings = settings
         self.store = store
         self._on_changed = on_changed or (lambda section: None)
+        # Zugang zum Projekt-Gedaechtnis (gelernte Titel-Segmente, V-11). Als
+        # Funktion statt als Verbindung: SQLite-Verbindungen gehoeren dem Thread,
+        # der sie oeffnet — dieselbe Nahtstelle nutzt schon die Insights-Seite.
+        self._kontext_fn = kontext_fn
+        self._segment_cache: dict = {}
         self._loading = False
 
         from PySide6.QtWidgets import QComboBox, QLineEdit
@@ -75,6 +81,7 @@ class AppsPage(QWidget):
         unter.setWordWrap(True)
         unter.setStyleSheet(f"color: {MUTED}; font-size: 9pt;")
         layout.addWidget(unter)
+        self._baue_vorschlagskarte(layout)
         self._baue_jetzt_zeile(layout)
 
         body = QHBoxLayout()
@@ -169,6 +176,8 @@ class AppsPage(QWidget):
         self._regeln.itemDoubleClicked.connect(self._regel_entfernen)
         rechts_box.addWidget(self._regeln, 1)
 
+        self._baue_titel_uebernahme(rechts_box)
+
         neu_row = QHBoxLayout()
         neu_row.setSpacing(6)
         self._regel_titel = QLineEdit()
@@ -190,6 +199,123 @@ class AppsPage(QWidget):
         body.addWidget(rechts, 5)
         body.addWidget(dritte, 4)
 
+    # -- Zuordnungsvorschläge aus dem Verlauf (V-13/G-4 + H-7) ----------------------
+
+    def _baue_vorschlagskarte(self, layout) -> None:
+        """Die Karte oben: „In X hast du N Diktate gemacht. Kein Profil zugewiesen."
+
+        Sie steht bewusst hier und nicht in den Insights (Widerspruch W-4): Die
+        Regel entsteht auf dieser Seite — ein Vorschlag zwei Klicks von seiner
+        Umsetzung entfernt ist ein Hinweis, kein Angebot.
+        """
+        from PySide6.QtWidgets import QFrame
+
+        self._vorschlag_karte = QFrame()
+        # QSS auf den Container scopen (CLAUDE.md): ein unscoped QFrame{…} malt
+        # Pillen hinter jedes Kind-QLabel.
+        self._vorschlag_karte.setObjectName("vorschlagKarte")
+        self._vorschlag_karte.setStyleSheet(
+            f"QFrame#vorschlagKarte {{ background: {CARD};"
+            f"  border: 1px solid {ACCENT_DIM}; border-radius: 10px; }}")
+        self._vorschlag_lay = QVBoxLayout(self._vorschlag_karte)
+        self._vorschlag_lay.setContentsMargins(12, 10, 12, 10)
+        self._vorschlag_lay.setSpacing(8)
+        layout.addWidget(self._vorschlag_karte)
+        self._vorschlag_karte.setVisible(False)
+
+    def _zeige_vorschlaege(self) -> None:
+        """Karte neu erheben. Ohne Vorschlag verschwindet sie ganz."""
+        from .appsvorschlaege import vorschlaege
+
+        while self._vorschlag_lay.count():
+            eintrag = self._vorschlag_lay.takeAt(0)
+            widget = eintrag.widget()
+            if widget is not None:
+                widget.setParent(None)
+                widget.deleteLater()
+        try:
+            nutzung, gesamt = self.store.app_nutzung()
+        except Exception:
+            log.debug("App-Nutzung nicht abrufbar.", exc_info=True)
+            nutzung, gesamt = [], 0
+        offen = vorschlaege(nutzung, gesamt, self._items(), self._ignorierte_apps())
+        for vorschlag in offen:
+            self._vorschlag_lay.addWidget(self._vorschlag_zeile(vorschlag))
+        self._vorschlag_karte.setVisible(bool(offen))
+
+    def _vorschlag_zeile(self, vorschlag) -> QWidget:
+        zeile = QWidget()
+        lay = QVBoxLayout(zeile)
+        lay.setContentsMargins(0, 0, 0, 0)
+        lay.setSpacing(6)
+        text = QLabel(vorschlag.satz())
+        text.setWordWrap(True)
+        text.setStyleSheet(f"color: {TEXT}; font-size: 9pt;")
+        lay.addWidget(text)
+        knopfreihe = QHBoxLayout()
+        knopfreihe.setSpacing(6)
+        for name, art in ((vorschlag.profil, "primary"),
+                          (vorschlag.alternative, "ghost")):
+            if not name:
+                continue
+            knopf = style_button(
+                QPushButton(f"{name} zuweisen" if art == "primary" else name), art)
+            knopf.setProperty("app", vorschlag.app)
+            knopf.setProperty("profil", name)
+            knopf.setToolTip(f"Trägt {vorschlag.app} beim Profil „{name}“ ein — "
+                             f"dieselbe Regel, die du unten von Hand anlegen "
+                             f"würdest. Zugewiesen wird nur auf Klick.")
+            # Werte am Knopf, gebundene Methode am Signal (CLAUDE.md,
+            # Referenzzyklus): kein Lambda, das `self` in ein Kind-Widget zieht.
+            knopf.clicked.connect(self._vorschlag_geklickt)
+            knopfreihe.addWidget(knopf)
+        weg = style_button(QPushButton("Nicht mehr fragen"), "ghost")
+        weg.setProperty("app", vorschlag.app)
+        # Ehrlich, wo es weh tut: Die Liste hat (noch) keinen Editor. Ein Tooltip,
+        # der auf eine Seite verweist, die es nicht gibt, ist genau die Sorte
+        # Anzeige-ohne-Wirkung, gegen die diese ganze Karte gebaut ist.
+        weg.setToolTip("Diese Anwendung nicht mehr vorschlagen. Gilt dauerhaft; "
+                       "zurückholen lässt es sich nur in der settings.json "
+                       "(profiles.vorschlag_ignores). Ein Profil kannst du ihr "
+                       "trotzdem jederzeit unten von Hand geben.")
+        weg.clicked.connect(self._vorschlag_ignoriert)
+        knopfreihe.addWidget(weg)
+        knopfreihe.addStretch(1)
+        lay.addLayout(knopfreihe)
+        return zeile
+
+    def _ignorierte_apps(self) -> list:
+        liste = getattr(self.settings.profiles, "vorschlag_ignores", None)
+        if not isinstance(liste, list):
+            liste = self.settings.profiles.vorschlag_ignores = []
+        return liste
+
+    def _vorschlag_geklickt(self) -> None:
+        knopf = self.sender()
+        if knopf is None:
+            return
+        self._vorschlag_uebernehmen(str(knopf.property("app") or ""),
+                                    str(knopf.property("profil") or ""))
+
+    def _vorschlag_uebernehmen(self, app: str, profil: str) -> None:
+        """Den Vorschlag zur Regel machen — dieselbe Struktur wie von Hand."""
+        if not app or not profil:
+            return
+        self._setze_app_profil(app, profil)
+        log.info("Vorschlag uebernommen: %s → Profil %s", app, profil)
+
+    def _vorschlag_ignoriert(self) -> None:
+        knopf = self.sender()
+        app = str(knopf.property("app") or "") if knopf is not None else ""
+        if not app:
+            return
+        liste = self._ignorierte_apps()
+        if app.lower() not in {str(a).lower() for a in liste}:
+            liste.append(app.lower())
+        self.settings.save()
+        log.info("Zuordnungsvorschlag fuer %s abgelehnt.", app)
+        self.refresh()
+
     # -- „Wenn du jetzt diktierst" (Vorschlag G-2) ----------------------------------
 
     def _baue_jetzt_zeile(self, layout) -> None:
@@ -201,6 +327,11 @@ class AppsPage(QWidget):
         from PySide6.QtCore import QTimer
 
         self._letzter_fremder: tuple = ("", "")
+        # Ringpuffer der zuletzt gesehenen fremden Fenster (V-11/G-3). Er haengt
+        # bewusst am selben Poll: eine zweite Abfrage waere dieselbe Arbeit noch
+        # einmal, nur zu einem anderen Zeitpunkt.
+        self._titel_puffer: list = []
+        self._titel_angebot: str = ""
         self._jetzt = QLabel("")
         self._jetzt.setWordWrap(True)
         self._jetzt.setStyleSheet(
@@ -244,9 +375,136 @@ class AppsPage(QWidget):
         selbst = ist_fleech_selbst(app)
         if app and not selbst:
             self._letzter_fremder = (app, titel)
+            from .titelvorschlag import merke
+
+            self._titel_puffer = merke(self._titel_puffer, app, titel)
         ziel = self._letzter_fremder if selbst else (app, titel)
         self._jetzt.setText(
             beschreibe_jetzt(self.settings, ziel[0], ziel[1], fleech_selbst=selbst))
+        self._titel_angebot_aktualisieren()
+
+    # -- Titel uebernehmen statt abtippen (V-11/G-3) --------------------------------
+
+    def _baue_titel_uebernahme(self, box) -> None:
+        """Knopf „Aktuellen Titel übernehmen" samt Angebot und Segment-Vorschlaegen.
+
+        Bewusst ANZEIGEN statt still eintragen: Der zuletzt gesehene Titel kann
+        der falsche sein (man hat zwischendurch geklickt). Das Feld bleibt
+        editierbar, der Knopf fuellt es nur.
+        """
+        zeile = QHBoxLayout()
+        zeile.setSpacing(6)
+        self._titel_knopf = style_button(
+            QPushButton("Aktuellen Titel übernehmen"), "ghost")
+        self._titel_knopf.setToolTip(
+            "Trägt den Fenstertitel der zuletzt im Vordergrund gewesenen fremden "
+            "Anwendung unten ein — Fleech selbst zählt nicht. Der Titel bleibt "
+            "danach änderbar; meist will man nur den stabilen Teil davon.")
+        self._titel_knopf.clicked.connect(self._titel_uebernehmen)
+        zeile.addWidget(self._titel_knopf)
+        self._titel_hinweis = QLabel("")
+        self._titel_hinweis.setWordWrap(True)
+        self._titel_hinweis.setStyleSheet(f"color: {MUTED}; font-size: 8.5pt;")
+        zeile.addWidget(self._titel_hinweis, 1)
+        box.addLayout(zeile)
+
+        # Eigene Zeile fuer die Segment-Knoepfe: Ein ganzer Fenstertitel ist als
+        # Bedingung fast immer zu genau („(866) ich habe …") — der stabile Teil
+        # ist das, was man tatsaechlich eintragen will.
+        self._segment_leiste = QWidget()
+        self._segment_lay = QHBoxLayout(self._segment_leiste)
+        self._segment_lay.setContentsMargins(0, 0, 0, 0)
+        self._segment_lay.setSpacing(6)
+        self._segmente_gezeigt: list = []
+        box.addWidget(self._segment_leiste)
+        self._segment_leiste.setVisible(False)
+
+    def _titel_angebot_aktualisieren(self) -> None:
+        """Angebot und Segment-Knoepfe auf die gewaehlte Anwendung nachziehen."""
+        from .titelvorschlag import angebot, segmente
+
+        app = self._aktuelle_app()
+        titel, herkunft = angebot(getattr(self, "_titel_puffer", []), app)
+        self._titel_angebot = titel
+        self._titel_knopf.setEnabled(bool(app) and bool(titel))
+        if not titel:
+            self._titel_hinweis.setText(
+                "Noch kein fremdes Fenster gesehen — wechsle einmal hinüber.")
+        elif app and herkunft.lower() != app.lower():
+            self._titel_hinweis.setText(f"aus {herkunft}: „{titel}“")
+        else:
+            self._titel_hinweis.setText(f"„{titel}“")
+        self._zeige_segmente(segmente(getattr(self, "_titel_puffer", []), app,
+                                      self._gelernte_segmente(app)))
+
+    def _gelernte_segmente(self, app: str) -> list:
+        """Was `kontext.db` fuer diesen Prozess an Titel-Segmenten gelernt hat.
+
+        Je Anwendung einmal gemerkt: Die Anzeige laeuft im Sekundentakt, und
+        jedes Mal eine SQLite-Verbindung zu oeffnen waere Dauerlast fuer eine
+        Antwort, die sich zwischen zwei Diktaten nicht aendert. `refresh()` wirft
+        den Merkzettel weg.
+
+        Ohne Verbindung (Gedaechtnis aus, Datei weg) einfach leer — die Segmente
+        aus dem Puffer stehen dann allein, und das ist kein Fehlerfall."""
+        holen = getattr(self, "_kontext_fn", None)
+        if not callable(holen) or not app:
+            return []
+        schluessel = app.lower()
+        gemerkt = self._segment_cache.get(schluessel)
+        if gemerkt is not None:
+            return gemerkt
+        segmente: list = []
+        try:
+            speicher = holen()
+            if speicher is not None:
+                segmente = [s for _app, s, _n in speicher.kontexte(app) if s]
+        except Exception:
+            log.debug("Titel-Segmente nicht abrufbar.", exc_info=True)
+        self._segment_cache[schluessel] = segmente
+        return segmente
+
+    def _zeige_segmente(self, segmente: list) -> None:
+        """Die Segment-Knoepfe nur neu bauen, wenn sich die Liste geaendert hat —
+        der Poll laeuft jede Sekunde, und Widgets im Sekundentakt neu zu bauen
+        laesst den Fokus springen."""
+        if segmente == self._segmente_gezeigt:
+            return
+        self._segmente_gezeigt = list(segmente)
+        while self._segment_lay.count():
+            eintrag = self._segment_lay.takeAt(0)
+            widget = eintrag.widget()
+            if widget is not None:
+                # Erst abhaengen, dann loeschen: `deleteLater` raeumt erst beim
+                # naechsten Durchlauf der Ereignisschleife auf — bis dahin haengt
+                # der alte Knopf sonst noch sichtbar am Container.
+                widget.setParent(None)
+                widget.deleteLater()
+        for segment in segmente:
+            knopf = style_button(QPushButton(segment), "ghost")
+            knopf.setProperty("segment", segment)
+            knopf.setToolTip("Nur diesen Teil des Titels als Bedingung nehmen — "
+                             "er bleibt stehen, wenn der Rest wechselt.")
+            # Bewusst kein Lambda mit `self` (CLAUDE.md, Referenzzyklus): der Wert
+            # haengt am Knopf, die gebundene Methode holt ihn ueber sender().
+            knopf.clicked.connect(self._segment_uebernehmen)
+            self._segment_lay.addWidget(knopf)
+        self._segment_lay.addStretch(1)
+        self._segment_leiste.setVisible(bool(segmente))
+
+    def _titel_uebernehmen(self) -> None:
+        titel = getattr(self, "_titel_angebot", "")
+        if not titel:
+            return
+        self._regel_titel.setText(titel)
+        self._regel_titel.setFocus()
+
+    def _segment_uebernehmen(self) -> None:
+        knopf = self.sender()
+        segment = str(knopf.property("segment") or "") if knopf is not None else ""
+        if segment:
+            self._regel_titel.setText(segment)
+            self._regel_titel.setFocus()
 
     # -- Daten ---------------------------------------------------------------------
 
@@ -274,6 +532,7 @@ class AppsPage(QWidget):
         vorher = self._aktuelle_app()
         self._loading = True
         self._apps.clear()
+        self._segment_cache = {}      # gelernte Segmente neu holen (V-11)
         gesehen: set = set()
         self._erhoben: list = []      # [(app, zusatz, text, hinweis)] — Anzeigequelle
         try:
@@ -332,6 +591,9 @@ class AppsPage(QWidget):
             self._eintrag(app, ["läuft"])
         self._loading = False
         self._zeige_apps(vorher)
+        # Nach der Liste, weil die Karte dieselben Zuordnungen liest: Ein gerade
+        # zugewiesenes Programm darf oben nicht weiter gefragt werden.
+        self._zeige_vorschlaege()
 
     def _stale_apps(self) -> dict:
         """{prozess_klein: tage_seit_letztem_diktat} fuer Prozesse, die weder gerade
@@ -426,6 +688,8 @@ class AppsPage(QWidget):
         for w in (self._regel_titel, self._regel_profil):
             w.setEnabled(bool(app) and self._regel_profil.count() > 0)
         self._fuelle_schnellwechsel(app)
+        # Das Titel-Angebot gilt je Anwendung — mit der Auswahl wechselt es mit.
+        self._titel_angebot_aktualisieren()
         if not app:
             self._loading = False
             return
@@ -459,9 +723,17 @@ class AppsPage(QWidget):
         app = self._aktuelle_app()
         if not app:
             return
+        self._setze_app_profil(app, str(self._profil_combo.currentData() or ""))
+
+    def _setze_app_profil(self, app: str, ziel: str) -> None:
+        """Die Regel OHNE Titel-Bedingung fuer diese Anwendung setzen.
+
+        Eine Stelle fuer beide Wege — die Auswahlliste in der Mitte und die
+        Vorschlagskarte oben schreiben denselben Eintrag. Zwei Kopien waeren zwei
+        Gelegenheiten, die Zuordnung unterschiedlich zu verstehen.
+        """
         from ...profiles import parse_app_rule
 
-        ziel = str(self._profil_combo.currentData() or "")
         # Erst ueberall entfernen (nur die Regel OHNE Titel), dann neu setzen: Eine
         # App gehoert nie zu zwei Profilen, sonst entscheidet die Listenreihenfolge
         # und niemand kann nachvollziehen, warum welches gewinnt.

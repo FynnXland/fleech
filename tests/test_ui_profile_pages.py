@@ -1072,3 +1072,199 @@ def test_wache_ueberlebt_eine_kaputte_maus_abfrage(qapp, monkeypatch):
     p._pruefe_fremdklick()                 # darf nicht werfen
     assert not p.isHidden()
     p.hide()
+
+
+# -- Profile sichern und zurueckholen (V-10/G-6) ---------------------------------------
+
+def test_profilseite_exportiert_und_importiert_ueber_den_dialog(qapp, tmp_path,
+                                                                monkeypatch):
+    """Die beiden Knoepfe an der echten Seite — Datei-Dialog und Rueckfrage
+    vorgegeben, damit nichts modal stehen bleibt.
+
+    Geprueft wird die Kette, die der Nutzer erlebt: exportieren, Profil von Hand
+    aendern, wieder importieren, Rueckfrage mit „Ja" beantworten."""
+    from PySide6.QtWidgets import QFileDialog, QMessageBox
+
+    window, _p, _store, settings, _c = make_main_window(tmp_path, monkeypatch)
+    page = window.profiles
+    ziel = tmp_path / "sicherung.json"
+    settings.profiles.items[1]["apps"] = ["Word.exe"]
+    settings.profiles.app_quick = {"claude.exe": ["KI-Prompt"]}
+
+    monkeypatch.setattr(QFileDialog, "getSaveFileName",
+                        staticmethod(lambda *a, **k: (str(ziel), "")))
+    monkeypatch.setattr(QMessageBox, "information", staticmethod(lambda *a, **k: None))
+    page._profile_exportieren()
+    assert ziel.is_file()
+    assert "Word.exe" in ziel.read_text(encoding="utf-8")
+
+    # Zuordnung geht verloren (Befund G-B10) — und kommt aus der Datei zurueck.
+    settings.profiles.items[1]["apps"] = []
+    settings.profiles.app_quick = {}
+    monkeypatch.setattr(QFileDialog, "getOpenFileName",
+                        staticmethod(lambda *a, **k: (str(ziel), "")))
+    monkeypatch.setattr(QMessageBox, "question",
+                        staticmethod(lambda *a, **k: QMessageBox.Yes))
+    page._profile_importieren()
+    assert settings.profiles.items[1]["apps"] == ["Word.exe"]
+    assert settings.profiles.app_quick == {"claude.exe": ["KI-Prompt"]}
+
+
+def test_abgebrochener_dateidialog_aendert_nichts(qapp, tmp_path, monkeypatch):
+    from PySide6.QtWidgets import QFileDialog
+
+    window, _p, _store, settings, _c = make_main_window(tmp_path, monkeypatch)
+    page = window.profiles
+    vorher = len(settings.profiles.items)
+    monkeypatch.setattr(QFileDialog, "getSaveFileName",
+                        staticmethod(lambda *a, **k: ("", "")))
+    monkeypatch.setattr(QFileDialog, "getOpenFileName",
+                        staticmethod(lambda *a, **k: ("", "")))
+    page._profile_exportieren()
+    page._profile_importieren()
+    assert len(settings.profiles.items) == vorher
+
+
+# -- Titel per Knopf uebernehmen (V-11/G-3) --------------------------------------------
+
+def _apps_mit_poll(tmp_path, monkeypatch, folge):
+    """Apps-Seite mit gefaelschtem Vordergrund-Poll. `folge` = Liste von (App, Titel)."""
+    window, _p, _store, settings, _c = make_main_window(tmp_path, monkeypatch,
+                                                        with_data=True)
+    monkeypatch.setattr("fleech.ui.windowsfocus.list_visible_window_processes",
+                        lambda: ["Code.exe", "comet.exe"])
+    page = window.apps
+    page.refresh()
+    for app_name, titel in folge:
+        monkeypatch.setattr("fleech.ui.windowsfocus.foreground_now",
+                            lambda a=app_name, t=titel: (a, t))
+        page._jetzt_aktualisieren()
+    return page, settings
+
+
+def _waehle_app(page, name):
+    for i in range(page._apps.count()):
+        if str(page._apps.item(i).data(0x0100)).lower() == name.lower():
+            page._apps.setCurrentRow(i)
+            return True
+    return False
+
+
+def test_knopf_traegt_den_zuletzt_gesehenen_fremden_titel_ein(qapp, tmp_path,
+                                                              monkeypatch):
+    """Fleech selbst zaehlt nicht: Wer auf dieser Seite steht, hat Fleech im
+    Vordergrund — angeboten wird die Anwendung, aus der er gerade kam."""
+    page, _s = _apps_mit_poll(tmp_path, monkeypatch, [
+        ("Code.exe", "apps.py - Fleech - Visual Studio Code"),
+        ("Fleech.exe", "Fleech"),
+    ])
+    assert _waehle_app(page, "Code.exe")
+    assert page._titel_knopf.isEnabled()
+    assert "apps.py - Fleech - Visual Studio Code" in page._titel_hinweis.text()
+
+    # Anzeigen, nicht still eintragen — erst der Klick fuellt das Feld.
+    assert page._regel_titel.text() == ""
+    page._titel_uebernehmen()
+    assert page._regel_titel.text() == "apps.py - Fleech - Visual Studio Code"
+
+
+def test_segment_knopf_traegt_nur_den_stabilen_teil_ein(qapp, tmp_path, monkeypatch):
+    """Ein ganzer Fenstertitel ist als Bedingung fast immer zu genau."""
+    from PySide6.QtWidgets import QPushButton
+
+    page, _s = _apps_mit_poll(tmp_path, monkeypatch, [
+        ("Code.exe", "apps.py - Fleech - Visual Studio Code"),
+        ("Code.exe", "profiles.py - Fleech - Visual Studio Code"),
+    ])
+    assert _waehle_app(page, "Code.exe")
+    knoepfe = [k for k in page._segment_leiste.findChildren(QPushButton)]
+    assert [k.text() for k in knoepfe][0] == "fleech"
+    knoepfe[0].click()
+    assert page._regel_titel.text() == "fleech"
+
+
+def test_ohne_fremdes_fenster_bleibt_der_knopf_aus(qapp, tmp_path, monkeypatch):
+    page, _s = _apps_mit_poll(tmp_path, monkeypatch, [("Fleech.exe", "Fleech")])
+    assert not page._titel_knopf.isEnabled()
+    assert "Noch kein fremdes Fenster" in page._titel_hinweis.text()
+
+
+def test_titel_aus_einer_anderen_anwendung_wird_als_solcher_ausgewiesen(
+        qapp, tmp_path, monkeypatch):
+    """Der „aktuelle" Titel kann der falsche sein — dann muss man das sehen."""
+    page, _s = _apps_mit_poll(tmp_path, monkeypatch, [
+        ("comet.exe", "Eldorado — Kaufrichtlinien"),
+    ])
+    assert _waehle_app(page, "Code.exe")
+    assert "aus comet.exe" in page._titel_hinweis.text()
+
+
+# -- Zuordnungsvorschlaege auf der Apps-Seite (V-13/G-4 + H-7) -------------------------
+
+def _apps_mit_verlauf(tmp_path, monkeypatch, app="claude.exe", anzahl=30,
+                      mode="prompt"):
+    import time
+
+    import fleech.usersettings as us
+
+    monkeypatch.setattr(us, "SETTINGS_PATH", tmp_path / "settings.json")
+    monkeypatch.setattr("fleech.ui.windowsfocus.list_visible_window_processes",
+                        lambda: [])
+    from fleech.history import DictationRecord, HistoryStore
+    from fleech.ui.pages.apps import AppsPage
+    from fleech.usersettings import UserSettings
+
+    settings = UserSettings()
+    store = HistoryStore(tmp_path / "history.db")
+    jetzt = time.time()
+    for i in range(anzahl):
+        store.add(DictationRecord(
+            ts=jetzt - i * 60, raw="roh", cleaned="Fertig.", audio_seconds=3.0,
+            app=app, mode=mode))
+    seite = AppsPage(settings, store)
+    seite.refresh()
+    return seite, settings
+
+
+def _karten_knoepfe(seite):
+    from PySide6.QtWidgets import QPushButton
+
+    return {k.text(): k for k in seite._vorschlag_karte.findChildren(QPushButton)}
+
+
+def test_vorschlagskarte_fragt_nach_der_meistgenutzten_app(qapp, tmp_path,
+                                                           monkeypatch):
+    """In 1399 Diktaten ist nie eine Zuordnung entstanden — die Karte stellt die
+    Frage, statt auf sie zu warten. Zuweisen tut sie NIE von selbst."""
+    from PySide6.QtWidgets import QLabel
+
+    seite, settings = _apps_mit_verlauf(tmp_path, monkeypatch)
+    assert not seite._vorschlag_karte.isHidden()
+    text = seite._vorschlag_karte.findChildren(QLabel)[0].text()
+    assert "claude.exe" in text and "30 Diktate" in text
+    assert all(not p.get("apps") for p in settings.profiles.items)
+    assert "KI-Prompt zuweisen" in _karten_knoepfe(seite)
+
+
+def test_uebernahme_legt_die_regel_an_und_die_karte_verschwindet(qapp, tmp_path,
+                                                                 monkeypatch):
+    seite, settings = _apps_mit_verlauf(tmp_path, monkeypatch)
+    _karten_knoepfe(seite)["KI-Prompt zuweisen"].click()
+    prompt = next(p for p in settings.profiles.items if p.get("name") == "KI-Prompt")
+    assert prompt["apps"] == ["claude.exe"]
+    assert seite._vorschlag_karte.isHidden()
+
+
+def test_nicht_mehr_fragen_wirkt_dauerhaft(qapp, tmp_path, monkeypatch):
+    """Eine Karte, die man nicht wegbekommt, ist schlimmer als keine."""
+    seite, settings = _apps_mit_verlauf(tmp_path, monkeypatch)
+    _karten_knoepfe(seite)["Nicht mehr fragen"].click()
+    assert settings.profiles.vorschlag_ignores == ["claude.exe"]
+    assert seite._vorschlag_karte.isHidden()
+    seite.refresh()                      # auch nach dem naechsten Aufbau weg
+    assert seite._vorschlag_karte.isHidden()
+
+
+def test_ohne_kandidaten_gibt_es_keine_karte(qapp, tmp_path, monkeypatch):
+    seite, _settings = _apps_mit_verlauf(tmp_path, monkeypatch, anzahl=3)
+    assert seite._vorschlag_karte.isHidden()
