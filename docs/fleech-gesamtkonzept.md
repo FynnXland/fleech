@@ -1286,6 +1286,12 @@ Mittel — das ehrlich zu benennen ist besser, als eine Heuristik als Gewissheit
 auszugeben. Die Prüfung läuft seit v1.10.0 auch bei jedem **Gerätewechsel** neu, nicht
 mehr nur beim App-Start.
 
+**Fehlt das gewählte Mikrofon** (Interface aus, Rechner aus dem Standby, USB-Hub neu
+enumeriert), fällt Windows/PortAudio still auf den Systemstandard zurück — bisher stand
+das nur als `log.warning` im Protokoll, unbemerkt bis zur schlechten Erkennung. Fleech
+sagt es jetzt in der Pille und nennt das Gerät, über das tatsächlich aufgenommen wird;
+gemeldet wird einmal je Gerätewechsel, nicht bei jedem einzelnen Diktat.
+
 Der KI-Prompting-Hotkey wirkt bewusst **nur während einer laufenden Aufnahme** —
 außerhalb bleibt die Taste für andere Programme frei nutzbar. Das ist besonders für
 Makro-/G-Tasten relevant.
@@ -1302,13 +1308,13 @@ Makro-/G-Tasten relevant.
 | Einstellung | Bedeutung | Standard |
 |---|---|---|
 | Sichtbarkeit | *Nur bei Aufnahme* / *Immer* / *Automatisch ausblenden* / *Deaktiviert* | Nur bei Aufnahme |
-| Auto-Hide nach | Wartezeit vor dem Ausblenden (0,5–60 s) | 4 s |
+| Auto-Hide nach | nur bei Sichtbarkeit „Automatisch ausblenden" sichtbar: Wartezeit vor dem Ausblenden (0,5–60 s) | 4 s |
 | Größe | Kompakt / Standard / Groß | Standard |
 | Pillen-Rand | *Eng* / *Standard* / *Luftig* — Innenabstand des Pillen-Hintergrunds | Standard |
 | Rand-Buttons | getrennte Inseln oder durchgehende Pille | getrennte Inseln |
 | Transparenz | Deckkraft (20–100 %) | 90 % |
 | Pegel-Empfindlichkeit | wie stark die Wellenform ausschlägt (20–300 %) | 100 % |
-| Click-Through | Mausklicks gehen durch die Pille hindurch | aus |
+| Click-Through | Mausklicks gehen durch die Pille hindurch — dabei auch durch ihre eigenen Knöpfe (✕, ✓, Pause, Ziehen); Rückweg über „Overlay bearbeiten" | aus |
 | Folgt dem Maus-Bildschirm | Pille erscheint auf dem Monitor des Zeigers | an |
 | Live-Transkription | Echtzeit-Vorschau beim Sprechen (~0,5 GB VRAM extra) | aus |
 | Erkannten Text zeigen | fertigen Text kurz über der Pille einblenden | an |
@@ -1357,7 +1363,7 @@ gesprochene Delimiter gibt es seit v3.0.0 nicht mehr.
 | Eingriffsgrad | Minimal / Standard / Strong | Standard |
 | Safe-Word-Befehle aktiv | Befehlsmodus insgesamt an/aus | an |
 | Cursor-Rückkehr | fügt den Text dort ein, wo das Diktat begann | an |
-| Safe-Word | Auslösewort für Befehle; leer = Wert aus `config.yaml` | Kimono |
+| Safe-Word | Auslösewort für Befehle; leeres Feld zeigt als Platzhalter den tatsächlich wirksamen Wert aus `config.yaml` (statt nur „leer = Wert aus config.yaml" zu behaupten, ohne ihn zu nennen) | Kimono |
 
 ### Textersetzung
 
@@ -1373,6 +1379,11 @@ zusammengelegt):
 - **Bausteine** — ein mehrzeiliger Editor im Format `Kürzel => Text` (`\n` im Text
   erzeugt einen Zeilenumbruch), plus ein Feld für das Signalwort (Standard
   „Baustein"). Format und Wirkweise siehe [Kapitel 8a](#8a-text-bausteine).
+- **Gelerntes Vokabular** (Projekt-Gedächtnis, Kapitel 20) — eine Auswahlliste der in
+  der aktuellen App gelernten Begriffe, häufigste zuerst, mit „Begriff vergessen" für
+  genau einen. Bis 5.10.5 ließ sich dort nur alles auf einmal löschen — ein einzelner
+  Hörfehler im Gedächtnis (`Cloud-Code`, `FLEACH`) bedeutete also entweder ihn zu
+  behalten oder das gesamte gelernte Vokabular zu verlieren.
 
 ### Advanced
 
@@ -1384,10 +1395,10 @@ zusammengelegt):
 | Updates | manuelle Prüfung | — |
 | Update-Feed | optionale Feed-URL | leer |
 | GPU-Beschleunigung (STT) | Erkennung auf der Grafikkarte; aus = CPU erzwingen | an |
-| Modell-Warmhaltung | *Nach Nutzung* / *Dauerhaft* / *Aus* | Nach Nutzung |
+| Modell-Warmhaltung | *Nach Nutzung* / *Dauerhaft* (~3,5 GB dauerhaft belegt) / *Aus* | Nach Nutzung |
 | Im Leerlauf entladen nach | 3 / 10 / 30 / 45 Minuten | 10 Minuten |
 | Adaptive Geschwindigkeit | kurze Diktate nehmen den kurzen Weg (weniger Prüfung) — derzeit dasselbe Modell für beide Wege | an |
-| Debug-Logging | ausführliches Protokoll | aus |
+| Debug-Logging | wirkt **ab dem nächsten Start** (Log-Level DEBUG statt INFO) — bis 5.10.2 wurde der Haken zwar gespeichert, aber von nichts gelesen | aus |
 
 ---
 
@@ -1405,9 +1416,14 @@ zuverlässig funktioniert — und der in einem Rutsch einfügt statt sichtbar zu
 
 Der exakte Ablauf:
 
-1. Alte Zwischenablage sichern (sofern aktiviert) — **nur als Text.** Lag vorher ein
-   Bild oder eine Datei in der Zwischenablage, ist es nach dem Diktat weg; `paste_text`/
-   `copy_text` (`fleech/clipboard.py`) kennen nur die Textebene.
+1. Alte Zwischenablage sichern (sofern aktiviert) — **nur wenn wirklich Text darin
+   liegt** (`clipboard.has_text()`, unter Windows `IsClipboardFormatAvailable`). Lag
+   vorher ein Bild oder eine Datei in der Zwischenablage, wird weder gesichert noch
+   nach dem Diktat etwas zurückgeschrieben — das Bild bleibt einfach stehen. Vorher
+   lieferte das Sichern eines Bildes einen leeren String, und genau der leere String
+   wurde nach dem Diktat zurückgeschrieben: Ein eben kopierter Screenshot war damit
+   weg. `paste_text`/`copy_text` (`fleech/clipboard.py`) kennen ohnehin nur die
+   Textebene.
 2. Text in die Zwischenablage schreiben
 3. **Warten, bis die Zwischenablage den Text bestätigt** — zurücklesen im 20-ms-Takt,
    Obergrenze 400 ms. Eine feste Wartezeit reichte für Electron-Apps, VMs und
@@ -1490,8 +1506,22 @@ wird. Das verhindert Fehlauslösungen bei überlappenden Belegungen.
 nach Zuweisung nur ein „Taste gedrückt" **ohne** „Taste losgelassen". Die Belegung bliebe
 dann dauerhaft „aktiv", und jeder weitere Druck würde als Auto-Repeat verschluckt — die
 Taste war nach dem ersten Druck tot. Lösung: Ein erneuter Druck auf eine noch aktive
-Belegung zählt nach **0,4 Sekunden Schonfrist** als neuer Druck. Echtes Auto-Repeat
-kommt im ~30-ms-Takt und bleibt damit weiterhin unterdrückt.
+Belegung zählt nach einer Schonfrist als neuer Druck; vorher wird die Belegung
+**deaktiviert**, bevor der neue Druck sie erneut aktiviert — sonst verwarf der
+Entprell-Schutz genau diesen nachgeholten Druck beim Diktat-Hotkey, und die Taste blieb
+trotz „Heilung" tot.
+
+Die Schonfrist ist **hergeleitet, nicht geraten**: Sie war lange fest auf 0,4 s gesetzt
+— UNTER der Windows-Verzögerung bis zur ersten Auto-Wiederholung (bei diesem Nutzer real
+500 ms). Das allererste Wiederholungsereignis einer normal gehaltenen Taste wurde damit
+selbst als „Release fehlte" gedeutet, 53-mal im Protokoll, und löste Pause,
+KI-Prompting oder Profilwechsel ein zweites Mal aus. Fleech liest deshalb
+`SPI_GETKEYBOARDDELAY` (250–1000 ms, vier Windows-Stufen) und legt 0,3 s Aufschlag
+drauf — der Hook sieht das Wiederholungsereignis nie exakt zum eingestellten Zeitpunkt.
+Untergrenze 0,6 s, und ohne Auskunft (Linux, oder die Abfrage schlägt fehl) 1,1 s —
+über der größtmöglichen Windows-Verzögerung, lieber eine Heilung zu spät als jeder
+Halte-Druck doppelt. Echtes Auto-Repeat kommt danach im ~30-ms-Takt und bleibt damit
+weiterhin unterdrückt.
 
 **Maus-Hooks sparsam.** Der systemweite Maus-Hook wird nur installiert, wenn tatsächlich
 eine Maustaste belegt ist — er würde sonst für **jede Mausbewegung** aufgerufen
@@ -1514,6 +1544,17 @@ Drei Modi: **Aus**, **Leiser stellen** (auf 25 % der jeweiligen Originallautstä
 **Stark absenken** (8 %). Die Absenkung ist **relativ** — leise Apps bleiben leise. Der
 Übergang läuft als weiche Rampe in 8 Schritten über 250 ms, kein harter Schnitt. Beim
 Beenden fährt Fleech vom aktuellen Ist-Pegel zurück auf die gemerkten Originalwerte.
+
+Beendet man Fleech **mitten in einer Aufnahme** — der übliche Ablauf bei einem Deploy —,
+läuft die Wiederherstellung normalerweise nur als Hintergrund-Fade (~250 ms) und würde
+vom beendeten Prozess abgeschnitten: Fremde Apps blieben auf der abgesenkten Lautstärke
+stehen, auch über einen Neustart hinweg. Der Beenden-Pfad stößt die Wiederherstellung
+deshalb zusätzlich **synchron** an, bevor der Prozess endet.
+
+Die gemerkten Originalwerte werden außerdem **nicht bei jedem Diktat neu eingelesen**,
+solange sie noch stehen: Bricht ein Fade ab (Ausnahme, Programm verschwunden), läse ein
+Neu-Einlesen den bereits abgesenkten Pegel als „Original" — bei jedem weiteren Diktat
+sänke die Lautstärke fremder Apps ein Stück weiter, wie eine Sperrklinke.
 
 Verschwindet ein Programm während des Übergangs, wird das abgefangen. Schlägt das
 Ducking insgesamt fehl, läuft das Diktat unverändert weiter.
@@ -1577,6 +1618,25 @@ selbst ohne Fehlermeldung. Bei „Neu laden" wird die Sperre gezielt vor dem Neu
 freigegeben.
 
 Für die Diagnose-Modi (`--cli`, Selbsttests) gilt die Sperre bewusst nicht.
+
+### 12.9 Weitere Fehlerpfade
+
+- **Kein Geister-Diktat bei Fehlstart.** Schlägt `recorder.start()` fehl, ruft Fleech
+  gezielt `controller.cancel()` statt des normalen Stopp-Wegs — der liefe sonst über
+  Stoppton und den Zustand „Verarbeitung" bis zu einem Worker mit null Samples, der
+  eine Zehntelsekunde später „nichts erkannt" in die Pille schreibt und damit die
+  eigentliche Fehlermeldung überdeckt.
+- **„Rückgängig" (`Strg+Alt+Z`) prüft das Zielfenster frisch**, statt sich auf den
+  letzten 3-Sekunden-Poll zu verlassen — sonst hielt die Wache nach einem
+  Fensterwechsel fälschlich fest, der Cursor stehe noch an der alten Stelle, und die
+  Rücktasten trafen ein fremdes Dokument. Das eigentliche Ersetzen läuft dazu im
+  **Worker-Thread**: Bei 4 ms je Rücktaste sind das bei einem mittleren Diktat 1,3 s,
+  im Maximum 23 s — Zeit, in der sonst alle weiteren Fleech-Hotkeys (auch der
+  Diktat-Hotkey) blockiert gewesen wären.
+- **„Lokale KI läuft nicht."** Wer die Einführung übersprungen und damit auch Ollama
+  nie eingerichtet hat, bekam bisher nur „eingefügt (Fallback — Log prüfen)" zu jedem
+  einzelnen Diktat. Einmal je Sitzung meldet die Pille jetzt den eigentlichen Grund
+  und den Weg zurück (Einstellungen → Allgemein → „Einführung erneut zeigen").
 
 ---
 
@@ -1840,7 +1900,12 @@ Fleech läuft mit wenigen, klar abgegrenzten Threads:
 
 Die Verbindung zwischen Arbeits-Threads und Oberfläche läuft **ausschließlich** über
 einen Signal-Bus. Worker senden Signale, UI-Elemente empfangen sie — Qt stellt die
-Thread-Sicherheit her. Kein Worker fasst je direkt ein Widget an.
+Thread-Sicherheit her. Kein Worker fasst je direkt ein Widget an. Zwei real behobene
+Verstöße dagegen: Bis 5.10.3 färbte der KI-Prompting-Hotkey (pynput-Thread) die Pille
+direkt um, statt über den Bus zu gehen (`prompt_latch_changed`); dasselbe galt, wenn
+ein gewähltes Profil beim Auflösen im Verarbeitungs-Thread nicht mehr existierte
+(`profil_zuruecksetzen`). Beides ist derselbe Fehler wie ein Referenzzyklus-Crash — nur
+leiser, weil er nicht sofort eine Ausnahme wirft, sondern sporadisch verhält.
 
 **Zustandsmodell:**
 
