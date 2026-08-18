@@ -68,7 +68,8 @@ Provider/Modelle/Prompts sind in `config.yaml` + `prompts/` konfigurierbar
 - `fleech/ui/pages/` — die vier Seiten des Hauptfensters (home, insights, apps, profiles).
 - `fleech/ui/settings/` — die neun Einstellungsseiten, je Seite ein `build(panel)`.
 - `fleech/ui/desktopapp/` — die Teilgebiete von `DesktopApp` als **Mixins**: `profil`,
-  `freihand`, `modelle`, `nachbereitung`, `lizenz`, `lebenszyklus`.
+  `freihand`, `keinton` (Wache: Mikrofon liefert nichts), `modelle`,
+  `nachbereitung`, `lizenz`, `lebenszyklus`.
 - `fleech/ui/overlaypille/` — die Teile der Pille: `konstanten` (Maße/Farben/Zeiten),
   `bausteine` (Waveform, Status-Punkt, Textblase — echte Widgets), und als **Mixins**
   `geometrie` (Position, Ziehen, Presets), `einblendungen` (Transkript, Formeln,

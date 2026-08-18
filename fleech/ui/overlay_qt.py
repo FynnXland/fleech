@@ -96,6 +96,9 @@ class OverlayWindow(GeometrieMixin, EinblendungenMixin, ZustandMixin, QWidget):
         self._command_armed = False    # Signalwort in der Live-Vorschau erkannt
         self._prompt_latched = False   # KI-Prompting-Latch aktiv (exklusiv zu Mathe)
         self._paused = False           # Aufnahme angehalten (Pause-Knopf)
+        # Vom Mikrofon kommt nichts an (Befund H-B2). Reine Warnung waehrend der
+        # laufenden Aufnahme — sie stoppt nichts.
+        self._kein_ton = False
         # Modus-Zeile (Fokus/Eingriff/Modell). Nur noch Zustand, keine Einblendung
         # mehr — siehe set_mode_line.
         self._mode_line = ""

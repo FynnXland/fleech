@@ -24,6 +24,7 @@ from .konstanten import (
     _BAR,
     _BAR_DIM,
     _ACCENT,
+    _KEIN_TON,
 )
 
 class WaveformWidget(QWidget):
@@ -204,6 +205,10 @@ class _StatusDot(QWidget):
         # „hoert zu" ist ein Dauerzustand, und etwas dauerhaft Blinkendes am
         # Bildschirmrand macht muerbe.
         self._lauscht = False
+        # Kein Ton vom Mikrofon (Befund H-B2): roter, gefuellter Punkt. Gewinnt
+        # gegen jede andere Aussage des Punktes — welches Profil gilt, ist
+        # zweitrangig, solange gar nichts ankommt.
+        self._kein_ton = False
         # Farbe des aktiven Profils. Leer = wie frueher, dezent grau: Wer keine
         # Profile nutzt, soll keinen bunten Punkt bekommen, der etwas ankuendigt,
         # das es bei ihm gar nicht gibt.
@@ -271,6 +276,12 @@ class _StatusDot(QWidget):
             self._lauscht = an
             self.update()
 
+    def set_kein_ton(self, an: bool) -> None:
+        """Warnzustand: vom Mikrofon kommt nichts an (Befund H-B2)."""
+        if an != self._kein_ton:
+            self._kein_ton = an
+            self.update()
+
     def set_session(self, active: bool, readonly: bool = False) -> None:
         if active != self._session or readonly != self._session_readonly:
             self._session, self._session_readonly = active, readonly
@@ -290,6 +301,20 @@ class _StatusDot(QWidget):
         profil = QColor(self._profil_farbe) if self._profil_farbe else None
         if profil is not None and not profil.isValid():
             profil = None
+        if self._kein_ton:
+            # Warnung schlaegt Profil und Modus: Es kommt kein Ton an, alles
+            # andere ist in diesem Moment egal. Gefuellt mit Schein wie der
+            # eingerastete Zustand — nur eben rot, und ohne Profilfarbe, die die
+            # Aussage verwaessern wuerde.
+            glow = QColor(_KEIN_TON)
+            glow.setAlpha(80)
+            p.setPen(Qt.NoPen)
+            p.setBrush(glow)
+            p.drawEllipse(c, r * 1.9, r * 1.9)
+            p.setBrush(_KEIN_TON)
+            p.drawEllipse(c, r, r)
+            self._paint_session_badge(p, c, r)
+            return
         if eingerastet is not None:
             ton = profil or QColor(eingerastet)
             glow = QColor(ton)
