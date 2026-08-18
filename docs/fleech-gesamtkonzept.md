@@ -1080,7 +1080,9 @@ Bilddateien) und zeigt den Zustand über die Farbe:
 | Fehler | dunkelrot | „Fleech — Fehler (Log prüfen)" |
 
 Linksklick öffnet das Hauptfenster, Rechtsklick das Menü: *Aufnahme starten/stoppen*,
-*Overlay ein/aus*, *Einstellungen …*, *Neu laden*, *Beenden*.
+*Overlay ein/aus*, dahinter — sofern eine Aufnahme im Speicher liegt — *Letzte Aufnahme
+noch einmal erkennen* und *Letzte Aufnahme als WAV sichern …*, dann *Einstellungen …*,
+*Neu laden*, *Beenden*.
 
 ### 10.2 Die Pille (Overlay)
 
@@ -1098,6 +1100,18 @@ Von links nach rechts:
 | **Wellenform** | Live-Pegel; färbt sich cyan, sobald das Safe-Word erkannt wurde |
 | **✓** | Aufnahme beenden und Text einfügen. Kam der Text als **Rohtext** (Modell nicht erreichbar oder Ausgabe verworfen), leuchtet der Haken kurz amber statt cyan — zusammen mit einem amber gerahmten Transkript-Fenster |
 | **»** | Befehls-Aufnahme starten/beenden (Alternative zum gesprochenen Safe-Word) |
+
+**Der Ring am Modus-Punkt** zeigt das Profil, das in der App gilt, in die gerade
+diktiert wird — nicht mehr nur ein von Hand gewähltes. Wechselt es beim Aufnahmestart,
+erscheint der Name kurz daneben.
+
+**Kein-Ton-Wache.** Kommt vier Sekunden lang kein Ton mehr an, füllt sich der
+Modus-Punkt rot und eine Blase sagt „Kein Ton vom Mikrofon — Gerät prüfen" — noch
+während man spricht, statt erst am leeren Ergebnis. Die Warnung stoppt nichts, gewinnt
+optisch gegen jede andere Punkt-Aussage (Profil, Modus) und verschwindet, sobald wieder
+Ton ankommt oder die Aufnahme endet. Die Schwelle (roher RMS-Pegel unter 0,002) ist noch
+**nicht am echten Mikrofon kalibriert** — Details und Grenzen siehe
+[25](#25-grenzen-und-bewusste-kompromisse).
 
 **Die Zustände auf einen Blick:**
 
@@ -1155,10 +1169,20 @@ ausblenden**; das Layout rückt dann zusammen.
 ![Profile](bilder/ui-profiles.png)
 
 Drei Spalten: links die laufenden und häufig genutzten Apps (Doppelklick weist zu), in
-der Mitte die Profilliste (farbiger Punkt = Modus-Slot), rechts das Detail des gewählten
-Profils — Name, Eingriffsgrad, Modus-Slot, Stil-Tags, zugewiesene Apps. Darunter ein
-abgesetzter Balken für globale Funktionen (Mathe an/aus). Der große Schalter oben rechts
-deaktiviert Profile insgesamt.
+der Mitte die Profilliste (farbiger Punkt = Modus-Slot) mit Export-/Import-Knöpfen für
+Profile und Schnellwechsel, rechts das Detail des gewählten Profils — Name,
+Eingriffsgrad, Sprache, Modus-Slot, Stil-Tags, zugewiesene Apps. Oben die Zeile
+„Jetzt aktiv" zum Profilwechsel ohne laufende Aufnahme. Darunter ein abgesetzter Balken
+für globale Funktionen (Mathe an/aus). Der große Schalter oben rechts deaktiviert
+Profile insgesamt.
+
+#### Apps
+
+Eigene Seite neben „Profile": Oben die Live-Zeile „Wenn du jetzt diktierst" (siehe
+[7](#7-profile)), darunter die Anwendungsliste — nach diktierten Wörtern sortiert,
+zugewiesene Programme ohne Nachweis in der eigenen Historie farbig oben, samt
+Zuordnungsvorschlagskarten und dem Titel-Übernehmen-Knopf beim Anlegen einer
+Titel-Bedingung.
 
 #### Einstellungen
 
@@ -1166,7 +1190,9 @@ deaktiviert Profile insgesamt.
 
 Elf Sektionen links, das Formular rechts. Das Bedienmuster ist überall gleich:
 **Beschriftung links, Steuerelement rechts, dahinter ein „?"-Badge**, dessen Erklärung
-beim Überfahren als Blase *unterhalb* erscheint. Unten ein Trenner, der Hinweis
+beim Überfahren als Blase *unterhalb* erscheint. Bei Auswahllisten erklärt das Badge
+**alle** Optionen, nicht nur die gerade gewählte — vorher musste man einen Bedienmodus
+erst einschalten, um zu erfahren, was er überhaupt tut. Unten ein Trenner, der Hinweis
 „Änderungen werden sofort übernommen" und ein Speichern-Knopf, der offene Eingabefelder
 verbindlich übernimmt und kurz „Gespeichert ✓" zurückmeldet.
 
@@ -1175,10 +1201,17 @@ verbindlich übernimmt und kurz „Gespeichert ✓" zurückmeldet.
 ### 10.4 Dialoge
 
 - **Transkript-Detail** (aus dem Verlauf) — bereinigte und rohe Fassung, Metazeile,
-  Kopieren. Nicht-modal: ein Klick daneben schließt ihn.
+  Kopieren. Nicht-modal: ein Klick daneben schließt ihn. Lief das Diktat nicht glatt
+  oder wurde etwas verworfen, stehen zusätzlich Profil, Fenster, Grund und der
+  verworfene Rohtext-Schwanz (siehe [9](#9-verlauf-und-statistiken)) — leere Felder
+  erzeugen keine Zeile.
 - **Alle Wörter** — die vollständige Wort-Rangliste.
 - **Wörterbuch-Rückfrage** — „Meintest du …?" mit hervorgehobenem Fund im Satz.
 - **Verlauf löschen** — verlangt das getippte Wort „Delete" als Bestätigung.
+- **Hotkey aufnehmen** — wartet auf einen Tastendruck; Esc/Entf/Backspace *löschen*
+  die Bindung (das steht auch am Feld selbst), ein sichtbarer „Abbrechen"-Knopf
+  schließt den Dialog dagegen ohne jede Änderung — für den Fall, dass man ihn aus
+  Versehen geöffnet hat.
 - **Einführung** (seit v2.0.0) — fünf Schritte beim Erststart: Willkommen, Mikrofon
   (mit Live-Pegelbalken), Bedienung (Halten/Umschalten, wirkt sofort), die vier Modi
   samt Safe-Word, Probediktat. Jederzeit abbrechbar; jeder Weg hinaus (auch das X)
