@@ -6,7 +6,9 @@ import io
 import logging
 import sys
 import threading
+import time
 import wave
+from collections import deque
 
 import numpy as np
 
@@ -176,6 +178,12 @@ def audio_to_wav_bytes(audio: np.ndarray, samplerate: int = 16000) -> bytes:
 # lang genug, dass die Erkennung dort eine Sprechpause sieht statt eines Schnitts.
 _RESUME_GAP_S = 0.35
 
+# Wie weit der Rohpegel-Verlauf zurueckreicht. Die Kein-Ton-Wache der Pille fragt
+# ein 5-s-Fenster ab (Befund H-B2); 10 s Vorrat sind grosszuegig genug fuer
+# spaetere Fragen und kosten bei ~50 Bloecken je Sekunde nur ein paar hundert
+# Zahlenpaare.
+_ROHPEGEL_VORRAT_S = 10.0
+
 
 class Recorder:
     """Nimmt Mono-Float32-Audio auf. Nicht reentrant: ein Segment zur Zeit."""
@@ -188,6 +196,14 @@ class Recorder:
         self._lock = threading.Lock()
         self._level = 0.0  # RMS des letzten Audio-Blocks (fuer die Overlay-Waveform)
         self._samples = 0  # bisher aufgenommene Samples (fuer Zeitstempel-Splitting)
+        # Roher Pegelverlauf: (Zeitpunkt, RMS) je Audio-Block, ungeglaettet und
+        # unskaliert. Die Waveform verstaerkt ihren Pegel automatisch (bis 45-fach)
+        # — dort sind „Mikrofon tot" und „Mikrofon leise" nicht zu unterscheiden.
+        # Fuer die Kein-Ton-Wache braucht es genau die ungeschminkte Zahl.
+        self._rohpegel: deque[tuple[float, float]] = deque()
+        # PortAudio-Statuscodes dieser Aufnahme (Overflow, Geraet weg). Gezaehlt
+        # statt Zeile fuer Zeile geloggt (Befund B-6).
+        self._status_zaehler = 0
         # Tatsaechliche Capture-Rate: weicht ab, wenn das Geraet die Wunschrate nicht
         # kann (direktes hw-Geraet, z. B. Focusrite: min. 44,1 kHz). Nach aussen
         # liefert der Recorder IMMER self.samplerate (Rueck-Resampling in _to_target).
@@ -241,6 +257,8 @@ class Recorder:
         with self._lock:
             self._frames = []
             self._samples = 0
+            self._rohpegel.clear()  # der Pegelverlauf gilt je Aufnahme
+        self._status_zaehler = 0
         self._paused = False        # eine neue Aufnahme beginnt nie pausiert
         device = resolve_input_device(self.device, self.on_device_fallback)
         try:
@@ -279,16 +297,30 @@ class Recorder:
 
     def _callback(self, indata, frames, time_info, status) -> None:
         if status:
-            log.debug("Audio-Status: %s", status)
+            self._status_zaehler += 1
+            if self._status_zaehler == 1:
+                # Befund B-6: Overflow oder ein verschwundenes Geraet erklaeren
+                # spaeter das leere Transkript — bis 5.10.4 stand das nur in
+                # log.debug und war im Normalbetrieb damit unsichtbar. Nur das
+                # ERSTE Auftreten je Aufnahme kommt sichtbar ins Protokoll; ein
+                # dauerhafter Overflow wuerde es sonst zuschuetten.
+                log.info("Audio-Status: %s (weitere werden nur gezaehlt).", status)
+            else:
+                log.debug("Audio-Status: %s", status)
         if self._paused:
             # Pegel auf 0 ziehen, damit die Waveform in der Pille wirklich ruht —
             # ein zappelnder Balken waehrend einer Pause waere ein falsches Signal.
             self._level = 0.0
             return
         self._level = float(np.sqrt(np.mean(np.square(indata))))
+        jetzt = time.monotonic()
         with self._lock:
             self._frames.append(indata.copy())
             self._samples += len(indata)
+            self._rohpegel.append((jetzt, self._level))
+            grenze = jetzt - _ROHPEGEL_VORRAT_S
+            while self._rohpegel and self._rohpegel[0][0] < grenze:
+                self._rohpegel.popleft()
 
     @property
     def position(self) -> float:
@@ -300,6 +332,28 @@ class Recorder:
     def level(self) -> float:
         """Aktueller Eingangspegel (RMS, ~0–0.5) — billig, fuer die Live-Waveform."""
         return self._level if self._stream is not None else 0.0
+
+    @property
+    def status_zaehler(self) -> int:
+        """Wie oft PortAudio in dieser Aufnahme einen Status gemeldet hat."""
+        return self._status_zaehler
+
+    def rohpegel_max(self, sekunden: float = 5.0) -> float:
+        """Lautester ROHER RMS der letzten Sekunden (0.0 = es kam nichts).
+
+        Absichtlich ungeglaettet und unskaliert, anders als `level`, das die
+        Waveform zeichnet: Deren Automatik verstaerkt ein blosses Rauschen bis
+        24-fach, sodass ein totes Mikrofon aussieht wie eine leise, aber
+        funktionierende Aufnahme (Befund H-B2). Ein Maximum statt eines
+        Mittelwerts, weil eine einzige gesprochene Silbe im Fenster bereits
+        beweist, dass Ton ankommt.
+        """
+        if self._stream is None:
+            return 0.0
+        grenze = time.monotonic() - max(0.0, sekunden)
+        with self._lock:
+            werte = [rms for zeit, rms in self._rohpegel if zeit >= grenze]
+        return max(werte) if werte else 0.0
 
     def snapshot(self) -> np.ndarray:
         """Kopie des bisher aufgenommenen Audios, ohne die Aufnahme zu stoeren (M4-Preview)."""
@@ -337,6 +391,11 @@ class Recorder:
         if self._stream is None:
             return np.zeros(0, dtype=np.float32)
         self._paused = False
+        if self._status_zaehler > 1:
+            # Einmal am Ende die Summe — sonst waere nur das erste von hundert
+            # Aussetzern sichtbar und man haelt es fuer einen Ausrutscher.
+            log.info("PortAudio meldete %dx einen Status in dieser Aufnahme.",
+                     self._status_zaehler)
         try:
             self._stream.stop()
             self._stream.close()
