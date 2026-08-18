@@ -147,7 +147,7 @@ class OnboardingDialog(QDialog):
             "KI-Bereinigung verlassen ihn nicht."
         ))
         lay.addWidget(_body(
-            "Diese Einführung klärt in vier kurzen Schritten das Mikrofon, die "
+            "Diese Einführung klärt in wenigen kurzen Schritten das Mikrofon, die "
             "Bedienung und die Modi. Alles davon findest du später auch in den "
             "Einstellungen wieder."
         ))
@@ -206,7 +206,7 @@ class OnboardingDialog(QDialog):
         lay.addWidget(_title("Bedienung"))
         hotkey = (self.settings.recording.hotkey or "F9").upper()
         lay.addWidget(_body(
-            f"Aufgenommen wird über die Taste {hotkey} — auf zwei Arten:"
+            f"Aufgenommen wird über die Taste {hotkey} — auf drei Arten:"
         ))
         self._hold_radio = QRadioButton(
             f"Halten:  {hotkey} gedrückt halten = aufnehmen, loslassen = fertig"
@@ -214,13 +214,27 @@ class OnboardingDialog(QDialog):
         self._toggle_radio = QRadioButton(
             f"Umschalten:  {hotkey} einmal drücken = Start, nochmal = fertig"
         )
-        if self.settings.recording.mode == "toggle":
+        self._nudge_radio = QRadioButton(
+            f"Anstupsen:  {hotkey} einmal drücken, reden — endet von selbst, "
+            f"sobald du aufhörst"
+        )
+        mode = self.settings.recording.mode
+        if mode == "toggle":
             self._toggle_radio.setChecked(True)
+        elif mode == "nudge":
+            self._nudge_radio.setChecked(True)
         else:
             self._hold_radio.setChecked(True)
+        # Nur EIN Signal je Radio, aber jedes reagiert nur auf sein eigenes
+        # "checked=True" — die transiente "wird gerade abgewaehlt"-Meldung des
+        # vorherigen Radios (checked=False) wird ignoriert, sonst schriebe der
+        # Klick auf "Anstupsen" kurzzeitig den falschen Modus.
         self._hold_radio.toggled.connect(self._on_mode_toggled)
+        self._toggle_radio.toggled.connect(self._on_mode_toggled)
+        self._nudge_radio.toggled.connect(self._on_mode_toggled)
         lay.addWidget(self._hold_radio)
         lay.addWidget(self._toggle_radio)
+        lay.addWidget(self._nudge_radio)
         lay.addSpacing(6)
         lay.addWidget(_muted(
             "Während der Aufnahme erscheint eine kleine Pille am Bildschirmrand: "
@@ -239,8 +253,9 @@ class OnboardingDialog(QDialog):
             ("Diktat", "einfach sprechen — Füllwörter und Versprecher räumt die "
                        "lokale KI weg, deine Worte bleiben deine Worte."),
             ("Befehle", None),  # Text unten dynamisch mit Safe-Word
-            ("Formeln", "Strg+Alt+M während der Aufnahme (oder „Formel … Formel "
-                        "Ende“): gesprochene Mathematik wird zu LaTeX."),
+            ("Formeln", "Werden automatisch im Fließtext erkannt und als LaTeX "
+                        "geschrieben — abschaltbar unter Einstellungen → "
+                        "Ausgabe."),
             ("KI-Prompting", "Strg+Alt+P: dein Diktat wird zu einem strukturierten "
                              "Prompt für eine KI ausformuliert."),
         ]
@@ -315,9 +330,12 @@ class OnboardingDialog(QDialog):
         lay.setSpacing(12)
         lay.addWidget(_title("Probediktat"))
         hotkey = (self.settings.recording.hotkey or "F9").upper()
-        mode_hint = ("halte sie gedrückt, während du sprichst"
-                     if self.settings.recording.mode != "toggle"
-                     else "drücke sie einmal, sprich, und drücke sie erneut")
+        if self.settings.recording.mode == "toggle":
+            mode_hint = "drücke sie einmal, sprich, und drücke sie erneut"
+        elif self.settings.recording.mode == "nudge":
+            mode_hint = "drücke sie einmal und sprich — hörst du auf zu reden, endet die Aufnahme von selbst"
+        else:
+            mode_hint = "halte sie gedrückt, während du sprichst"
         lay.addWidget(_body(
             f"Klicke nach dem Abschluss in ein beliebiges Textfeld, drücke "
             f"{hotkey} — {mode_hint}. Zum Beispiel:"
@@ -353,9 +371,16 @@ class OnboardingDialog(QDialog):
         self._stop_level_stream()
         self._start_level_stream()
 
-    def _on_mode_toggled(self, _checked: bool) -> None:
-        self.settings.recording.mode = ("hold" if self._hold_radio.isChecked()
-                                        else "toggle")
+    def _on_mode_toggled(self, checked: bool) -> None:
+        if not checked:
+            return  # nur das NEU gewaehlte Radio schreibt, nicht das abgewaehlte
+        if self._toggle_radio.isChecked():
+            mode = "toggle"
+        elif self._nudge_radio.isChecked():
+            mode = "nudge"
+        else:
+            mode = "hold"
+        self.settings.recording.mode = mode
         self.settings.save()
         if self._on_changed is not None:
             self._on_changed("recording")

@@ -431,7 +431,8 @@ class AdvancedSettings:
     # Modell (~2x schneller), komplexe → grosses Modell. False = immer grosses Modell.
     adaptive_cleanup: bool = True
     # LLM-Warmhaltung (RAM/VRAM vs. Latenz):
-    # "always" = Modelle dauerhaft geladen (schnellste Antwort, ~8 GB belegt),
+    # "always" = Modelle dauerhaft geladen (schnellste Antwort, ~3,5 GB belegt —
+    #            seit v3.5.0 EIN Modell statt zwei, damals ~8 GB),
     # "smart"  = nur bis `llm_idle_unload_minutes` nach dem letzten Diktat warmhalten
     #            (Default) — danach oder bei erkanntem SPIEL werden die Modelle SOFORT
     #            entladen (keep_alive=0, RAM frei); beim naechsten Aufnahmestart wird

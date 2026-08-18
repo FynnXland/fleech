@@ -14,9 +14,10 @@ Der Unterschied zur Windows-Spracherkennung: Eine lokale KI räumt hinterher auf
 gewähltem Profil wird aus dem Diktat auch eine fertige E-Mail oder eine
 Stichpunktliste.
 
-**Alles läuft auf deinem Rechner.** Kein Cloud-Dienst, kein Konto, keine
-Internetverbindung im Betrieb. Weder deine Stimme noch dein Text verlassen den
-Computer — nachlesbar in der App unter Insights.
+**Alles läuft auf deinem Rechner.** Kein Cloud-Dienst, kein Konto. Deine Stimme
+und dein Text verlassen den Rechner nie. Fleech fragt beim Start und danach
+täglich bei GitHub nach einer neuen Version — abschaltbar unter
+*Einstellungen → Advanced*.
 
 ## Was du brauchst
 
@@ -75,7 +76,8 @@ Pegel, den erkannten Text und hat Knöpfe für Abbrechen, Fertig und Pause. Du
 kannst sie an jede Stelle ziehen.
 
 Das erste Diktat nach dem Start dauert ein paar Sekunden länger, weil die Modelle
-in den Speicher geladen werden. Danach sind es Zehntelsekunden.
+in den Speicher geladen werden. Danach ist es je nach Länge des Diktats ein bis
+wenige Sekunden.
 
 ## Was sich lohnt zu wissen
 
@@ -84,7 +86,7 @@ in den Speicher geladen werden. Danach sind es Zehntelsekunden.
 - *Standard* — bereinigter Text, so wie gesprochen
 - *E-Mail* — Anrede, Absätze, Grußformel
 - *KI-Prompt* — knapp und strukturiert für ein KI-Chatfenster
-- *Stichpunkte* — alles Gesagte als Liste, nichts weggelassen
+- *Stichpunkte* — als Liste gegliedert, ohne zu kürzen — soweit das Modell folgt
 
 Umschalten geht über den Punkt links an der Pille oder über einen eigenen Hotkey
 (*Einstellungen → Aufnahme → Profil wechseln*): Tippen schaltet weiter, Halten
@@ -94,7 +96,7 @@ Umschalten geht über den Punkt links an der Pille oder über einen eigenen Hotk
 automatisch gilt — und zwischen welchen Profilen der Hotkey dort überhaupt
 wechselt. In einem KI-Chat sind das andere als in Word.
 
-**Wörterbuch** (*Einstellungen → Ausgabe*): Namen, Fachbegriffe und Abkürzungen,
+**Wörterbuch** (*Einstellungen → Textersetzung*): Namen, Fachbegriffe und Abkürzungen,
 die die Erkennung sonst verhaspelt. Der wirksamste Handgriff überhaupt — trag
 dort ein, was in deinem Alltag ständig vorkommt.
 

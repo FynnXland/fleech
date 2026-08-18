@@ -544,11 +544,12 @@ class DesktopApp(
     # -------------------------------------------------------------------- Hotkeys --
 
     def _on_hotkey_activate(self, name: str) -> None:
-        """Hotkey gedrueckt. Die Modus-Hotkeys (Mathe/KI-Prompting) wirken NUR waehrend
-        einer laufenden Aufnahme — ausserhalb werden sie bewusst ignoriert, damit
-        dieselben Tasten (z. B. Corsair-G-Tasten) ausserhalb von Fleech frei fuer
-        andere Dinge belegbar bleiben. Den Modus fuer kuenftige Diktate schaltet man
-        ueber den Punkt in der Pille (Klick-Zyklus) oder den Profil-Slot.
+        """Hotkey gedrueckt. Der Modus-Hotkey (KI-Prompting) wirkt NUR waehrend
+        einer laufenden Aufnahme — ausserhalb wird er bewusst ignoriert, damit
+        dieselbe Taste (z. B. eine Corsair-G-Taste) ausserhalb von Fleech frei fuer
+        andere Dinge belegbar bleibt. Dauerhaft schaltet man den Modus, indem man
+        das Profil „KI-Prompt" waehlt — der Punkt in der Pille wechselt seit 5.10.2
+        nur noch das Profil, nicht mehr das Prompting selbst (E-19).
         Alles andere geht an die Aufnahme-Steuerung (Hold/Toggle)."""
         recording = self.controller.active and self.recorder.recording
         if name == "undo":

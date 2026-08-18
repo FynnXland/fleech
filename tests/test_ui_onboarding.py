@@ -78,6 +78,66 @@ def test_onboarding_vorbelegung_aus_settings(qapp):
     assert dlg._mic_combo.currentData() == "Webcam"
 
 
+# -- Bedienmodus "Anstupsen" (E-7/A-10) ---------------------------------------------
+
+def test_bedienung_seite_bietet_anstupsen_als_dritte_option(qapp, monkeypatch):
+    from fleech.usersettings import UserSettings
+
+    monkeypatch.setattr(UserSettings, "save", lambda self, path=None: None)
+    dlg, _ = _onboarding()
+    assert hasattr(dlg, "_nudge_radio")
+    assert not dlg._nudge_radio.isChecked()   # Vorgabe ist "hold"
+
+
+def test_anstupsen_wird_korrekt_vorausgewaehlt(qapp):
+    """E-7: Wer 'Anstupsen' eingestellt hat und die Einfuehrung erneut oeffnet, sah
+    vorher faelschlich 'Halten' vorausgewaehlt."""
+    from fleech.usersettings import UserSettings
+
+    settings = UserSettings()
+    settings.recording.mode = "nudge"
+    dlg, _ = _onboarding(settings=settings)
+    assert dlg._nudge_radio.isChecked()
+    assert not dlg._hold_radio.isChecked()
+    assert not dlg._toggle_radio.isChecked()
+
+
+def test_anstupsen_waehlen_schreibt_nudge(qapp, monkeypatch):
+    from fleech.usersettings import UserSettings
+
+    monkeypatch.setattr(UserSettings, "save", lambda self, path=None: None)
+    changed: list = []
+    dlg, settings = _onboarding(changed=changed)
+    dlg._nudge_radio.setChecked(True)
+    assert settings.recording.mode == "nudge"
+    assert "recording" in changed
+
+
+# -- Formeln: kein toter Hotkey, keine gesprochenen Delimiter (E-6/A-10) ------------
+
+def test_formeln_seite_nennt_keinen_toten_hotkey(qapp):
+    from PySide6.QtWidgets import QLabel
+
+    dlg, _ = _onboarding()
+    modes_page = dlg._stack.widget(dlg._pages["modes"])
+    labels_text = " ".join(l.text() for l in modes_page.findChildren(QLabel))
+    assert "Strg+Alt+M" not in labels_text
+    assert "Formel Ende" not in labels_text
+    assert "automatisch" in labels_text.lower()
+
+
+# -- Willkommenstext ohne falsche Schrittzahl (E-18) --------------------------------
+
+def test_willkommenstext_nennt_keine_schrittzahl(qapp):
+    from PySide6.QtWidgets import QLabel
+
+    dlg, _ = _onboarding()
+    welcome_page = dlg._stack.widget(dlg._pages["welcome"])
+    labels_text = " ".join(l.text() for l in welcome_page.findChildren(QLabel))
+    assert "vier " not in labels_text
+    assert "vier kurzen Schritten" not in labels_text
+
+
 # -- Autostart-Wunsch bewahren (v2.1.0) --------------------------------------------
 
 def test_fehlgeschlagenes_schreiben_loescht_den_wunsch_nicht(qapp, monkeypatch):

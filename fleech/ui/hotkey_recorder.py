@@ -130,7 +130,16 @@ class HotkeyRecorderDialog(QDialog):
         layout.addWidget(self._title)
         layout.addWidget(self._live)
         layout.addWidget(hint)
-        self.resize(360, 160)
+        # Sichtbarer Ausgang neben Esc: Wer den Recorder aus Versehen oeffnet,
+        # soll ihn schliessen koennen, OHNE die bestehende Bindung zu loeschen
+        # (das bleibt Esc vorbehalten — dokumentiertes Verhalten, siehe oben).
+        cancel_row = QHBoxLayout()
+        cancel_row.addStretch(1)
+        self._cancel_btn = QPushButton("Abbrechen")
+        self._cancel_btn.clicked.connect(lambda: self._finish(cancel=True))
+        cancel_row.addWidget(self._cancel_btn)
+        layout.addLayout(cancel_row)
+        self.resize(360, 190)
         self._global_key.connect(self._on_global_key)
 
     def showEvent(self, event) -> None:

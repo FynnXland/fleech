@@ -177,7 +177,9 @@ class _StatusDot(QWidget):
     """Kreis-Indikator links in der Pille — zeigt ZWEI unabhaengige Dinge:
 
     1. Der KERN: dezenter Ring = normales Diktat, amber gefuellt = KI-Prompting
-       eingerastet. Klick schaltet Prompting an/aus.
+       aktiv (One-Shot ueber den Hotkey). Klick wechselt reihum zum naechsten
+       Profil — NICHT das Prompting selbst; dauerhaftes Prompting laeuft ueber
+       das Profil „KI-Prompt" (E-19).
     2. Der kleine SATELLIT unten rechts (cyan): Fleech erinnert sich an Diktate im
        aktuellen Fenster — nur dann greifen Befehle mit Bezug („mach den letzten
        Satz formeller"). Reine Information, nicht klickbar.

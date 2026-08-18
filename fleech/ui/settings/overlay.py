@@ -23,13 +23,24 @@ def build(panel) -> None:
     form.addRow("", hint(
         "Die kleine Pille am Bildschirmrand: Sichtbarkeit, Größe, Ränder und Position."
     ))
-    panel._combo(
+    # „Auto-Hide nach" wirkt nur bei Sichtbarkeit „auto_hide" (E-15) — dieselbe
+    # Verzoegerungs-Liste wie beim Sprechpause-Regler auf der Aufnahme-Seite: Die
+    # Zeile entsteht ERST unten, der Setter braucht sie aber schon beim Bau des
+    # Combos. Faengt bewusst nur `s`/die Liste, nie `panel` (Referenzzyklus).
+    auto_hide_zeilen: list = []
+
+    def sichtbarkeit_gesetzt(v, _ziel=s.overlay, _zeilen=auto_hide_zeilen):
+        _ziel.visibility = v
+        for layout, row in _zeilen:
+            layout.setRowVisible(row, v == "auto_hide")
+
+    panel._sichtbarkeit_box = panel._combo(
         form, "Sichtbarkeit",
         [("during_activity", "Nur während Aufnahme/Verarbeitung (empfohlen)"),
          ("always", "Immer sichtbar"),
          ("auto_hide", "Automatisch ausblenden"),
          ("off", "Deaktiviert")],
-        s.overlay.visibility, "overlay", lambda v: setattr(s.overlay, "visibility", v),
+        s.overlay.visibility, "overlay", sichtbarkeit_gesetzt,
         hint_text="Wann die Pille zu sehen ist.",
     )
     hide_seconds = QDoubleSpinBox()
@@ -42,6 +53,9 @@ def build(panel) -> None:
     label_w, _ = panel._row_label(
         "Auto-Hide nach", "Nach dieser Zeit blendet sich die Pille aus.")
     form.addRow(label_w, hide_seconds)
+    panel._auto_hide_box = hide_seconds  # fuer Tests/Nachvollziehbarkeit greifbar
+    auto_hide_zeilen.append((form, hide_seconds))
+    form.setRowVisible(hide_seconds, s.overlay.visibility == "auto_hide")
     panel._combo(
         form, "Größe",
         [("compact", "Kompakt"), ("normal", "Standard"), ("large", "Groß")],
@@ -79,7 +93,9 @@ def build(panel) -> None:
                            "bei leisen Mikrofonen.")
     panel._check(form, "Click-Through", s.overlay.click_through, "overlay",
                  lambda v: setattr(s.overlay, "click_through", v),
-                 "Mausklicks gehen durch die Pille hindurch.")
+                 "Mausklicks gehen durch die Pille hindurch — auch auf die "
+                 "Knöpfe der Pille: ✕, ✓, Pause und Ziehen sind dann nicht mehr "
+                 "bedienbar. Rückweg: „Overlay bearbeiten“ unten.")
     panel._check(form, "Folgt dem Maus-Bildschirm", s.overlay.follow_mouse_screen,
                  "overlay", lambda v: setattr(s.overlay, "follow_mouse_screen", v),
                  "Die Pille erscheint auf dem Monitor des Mauszeigers.")
