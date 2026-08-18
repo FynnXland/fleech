@@ -62,7 +62,7 @@ Absätze nach Bedeutung gesetzt.
 | Verarbeitung | Cloud | **vollständig lokal**, ohne Ausnahme |
 | Ergebnis | Wort-für-Wort-Transkript | **redigierter Text** (LLM-Nachbearbeitung) |
 | Anpassung | kaum | Profile pro App, Wörterbuch, Prompts editierbar, Projekt-Gedächtnis |
-| Sonderfälle | — | Formeln als LaTeX, Sprachbefehle, Prompts, Freihand ohne Taste |
+| Sonderfälle | — | Formeln als LaTeX, Sprachbefehle, Prompts, Anstupsen (Diktat endet von selbst) |
 | Kosten | Abo | keine (lokale Modelle) |
 
 ### Die fünf Dinge, die Fleech kann
@@ -73,10 +73,10 @@ Absätze nach Bedeutung gesetzt.
 3. **Formeln** — gesprochene Mathematik landet als LaTeX im Text, auch mitten im Satz.
 4. **Prompts bauen** — ein unstrukturiert hingesprochener Auftrag wird zu einem
    sauber gegliederten KI-Prompt.
-5. **Freihand** — seit 5.3.0 auch ganz ohne Taste: Startwort sagen, sprechen,
-   aufhören (siehe [21](#21-freihand--diktieren-ohne-taste)). **Seit 5.10.1
-   stillgelegt** — nicht entfernt, aber im Auslieferungszustand deaktiviert und in
-   den Einstellungen ausgegraut (Details in Kapitel 21).
+5. **Anstupsen** — einmal drücken, reden, aufhören: das Diktat endet von selbst.
+   Der Nachfolger von **Freihand** (5.3.0–5.10.0, Startwort statt Taste), das seit
+   5.10.1 stillgelegt ist und dessen **Oberfläche in 5.11.0 entfernt** wurde. Der
+   Code bleibt eingefroren im Projekt (Details in Kapitel 21).
 
 Alles läuft auf dem eigenen Rechner: Spracherkennung über
 [faster-whisper](https://github.com/SYSTRAN/faster-whisper), Nachbearbeitung über ein
@@ -1236,19 +1236,16 @@ der Knopf „Alle Karten wieder einblenden" unter **Allgemein**.
 | Sprechpause bis Ende | nur bei *Anstupsen* sichtbar: so lange still = fertig (1–4 s) | 2,0 s |
 | Diktat-Hotkey | Taste, Kombination oder Maustaste 4/5/Mitte | F9 |
 | KI-Prompting | **nur während einer Aufnahme**: dieses Diktat wird zum Prompt (dauerhaft: Profil „KI-Prompt" wählen) | Strg+Alt+P |
-| Freihand | dauerhaft auf ein Startwort lauschen (Abschnitt 21) — **stillgelegt seit 5.10.1** | aus |
-| Startwörter | ein Wort pro Zeile; Fleech startet bei **jedem** davon | Kimono |
-| Genauigkeit | welches Modell das Startwort prüft: *wie beim Diktat* oder ein sparsames eigenes | wie beim Diktat |
-| Abbruchwort | fällt es im Diktat, wird verworfen statt eingefügt | Abbrechen |
-| Fehlersuche | hebt geprüfte Startwort-Fenster als Tondateien auf (Abschnitt 21) | aus |
-| Nicht lauschen in | Prozessnamen, in denen Freihand ruht | leer |
 | Mikrofon | Gerätewahl; wirkt ab der nächsten Aufnahme | Systemstandard |
 | Gesperrte Geräte | Namensteile, die nie als Mikrofon gelten sollen | leer |
 
-Solange Freihand stillgelegt ist, ist der **gesamte Block ausgegraut** — nicht mehr nur
-der Ein-Schalter selbst und die Startwortliste, sondern auch Genauigkeit, Abbruchwort,
-Fehlersuche und „Nicht lauschen in". Vorher ließen sich diese vier Felder trotz
-stillgelegtem Modus weiter bearbeiten, ohne dass es etwas bewirkt hätte.
+Die Freihand-Zeilen (Ein-Schalter, Startwörter samt Probe-Knopf, Genauigkeit,
+Abbruchwort, Fehlersuche, „Nicht lauschen in") sind in **5.11.0 entfernt**. Bis 5.10.x
+standen sie ausgegraut da; ein ausgegrautes Feld erklärt aber nichts, und vier davon
+waren zwischenzeitlich sogar bedienbar, ohne etwas zu bewirken. Der Code bleibt
+eingefroren (Abschnitt 21) — was der Nutzer sehen kann, muss wahr sein. Der Regler
+„Sprechpause bis Ende" ist geblieben: Er gehört zum Bedienmodus *Anstupsen* und steht
+deshalb dort oben.
 
 Zu den gesperrten Geräten: Fleech erkennt gängige Loopback-Geräte („Stereomix",
 „CABLE Output", Monitor-Quellen) selbst — sie würden Systemton statt Stimme
@@ -2214,14 +2211,19 @@ eine Regel, vergisst Fleech die als falsch erkannte Form auch hier.
 
 ## 21. Freihand — diktieren ohne Taste (seit 5.3.0)
 
-> **Stillgelegt seit 5.10.1.** Ein dauerhaft offenes Mikrofon per Startwort
-> auszulösen war in einem Raum mit Nebengeräuschen nicht zuverlässig zu bekommen —
-> und jeder Fehlstart tippt Text in das gerade fokussierte Fenster. Der Modus ist
-> nicht entfernt (dieses Kapitel beschreibt weiterhin, wie er arbeitet), aber in den
-> Einstellungen ausgegraut und `freihand.STILLGELEGT` verhindert den Start. Wer das
-> automatische Ende wollte, bekommt es über den Bedienmodus **Anstupsen** (Kapitel
-> 4a): einmal drücken, reden, es hört von selbst auf — auslösbar aber nur, wer die
-> Taste drückt.
+> **Stillgelegt seit 5.10.1, Oberfläche entfernt in 5.11.0.** Ein dauerhaft offenes
+> Mikrofon per Startwort auszulösen war in einem Raum mit Nebengeräuschen nicht
+> zuverlässig zu bekommen — und jeder Fehlstart tippt Text in das gerade fokussierte
+> Fenster. 5.10.1 hat den Start per `freihand.STILLGELEGT` verriegelt und die
+> Einstellungen ausgegraut; 5.11.0 hat den ganzen Block aus der Aufnahme-Seite
+> genommen, dazu den Tray-Eintrag „Freihand: an/aus" und die Startwort-Probe. Der
+> **Code bleibt eingefroren** — dieses Kapitel beschreibt weiterhin, wie er arbeitet,
+> und ein einziges `False` in `fleech/freihand.py` macht ihn wieder verfügbar (die
+> Oberfläche dazu müsste dann neu entstehen). Der **Nachfolger** ist der Bedienmodus
+> **Anstupsen** (Kapitel 4a): einmal drücken, reden, es hört von selbst auf —
+> auslösen kann dort nur, wer die Taste drückt. Sein Regler „Sprechpause bis Ende"
+> teilt sich das Settings-Feld `freihand.stille_s` und steht deshalb weiter auf der
+> Aufnahme-Seite, beim Bedienmodus.
 
 Startwort sagen, sprechen, aufhören. Kommt **zusätzlich** zum Hotkey und ist
 standardmäßig **aus**: Eine App, die ungefragt dauerhaft mithört, wäre ein
@@ -2323,8 +2325,10 @@ Idee. Gemessen am unscharfen Vergleich:
 
 ### 21.3 Das Startwort einsprechen
 
-Unter *Einstellungen → Aufnahme → „Startwort einsprechen …"*: Wort sagen, und Fleech
-zeigt, was ankommt und ob Freihand anspringen würde. Geprüft wird mit dem Erkenner, der
+Der Knopf „Startwort einsprechen …" stand unter *Einstellungen → Aufnahme* und ist mit
+der Freihand-Oberfläche in 5.11.0 entfallen; der Weg dorthin
+(`wortprobe(…, zweck="startwort")`) bleibt eingefroren im Code. Er sagte: Wort sagen, und
+Fleech zeigt, was ankommt und ob Freihand anspringen würde. Geprüft wird mit dem Erkenner, der
 im Betrieb **läuft** — nicht mit dem Diktat-Weg. Der hört ungleich besser, und ein Test,
 der besteht während der Alltag scheitert, ist schlimmer als keiner.
 
@@ -2358,9 +2362,10 @@ stehen unter CC-BY-NC-SA — bei einer Anwendung mit Lizenzschlüssel ein echtes
 und jedes neue Startwort hieße rund eine Stunde Training. Porcupine ist kostenlos nur
 zur Evaluation.
 
-**Deshalb ist „Anstupsen" (Abschnitt 4a) der empfohlene Weg**, wenn es um das
-automatische Ende geht. Freihand bleibt vorhanden für den, der es will; in den
-Einstellungen steht dabei, was die zuverlässigere Wahl ist.
+**Deshalb ist „Anstupsen" (Abschnitt 4a) der Weg**, wenn es um das automatische Ende
+geht. Freihand ist seit 5.10.1 verriegelt, seit 5.11.0 auch ohne Oberfläche — in den
+Einstellungen steht deshalb gar nichts mehr darüber, statt eines ausgegrauten
+Versprechens.
 
 **Entscheidungen, die im Alltag zählen:**
 
@@ -2390,8 +2395,9 @@ Einstellungen steht dabei, was die zuverlässigere Wahl ist.
   dieselben zwei Prüfungen (Abbruchwort, „war überhaupt Sprache drin"). Der Fertig-Knopf
   umging sie zunächst; damit wäre Mikrofonrauschen in die Pipeline gegangen.
 
-Der Zustand ist am Punkt der Pille sichtbar (ruhiger Ring beim Lauschen, kein Blinken)
-und im Infobereich, wo ein Schnellschalter das Mithören sofort beendet.
+Der Zustand ist am Punkt der Pille sichtbar (ruhiger Ring beim Lauschen, kein Blinken).
+Der Schnellschalter im Infobereich ist mit 5.11.0 entfallen: Er meldete einen Zustand,
+den der verriegelte Modus nicht mehr einnehmen kann.
 
 Die Zustandsmaschine (`fleech/freihand.py`) kennt weder Audio-Gerät noch Qt: Audio kommt
 herein, Ereignisse kommen heraus. Damit ist der heikle Teil — wann startet, wann endet

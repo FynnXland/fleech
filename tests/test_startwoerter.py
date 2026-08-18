@@ -210,26 +210,21 @@ def test_wortliste_laesst_sich_von_aussen_setzen(qapp):
     assert w._zeilen_box.count() == 2
 
 
-def test_einstellungsseite_zeigt_die_wortliste(qapp):
+def test_die_startwortliste_steht_in_keiner_einstellungsseite_mehr(qapp):
+    """Befund E-5/E-9: Die Freihand-Oberflaeche ist in 5.11.0 entfernt — mit ihr
+    die Startwoerter-Liste und der Probe-Knopf. Vorher pruefte hier ein Test, dass
+    beide auf der Aufnahme-Seite stehen und Eingaben in die Einstellungen
+    zurueckschreiben; das waere jetzt genau die falsche Zusicherung (der Modus ist
+    stillgelegt, ein bedienbares Feld verspraeche Wirkung, die es nicht gibt).
+    Die Zerlege-/Erkenn-Logik oben bleibt geprueft — der Code ist eingefroren,
+    nicht geloescht."""
     from fleech.ui.settings_window import SettingsPanel
-    from fleech.ui.widgets import WortListe
     from fleech.usersettings import UserSettings
 
     s = UserSettings()
     s.freihand.startwort = "Kimono\nApfel"
     panel = SettingsPanel(s, lambda sec: None, lambda: [])
-    assert isinstance(panel._startwort_liste, WortListe)
-    assert panel._startwort_liste.woerter() == ["Kimono", "Apfel"]
-
-
-def test_eintrag_landet_in_den_einstellungen(qapp):
-    """Ohne diesen Weg stünde das Wort in der Liste und wäre nach dem Neustart weg."""
-    from fleech.ui.settings_window import SettingsPanel
-    from fleech.usersettings import UserSettings
-
-    s = UserSettings()
-    s.freihand.startwort = "Kimono"
-    panel = SettingsPanel(s, lambda sec: None, lambda: [])
-    panel._startwort_liste._eingabe.setText("Zeppelin")
-    panel._startwort_liste._eingabe.returnPressed.emit()
-    assert zerlege_woerter(s.freihand.startwort) == ("Kimono", "Zeppelin")
+    assert getattr(panel, "_startwort_liste", None) is None
+    assert getattr(panel, "_startwort_probe_btn", None) is None
+    # Die Einstellung selbst bleibt unangetastet (eingefroren, nicht geleert).
+    assert zerlege_woerter(s.freihand.startwort) == ("Kimono", "Apfel")

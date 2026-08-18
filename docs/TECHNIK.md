@@ -13,7 +13,8 @@
 | **1,5 %** | Rückfall-Quote |
 
 Taste halten, sprechen, loslassen — der Text landet im Feld, in dem der Cursor
-steht. Oder ganz ohne Taste: Startwort sagen, sprechen, aufhören.
+steht. Oder mit dem Bedienmodus „Anstupsen": einmal drücken, sprechen — das
+Diktat endet von selbst.
 
 Dazwischen liegen Spracherkennung, ein lokales Sprachmodell und sieben
 Schutzschichten, die verhindern, dass etwas eingefügt wird, das **niemand gesagt
@@ -156,7 +157,13 @@ In einem KI-Chat sind das andere als in Word.
 
 ---
 
-## 5. Freihand — diktieren ohne Taste (5.3.0)
+## 5. Freihand — diktieren ohne Taste (5.3.0–5.10.0)
+
+> **Stillgelegt seit 5.10.1, Oberfläche entfernt in 5.11.0.** Ein dauerhaft
+> offenes Mikrofon per Startwort auszulösen war in einem Raum mit
+> Nebengeräuschen nicht zuverlässig zu bekommen. Der Code bleibt eingefroren;
+> der Nachfolger ist der Bedienmodus „Anstupsen". Dieser Abschnitt beschreibt
+> weiter, wie der Lauscher arbeitet.
 
 Startwort sagen, sprechen, aufhören. Kommt **zusätzlich** zum Hotkey und ist
 standardmäßig aus: Eine App, die ungefragt dauerhaft mithört, wäre ein

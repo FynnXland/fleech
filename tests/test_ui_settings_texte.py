@@ -72,31 +72,36 @@ def test_combo_badge_traegt_alle_optionen_und_wandert_mit(qapp):
     assert "Erklärung A" in badge._tip    # A bleibt lesbar, auch nicht mehr aktiv
 
 
-# -- E-9/E-12: Freihand-Block komplett ausgegraut, Abbruchwort-Hinweis --------------
+# -- E-5/E-9/E-12: Freihand-Block ganz weg, Sprechpause bleibt beim Anstupsen ------
 
-def test_freihand_block_ist_komplett_ausgegraut(qapp):
-    """STILLGELEGT=True (5.10.1): NICHT nur Checkbox/Startwortliste/Probe-Knopf,
-    sondern auch Genauigkeit, Abbruchwort, Fehlersuche und Nicht-lauschen-in —
-    sonst stehen vier bedienbare Zeilen unter einem toten Schalter (E-9)."""
+def test_freihand_block_steht_nicht_mehr_auf_der_aufnahme_seite(qapp):
+    """Befund E-5: Bis 5.10.x war der Block nur AUSGEGRAUT — dieser Test prüfte
+    genau das. Ausgegraute Zeilen unter einem toten Schalter erklären trotzdem
+    nichts; in 5.11.0 ist die Oberfläche entfernt (Code eingefroren, STILLGELEGT
+    bleibt). Was der Nutzer sehen kann, muss wahr sein."""
     from fleech.freihand import STILLGELEGT
 
     assert STILLGELEGT is True
     panel, _ = _panel()
-    namen = ("_freihand_cb", "_startwort_liste", "_freihand_genauigkeit",
-             "_freihand_abbruchwort", "_freihand_fehlersuche",
-             "_freihand_ausgeschlossen")
+    namen = ("_freihand_cb", "_startwort_liste", "_startwort_probe_btn",
+             "_freihand_genauigkeit", "_freihand_abbruchwort",
+             "_freihand_fehlersuche", "_freihand_ausgeschlossen")
     for name in namen:
-        widget = getattr(panel, name)
-        assert not widget.isEnabled(), f"{name} ist noch bedienbar"
+        assert getattr(panel, name, None) is None, f"{name} steht noch in der Seite"
 
 
-def test_abbruchwort_hinweis_nennt_freihand_modus(qapp):
+def test_sprechpause_bleibt_und_spricht_vom_anstupsen(qapp):
+    """Der Regler gehört zum Anstupsen-Modus, nicht zu Freihand — er darf mit dem
+    Freihand-Block NICHT verschwunden sein (er teilt sich nur das Settings-Feld)."""
     import inspect
 
     from fleech.ui.settings import aufnahme
 
-    quelle = inspect.getsource(aufnahme._freihand_block)
-    assert "Nur im Freihand-Modus:" in quelle
+    panel, _ = _panel()
+    assert getattr(panel, "_sprechpause_box", None) is not None
+    quelle = inspect.getsource(aufnahme.build)
+    assert "Nur beim Anstupsen:" in quelle
+    assert "Freihand" not in quelle
 
 
 # -- E-11: Click-Through nennt die betroffenen Knoepfe ------------------------------

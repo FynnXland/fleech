@@ -418,18 +418,19 @@ def test_wenn_gar_nichts_geht_meldet_start_ehrlich_fehl(monkeypatch):
 
 def test_fehlschlag_wird_dem_nutzer_gemeldet():
     """Vorher stand der Fehlschlag NUR im Log — der Schalter blieb an, nichts
-    passierte, und man sucht den Fehler beim Startwort."""
+    passierte, und man sucht den Fehler beim Startwort.
+
+    Der frühere Zusatz „und das Tray meldet Freihand als aus" ist entfallen: Der
+    Tray-Eintrag ist mit der Freihand-Oberfläche in 5.11.0 weg (Befund E-8), es
+    gibt also keine Anzeige mehr, die falsch stehen könnte."""
     import types
 
     from fleech.ui.desktop import DesktopApp
 
     getoastet = []
-    tray_stand = []
     fake = types.SimpleNamespace(
         notifier=types.SimpleNamespace(
             toast=lambda *a, **kw: getoastet.append(a)),
-        tray=types.SimpleNamespace(
-            set_freihand=lambda an, wort: tray_stand.append(an)),
         settings=types.SimpleNamespace(
             freihand=types.SimpleNamespace(startwort="Kimono")),
     )
@@ -437,7 +438,6 @@ def test_fehlschlag_wird_dem_nutzer_gemeldet():
 
     assert getoastet, "keine sichtbare Meldung"
     assert any("Freihand" in str(a) for a in getoastet[0])
-    assert tray_stand == [False], "Tray zeigt Freihand weiter als aktiv"
 
 
 # -- Hoerfehler des kleinen Modells (gemessen) -------------------------------------------
@@ -1066,15 +1066,17 @@ def test_der_riegel_greift_auch_bei_aktiv_true():
     assert quelle.index("STILLGELEGT") < quelle.index("freihand.aktiv")
 
 
-def test_der_tray_schalter_meldet_sich_statt_stumm_zu_bleiben():
-    """Der Eintrag steht im Tray; ein Klick ohne jede Rückmeldung liesse den
-    Nutzer den Fehler beim Mikrofon suchen."""
-    import inspect
-
+def test_es_gibt_keinen_tray_schalter_mehr():
+    """Befund E-8/E-5: Bis 5.10.x stand „Freihand: an/aus" im Tray, und dieser Test
+    prüfte, dass ein Klick darauf wenigstens antwortet, statt stumm zu bleiben. In
+    5.11.0 ist der Eintrag entfernt — mitsamt `toggle_freihand`: Der stillgelegte
+    Modus kann den Zustand „an" gar nicht mehr einnehmen, ein Schalter dafür wäre
+    nur eine Anzeige, die lügt."""
     from fleech.ui.desktopapp.freihand import FreihandMixin
+    from fleech.ui.tray import TrayController
 
-    quelle = inspect.getsource(FreihandMixin.toggle_freihand)
-    assert "STILLGELEGT" in quelle and "_flash_status" in quelle
+    assert not hasattr(FreihandMixin, "toggle_freihand")
+    assert not hasattr(TrayController, "set_freihand")
 
 
 def test_der_riegel_laesst_sich_an_einer_stelle_loesen():
@@ -1089,12 +1091,16 @@ def test_der_riegel_laesst_sich_an_einer_stelle_loesen():
     assert "STILLGELEGT" not in quelle.split("class Lauscher")[1]
 
 
-def test_das_tray_meldet_freihand_nicht_als_an_solange_es_stillgelegt_ist():
+def test_das_tray_meldet_freihand_gar_nicht_mehr():
     """Befund E-8: Beim Start ging die gespeicherte Einstellung ungeprüft an das
     Tray — wer vor 5.10.1 `aktiv: true` stehen hatte, las dort „Freihand: an
-    (Kimono)", während in Wirklichkeit nichts lauschte. Bei einer Funktion,
-    deren ganzer Sinn Vertrauen ist, ist genau diese Richtung die schlimmere."""
+    (Kimono)", während in Wirklichkeit nichts lauschte. 5.10.1 hat den Text
+    korrigiert, 5.11.0 den Eintrag ganz entfernt: keine Anzeige, keine falsche
+    Anzeige."""
     from pathlib import Path
 
     quelle = Path("fleech/ui/desktop.py").read_text(encoding="utf-8")
-    assert "set_freihand(self.settings.freihand.aktiv and not STILLGELEGT" in quelle
+    assert "tray.set_freihand" not in quelle
+    assert "toggle_freihand" not in quelle
+    # Die Zustandsanzeige der Pille bleibt (unerreichbar, aber wahr).
+    assert "overlay.set_freihand" in quelle

@@ -56,8 +56,8 @@ class TrayController:
 
     def __init__(self, actions: dict):
         """actions: toggle_recording, toggle_overlay, open_settings, reload, quit;
-        optional: toggle_freihand, open_home, open_update, redo_last,
-        save_last_wav (die beiden letzten = die letzte Aufnahme, V-15)."""
+        optional: open_home, open_update, redo_last, save_last_wav (die beiden
+        letzten = die letzte Aufnahme, V-15)."""
         self._icons = {state: _make_icon(color) for state, color in _STATE_COLOR.items()}
         self.tray = QSystemTrayIcon(self._icons[AppState.IDLE])
         self.tray.setToolTip(_STATE_TOOLTIP[AppState.IDLE])
@@ -83,14 +83,9 @@ class TrayController:
         self._record_action.triggered.connect(actions["toggle_recording"])
         self._overlay_action = QAction("Overlay ein/aus")
         self._overlay_action.triggered.connect(actions["toggle_overlay"])
-        # Freihand-Schnellschalter: Wer merkt, dass er gerade nicht mitgehoert
-        # haben will, muss das mit EINEM Griff beenden koennen — ohne die
-        # Einstellungen zu oeffnen und ohne zu suchen.
-        self._freihand_action = QAction("Freihand: aus")
-        if actions.get("toggle_freihand"):
-            self._freihand_action.triggered.connect(actions["toggle_freihand"])
-        else:
-            self._freihand_action.setVisible(False)
+        # Der Freihand-Schnellschalter ist mit der Freihand-Oberflaeche in 5.11.0
+        # entfallen: Er meldete einen Zustand („Freihand: an"), den der stillgelegte
+        # Modus gar nicht mehr einnehmen kann (Befund E-8).
         # Die letzte Aufnahme (V-15): Rund jede achte Aufnahme lieferte ein leeres
         # Transkript, und danach war der Ton weg — „nochmal erkennen" hiess
         # „nochmal sprechen". Beide Eintraege bleiben immer anklickbar; ob etwas
@@ -121,7 +116,7 @@ class TrayController:
         reload_action.triggered.connect(actions["reload"])
         quit_action = QAction("Beenden")
         quit_action.triggered.connect(actions["quit"])
-        for a in (self._record_action, self._overlay_action, self._freihand_action):
+        for a in (self._record_action, self._overlay_action):
             menu.addAction(a)
         if self._wieder_actions:
             menu.addSeparator()
@@ -145,13 +140,6 @@ class TrayController:
             lambda reason: open_main() if reason == QSystemTrayIcon.Trigger else None
         )
         self.tray.show()
-
-    def set_freihand(self, an: bool, startwort: str = "") -> None:
-        """Menuetext dem Zustand anpassen — „Freihand: an (Kimono)" sagt in einem
-        Blick, ob gelauscht wird und worauf."""
-        self._freihand_action.setText(
-            f"Freihand: an ({startwort})" if an and startwort
-            else ("Freihand: an" if an else "Freihand: aus"))
 
     def set_state(self, state: AppState) -> None:
         self.tray.setIcon(self._icons[state])
