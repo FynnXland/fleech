@@ -13,39 +13,59 @@ GitHub-Release-Notizen (`packaging/release.py`).
 
 ## 5.11.0 — 2026-08-18
 
-Sammel-Release der Tiefenanalyse vom 17./18. August: Alles aus 5.10.3 bis 5.10.5 ist
-enthalten (die Abschnitte darunter sagen es im Einzelnen), dazu drei neue
-Fähigkeiten rund um Profile und Apps. Was du im Alltag merkst, in einem Absatz: Der
-Verlauf sagt jetzt *warum* etwas schiefging und lässt sich durchsuchen; die Pille
-zeigt das Profil, das wirklich gilt, und warnt, wenn das Mikrofon nichts liefert;
-Hotkeys auf Makro-Tasten funktionieren; Uhrzeiten kosten keinen Fehlversuch mehr;
-Stichpunkte- und KI-Prompt-Profil tun endlich, was sie versprechen; die
-Einstellungsdatei geht nicht mehr verloren; und die Insights zeigen ehrliche Zahlen.
+Das erste Release nach der Tiefenanalyse vom 17./18. August: vierzehn Prüf-Agenten
+haben Code, Protokoll und den echten Verlauf durchgesehen, dann wurden ihre Befunde in
+zwölf Blöcken umgesetzt (5.10.3 bis 5.10.5, alle in dieser Version enthalten). Kurz,
+was du im Alltag merkst — Einzelheiten stehen in den Abschnitten der drei
+Zwischenversionen darunter:
 
-**Profile lassen sich sichern und weitergeben.** Auf der Profilseite schreiben zwei
-Knöpfe alle Profile samt App-Zuordnung und Schnellwechsel in eine JSON-Datei und lesen
-sie wieder ein — die Datei enthält bewusst nur Profile (kein Lizenzschlüssel, keine
-Mikrofoneinstellung), man kann sie also einem Empfänger mitgeben. Beim Import kommt
-nichts abhanden: Unbekannte Profile werden ergänzt, gleichnamige nur nach Rückfrage
-überschrieben, gelöscht wird nie etwas.
+- **Die Einstellungsdatei geht nicht mehr verloren.** Gleichzeitiges Speichern kann
+  sie nicht mehr zerstören; steht sie nach einem Unfall plötzlich auf Werkseinstellung
+  (Lizenz weg, Hotkey F9), holt Fleech beim Start die letzte gute Fassung zurück.
+- **Der Verlauf sagt, warum.** Jeder Eintrag kennt den Grund eines Rückfalls, das
+  Profil und das Fenster; verworfene Wörter werden aufgehoben; der Verlauf lässt sich
+  nach Wort, Programm und Zeitraum durchsuchen und als Markdown speichern. Das
+  Protokoll trägt ein Datum und rotiert.
+- **Profile tun, was sie versprechen — und man sieht, welches gilt.** Das
+  Stichpunkte-Profil bildet Stichpunkte, „direkt abschicken" wirkt in KI-Prompt und
+  Stichpunkte, der Schnellwechsel überspringt das Standardprofil (das legte bisher
+  unbemerkt die App-Zuordnung still), der Ring an der Pille zeigt das Profil der App,
+  in die du diktierst, die Apps-Seite sagt live „Wenn du jetzt diktierst …", die
+  Sprache ist je Profil einstellbar, „Jetzt aktiv" steht oben auf der Profilseite.
+- **Drei neue Handgriffe rund um Profile:** Profile exportieren/importieren (nur
+  Profile, kein Lizenzschlüssel — zum Weitergeben), „Aktuellen Titel übernehmen"
+  statt Abtippen (mit Vorschlägen für den stabilen Teil des Titels), und eine Karte,
+  die für stark genutzte Programme ohne Profil eine Zuordnung vorschlägt — nie
+  automatisch, „Nicht mehr fragen" ist einen Klick entfernt.
+- **Wächter, die stimmen.** Uhrzeiten („18.50 Uhr" → „18:50 Uhr") kosten keinen
+  Fehlversuch mehr; „Strong" prüft wieder Zahlen und Verneinungen; leere
+  KI-Antworten und verlorene Formeln werden ehrlich als Rückfall gemeldet;
+  Endlosschleifen im Text („um, um, um, um, um") werden gekürzt und gemeldet;
+  „Raute", „Unterstrich", „Schrägstrich" bleiben normale Wörter.
+- **Aufnahmeweg ohne Klemmen.** Diktier-Hotkeys auf Makro-/G-Tasten funktionieren
+  zuverlässig; gehaltene Tasten lösen nicht doppelt aus; „Kein Ton vom Mikrofon"
+  warnt nach vier Sekunden Stille noch während des Diktats (Schwelle am Gerät
+  geprüft); ein fehlendes Mikrofon und eine nicht laufende lokale KI werden gemeldet;
+  ein kopiertes Bild bleibt in der Zwischenablage; beim Beenden werden andere Apps
+  wieder laut; die letzte Aufnahme lässt sich aus dem Tray noch einmal erkennen oder
+  als WAV sichern.
+- **Insights mit ehrlichen Zahlen.** Median statt Mittelwert, Buchvergleich auf die
+  Lebenszeit, keine Banalitäten bei kurzen Zeiträumen; „Als Regel übernehmen" schlägt
+  nur noch echte Erkennungsfehler vor und fragt bei Schreibvarianten
+  („Cloud-Code 18× · Claude Code 10× — welche stimmt?"); gelerntes Vokabular ist
+  einzeln vergessbar.
+- **Texte, die stimmen.** Einführung, Hilfetexte und die Weitergabe-Dokumentation
+  sagen jetzt, was die App tut (kein toter Formel-Hotkey, „Anstupsen" als dritter
+  Bedienmodus, ehrliche Speicher- und Wartezeiten, „?" erklärt alle Optionen).
 
-**Fenstertitel muss man nicht mehr abtippen.** Auf der Apps-Seite trägt „Aktuellen
-Titel übernehmen" den Titel des Fensters ein, aus dem du gerade kamst — darunter
-steht, welcher Titel angeboten wird. Kleine Knöpfe daneben bieten nur den stabilen
-Teil des Titels an (etwa „fleech" statt „apps.py - Fleech - Visual Studio Code"),
-denn genau der ist die brauchbare Bedingung.
-
-**Fleech fragt von sich aus nach der App-Zuordnung.** Oben auf der Apps-Seite steht
-für stark genutzte Programme ohne Profil eine Karte wie „In claude.exe hast du 895
-Diktate gemacht (64 % aller). Kein Profil zugewiesen." — mit einem Knopf, der die
-Regel anlegt. Vorgeschlagen wird, was dort bisher tatsächlich lief: dein häufig von
-Hand gewähltes Profil oder das benutzte Ausgabeformat. Zugewiesen wird nie von
-selbst; „Nicht mehr fragen" lässt die Karte für diese Anwendung verschwinden.
-
-Noch offen und mit dir zu klären: die Schwelle der Kein-Ton-Warnung (hergeleitet,
-nicht am Mikrofon gemessen), und ob drei Dinge entfernt werden sollen, die der
-Verlauf als ungenutzt ausweist (Textbausteine, die stillgelegte Freihand-Oberfläche,
-der Schalter „Adaptive Geschwindigkeit").
+**Entfernt, weil ungenutzt** — belegt am eigenen Verlauf: die **Textbausteine**
+(in 1399 Diktaten kein einziger angelegt und kein wiederkehrender Text, aus dem einer
+geworden wäre; die Einsprech-Probe für Wörterbuch-Einträge bleibt), die
+**Freihand-Oberfläche** (der Modus ist seit 5.10.1 stillgelegt; der Code bleibt
+eingefroren, „Anstupsen" ist der Nachfolger, der Sprechpause-Regler steht jetzt beim
+Bedienmodus) und der Schalter **„Adaptive Geschwindigkeit"** (er bewirkte seit
+Version 3.5 nichts mehr — es gibt nur ein Modell; die kurze Route für kurze Diktate
+bleibt an).
 
 ---
 
