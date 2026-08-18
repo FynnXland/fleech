@@ -85,6 +85,37 @@ def test_verschluckter_marker_rettet_den_baustein():
     assert "Viele Grüße\nAlex" in injector.injected[0]
 
 
+def test_formel_und_baustein_im_selben_diktat_verliert_die_formel_nicht():
+    """C-3: Der Baustein-Zweig prüfte nur die [[B…]]-Marker. Verschluckte das Modell
+    den Formel-Marker, ersetzte `restore_formulas` ihn durch NICHTS — die Formel war
+    spurlos weg, mit grünem Haken und Bestätigungston."""
+    raw = "vielen dank die formel lautet x hoch zwei plus eins bis bald Baustein Signatur"
+    llm = FakeLLM(reply="Vielen Dank, die Formel lautet. Bis bald. [[B1]]")  # [[M1]] weg
+    p, _, injector = make_pipeline(raw, llm=llm)
+    p.auto_latex = True
+    p.set_snippets(SNIPPET_LINES)
+
+    assert p.process(AUDIO, 16000) == "fallback"
+    assert "x^{2} + 1" in injector.injected[0]      # die Formel ist noch da
+    assert "Viele Grüße\nAlex" in injector.injected[0]
+    # Das Modell bekommt die Regel für BEIDE Platzhalter-Familien zu hören.
+    system, _user = llm.calls[0]
+    assert "[[B1]]" in system and "[[M1]]" in system
+
+
+def test_formel_und_baustein_gehen_gemeinsam_durch():
+    """Der Normalfall daneben: Bleiben beide Marker stehen, gibt es keinen Rückfall."""
+    raw = "vielen dank die formel lautet x hoch zwei plus eins bis bald Baustein Signatur"
+    llm = FakeLLM(reply="Vielen Dank, die Formel lautet [[M1]]. Bis bald. [[B1]]")
+    p, _, injector = make_pipeline(raw, llm=llm)
+    p.auto_latex = True
+    p.set_snippets(SNIPPET_LINES)
+
+    assert p.process(AUDIO, 16000) == "ok"
+    assert "$x^{2} + 1$" in injector.injected[0]
+    assert injector.injected[0].endswith("Viele Grüße\nAlex")
+
+
 def test_baustein_kuerzel_wird_der_erkennung_genannt():
     p, _llm, _injector = make_pipeline("egal")
     p.set_snippets(SNIPPET_LINES)

@@ -21,7 +21,9 @@ def hint(text: str) -> QLabel:
 INTERVENTION_HELP = {
     "minimal": "Fast Rohtext, keine KI — am schnellsten.",
     "standard": "Füllwörter weg, saubere Zeichensetzung. (Empfohlen)",
-    "strong": "Stärkere Glättung mit Absätzen und Aufzählungen.",
+    "strong": "Stärkere Glättung mit Absätzen und Aufzählungen. Die Prüfungen "
+              "auf Umformulieren und Ausschmücken sind dabei ausgesetzt — Zahlen "
+              "und Verneinungen werden weiterhin geprüft.",
 }
 
 MATH_LEVEL_HELP = {

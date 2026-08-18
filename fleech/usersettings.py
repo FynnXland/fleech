@@ -360,8 +360,8 @@ def apply_toast_level(f: FocusSettings, level: str) -> None:
 class OutputSettings:
     intervention: str = "standard"  # minimal | standard | strong
     # Gesprochene Zeichen als Zeichen schreiben („Slash Hunter" → „/Hunter").
-    # Bewusst nur eindeutige Woerter (Slash, Hashtag, Unterstrich, Klammeraffe) —
-    # „Minus"/„Plus" bleiben Text, das sind gewoehnliche deutsche Woerter.
+    # Bewusst nur eindeutige Woerter (Slash, Backslash, Hashtag, Klammeraffe) —
+    # „Minus", „Plus", „Raute", „Unterstrich" bleiben Text: gewoehnliche Woerter.
     spoken_symbols: bool = True
     # Safe-Word-Befehle komplett an/aus ("aktiv beenden", nicht nur Wort wechseln).
     command_enabled: bool = True

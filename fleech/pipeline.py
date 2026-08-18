@@ -34,6 +34,7 @@ from .textutils import (
 from .textfilter import (
     added_ratio,
     classify_complexity,
+    collapse_inner_repetitions,
     collapse_trailing_repetitions,
     content_words,
     has_self_correction,
@@ -120,6 +121,13 @@ _AUTO_LATEX_ADDENDUM = (
     "unveraendert. Wandle NICHT um: einfache Alltagszahlen, Aufzaehlungen, Datums-/"
     "Uhrzeitangaben, normale Woerter. Im Zweifel als normalen Text lassen. Gib KEINE "
     "Erklaerungen aus, nur den Text mit den eingebetteten $…$-Formeln."
+)
+
+# Ansage fuer die Formel-Platzhalter. Steht hier und nicht zweimal im Code: Sie gilt
+# im reinen Formel-Zweig UND im Baustein-Zweig, wenn beides im selben Diktat vorkommt.
+_FORMEL_MARKER_HINWEIS = (
+    "Platzhalter der Form [[M1]], [[M2]] … sind fertige Formeln: EXAKT und "
+    "unveraendert an ihrer Position lassen, niemals entfernen oder umschreiben."
 )
 
 
@@ -492,6 +500,10 @@ class Pipeline:
             "Platzhalter der Form [[B1]], [[B2]] … sind Text-Bausteine: EXAKT und "
             "unveraendert an ihrer Position lassen, niemals entfernen oder umschreiben."
         )
+        if formulas:
+            # Formel UND Baustein im selben Diktat: Ohne diesen Hinweis kannte das
+            # Modell nur die [[B…]]-Regel und warf den Formel-Marker weg (C-3).
+            hints.append(_FORMEL_MARKER_HINWEIS)
         # Immer das grosse Modell: live gemessen verschluckte das frueher genutzte
         # kleine Zweitmodell die Marker in der Mehrzahl der Faelle (kurze Saetze mit
         # Platzhalter ueberfordern es). Seit beide Stufen dasselbe Modell nutzen, ist
@@ -502,6 +514,12 @@ class Pipeline:
         # falsche Handel. Gleiche Logik wie bei Code-Diktaten: subtiler Fall → gross.
         text, fallback = self._clean_text(expanded, intervention_override, hints,
                                           force_big=True)
+        # Derselbe Rueckfall wie im reinen Formel-Zweig (`_clean_with_markers`):
+        # `restore_formulas` ersetzt einen fehlenden Marker durch NICHTS — die
+        # Formel verschwand hier bisher spurlos, mit gruenem Haken (C-3).
+        if formulas and not formula_markers_survived(expanded, text, len(formulas)):
+            log.warning("Cleanup hat Formel-Platzhalter verloren — nutze Rohtext-Gerüst.")
+            text, fallback = expanded, True
         text = restore_formulas(text, formulas)
         if not markers_survived(expanded, text, len(snippet_texts)):
             # Ein verschluckter Marker hiesse: der Baustein faellt ersatzlos weg.
@@ -519,10 +537,7 @@ class Pipeline:
         wenn ein Marker verloren geht — eine verschwundene Formel waere schlimmer
         als ein unbereinigter Satz."""
         hints = list(style_hints or [])
-        hints.append(
-            "Platzhalter der Form [[M1]], [[M2]] … sind fertige Formeln: EXAKT und "
-            "unveraendert an ihrer Position lassen, niemals entfernen oder umschreiben."
-        )
+        hints.append(_FORMEL_MARKER_HINWEIS)
         cleaned, fallback = self._clean_text(text, intervention_override, hints,
                                              force_big=True)
         if not formula_markers_survived(text, cleaned, len(formulas)):
@@ -607,7 +622,11 @@ class Pipeline:
         # Prompt-Regeln allein halten das nicht bei jedem Modell.
         cleaned = strip_meta_preamble(strip_wrapping_quotes(cleaned))
         if not cleaned:
-            return raw, False
+            # Rohtext einfuegen ist richtig — ihn als Erfolg zu melden war es nicht
+            # (C-4): Der Nutzer bekam gruenen Haken und Bestaetigungston fuer ein
+            # unbereinigtes Transkript. Wie jeder andere Rueckfall hier: fallback.
+            log.warning("Cleanup lieferte eine leere Antwort — fuege Roh-Transkript ein.")
+            return raw, True
         # Schicht 3: Divergenz-Netz. Hat das Modell den Text als Prompt AUSGEFUEHRT
         # statt ihn zu bereinigen, ist die Ausgabe erfundener Inhalt → niedriges
         # Grounding → Roh-Transkript einfuegen statt der Halluzination.
@@ -649,12 +668,14 @@ class Pipeline:
             log.debug("Status-Callback fehlgeschlagen.", exc_info=True)
 
     def _collapse_repetitions(self, raw: str) -> str:
-        """Zwei Erkennungsartefakte auf auslaufendem/stillem Audio abfangen — beide
+        """Erkennungsartefakte auf auslaufendem/stillem Audio abfangen — alle
         sichtbar geloggt, damit nie still etwas verschwindet.
 
         1. **Endlosschleife**: derselbe Satz dutzendfach ("Das war's. Das war's. …").
         2. **Zerfallener Schwanz**: dasselbe Wort verstreut, mit Sprachwechseln
            dazwischen — kein sauberer Loop, deshalb braucht es den zweiten Guard.
+        3. **Schleife MITTEN im Text**: dieselbe Schleife, aber mit echtem Text
+           dahinter — die Schwanz-Guards sehen sie nicht (H-B6).
 
         Laeuft VOR dem LLM: Das Modell soll den Ausschuss gar nicht erst sehen,
         sonst baut es ihn beim Bereinigen in einen plausiblen Satz ein.
@@ -690,7 +711,19 @@ class Pipeline:
             log.warning("STT-Wortsalat am Ende verworfen (%d Woerter): %s",
                         len(dropped3.split()), dropped3[:160])
             cleaned = rest3
-        verworfen = " ".join(x for x in (dropped3, dropped2, dropped) if x).strip()
+        # Fuenfter Fall: die Schleife steht MITTEN im Text. Die vier Guards oben
+        # sehen nur den Schwanz — real eingefuegt wurden „G-G-G-G-…" (34x),
+        # „um, um, um, um, um." und „No-no-no-no-no.", jedes Mal mit gruenem
+        # Haken, weil davor und danach noch echter Text stand (Befund H-B6).
+        # Zuletzt, damit die Schwanz-Guards ihre Merkmale noch sehen: ein Lauf
+        # gleicher Woerter ist eines ihrer vier Wortsalat-Signale.
+        rest4, gekuerzt = collapse_inner_repetitions(cleaned)
+        if gekuerzt:
+            log.warning("STT-Wiederholung im Text gekuerzt (%d Woerter): %s",
+                        len(gekuerzt.split()), gekuerzt[:160])
+            cleaned = rest4
+        verworfen = " ".join(
+            x for x in (gekuerzt, dropped3, dropped2, dropped) if x).strip()
         if verworfen:
             self.last_dropped_tail = verworfen
         return cleaned
@@ -714,7 +747,8 @@ class Pipeline:
            `added_ratio` die Gegenrichtung — Woerter, die niemand gesagt hat.
 
         Ausnahme ist nur noch der Eingriffsgrad „strong" (dort ist staerkeres
-        Glaetten ausdruecklich gewuenscht). Bei `auto_latex` wird seit v2.1.0 auf
+        Glaetten ausdruecklich gewuenscht) — die Zahl-/Verneinungs-Pruefung
+        (`_check_meaning`) laeuft aber auch dort. Bei `auto_latex` wird auf
         dem formelbereinigten Text gemessen statt gar nicht — die Wortgetreue
         bleibt dort allerdings ausgespart, weil gesprochene Formelwoerter legitim
         zu Symbolen werden.
@@ -728,10 +762,18 @@ class Pipeline:
             )
             cleaned = trimmed
 
-        if intervention == "strong":
-            return cleaned, False
         if len(content_words(raw)) < _CLEANUP_GUARD_MIN_WORDS:
             return cleaned, False  # zu wenig Signal fuer eine belastbare Aussage
+
+        if intervention == "strong":
+            # Aufblaehen und Wortgetreue sind hier ausdruecklich erlaubt — Zahlen
+            # und Verneinungen nicht (A-3). „Strong" haengt genau an den Profilen
+            # „Geschaeftlich" und „E-Mail", also dort, wo Termine und Betraege im
+            # Text stehen. Bei aktiver Formel-Automatik entfaellt die Pruefung wie
+            # im Standardpfad: gesprochene Zahlen werden dort legitim zu Symbolen.
+            if self.auto_latex:
+                return cleaned, False
+            return self._check_meaning(raw, cleaned, system, llm)
 
         # Bei aktiver Formel-Automatik wird auf dem FORMELBEREINIGTEN Text gemessen,
         # statt den Schutz abzuschalten. Frueher galt hier `auto_latex → Guard aus`;

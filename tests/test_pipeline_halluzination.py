@@ -201,6 +201,89 @@ def test_verlorene_zahl_wird_erkannt():
     assert "22,60" in treffer
 
 
+def test_uhrzeit_mit_punkt_ist_dieselbe_zahl_wie_mit_doppelpunkt():
+    """C-1: Die haeufigste Fehlalarm-Ursache des Guards. Whisper schreibt „18.50 Uhr",
+    das Modell macht daraus korrekt „18:50 Uhr" — und der Guard meldete „Zahl fehlt",
+    warf die einzig richtige Fassung weg und fügte das Rohtranskript ein."""
+    from fleech.textfilter import meaning_flipped
+
+    raw = "es ist jetzt 18.50 uhr und ich bin 19.10 uhr wieder hier"
+    assert meaning_flipped(raw, "Es ist jetzt 18:50 Uhr und ich bin 19:10 Uhr wieder hier.") == ""
+    assert meaning_flipped("wir treffen uns um 16.30 uhr",
+                           "Wir treffen uns um 16:30 Uhr.") == ""
+    # Komma/Punkt sind ebenfalls dieselbe Zahl.
+    assert meaning_flipped("das kostet 22.60 euro", "Das kostet 22,60 Euro.") == ""
+
+
+def test_datum_als_monatsname_gilt_nicht_als_verlorene_zahl():
+    """„15.07." → „15. Juli" ist eine Schreibweise, kein Verlust. Verlangt wird der
+    Monats-NAME: „6.7." → „der 6., oder der 7.?" (real im Verlauf) bleibt ein Treffer."""
+    from fleech.textfilter import meaning_flipped
+
+    assert meaning_flipped("heute ist der 15.07. und morgen faellt aus",
+                           "Heute ist der 15. Juli, und morgen fällt aus.") == ""
+    assert "6.7" in meaning_flipped("heute ist der 6.7.", "Heute ist der 6., oder der 7.?")
+
+
+def test_echte_zahlverluste_bleiben_treffer():
+    """Die Normalisierung darf den Guard nicht entschaerfen: Verschwindet ein Betrag
+    ganz, ist das weiterhin eine Sinnumkehr."""
+    from fleech.textfilter import meaning_flipped
+
+    treffer = meaning_flipped("die rechnung über 22,60 euro ist noch offen",
+                              "Die Rechnung ist noch offen.")
+    assert "22,60" in treffer                      # Meldung in Originalschreibweise
+    assert meaning_flipped("das sind 0,1-1 prozent", "Das sind $01-1$ Prozent.") != ""
+
+
+def test_wiederholungsschleife_mitten_im_text_wird_gekuerzt():
+    """H-B6: Sieben Diktate mit Schleifen wurden als „ok" eingefügt, weil die
+    Schleife nicht am Textende stand. Die Beispiele stammen aus dem Verlauf
+    (id 1084, id 1205, id 1197, id 1199)."""
+    from fleech.textfilter import collapse_inner_repetitions
+
+    text, gekuerzt = collapse_inner_repetitions(
+        "Ich wollte um, um, um, um, um noch etwas fragen.")
+    assert text == "Ich wollte um noch etwas fragen." and "um," in gekuerzt
+
+    text, gekuerzt = collapse_inner_repetitions(
+        "Das ist No-no-no-no-no-no-no-no. Und dann weiter im Text.")
+    assert text == "Das ist No. Und dann weiter im Text." and gekuerzt
+
+    text, _ = collapse_inner_repetitions(
+        "Da steht G-G-G-G-G-G-G-G-G-G-G-G mitten im Satz.")
+    assert text == "Da steht G mitten im Satz."
+
+    text, _ = collapse_inner_repetitions(
+        "don't, don't, don't, don't, don't, don't, aber es geht ja um etwas anderes")
+    assert text.startswith("don't, aber es geht")
+
+
+def test_rhetorische_wiederholung_ueberlebt_im_textinneren():
+    """Dieselbe Schwelle wie am Textende: erst ab fuenf Nennungen. Ein dreifaches
+    „nein" ist gesprochene Betonung, keine Halluzination."""
+    from fleech.textfilter import collapse_inner_repetitions
+
+    for echt in ("Er sagte nein, nein, nein und ging dann.",
+                 "Das ist sehr, sehr, sehr wichtig für uns.",
+                 "Die E-Mail-Adresse steht in der Signatur."):
+        assert collapse_inner_repetitions(echt) == (echt, "")
+
+
+def test_schleife_im_textinneren_erreicht_das_modell_nicht():
+    """Wie die anderen Roh-Guards: vor dem LLM, sichtbar gemeldet — sonst baut das
+    Modell den Unsinn in einen plausiblen Satz ein."""
+    raw = ("Ich brauche das bis morgen um, um, um, um, um, um zwölf Uhr, damit wir "
+           "das Ganze noch rechtzeitig abschicken können.")
+    p, llm, _injector = make_pipeline(raw)
+    p.process(AUDIO, 16000)
+
+    _system, user_text = llm.calls[0]
+    assert "um, um, um" not in user_text
+    assert "bis morgen um zwölf Uhr" in user_text
+    assert p.last_dropped_tail                      # die Pille meldet die Kuerzung
+
+
 def test_selbstkorrektur_darf_die_verneinung_verlieren():
     """Wer sich korrigiert, nimmt die Verneinung selbst zurück — das ist richtig so
     und darf keinen Fehlalarm auslösen."""
