@@ -17,10 +17,11 @@ from PySide6.QtWidgets import (
     QVBoxLayout, QWidget,
 )
 
-from ...history import HistoryStore
+from ...history import HistoryStore, treffer_als_markdown
 from ...profiles import PROFILE_FORMATS
 from ...usersettings import UserSettings
 from ..dialogs import TranscriptDetailDialog
+from .verlauffilter import VerlaufFilter
 from ..theme import (
     ACCENT, AMBER, MUTED, NAV_ACTIVE_BG, PAGE_MARGINS, PAGE_SPACING, ROW_HOVER,
     SIDEBAR, TEXT, TRACK, page_title_qss,
@@ -130,6 +131,7 @@ class HomePage(QWidget):
         # Nachbearbeitung: callable(rohtext, format, profilname). Die Seite kennt
         # die Pipeline nicht — sie reicht nur weiter, was der Nutzer gewaehlt hat.
         self._on_reprocess = on_reprocess
+        self._treffer: list[dict] = []   # was gerade in der Timeline steht (Ausgabe)
 
         outer = QVBoxLayout(self)
         outer.setContentsMargins(*PAGE_MARGINS)
@@ -143,7 +145,14 @@ class HomePage(QWidget):
         body.setSpacing(12)
         outer.addLayout(body, 1)
 
-        # Verlauf (links)
+        # Verlauf (links) — mit Filterleiste darueber (V-12): suchen, Anwendung,
+        # Zeitraum, Treffer ausgeben.
+        links = QVBoxLayout()
+        links.setSpacing(8)
+        self.filter = VerlaufFilter()
+        self.filter.geaendert.connect(self.refresh)
+        self.filter.export_gewuenscht.connect(self._export_treffer)
+        links.addWidget(self.filter)
         self._scroll = QScrollArea()
         self._scroll.setWidgetResizable(True)
         self._scroll.setFrameShape(QFrame.NoFrame)
@@ -155,7 +164,8 @@ class HomePage(QWidget):
         self._timeline.setContentsMargins(0, 8, 8, 8)
         self._timeline.addStretch(1)
         self._scroll.setWidget(self._timeline_holder)
-        body.addWidget(self._scroll, 1)
+        links.addWidget(self._scroll, 1)
+        body.addLayout(links, 1)
 
         # Kurz-Stats (rechts) — Design-System: grosse Kennzahl + kleines Label,
         # der erste Wert (Woerter gesamt) traegt den Akzent.
@@ -222,9 +232,15 @@ class HomePage(QWidget):
                 # wird das Widget sonst bis zum naechsten Event-Loop-Durchlauf
                 w.hide()
                 w.deleteLater()
-        entries = self.store.recent(limit=40)
+        self.filter.setze_apps(self._app_namen())
+        entries = self._eintraege()
+        self._treffer = entries
         if not entries:
-            empty = QLabel("Noch keine Diktate — halte den Hotkey und sprich los.")
+            empty = QLabel(
+                "Keine Treffer — anderer Suchbegriff, andere Anwendung oder "
+                "größerer Zeitraum." if self.filter.aktiv()
+                else "Noch keine Diktate — halte den Hotkey und sprich los."
+            )
             empty.setStyleSheet(f"color: {MUTED}; font-size: 10pt;")
             self._timeline.insertWidget(0, empty)
             return
@@ -247,6 +263,62 @@ class HomePage(QWidget):
                 insert_at += 1
             self._timeline.insertWidget(insert_at, self._entry_row(entry))
             insert_at += 1
+
+    # -- Suche und Ausgabe (V-12) ------------------------------------------------------
+
+    def _eintraege(self) -> list[dict]:
+        """Die Liste, die gerade gezeigt wird: gefiltert oder die letzten 40.
+
+        Solange nichts eingestellt ist, bleibt es beim bisherigen Verhalten —
+        die Suche kostet niemanden etwas, der sie nicht benutzt."""
+        if not self.filter.aktiv():
+            return self.store.recent(limit=40)
+        return self.store.search(
+            text=self.filter.suchtext(), app=self.filter.app(),
+            von=self.filter.von(), limit=200,
+        )
+
+    def _app_namen(self) -> list[str]:
+        """Anwendungen fuer die Auswahlliste — zuletzt benutzte zuerst."""
+        try:
+            gesehen = self.store.last_seen_apps()
+        except Exception:
+            log.debug("App-Liste nicht ermittelbar.", exc_info=True)
+            return []
+        return [app for app, _ts in sorted(gesehen.items(), key=lambda p: -p[1])]
+
+    def _export_treffer(self) -> None:
+        """Die angezeigten Eintraege als Markdown-Datei sichern.
+
+        Bewusst die ANGEZEIGTEN, nicht der ganze Bestand: Ein Abzug von tausend
+        Diktaten beantwortet keine Frage. Der Hinweis, dass darin der volle
+        Wortlaut unverschluesselt steht, haengt am Knopf (Tooltip)."""
+        from PySide6.QtWidgets import QFileDialog
+
+        eintraege = getattr(self, "_treffer", None) or []
+        if not eintraege:
+            log.info("Nichts zu speichern — die Trefferliste ist leer.")
+            return
+        vorschlag = f"fleech-verlauf-{_dt.date.today().isoformat()}.md"
+        pfad, _filter = QFileDialog.getSaveFileName(
+            self, "Treffer als Markdown speichern", vorschlag, "Markdown (*.md)")
+        if not pfad:
+            return
+        self._schreibe_markdown(pfad, eintraege)
+
+    @staticmethod
+    def _schreibe_markdown(pfad, eintraege: list[dict]) -> bool:
+        """Getrennt vom Dateidialog, damit der Inhalt pruefbar ist, ohne eine
+        blockierende Qt-Event-Loop zu starten."""
+        from pathlib import Path
+
+        try:
+            Path(pfad).write_text(treffer_als_markdown(eintraege), encoding="utf-8")
+        except Exception:
+            log.exception("Verlauf konnte nicht gespeichert werden: %s", pfad)
+            return False
+        log.info("Verlauf ausgegeben: %d Einträge nach %s", len(eintraege), pfad)
+        return True
 
     def _entry_row(self, entry: dict) -> QFrame:
         row = HistoryEntryRow(entry, self._delete_entry)

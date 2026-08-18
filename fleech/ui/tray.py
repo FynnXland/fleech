@@ -55,7 +55,9 @@ class TrayController:
     """Kapselt QSystemTrayIcon; Aktionen werden als Callbacks injiziert."""
 
     def __init__(self, actions: dict):
-        """actions: toggle_recording, toggle_overlay, open_settings, reload, quit"""
+        """actions: toggle_recording, toggle_overlay, open_settings, reload, quit;
+        optional: toggle_freihand, open_home, open_update, redo_last,
+        save_last_wav (die beiden letzten = die letzte Aufnahme, V-15)."""
         self._icons = {state: _make_icon(color) for state, color in _STATE_COLOR.items()}
         self.tray = QSystemTrayIcon(self._icons[AppState.IDLE])
         self.tray.setToolTip(_STATE_TOOLTIP[AppState.IDLE])
@@ -89,15 +91,44 @@ class TrayController:
             self._freihand_action.triggered.connect(actions["toggle_freihand"])
         else:
             self._freihand_action.setVisible(False)
+        # Die letzte Aufnahme (V-15): Rund jede achte Aufnahme lieferte ein leeres
+        # Transkript, und danach war der Ton weg — „nochmal erkennen" hiess
+        # „nochmal sprechen". Beide Eintraege bleiben immer anklickbar; ob etwas
+        # im Speicher liegt, meldet die Pille beim Klick. Grund: Der Zustand
+        # aendert sich im Worker-Thread, und ein QAction von dort umzuschalten
+        # waere ein Griff an ein Qt-Objekt aus dem falschen Thread.
+        self._wieder_actions = []
+        for schluessel, text, tipp in (
+            ("redo_last", "Letzte Aufnahme noch einmal erkennen",
+             "Schickt den zuletzt aufgenommenen Ton noch einmal durch die "
+             "Erkennung — nützlich nach einem leeren oder falschen Ergebnis."),
+            ("save_last_wav", "Letzte Aufnahme als WAV sichern …",
+             "Speichert den zuletzt aufgenommenen Ton als Datei."),
+        ):
+            if not actions.get(schluessel):
+                continue
+            a = QAction(text)
+            a.setToolTip(
+                tipp + " Hinweis: Die letzte Aufnahme liegt bis zur nächsten "
+                "im Arbeitsspeicher — auf die Festplatte kommt sie nur, wenn du "
+                "sie hier ausdrücklich sicherst."
+            )
+            a.triggered.connect(actions[schluessel])
+            self._wieder_actions.append(a)
         settings_action = QAction("Einstellungen …")
         settings_action.triggered.connect(actions["open_settings"])
         reload_action = QAction("Neu laden")
         reload_action.triggered.connect(actions["reload"])
         quit_action = QAction("Beenden")
         quit_action.triggered.connect(actions["quit"])
-        for a in (self._record_action, self._overlay_action,
-                  self._freihand_action, settings_action):
+        for a in (self._record_action, self._overlay_action, self._freihand_action):
             menu.addAction(a)
+        if self._wieder_actions:
+            menu.addSeparator()
+            for a in self._wieder_actions:
+                menu.addAction(a)
+        menu.addSeparator()
+        menu.addAction(settings_action)
         menu.addSeparator()
         menu.addAction(self._update_action)
         menu.addAction(reload_action)
@@ -105,7 +136,7 @@ class TrayController:
         self._menu = menu
         self._actions = [self._record_action, self._overlay_action, settings_action,
                          self._update_action, reload_action,
-                         quit_action]  # Referenzen halten (GC!)
+                         quit_action, *self._wieder_actions]  # Referenzen halten (GC!)
         self.tray.setContextMenu(menu)
 
         # Linksklick: Hauptfenster (Home); Rechtsklick macht Qt selbst (Menue).

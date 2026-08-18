@@ -6,7 +6,7 @@ Baut die Seite in das uebergebene SettingsPanel; die Widget-Bauer
 
 from __future__ import annotations
 
-from PySide6.QtWidgets import QLineEdit, QPushButton
+from PySide6.QtWidgets import QComboBox, QHBoxLayout, QLineEdit, QPushButton
 
 from ..theme import style_button
 from .common import hint
@@ -73,6 +73,22 @@ def build(panel) -> None:
     ))
     panel._kontext_zeile = hint("")
     form.addRow("", panel._kontext_zeile)
+    # Einzeln vergessen (V-14): Im Gedaechtnis stehen auch Hoerfehler
+    # (`Cloud-Code`, `FLEACH` — echt aus kontext.db), und sie primen sich ueber
+    # den initial_prompt selbst weiter. Bisher liess sich dagegen nur ALLES
+    # loeschen — also loeschte niemand etwas.
+    einzeln = QHBoxLayout()
+    panel._kontext_begriffe = QComboBox()
+    panel._kontext_begriffe.setMinimumWidth(220)
+    panel._kontext_begriffe.setToolTip(
+        "Was Fleech in diesem Programm gelernt hat, häufigste zuerst. "
+        "Steht hier eine falsche Schreibweise, vergiss genau sie."
+    )
+    einzeln.addWidget(panel._kontext_begriffe, 1)
+    einzeln_btn = style_button(QPushButton("Begriff vergessen"), "ghost")
+    einzeln_btn.clicked.connect(panel._kontext_begriff_vergessen)
+    einzeln.addWidget(einzeln_btn)
+    form.addRow("", einzeln)
     vergessen = style_button(QPushButton("Gelerntes vergessen"), "ghost")
     vergessen.clicked.connect(panel._kontext_vergessen)
     form.addRow("", vergessen)

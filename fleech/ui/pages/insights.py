@@ -166,16 +166,20 @@ _RANGE_DAYS = {"day": 1, "week": 7, "month": 30, "all": None}
 
 class InsightsPage(QWidget):
     def __init__(self, store: HistoryStore, on_add_rule=None, settings=None,
-                 on_ignored=None):
+                 on_ignored=None, kontext_fn=None):
         """on_add_rule: Callable(falsch, richtig) — uebernimmt einen erkannten
         Korrektur-Fehler als Woerterbuch-Regel (Ein-Klick aus der Vorschlags-Karte).
         settings: UserSettings — fuer bereits vorhandene Regeln und die Ignorier-
         Liste (None = alle Vorschlaege zeigen, z. B. in Tests).
         on_ignored: Callable() — nach einem „Ignorieren"-Klick, damit der Editor
-        der Ignorier-Liste in den Einstellungen nachzieht."""
+        der Ignorier-Liste in den Einstellungen nachzieht.
+        kontext_fn: Callable() -> KontextSpeicher|None — zweite Quelle der
+        Schreibvarianten-Frage (V-14). Gereicht statt selbst geoeffnet, damit die
+        Seite nicht ungefragt an die Datei des Nutzers geht (Tests, Fixtures)."""
         self._on_add_rule = on_add_rule
         self._settings = settings
         self._on_ignored = on_ignored
+        self._kontext_fn = kontext_fn
         self._init_page(store)
 
     def _init_page(self, store: HistoryStore):
@@ -357,6 +361,51 @@ class InsightsPage(QWidget):
         self._advice_box.addWidget(row)
         return row
 
+    def _varianten_row(self, frage) -> QWidget:
+        """Zwei Schreibweisen desselben Begriffs — als FRAGE, nie als Behauptung.
+
+        V-14/Befund H-B3: Der haeufigere Begriff ist hier ausdruecklich nicht der
+        richtige („Cloud-Code" 18× gegen „Claude Code" 10×), und ein Cluster kann
+        auch zwei echte Woerter zusammenziehen („Matrize"/„Matrix"). Deshalb zwei
+        gleichwertige Knoepfe und ein „Ignorieren" — keine Vorauswahl.
+        """
+        row = QWidget()
+        h = QHBoxLayout(row)
+        h.setContentsMargins(0, 2, 0, 2)
+        h.setSpacing(10)
+        label = QLabel(
+            f"„{frage.haeufig}“ {frage.haeufig_anzahl}× · „{frage.selten}“ "
+            f"{frage.selten_anzahl}× — welche Schreibweise stimmt?"
+        )
+        label.setWordWrap(True)
+        label.setStyleSheet(f"color: {TEXT}; font-size: 9pt; border: none;")
+        h.addWidget(label, 1)
+        # Jede Seite ein Knopf „diese ist richtig": die ANDERE wird zur Regel
+        # „falsch => richtig" und wirkt damit in beide Richtungen (Priming vor der
+        # Erkennung, Ersetzung danach).
+        for richtig, falsch in ((frage.haeufig, frage.selten),
+                                (frage.selten, frage.haeufig)):
+            btn = style_button(QPushButton(f"„{richtig}“ ist richtig"))
+            btn.setToolTip(
+                f"Ersetzt künftig jedes „{falsch}“ durch „{richtig}“ — überall, "
+                f"in jedem Diktat — und vergisst „{falsch}“ im Gedächtnis."
+            )
+            btn.setProperty("rule_wrong", falsch)
+            btn.setProperty("rule_right", richtig)
+            btn.clicked.connect(self._on_take_rule)
+            h.addWidget(btn)
+        ignore = style_button(QPushButton("Ignorieren"))
+        ignore.setToolTip(
+            "Fragt nie wieder nach diesem Paar — z. B. weil es zwei verschiedene "
+            "Wörter sind. Zurücknehmen: Einstellungen → Wörterbuch → Ignoriert."
+        )
+        ignore.setProperty("rule_wrong", frage.haeufig)
+        ignore.setProperty("rule_right", frage.selten)
+        ignore.clicked.connect(self._on_ignore_rule)
+        h.addWidget(ignore)
+        self._advice_box.addWidget(row)
+        return row
+
     @staticmethod
     def _advice_key(wrong: str, right: str) -> str:
         return f"{wrong} => {right}".lower()
@@ -413,6 +462,39 @@ class InsightsPage(QWidget):
         return any(str(i).strip().lower() == key
                    for i in settings.output.dictionary_ignores or [])
 
+    def _variante_unterdrueckt(self, a: str, b: str) -> bool:
+        """Frage ausblenden — in BEIDE Richtungen.
+
+        Anders als bei einer Korrektur steht bei einer Variantenfrage nicht fest,
+        welche Seite die falsche ist. Wer „Claude Code ist richtig" geklickt hat,
+        hat die Regel `Cloud-Code => Claude Code` angelegt; die Frage darf danach
+        genauso wenig wiederkommen wie nach einem „Ignorieren" der Gegenrichtung.
+        """
+        settings = self._settings
+        if settings is None:
+            return False
+        paare = {self._advice_key(a, b), self._advice_key(b, a)}
+        zeilen = list(settings.output.dictionary or []) \
+            + list(settings.output.dictionary_ignores or [])
+        return any(str(zeile).strip().lower() in paare for zeile in zeilen)
+
+    def _varianten_fragen(self) -> list:
+        """Die Schreibvarianten-Fragen holen — Fehler kosten hier einen Vorschlag,
+        nicht ein Diktat, deshalb still auf „nichts zu fragen"."""
+        from ...varianten import vorschlaege
+
+        gedaechtnis = None
+        if callable(self._kontext_fn):
+            try:
+                gedaechtnis = self._kontext_fn()
+            except Exception:
+                log.debug("Gedaechtnis fuer Varianten nicht lesbar.", exc_info=True)
+        try:
+            return vorschlaege(self.store, gedaechtnis, limit=_ADVICE_SHOWN)
+        except Exception:
+            log.debug("Schreibvarianten-Auswertung fehlgeschlagen.", exc_info=True)
+            return []
+
     def _update_advice_visibility(self) -> None:
         self._advice_frame.setVisible(self._advice_allowed and bool(self._advice_rows))
 
@@ -424,6 +506,21 @@ class InsightsPage(QWidget):
             row.deleteLater()
         self._advice_rows = []
 
+        shown = 0
+        # Schreibvarianten ZUERST (V-14): Sie sind die Frage, die das Woerterbuch
+        # wirklich fuellt. Der Roh-gegen-Bereinigt-Diff darunter findet Grammatik;
+        # Eigennamen zeigen sich erst im Vergleich MEHRERER Diktate — „Cloud-Code"
+        # 18× gegen „Claude Code" 10× ist nach 1399 Diktaten der wichtigste
+        # Fachbegriff des Nutzers, und er steht in keinem einzigen Diff.
+        if self._on_add_rule is not None:
+            for frage in self._varianten_fragen():
+                if shown >= _ADVICE_SHOWN - 1:
+                    break
+                if self._variante_unterdrueckt(frage.haeufig, frage.selten):
+                    continue
+                shown += 1
+                self._advice_rows.append(self._varianten_row(frage))
+
         try:
             # Mehr holen als angezeigt wird: Sonst bliebe die Karte leer, sobald die
             # drei staerksten Paare uebernommen oder weggeklickt sind — obwohl es
@@ -431,7 +528,6 @@ class InsightsPage(QWidget):
             corrections = self.store.top_corrections(limit=_ADVICE_SCAN)
         except Exception:
             corrections = []
-        shown = 0
         for wrong, right, count in corrections:
             if shown >= _ADVICE_SHOWN:
                 break

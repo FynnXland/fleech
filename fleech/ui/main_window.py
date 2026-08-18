@@ -230,7 +230,8 @@ class MainWindow(QMainWindow):
                              on_reprocess=on_reprocess)
         self.insights = InsightsPage(store, on_add_rule=self._add_dictionary_rule,
                                      settings=settings,
-                                     on_ignored=self._reload_dictionary_editor)
+                                     on_ignored=self._reload_dictionary_editor,
+                                     kontext_fn=self._kontext_speicher)
         self.profiles = ProfilesPage(
             settings, store,
             on_changed=getattr(settings_panel, "_on_changed", None),
@@ -266,6 +267,12 @@ class MainWindow(QMainWindow):
 
     # -- Navigation ---------------------------------------------------------------
 
+    def _kontext_speicher(self):
+        """Verbindung zum Projekt-Gedaechtnis fuer die Insights-Seite (V-14)."""
+        from ..kontext import oeffne
+
+        return oeffne(getattr(self.settings.advanced, "kontext_lernen", True))
+
     def _add_dictionary_rule(self, wrong: str, right: str) -> None:
         """Vorschlag aus den Insights als Woerterbuch-Regel uebernehmen.
 
@@ -278,6 +285,7 @@ class MainWindow(QMainWindow):
         rules.append(line)
         self.settings.save()
         log.info("Woerterbuch-Regel aus Insights uebernommen: %s", line)
+        self._kontext_vergessen(wrong)
         # Settings-Seite und laufende Pipeline nachziehen (dieselbe Nahtstelle, die
         # auch der Editor nutzt) — sonst greift die Regel erst nach einem Neustart.
         notify = getattr(self.settings_panel, "_on_changed", None)
@@ -286,6 +294,24 @@ class MainWindow(QMainWindow):
         reload_editor = getattr(self.settings_panel, "reload_dictionary", None)
         if callable(reload_editor):
             reload_editor()
+
+    def _kontext_vergessen(self, falsch: str) -> None:
+        """Die falsche Schreibweise auch aus dem Gedaechtnis nehmen (V-14/H-B3).
+
+        Ohne das bliebe der Fehler im Priming: `kontext.db` gibt gelernte Begriffe
+        als `initial_prompt` an Whisper zurueck — die Erkennung haette also weiter
+        „Cloud-Code" gehoert, und die frische Regel haette es hinterher jedes Mal
+        wieder korrigieren muessen. Fehlschlaege sind hier folgenlos: Die Regel
+        steht bereits und wirkt."""
+        speicher = self._kontext_speicher()
+        if speicher is None or not falsch.strip():
+            return
+        anzahl = speicher.vergiss(begriff=falsch)
+        if anzahl:
+            log.info("Gedaechtnis: %r vergessen (%d Eintraege).", falsch, anzahl)
+        panel_refresh = getattr(self.settings_panel, "_refresh_kontext_zeile", None)
+        if callable(panel_refresh):
+            panel_refresh()
 
     def _reload_dictionary_editor(self) -> None:
         """Woerterbuch-Seite (inkl. Ignorier-Liste) nachziehen, wenn sich die Daten

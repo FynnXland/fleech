@@ -80,16 +80,7 @@ class DesktopApp(
         self.overlay.pause_requested.connect(self.toggle_pause)
         # Modus-Punkt-Klick: KI-Prompting an/aus.
         self.overlay.profile_cycle_requested.connect(self.cycle_profile)
-        self.tray = TrayController({
-            "toggle_recording": lambda: self.controller.start_via_ui("dictate"),
-            "toggle_overlay": self._toggle_overlay,
-            "toggle_freihand": self.toggle_freihand,
-            "open_home": lambda: self.window.open_page("home"),
-            "open_settings": self._open_settings,
-            "reload": self._reload,
-            "quit": self._quit,
-            "open_update": self.show_update_dialog,
-        })
+        self.tray = TrayController(self._tray_aktionen())
         self.store = HistoryStore()
         self.panel = panel = SettingsPanel(
             self.settings, self._on_setting_changed, list_input_devices,
@@ -164,6 +155,10 @@ class DesktopApp(
         threading.Thread(target=self._warm_up, daemon=True).start()
         self._freihand = None
         self._freihand_audio = None
+        # Die zuletzt aufgenommene Tonspur (16 kHz float32), genau eine, nur im
+        # Arbeitsspeicher — Grundlage von „noch einmal erkennen" und „als WAV
+        # sichern" (V-15, `desktopapp/nachbereitung.py`).
+        self._letzte_aufnahme = None
         try:
             from ..freihand import STILLGELEGT, woerter_als_text
 
@@ -454,6 +449,13 @@ class DesktopApp(
         Dann wuerden beide auf denselben DocumentTracker schreiben und der Bezugspunkt
         fuer Safe-Word-Ersetzungen waere falsch. Das Lock haelt die Reihenfolge; es
         blockiert nur Worker-Threads, die UI bleibt bedienbar."""
+        # Die Aufnahme aufheben, BEVOR irgendetwas sie verbrauchen kann (V-15).
+        # Genau hier, weil alle Wege hierher fuehren (Hotkey, Pille, Freihand) —
+        # und weil `process()` bei leerem Transkript mit "empty" aussteigt, ohne
+        # je einen Verlaufseintrag zu schreiben: 198 von 1603 Aufnahmen (12,4 %)
+        # endeten so, im schlimmsten belegten Fall nach 163 s Rede. Genau EINE
+        # Aufnahme, nur im Arbeitsspeicher, nie auf Platte.
+        self._letzte_aufnahme = audio
         if self._process_lock.locked():
             log.info("Vorheriges Diktat laeuft noch — Verarbeitung wird eingereiht.")
             self.bus.progress.emit("Vorheriges Diktat wird noch verarbeitet …")
@@ -593,6 +595,24 @@ class DesktopApp(
             self.bus.set_state(AppState.ERROR, "Verarbeitung fehlgeschlagen — Log prüfen")
             self.notifier.toast("critical_error", "Fleech",
                                 "Verarbeitung fehlgeschlagen — Details im Log.")
+
+    def _tray_aktionen(self) -> dict:
+        """Was das Tray-Menue aufrufen kann. Als eigene Methode und nicht als
+        Literal im Konstruktor: Der ist die Verdrahtung der ganzen App und hat
+        seine Laengengrenze (`tests/test_ui_struktur.py`) schon einmal gerissen."""
+        return {
+            "toggle_recording": lambda: self.controller.start_via_ui("dictate"),
+            "toggle_overlay": self._toggle_overlay,
+            "toggle_freihand": self.toggle_freihand,
+            "open_home": lambda: self.window.open_page("home"),
+            "open_settings": self._open_settings,
+            "reload": self._reload,
+            "quit": self._quit,
+            "open_update": self.show_update_dialog,
+            # Die letzte Aufnahme (V-15) — siehe desktopapp/nachbereitung.py.
+            "redo_last": self._erneut_erkennen,
+            "save_last_wav": self._letzte_aufnahme_sichern,
+        }
 
     # -------------------------------------------------------------------- Hotkeys --
 

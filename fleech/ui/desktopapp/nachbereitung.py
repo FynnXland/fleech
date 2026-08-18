@@ -169,6 +169,76 @@ class NachbereitungMixin:
             log.exception("Automatisches Absenden fehlgeschlagen — Text steht im Feld.")
             self._flash_status("Absenden fehlgeschlagen")
 
+    # -- Die letzte Aufnahme (V-15) ----------------------------------------------------
+    #
+    # `_letzte_aufnahme` haelt genau EIN Audio-Array (16 kHz float32), gesetzt in
+    # `DesktopApp._process` und dort bei der naechsten Aufnahme ersetzt. Nie auf
+    # Platte — ausser der Nutzer sichert ausdruecklich. Der Grund: 198 von 1603
+    # Aufnahmen (12,4 %) lieferten ein leeres Transkript, 24 davon mit ueber 5 s
+    # Audio, die laengste 163 s. Bis 5.10.4 war die Aufnahme danach weg, und
+    # „nochmal erkennen" hiess „nochmal sprechen".
+
+    def _letzte_aufnahme_oder_meldung(self):
+        audio = getattr(self, "_letzte_aufnahme", None)
+        if audio is None or not len(audio):
+            self._flash_status("Keine Aufnahme im Speicher")
+            return None
+        return audio
+
+    def _erneut_erkennen(self) -> None:
+        """Die letzte Aufnahme noch einmal durch dieselbe Verarbeitung schicken.
+
+        Bewusst derselbe Weg wie ein frisches Diktat (`_process`, im Worker, unter
+        `_process_lock`) und kein zweiter: Das Ergebnis soll sich in nichts von
+        einem Diktat unterscheiden — inklusive Verlaufseintrag, Guards, Pille und
+        Einfuegen. Sinnvoll wird das vor allem, wenn zwischendurch etwas anders
+        ist: ein anderes Profil, ein ergaenztes Woerterbuch, ein Ollama, das
+        wieder laeuft.
+        """
+        audio = self._letzte_aufnahme_oder_meldung()
+        if audio is None:
+            return
+        if self._process_lock.locked():
+            self._flash_status("Ein Diktat läuft noch")
+            return
+        from ..state import AppState
+
+        log.info("Letzte Aufnahme wird erneut erkannt (%d Samples).", len(audio))
+        self.bus.set_state(AppState.PROCESSING)
+        threading.Thread(target=self._process, args=(audio,), daemon=True).start()
+
+    def _letzte_aufnahme_sichern(self) -> None:
+        """Die letzte Aufnahme als WAV-Datei ablegen (Dateidialog, GUI-Thread)."""
+        from PySide6.QtWidgets import QFileDialog
+
+        audio = self._letzte_aufnahme_oder_meldung()
+        if audio is None:
+            return
+        vorschlag = f"fleech-aufnahme-{time.strftime('%Y-%m-%d-%H%M%S')}.wav"
+        pfad, _filter = QFileDialog.getSaveFileName(
+            None, "Letzte Aufnahme sichern", vorschlag, "WAV-Datei (*.wav)")
+        if not pfad:
+            return
+        self._schreibe_wav(pfad, audio)
+
+    def _schreibe_wav(self, pfad, audio) -> bool:
+        """Getrennt vom Dateidialog, damit der Inhalt pruefbar ist, ohne eine
+        blockierende Qt-Event-Loop zu starten."""
+        from pathlib import Path
+
+        from ...audio import audio_to_wav_bytes
+
+        try:
+            rate = self.config.audio.samplerate
+            Path(pfad).write_bytes(audio_to_wav_bytes(audio, rate))
+        except Exception:
+            log.exception("Aufnahme konnte nicht gesichert werden: %s", pfad)
+            self._flash_status("Sichern fehlgeschlagen — Log prüfen")
+            return False
+        log.info("Letzte Aufnahme gesichert: %s", pfad)
+        self._flash_status("Aufnahme gesichert")
+        return True
+
     def _reprocess_entry(self, roh: str, fmt: str, name: str) -> None:
         """Ein gespeichertes Diktat neu bereinigen lassen. Laeuft im Worker-Thread.
 
