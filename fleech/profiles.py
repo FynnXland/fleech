@@ -112,6 +112,13 @@ class ProfileOverrides:
     Bewusst ein Dataclass statt eines Tupels: mit dem Safe-Word-Schalter waeren es
     vier positionale Werte — dort hoert die Lesbarkeit auf."""
 
+    # Name des Profils, aus dem diese Overrides stammen ("" = keins/global aus).
+    # Nur zur Nachvollziehbarkeit: Er landet im Verlauf, damit nach einem falsch
+    # formatierten Diktat feststellbar ist, welches Profil galt (Befund G-B9).
+    # BEWUSST nicht Teil des Vergleichs: Der Name sagt nichts ueber die WIRKUNG —
+    # zwei Profile mit denselben Vorgaben formen den Text gleich. So bleiben die
+    # Zuordnungs-Tests Wirkungstests und stolpern nicht ueber eine Beschriftung.
+    name: str = field(default="", compare=False)
     intervention: str | None = None  # None = globale Einstellung (Ausgabe)
     style_hints: list | None = None  # Stil-Tags fuer den System-Prompt
     mode_slot: str = ""              # "" | "math" | "prompt"

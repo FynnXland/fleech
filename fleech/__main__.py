@@ -105,15 +105,26 @@ def main() -> int:
     if desktop_modus:
         from .usersettings import SETTINGS_DIR
 
+        from logging.handlers import RotatingFileHandler
+
         SETTINGS_DIR.mkdir(parents=True, exist_ok=True)
-        handlers = [logging.FileHandler(SETTINGS_DIR / "fleech.log", encoding="utf-8")]
+        # Rotation statt endloser Datei: Das Protokoll war zuletzt 11,5 MB /
+        # 126.000 Zeilen — durchsuchbar nur noch ueber Zeilennummern. Der Name
+        # bleibt `fleech.log` (CLAUDE.md und die Support-Wege zeigen darauf), die
+        # aelteren Staende heissen fleech.log.1 … .3. Angehaengt wird wie bisher,
+        # rotiert erst beim Ueberlauf — der vorhandene Inhalt bleibt erhalten.
+        handlers = [RotatingFileHandler(
+            SETTINGS_DIR / "fleech.log", maxBytes=20 * 1024 * 1024, backupCount=3,
+            encoding="utf-8")]
         if sys.stderr is not None:  # bei pythonw ist stderr None
             handlers.append(logging.StreamHandler())
 
     logging.basicConfig(
         level=logging.DEBUG if args.verbose else logging.INFO,
         format="%(asctime)s %(levelname)-7s %(name)s: %(message)s",
-        datefmt="%H:%M:%S",
+        # MIT Datum: Ohne es liess sich keine Log-Zeile einem Tag zuordnen — jede
+        # Fehlersuche musste ueber Start-Zeilen und Zeilennummern datieren (H-2).
+        datefmt="%Y-%m-%d %H:%M:%S",
         handlers=handlers,
     )
     # Der Haken in den Einstellungen wirkt jetzt wie -v: Wer ihn setzt, will beim

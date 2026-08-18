@@ -20,7 +20,9 @@ from PySide6.QtWidgets import (
 )
 
 from ..history import HistoryStore
-from .theme import ACCENT, BG, BORDER_HAIRLINE, CARD, MUTED, TEXT, style_button
+from .theme import (
+    ACCENT, AMBER, BG, BORDER_HAIRLINE, CARD, MUTED, TEXT, style_button,
+)
 from .widgets import _ranked_row
 
 log = logging.getLogger(__name__)
@@ -156,6 +158,24 @@ class TranscriptDetailDialog(QDialog):
             f"color: {MUTED}; font-size: 9pt; font-weight: 600; letter-spacing: 0.5px;"
         )
         outer.addWidget(header)
+
+        # Der erklaerende Teil (V-1): Bis 5.10.3 stand hier nur der Text — welches
+        # Profil galt, in welchem Fenster, und warum es nicht glatt lief, war nach
+        # dem Diktat nicht mehr feststellbar. Leere Felder (Altzeilen, glatter
+        # Lauf) erzeugen KEINE Zeile, sonst waere jeder Eintrag voller "—".
+        for beschriftung, wert, farbe in (
+            ("Profil", entry.get("profile", ""), MUTED),
+            ("Fenster", entry.get("title", ""), MUTED),
+            ("Grund", entry.get("reason", ""), AMBER),
+            ("Verworfen (Rohtext-Ende)", entry.get("dropped", ""), AMBER),
+        ):
+            wert = str(wert or "").strip()
+            if not wert:
+                continue
+            zeile = QLabel(f"{beschriftung}: {wert}")
+            zeile.setWordWrap(True)
+            zeile.setStyleSheet(f"color: {farbe}; font-size: 8.5pt;")
+            outer.addWidget(zeile)
         outer.addSpacing(6)
 
         def _section(caption: str) -> None:

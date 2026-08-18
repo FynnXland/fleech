@@ -31,6 +31,10 @@ BORDER_HAIRLINE = "rgba(255,255,255,0.06)"  # Hairline fuer Controls/Trenner
 BORDER_CARD = "rgba(255,255,255,0.04)"      # noch dezenter: Karten-Rahmen
 ON_ACCENT = "#0E2126"                       # dunkle Glyphe/Schrift AUF Akzentflaeche
 DANGER_TEXT = "#E08585"                     # Danger-Buttons (Verlauf löschen)
+# „Schau hier bitte nach" — kein Fehler, aber auch nicht glattgelaufen. Dieselbe
+# Bedeutung wie der amberne Haken der Pille nach einem Rueckfall; jetzt auch im
+# Verlauf, wo der Grund steht.
+AMBER = "#E0A030"
 
 _STREAK_SHADES = ["#2A313B", "#12525F", "#219FB8", "#35C0D8"]
 

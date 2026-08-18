@@ -42,6 +42,7 @@ def overrides_from(item: dict):
     mode = str(item.get("intervention", "")).lower()
     tags = [str(t).strip() for t in item.get("tags", []) if str(t).strip()]
     return ProfileOverrides(
+        name=str(item.get("name", "") or ""),
         intervention=mode if mode in ("minimal", "standard", "strong") else None,
         style_hints=tags or None,
         mode_slot=profile_mode(item),
@@ -112,6 +113,11 @@ class ProfilMixin:
             for item, entry in paare:
                 if app and app_rule_matches(entry, app, title):
                     chosen = item
+                    # Befund G-B9: Die AUTOMATISCHE Auflösung protokollierte bisher
+                    # nichts — ob eine Regel griff und welche, war nach dem Diktat
+                    # nicht mehr feststellbar, auch nicht im Log.
+                    log.info("Profil %s ueber Regel %r fuer %s / %r",
+                             item.get("name", ""), entry, app, title)
                     break
             if chosen is not None:
                 break
