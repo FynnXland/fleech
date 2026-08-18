@@ -1267,7 +1267,7 @@ der Knopf „Alle Karten wieder einblenden" unter **Allgemein**.
 | Sprechpause bis Ende | nur bei *Anstupsen* sichtbar: so lange still = fertig (1–4 s) | 2,0 s |
 | Diktat-Hotkey | Taste, Kombination oder Maustaste 4/5/Mitte | F9 |
 | KI-Prompting | **nur während einer Aufnahme**: dieses Diktat wird zum Prompt (dauerhaft: Profil „KI-Prompt" wählen) | Strg+Alt+P |
-| Freihand | dauerhaft auf ein Startwort lauschen (Abschnitt 21) — **stillgelegt seit 5.10.1**, Feld ausgegraut | aus |
+| Freihand | dauerhaft auf ein Startwort lauschen (Abschnitt 21) — **stillgelegt seit 5.10.1** | aus |
 | Startwörter | ein Wort pro Zeile; Fleech startet bei **jedem** davon | Kimono |
 | Genauigkeit | welches Modell das Startwort prüft: *wie beim Diktat* oder ein sparsames eigenes | wie beim Diktat |
 | Abbruchwort | fällt es im Diktat, wird verworfen statt eingefügt | Abbrechen |
@@ -1275,6 +1275,11 @@ der Knopf „Alle Karten wieder einblenden" unter **Allgemein**.
 | Nicht lauschen in | Prozessnamen, in denen Freihand ruht | leer |
 | Mikrofon | Gerätewahl; wirkt ab der nächsten Aufnahme | Systemstandard |
 | Gesperrte Geräte | Namensteile, die nie als Mikrofon gelten sollen | leer |
+
+Solange Freihand stillgelegt ist, ist der **gesamte Block ausgegraut** — nicht mehr nur
+der Ein-Schalter selbst und die Startwortliste, sondern auch Genauigkeit, Abbruchwort,
+Fehlersuche und „Nicht lauschen in". Vorher ließen sich diese vier Felder trotz
+stillgelegtem Modus weiter bearbeiten, ohne dass es etwas bewirkt hätte.
 
 Zu den gesperrten Geräten: Fleech erkennt gängige Loopback-Geräte („Stereomix",
 „CABLE Output", Monitor-Quellen) selbst — sie würden Systemton statt Stimme

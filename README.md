@@ -117,13 +117,14 @@ einem Neustart.
 Jedes Profil hat eigene Einstellungen (Eingriffsgrad, Safe-Word, automatisch absenden)
 und lässt sich Anwendungen zuweisen; die Handauswahl sticht die Zuweisung.
 
-Außerdem: **gesprochene Zeichen** („Slash Hunter" → „/Hunter"; nur eindeutige Wörter,
-„Minus" und „Plus" bleiben Text), **Textbausteine** („Baustein Signatur"), ein
-**Wörterbuch** für Fachbegriffe
-(primt zusätzlich die Erkennung), **Ersetzungsregeln**, **Profile** je Anwendung
-(Eingriffsgrad, Safe-Word an/aus, automatisch absenden), **Rückgängig** nach einer
-Fehlausgabe (`Strg+Alt+Z`) und ein **Verlauf** mit Auswertung (Wörter, WPM, Serie,
-häufigste Wörter) — alles lokal in SQLite.
+Außerdem: **gesprochene Zeichen** („Slash Hunter" → „/Hunter"; nur vier eindeutige
+Wörter — Slash, Backslash, Hashtag, Klammeraffe —, alles andere bleibt Text),
+**Textbausteine** („Baustein Signatur"), ein **Wörterbuch** für Fachbegriffe (primt
+zusätzlich die Erkennung), **Ersetzungsregeln**, **Profile** je Anwendung
+(Eingriffsgrad, Safe-Word an/aus, automatisch absenden, exportierbar/importierbar),
+**Rückgängig** nach einer Fehlausgabe (`Strg+Alt+Z`) und ein durchsuchbarer
+**Verlauf** mit Auswertung (Wörter, WPM, Serie, häufigste Wörter, Grund bei
+Rückfällen) und Markdown-Export — alles lokal in SQLite.
 
 ## Wo Daten liegen
 
@@ -160,7 +161,7 @@ Kontext; Fleech spricht deshalb bei lokalen Endpunkten Ollamas eigene `/api/chat
 .venv\Scripts\python -m pytest -q
 ```
 
-Knapp 600 Tests, STT und LLM gemockt. Optional ein echter faster-whisper-Lauf auf einer
+Rund 1480 Tests, STT und LLM gemockt. Optional ein echter faster-whisper-Lauf auf einer
 per TTS erzeugten Datei: `pwsh tests/fixtures/make_fixture.ps1`, dann
 `$env:FLEECH_STT_TEST = "1"` und `pytest tests/test_stt_integration.py`.
 

@@ -100,6 +100,14 @@ wechselt. In einem KI-Chat sind das andere als in Word.
 die die Erkennung sonst verhaspelt. Der wirksamste Handgriff überhaupt — trag
 dort ein, was in deinem Alltag ständig vorkommt.
 
+**Verlauf durchsuchen** — auf der Home-Seite lässt sich der Verlauf nach Wort,
+Anwendung und Zeitraum filtern (nicht nur die letzten Einträge), die Treffer
+lassen sich als Markdown-Datei speichern.
+
+**Profile sichern** — auf der Profilseite schreiben zwei Knöpfe deine Profile und
+Zuordnungen in eine Datei und lesen sie wieder ein; praktisch für einen Umzug auf
+einen anderen Rechner oder als Sicherung.
+
 **Fenster schließen beendet Fleech nicht**, es läuft im Infobereich weiter
 (Symbol rechts unten neben der Uhr). Rechtsklick darauf → Beenden.
 
