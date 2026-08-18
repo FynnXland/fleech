@@ -8,6 +8,12 @@ import numpy as np
 
 
 class STTEngine(ABC):
+    # Verworfener Schwanz ohne Ton des LETZTEN Laufs (siehe stt/nachlauf.py).
+    # Als Klassenattribut, damit die Pipeline ihn bei JEDEM Backend abholen kann,
+    # ohne zu wissen, ob es den Guard hat. Fleech verwirft nie still: Die Pille
+    # zeigt den Text an, der Verlauf speichert ihn.
+    letzter_schwanz_ohne_ton: str = ""
+
     @abstractmethod
     def transcribe(
         self, audio: np.ndarray, samplerate: int, initial_prompt: str | None = None

@@ -52,6 +52,8 @@ Provider/Modelle/Prompts sind in `config.yaml` + `prompts/` konfigurierbar
   Wortsalat, fremde Schrift, Sinnumkehr. Kern-Fachlogik, keine Helfer-Sammlung.
 - `fleech/dictionary.py` — persönliches Wörterbuch (Priming, Ersetzung, Vorschläge).
 - `fleech/textutils.py` — nur noch der Rahmen um den LLM-Call (Transkript einpacken/auspacken).
+- `fleech/stt/nachlauf.py` — Roh-Guard auf der Audio-Seite: streicht Whisper-Segmente
+  am Ende, hinter denen kein Ton liegt („Vielen Dank."-Halluzination).
 - `fleech/mathmode.py`, `document.py` — Formeln, Diktat-Puffer.
 - `fleech/profiles.py` — App-Profile: Regeln (Prozess + Titel), Farben, Schnellwechsel.
 - `fleech/usersettings.py` — `%APPDATA%\Fleech\settings.json` (Dataclasses, additive Migration).

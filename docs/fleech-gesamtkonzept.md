@@ -539,6 +539,32 @@ sperrt das an vier Stellen:
 | Formel-Segment | leeres Transkript → gar kein Modell-Aufruf |
 | Live-Vorschau | Pegel unter 0,004 → kein Dekodierlauf |
 
+**Der Schwanz ohne Ton (seit 5.11.x).** Bei langen Diktaten hängt Whisper hinter das
+letzte echte Wort noch Floskeln: „Vielen Dank. Vielen Dank.", „Bis zum nächsten Mal.",
+„Untertitelung des ZDF". Getroffen hat es 7 von 1419 Diktaten im Verlauf. Auslöser ist
+nicht die Stille am Ende, sondern der `initial_prompt` (Wörterbuch, gelernte
+Fachbegriffe, Signalwort) in Verbindung mit langem Audio — auf 95 s Prosa halluzinierten
+**10 von 10** Läufen mit Prompt und **0 von 10** ohne.
+
+Whispers eigene Kennzahl hilft nicht: `no_speech_prob` stand in der Messung bei **allen
+2367 Segmenten exakt auf 0,0000** — bei echter Sprache wie bei erfundener. Der bestehende
+Filter (`no_speech_prob ≥ 0,8`) fing davon **0 von 420** Segmenten. Was sauber trennt, ist
+das **Audio dahinter**: Kein einziges der 420 erfundenen Segmente hatte mehr als RMS
+0,00194 unter sich, jedes echte lag bei 0,06–0,11; 343 begannen sogar *nach* dem Ende der
+Aufnahme.
+
+Deshalb streicht Fleech Segmente **vom Ende her**, solange das Original-Audio in ihrem
+Zeitfenster unter **RMS 0,002** liegt (dieselbe Schwelle, die die Pille als „kein Ton"
+anzeigt) oder ihr Start jenseits der Audiodauer liegt. Beim ersten Segment mit Ton bricht
+die Prüfung ab — mitten im Text wird nie geschnitten —, und das letzte verbleibende
+Segment bleibt immer stehen (lieber ein fragwürdiger Satz als ein leeres Flüster-Diktat).
+Getestet: 19 von 22 halluzinierenden Läufen sauber, 22 von 22 behielten ihr letztes echtes
+Wort, Kosten 0 ms (reine Nachbearbeitung). Fehlalarm beginnt erst unterhalb von RMS 0,002.
+Der Wiederholungs-Guard bleibt nötig und wird nicht ersetzt: Er kürzt „Vielen Dank."×4 auf
+eine Nennung — und genau die entfernt dann dieser Guard. Verworfenes wird geloggt, in der
+Pille angezeigt und im Verlauf als Grund „Text ohne Ton am Ende entfernt" gespeichert
+(`fleech/stt/nachlauf.py`).
+
 ### 5.3 Wortgetreue: korrigieren, nicht umformulieren
 
 Fleech soll Grammatik, Rechtschreibung und Zeichensetzung verbessern — aber **die

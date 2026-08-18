@@ -11,6 +11,7 @@ from pathlib import Path
 import numpy as np
 
 from .base import STTEngine, resample_to_16k
+from .nachlauf import KEIN_TON_RMS, lautester_pegel, streiche_tonlosen_schwanz
 
 log = logging.getLogger(__name__)
 
@@ -144,6 +145,7 @@ class FasterWhisperSTT(STTEngine):
         # "auto" (oder leer) = Whisper bestimmt die Sprache selbst — fuer
         # zweisprachiges Diktat (deutsch/englisch gemischt).
         language = None if self.cfg.language in ("", "auto") else self.cfg.language
+        self.letzter_schwanz_ohne_ton = ""
         with self._lock:
             segments, _info = self._model.transcribe(
                 audio,
@@ -155,8 +157,22 @@ class FasterWhisperSTT(STTEngine):
             # segments ist ein Generator — die Arbeit passiert beim Iterieren,
             # das MUSS also innerhalb des Schlosses geschehen. CUDA-Fehler tauchen
             # ebenfalls erst hier auf.
-            return " ".join(seg.text.strip() for seg in segments
-                            if self._keep_segment(seg)).strip()
+            behalten = [seg for seg in segments if self._keep_segment(seg)]
+        # Schwanz ohne Ton (siehe nachlauf.py): Whisper schreibt bei langem Audio
+        # mit initial_prompt hinter dem letzten echten Wort noch Floskeln —
+        # `no_speech_prob` sieht davon nichts, das Audio dahinter schon.
+        behalten, weg = streiche_tonlosen_schwanz(behalten, audio)
+        if weg:
+            self.letzter_schwanz_ohne_ton = " ".join(
+                (s.text or "").strip() for s in weg).strip()
+            log.info(
+                "STT-Schwanz ohne Ton verworfen (%d Segment(e) ab %.1f s bei %.1f s "
+                "Audio, RMS %.5f < %.4f): %s",
+                len(weg), weg[0].start or 0.0, audio.size / 16000,
+                lautester_pegel(weg, audio), KEIN_TON_RMS,
+                self.letzter_schwanz_ohne_ton[:120],
+            )
+        return " ".join(seg.text.strip() for seg in behalten).strip()
 
     def transcribe_kurz(self, audio: np.ndarray, language: str | None = None,
                         initial_prompt: str | None = None) -> str:
