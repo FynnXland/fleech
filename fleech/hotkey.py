@@ -104,6 +104,62 @@ def is_modifier_token(token: str) -> bool:
     return token in MODIFIER_TOKENS
 
 
+# -- Schonfrist gegen Auto-Repeat (Befund B-5) ------------------------------------------
+
+_SPI_GETKEYBOARDDELAY = 0x0016
+# Aufschlag auf die Systemverzoegerung: Der Hook sieht das erste Wiederholungs-
+# ereignis nicht exakt zum eingestellten Zeitpunkt (Nachrichtenschleife, Last).
+_GRACE_AUFSCHLAG_S = 0.3
+# Untergrenze: schuetzt gegen eine absurd kurz eingestellte Verzoegerung.
+_GRACE_MIN_S = 0.6
+# Ohne Auskunft (Linux, gesperrte API): ueber der groesstmoeglichen Windows-
+# Verzoegerung (1000 ms) — lieber eine Heilung zu spaet als jeden Halte-Druck doppelt.
+_GRACE_OHNE_AUSKUNFT_S = 1.1
+
+
+def system_repeat_delay_s():
+    """Windows-Verzoegerung bis zur ERSTEN Auto-Wiederholung, in Sekunden.
+
+    `SystemParametersInfo(SPI_GETKEYBOARDDELAY)` liefert 0–3 = 250/500/750/1000 ms.
+    None = keine Auskunft (andere Plattform oder Aufruf fehlgeschlagen).
+    """
+    if sys.platform != "win32":
+        return None
+    try:
+        import ctypes
+
+        wert = ctypes.c_uint()
+        ok = ctypes.windll.user32.SystemParametersInfoW(
+            _SPI_GETKEYBOARDDELAY, 0, ctypes.byref(wert), 0
+        )
+        if not ok:
+            return None
+        stufe = int(wert.value)
+    except Exception:
+        log.debug("Tastatur-Wiederholverzoegerung nicht abfragbar.", exc_info=True)
+        return None
+    if not 0 <= stufe <= 3:
+        return None
+    return 0.25 + stufe * 0.25
+
+
+def repeat_grace_s(delay_fn=system_repeat_delay_s) -> float:
+    """Schonfrist, nach der ein erneuter Druck als NEUER Druck zaehlt.
+
+    Befund B-5: Die feste Zahl (0,4 s) lag UNTER der Windows-Wiederholverzoegerung
+    (auf diesem Rechner 500 ms). Das erste Wiederholungsereignis einer gehaltenen
+    Taste wurde dadurch als „Release fehlte" gedeutet — im Protokoll 53-mal — und
+    loeste Pause, KI-Prompting oder Profilwechsel ein zweites Mal aus.
+    """
+    try:
+        delay = delay_fn()
+    except Exception:
+        delay = None
+    if delay is None:
+        return _GRACE_OHNE_AUSKUNFT_S
+    return max(_GRACE_MIN_S, delay + _GRACE_AUFSCHLAG_S)
+
+
 def _pretty(token: str) -> str:
     if token in _DISPLAY:
         return _DISPLAY[token]
@@ -157,7 +213,9 @@ class HotkeyManager:
     Schonfrist und bleibt unterdrueckt.
     """
 
-    REPEAT_GRACE_S = 0.4  # laenger als jedes Tastatur-Auto-Repeat-Intervall
+    # Massgeblich ist die VERZOEGERUNG bis zur ersten Wiederholung (250–1000 ms,
+    # Systemeinstellung), nicht der ~30-ms-Takt danach — siehe repeat_grace_s().
+    REPEAT_GRACE_S = repeat_grace_s()
 
     # Alle Manager mit laufendem Listener. Gebraucht fuer genau einen Fall: Bricht
     # der App-Start ab, NACHDEM der Listener lief, haengt ein Low-Level-Tastatur-
@@ -288,6 +346,13 @@ class HotkeyManager:
                     if now - self._last_press.get(name, 0.0) > self.REPEAT_GRACE_S:
                         log.info("Hotkey %s: Release fehlte (Makro-Taste?) — "
                                  "Druck zaehlt als neuer Druck.", name)
+                        # Erst das fehlende Loslassen nachholen (Befund B-4/D-1):
+                        # `RecordingController.press` verwirft jeden Druck, dessen
+                        # Taste noch als gedrueckt gilt — die Heilung endete damit
+                        # ausgerechnet beim Diktat-Hotkey im Entprell-Schutz, und
+                        # die Taste blieb tot. `release()` raeumt `_key_down` auf,
+                        # danach wirkt der Druck wie ein echter zweiter.
+                        self.on_deactivate(name)
                         self.on_activate(name)
                     self._last_press[name] = now
                 continue

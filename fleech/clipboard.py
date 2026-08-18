@@ -17,6 +17,8 @@ import sys
 
 log = logging.getLogger(__name__)
 
+_CF_UNICODETEXT = 13   # Win32-Standardformat "Unicode-Text"
+
 
 def _use_copykitten() -> bool:
     return sys.platform != "win32"
@@ -38,6 +40,32 @@ def paste_text() -> str | None:
         return pyperclip.paste()
     except Exception:
         return None
+
+
+def has_text() -> bool:
+    """Liegt ueberhaupt TEXT in der Zwischenablage?
+
+    Befund B-10: Gesichert und zurueckgeschrieben wird nur Text. Lag ein Bild oder
+    eine kopierte Datei darin, lieferte `paste_text()` einen leeren String — und
+    nach dem Diktat schrieb Fleech genau diesen leeren String zurueck. Der eben
+    kopierte Screenshot war damit weg. Ist kein Text da, wird nach dem Einfuegen
+    nichts wiederhergestellt: Der Diktat-Text bleibt in der Ablage, das Bild ist
+    ohnehin schon vom System verdraengt worden — aber es wird nicht zusaetzlich
+    ein leerer Text darueber geschrieben.
+
+    Windows fragt `IsClipboardFormatAvailable(CF_UNICODETEXT)`; das ist die einzige
+    Auskunft, die ohne Oeffnen der Ablage funktioniert. Keine Auskunft moeglich →
+    True, also wie bisher verfahren (fail-open).
+    """
+    if sys.platform != "win32":
+        return bool(paste_text())
+    try:
+        import ctypes
+
+        return bool(ctypes.windll.user32.IsClipboardFormatAvailable(_CF_UNICODETEXT))
+    except Exception:
+        log.debug("Zwischenablage-Format nicht abfragbar.", exc_info=True)
+        return True
 
 
 def copy_text(text: str) -> None:

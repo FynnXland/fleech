@@ -29,6 +29,9 @@ class ModelleMixin:
         cfg = self.config
         s = self.settings
         self.recorder = Recorder(cfg.audio.samplerate, cfg.audio.device)
+        # Faellt das gewaehlte Mikrofon weg, wird still der Systemstandard genommen —
+        # das muss sichtbar werden (Befund B-7).
+        self.recorder.on_device_fallback = self._melde_mikrofon_rueckfall
         # status: laengere Zwischenschritte gehen ueber den Bus an die Pille
         # (thread-sicher via Queued Connection — der Aufruf kommt aus dem Worker).
         self.pipeline = build_pipeline(cfg, s, status=self.bus.progress.emit)
@@ -166,6 +169,30 @@ class ModelleMixin:
             self.bus.progress.emit(text)
         except Exception:
             log.debug("Fortschrittsmeldung fehlgeschlagen.", exc_info=True)
+
+    def _melde_ki_offline(self) -> None:
+        """Einmal je Sitzung sagen, dass die lokale KI gar nicht laeuft (Befund E-13).
+
+        Wer die Einfuehrung ueberspringt, ueberspringt die Einrichtung von Ollama.
+        Danach kommt jedes Diktat als Roh-Transkript an — sichtbar nur als
+        „eingefügt (Fallback — Log prüfen)". Der Weg zurueck (Einstellungen →
+        Allgemein → „Einführung erneut zeigen") stand nirgends.
+
+        Nur ueber die Pille, nicht per Toast: Der Aufruf kommt aus dem
+        Verarbeitungs-Thread, und der StateBus ist der einzige thread-sichere Weg
+        zur Oberflaeche.
+        """
+        if getattr(self, "_ki_offline_gemeldet", False):
+            return
+        self._ki_offline_gemeldet = True
+        text = ("Lokale KI läuft nicht — Einstellungen → Allgemein → "
+                "„Einführung erneut zeigen“")
+        log.error("%s", text)
+        try:
+            self.bus.progress.emit(text)
+        except Exception:
+            log.debug("Hinweis auf die fehlende lokale KI nicht zustellbar.",
+                      exc_info=True)
 
     def _unload_llms_async(self, reason: str) -> None:
         """Alle lokalen Ollama-Modelle SOFORT entladen (RAM/VRAM frei) — idempotent:

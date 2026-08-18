@@ -271,3 +271,26 @@ def test_ohne_geraetenamen_bleibt_der_fehler_sichtbar(monkeypatch):
     monkeypatch.setattr("sounddevice.query_devices", boom, raising=False)
     check = DeviceGuard.check(None)
     assert not check.ok and check.source == "error"
+
+
+def test_abgebrochener_lauf_senkt_die_lautstaerke_nicht_weiter(monkeypatch):
+    """Befund D-5: `duck()` merkte sich den AKTUELLEN Pegel als Original.
+
+    Bricht ein Lauf ab (Fleech wird mitten in der Aufnahme beendet, Ausnahme im
+    Fade), stehen die Pegel unten, waehrend `_saved` noch die echten Originale
+    traegt. Wer sie dann neu einliest, merkt sich 25 % als „Original" — und jedes
+    weitere Diktat senkt die Lautstaerke ein Stueck weiter. Genau so landeten
+    Discord und Spotify nach ein paar Deploys auf einem Viertel.
+    """
+    vol = FakeVolume(1.0)
+    d = make_ducker({"app.exe": vol}, duck_level=0.25)
+    d.duck()
+    assert vol.level == pytest.approx(0.25)
+
+    # Abbruch nachgestellt: niemand hat restore() gerufen, das Flag faellt zurueck
+    # (im Alltag: neuer Prozess bzw. Ausnahme mitten im Ablauf).
+    d._ducked = False
+    d.duck()
+    assert vol.level == pytest.approx(0.25)      # nicht noch einmal geviertelt
+    d.restore()
+    assert vol.level == pytest.approx(1.0)       # das ECHTE Original kommt zurueck

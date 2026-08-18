@@ -132,6 +132,26 @@ _FORMEL_MARKER_HINWEIS = (
 )
 
 
+def _lokaler_endpunkt_nicht_erreichbar(llm, exc: Exception) -> bool:
+    """Ist der Cleanup gescheitert, WEIL der lokale Ollama-Dienst nicht laeuft?
+
+    Befund E-13: Wer die Einfuehrung ueberspringt, hat keinen Ollama-Dienst. Jedes
+    Diktat kommt dann als Roh-Transkript an, und der einzige Klartext dazu stand in
+    der Logdatei. Damit die Oberflaeche das sagen kann, muss die Pipeline die zwei
+    Faelle unterscheiden: Server antwortet schlecht (HTTP-Fehler, Timeout beim
+    Rechnen) — oder es ist gar keiner da.
+    """
+    import urllib.error
+
+    base = str(getattr(getattr(llm, "cfg", None), "base_url", "") or "")
+    if "localhost" not in base and "127.0.0.1" not in base:
+        return False
+    if isinstance(exc, urllib.error.HTTPError):
+        return False                     # der Dienst laeuft, er mag nur die Anfrage nicht
+    grund = exc.reason if isinstance(exc, urllib.error.URLError) else exc
+    return isinstance(grund, (ConnectionError, TimeoutError, OSError))
+
+
 class Pipeline:
     def __init__(
         self,
@@ -203,7 +223,8 @@ class Pipeline:
         # Erkennung, den sprachgebundenen Teil der Guards und die Zielsprache der
         # umformulierenden Formate.
         self.sprache = "de"
-        self.last_error_kind = ""  # "" | "quota" | "provider" — fuer UI-Toasts
+        # "" | "quota" | "provider" | "llm_offline" (lokaler Ollama nicht erreichbar)
+        self.last_error_kind = ""
         # Warum lief das letzte Diktat nicht glatt? Kurzer deutscher Grund, leer =
         # alles glatt. Bis 5.10.3 stand das NUR im Protokoll — der Verlauf konnte
         # nicht sagen, ob ein Rueckfall an Ollama, an der Sinnumkehr oder am
@@ -621,6 +642,7 @@ class Pipeline:
                 except Exception as exc2:
                     log.warning("Cleanup fehlgeschlagen (%s) — Roh-Transkript.", exc2)
                     self._merke_grund(gruende.OLLAMA)
+                    self._merke_llm_ausfall(self.cleanup_llm, exc2)
                     return raw, True
             else:
                 log.warning(
@@ -629,6 +651,7 @@ class Pipeline:
                     exc,
                 )
                 self._merke_grund(gruende.OLLAMA)
+                self._merke_llm_ausfall(llm, exc)
                 return raw, True
         self.last_llm_ms = int((time.perf_counter() - t0) * 1000)
         log.info("Cleanup (%.2f s, %s)", time.perf_counter() - t0, tier)
@@ -686,6 +709,15 @@ class Pipeline:
                 self._merke_grund(gruende.AUSGEFUEHRT)
                 return raw.strip(), True
         return self._enforce_verbatim(raw, cleaned, system, llm, intervention)
+
+    def _merke_llm_ausfall(self, llm, exc: Exception) -> None:
+        """Grund des Rueckfalls festhalten, damit die Oberflaeche ihn benennen kann.
+
+        "llm_offline" heisst: der lokale Ollama-Dienst laeuft nicht (Befund E-13) —
+        das ist etwas anderes als ein Modell, das schlecht antwortet.
+        """
+        if _lokaler_endpunkt_nicht_erreichbar(llm, exc):
+            self.last_error_kind = "llm_offline"
 
     def _status(self, text: str) -> None:
         """Zwischenschritt melden — Fehler hier duerfen das Diktat nie stoeren."""

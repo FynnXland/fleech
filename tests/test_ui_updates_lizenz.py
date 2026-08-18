@@ -189,17 +189,24 @@ def test_ohne_lizenz_wird_nicht_aufgenommen(monkeypatch):
     pynput-Listener-Thread. Dort ein QDialog zu konstruieren hat Fleech in 4.7.0
     reproduzierbar eingefroren (Qt-Widgets gehoeren dem GUI-Thread). Deshalb
     prueft dieser Test auf das Signal — wer hier wieder direkt aufruft, faellt auf.
+
+    Befund D-10: Abgebrochen wird mit `cancel()`, nicht mit `stop_if_active()` —
+    Letzteres laeuft den vollen Stopp-Weg und ueberschrieb den Lizenzhinweis eine
+    Zehntelsekunde spaeter mit „nichts erkannt".
     """
     import types
 
     from fleech.ui.desktop import DesktopApp
     from fleech.usersettings import UserSettings
 
-    angefordert, aufnahme = [], []
+    angefordert, aufnahme, abgebrochen = [], [], []
     fake = types.SimpleNamespace(
         settings=UserSettings(),                   # frisch = kein Schluessel
         _license_state=None,
-        controller=types.SimpleNamespace(stop_if_active=lambda: None),
+        controller=types.SimpleNamespace(
+            cancel=lambda: abgebrochen.append(True),
+            stop_if_active=lambda: abgebrochen.append("stop_if_active"),
+        ),
         bus=types.SimpleNamespace(license_needed=types.SimpleNamespace(
             emit=lambda: angefordert.append(True))),
         focus=types.SimpleNamespace(
@@ -209,6 +216,7 @@ def test_ohne_lizenz_wird_nicht_aufgenommen(monkeypatch):
     DesktopApp._on_record_start(fake, "dictate")
     assert angefordert == [True]
     assert aufnahme == []                          # Mikrofon wurde nie angefasst
+    assert abgebrochen == [True]                   # cancel(), kein Geister-Diktat
 
 def test_license_state_wird_gemerkt_und_nach_eingabe_neu_bewertet(monkeypatch):
     import types

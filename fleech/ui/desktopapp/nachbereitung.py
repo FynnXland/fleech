@@ -101,6 +101,11 @@ class NachbereitungMixin:
         loeschte einmal 2701 Zeichen ersatzlos): Es muss eine eigene, frische Ausgabe
         geben, der Cursor muss noch dahinter stehen (`resolve_scope` liefert bei
         gewechseltem Fenster None), und jede Ausgabe laesst sich nur EINMAL ersetzen.
+
+        Das eigentliche Ersetzen laeuft im Worker-Thread (Befund B-9/D-9): Die
+        Backspaces kosten 4 ms pro Zeichen — bei einem mittleren Diktat 1,3 s, im
+        Maximum 23 s. Dieser Aufruf kommt aus dem pynput-Listener; so lange waeren
+        dort ALLE weiteren Fleech-Hotkeys blockiert (auch der Diktat-Hotkey).
         """
         kandidat = getattr(self, "_undo_candidate", None)
         if not kandidat:
@@ -115,8 +120,13 @@ class NachbereitungMixin:
         if not raw or raw == injected:
             self._flash_status("Rohtext ist identisch")
             return
-        # Steht der Cursor noch hinter unserem Text? Nach Fensterwechsel oder eigenem
-        # Tippen ist die Position unbekannt — dann wird NICHT geloescht.
+        # Steht der Cursor noch hinter unserem Text? Nach Fensterwechsel ist die
+        # Position unbekannt — dann wird NICHT geloescht.
+        # Befund B-1/D-3: `resolve_scope` arbeitet auf dem Fenster, das der Tracker
+        # zuletzt gesehen hat, und nachgefuehrt wird das NUR beim Verarbeiten eines
+        # Diktats. Ohne diesen Abgleich hielt die Wache nach einem Fensterwechsel
+        # faelschlich — die Backspaces gingen in ein fremdes Dokument.
+        self.pipeline.tracker.sync_window()
         if self.pipeline.tracker.resolve_scope("dictated") is None:
             self._undo_candidate = None
             self._flash_status("Cursor nicht mehr an der Stelle")
@@ -129,18 +139,22 @@ class NachbereitungMixin:
             return
 
         self._undo_candidate = None          # nur ein Versuch je Ausgabe
-        try:
-            with self._process_lock:         # nie parallel zu einem laufenden Diktat
-                self.pipeline.injector.replace_tail(len(injected), raw)
-                self.pipeline.tracker.record_replace(len(injected), raw)
-        except Exception:
-            log.exception("Rueckgaengig fehlgeschlagen.")
-            self._flash_status("Zurücknehmen fehlgeschlagen — Log prüfen")
-            return
-        log.info("Letzte Ausgabe durch Rohtext ersetzt (%d → %d Zeichen).",
-                 len(injected), len(raw))
-        self.notifier.sound("commit")
-        self._flash_status("Rohtext eingesetzt")
+
+        def arbeit():
+            try:
+                with self._process_lock:     # nie parallel zu einem laufenden Diktat
+                    self.pipeline.injector.replace_tail(len(injected), raw)
+                    self.pipeline.tracker.record_replace(len(injected), raw)
+            except Exception:
+                log.exception("Rueckgaengig fehlgeschlagen.")
+                self._flash_status("Zurücknehmen fehlgeschlagen — Log prüfen")
+                return
+            log.info("Letzte Ausgabe durch Rohtext ersetzt (%d → %d Zeichen).",
+                     len(injected), len(raw))
+            self.notifier.sound("commit")
+            self._flash_status("Rohtext eingesetzt")
+
+        threading.Thread(target=arbeit, daemon=True).start()
 
     def _auto_send(self) -> None:
         """Enter nachschicken (Profil-Einstellung „Nachricht absenden").

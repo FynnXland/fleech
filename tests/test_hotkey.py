@@ -122,10 +122,17 @@ def test_missing_release_self_heals_after_grace():
     """Makro-/G-Tasten (iCUE) senden je nach Zuweisung nur KeyDOWN ohne KeyUP —
     das Binding bliebe sonst dauerhaft „aktiv" und jeder weitere Druck wuerde als
     Auto-Repeat verschluckt (real aufgetreten: F14 nach dem ersten Druck tot).
-    Nach der Schonfrist zaehlt ein erneuter Druck als NEUER Druck."""
+    Nach der Schonfrist zaehlt ein erneuter Druck als NEUER Druck.
+
+    Befund B-4/D-1: Die Heilung feuert jetzt ZUERST das fehlende Loslassen und
+    danach den Druck. Vorher stand hier nur die Aktivierung — genau deshalb kam
+    die Reparatur beim Diktat-Hotkey nie an (siehe
+    `test_selbstheilung_erreicht_die_aufnahme_in_jedem_modus`).
+    """
     h = ManagerHarness({"prompt_toggle": "f14"})
     clock = {"t": 0.0}
     h.mgr._clock = lambda: clock["t"]
+    h.mgr.REPEAT_GRACE_S = 0.4       # feste Schonfrist: der Systemwert schwankt (B-5)
 
     key = KeyCode(vk=0x7D)  # F14
     h.press(key)                     # Druck 1 — KEIN Release folgt (Makro-Taste)
@@ -137,11 +144,98 @@ def test_missing_release_self_heals_after_grace():
 
     clock["t"] = 1.0                 # bewusster zweiter Druck → zaehlt wieder
     h.press(key)
-    assert h.events == [("on", "prompt_toggle"), ("on", "prompt_toggle")]
+    assert h.events == [("on", "prompt_toggle"), ("off", "prompt_toggle"),
+                        ("on", "prompt_toggle")]
 
     clock["t"] = 2.0                 # und jeder weitere auch
     h.press(key)
     assert h.events.count(("on", "prompt_toggle")) == 3
+
+
+@pytest.mark.parametrize("modus", ["hold", "toggle", "nudge"])
+def test_selbstheilung_erreicht_die_aufnahme_in_jedem_modus(modus):
+    """Befund B-4/D-1: Die Selbstheilung endete im Entprell-Schutz.
+
+    `HotkeyManager` feuerte nach der Schonfrist `on_activate` — und
+    `RecordingController.press` warf den Druck sofort weg, weil `_key_down` den
+    Namen noch trug (geleert wird es nur in `release()`, und genau das Release war
+    ja verlorengegangen). Ergebnis: ein verschluckter Tastendruck, in hold/toggle
+    eine Aufnahme, die sich ueber die Taste nicht mehr beenden liess.
+
+    Hier laufen beide ECHTEN Klassen gegeneinander — nur so faellt der Bruch auf.
+    """
+    from fleech.recording_control import RecordingController
+
+    events = []
+    rc = RecordingController(modus,
+                             on_start=lambda k: events.append(("start", k)),
+                             on_stop=lambda k: events.append(("stop", k)))
+    mgr = HotkeyManager(on_activate=rc.press, on_deactivate=rc.release)
+    mgr.set_bindings({"dictate": HotkeySpec.parse("f14")})
+    clock = {"t": 0.0}
+    mgr._clock = lambda: clock["t"]
+    mgr.REPEAT_GRACE_S = 0.4
+
+    key = KeyCode(vk=0x7D)
+    mgr._on_press(key)               # Druck 1 — Makro-Taste, kein KeyUP
+    assert events == [("start", "dictate")]
+
+    clock["t"] = 1.0                 # Druck 2: muss ankommen
+    mgr._on_press(key)
+    if modus == "hold":
+        # Halten: das nachgeholte Loslassen beendet, der Druck beginnt neu.
+        assert events == [("start", "dictate"), ("stop", "dictate"),
+                          ("start", "dictate")]
+        assert rc.active is True
+    else:
+        # Toggle/Anstupsen: der zweite Druck beendet, wie er es sollte.
+        assert events == [("start", "dictate"), ("stop", "dictate")]
+        assert rc.active is False
+
+
+def test_schonfrist_folgt_der_windows_wiederholverzoegerung():
+    """Befund B-5: 0,4 s lagen UNTER der eingestellten Verzoegerung (hier 500 ms) —
+    das erste Wiederholungsereignis einer gehaltenen Taste galt damit als „Release
+    fehlte" und loeste Pause/KI-Prompting/Profilwechsel ein zweites Mal aus."""
+    from fleech.hotkey import repeat_grace_s
+
+    assert repeat_grace_s(lambda: 0.25) == pytest.approx(0.6)   # Untergrenze
+    assert repeat_grace_s(lambda: 0.5) == pytest.approx(0.8)
+    assert repeat_grace_s(lambda: 1.0) == pytest.approx(1.3)
+    # Keine Auskunft (Linux, gesperrte API, Ausnahme) → ueber dem Maximum bleiben.
+    assert repeat_grace_s(lambda: None) == pytest.approx(1.1)
+    assert repeat_grace_s(lambda: (_ for _ in ()).throw(OSError())) == pytest.approx(1.1)
+    # Und die tatsaechlich benutzte Schonfrist ist nie kuerzer als die Untergrenze.
+    assert HotkeyManager.REPEAT_GRACE_S >= 0.6
+
+
+def test_systemverzoegerung_wird_ausgelesen(monkeypatch):
+    """Die Stufen 0–3 stehen fuer 250/500/750/1000 ms (SPI_GETKEYBOARDDELAY)."""
+    import sys as _sys
+    import types as _types
+
+    import fleech.hotkey as hk
+
+    if _sys.platform != "win32":
+        assert hk.system_repeat_delay_s() is None
+        return
+
+    class FakeUser32:
+        stufe = 1
+
+        def SystemParametersInfoW(self, aktion, _a, ziel, _b):
+            ziel._obj.value = self.stufe
+            return 1
+
+    fake_ctypes = _types.SimpleNamespace(
+        c_uint=lambda: _types.SimpleNamespace(value=0),
+        byref=lambda obj: _types.SimpleNamespace(_obj=obj),
+        windll=_types.SimpleNamespace(user32=FakeUser32()),
+    )
+    monkeypatch.setitem(_sys.modules, "ctypes", fake_ctypes)
+    assert hk.system_repeat_delay_s() == pytest.approx(0.5)
+    fake_ctypes.windll.user32.stufe = 3
+    assert hk.system_repeat_delay_s() == pytest.approx(1.0)
 
 
 def test_single_key_autorepeat_debounced():

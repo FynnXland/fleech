@@ -78,11 +78,60 @@ class LebenszyklusMixin:
         # gebaut wird — sonst zieht eine gerade ergaenzte Zeile erst nach einem
         # Neustart.
         self.config.audio_focus.blocked_devices = list(blocklist or [])
+        self._mikrofon_rueckfall = ""   # neues Geraet → Rueckfall neu bewerten
         if check.ok:
             log.info("Aufnahmegeraet geprueft: %s — in Ordnung.", check.name)
             return
         log.error("⚠ Aufnahmegeraet '%s': %s", check.name, check.reason)
         self.tray.notify("Fleech — Aufnahmegerät", f"„{check.name}“: {check.reason}")
+
+    def _melde_mikrofon_rueckfall(self, benutzt: str) -> None:
+        """Das gewaehlte Mikrofon ist weg — aufgenommen wird ueber den Systemstandard.
+
+        Befund B-7: Bisher stand das nur als `log.warning` im Protokoll (dort 86-mal).
+        Interface aus, Rechner aus dem Standby, USB-Hub neu enumeriert — ab dann lief
+        das Diktat ueber die Webcam, ohne ein Wort darueber; aufgefallen ist es nur an
+        schlechter Erkennung.
+
+        Einmal je Geraet melden, nicht bei jedem Diktat: Bis zum naechsten
+        Geraetewechsel aendert sich nichts, und eine Meldung bei jedem Aufnahmestart
+        waere selbst eine Stoerung. Der Aufruf kommt aus dem pynput-Thread — deshalb
+        ueber den StateBus (`_flash_status`) statt direkt an die Pille.
+
+        Die geaenderte Statuszeile bleibt bis zum naechsten Geraetewechsel stehen.
+        Das ist richtig so: PortAudio haelt seine Geraeteliste seit dem Start fest,
+        ein wieder eingestecktes Mikrofon ist fuer Fleech in dieser Sitzung ohnehin
+        nicht vorhanden.
+        """
+        gewaehlt = self.settings.recording.microphone or "Systemstandard"
+        benutzt = benutzt or "Systemstandard"
+        if getattr(self, "_mikrofon_rueckfall", "") == benutzt:
+            return
+        self._mikrofon_rueckfall = benutzt
+        log.error("Mikrofon '%s' nicht verfuegbar — aufgenommen wird ueber '%s'.",
+                  gewaehlt, benutzt)
+        # Die Statuszeile trug den GEWAEHLTEN Namen; hier zaehlt, was wirklich aufnimmt.
+        if getattr(self, "focus", None) is not None:
+            self.focus.device_check.name = f"{benutzt} (statt „{gewaehlt}“)"
+        self._flash_status(f"Mikrofon „{gewaehlt}“ fehlt — nehme über {benutzt} auf")
+
+    def _stelle_lautstaerken_her(self) -> None:
+        """Fremde Apps vor dem Beenden wieder laut machen (Befund D-5).
+
+        `_on_record_stop` startet die Wiederherstellung nur als Daemon-Thread
+        (Fade ~250 ms). Wer Fleech mitten in einer Aufnahme beendet — der uebliche
+        Deploy-Ablauf —, war vorher weg, bevor der Fade durch war: Discord, Spotify
+        und Steam blieben auf einem Viertel, auch nach dem Neustart.
+
+        Hier synchron nachziehen. `PlaybackDucker.restore()` haelt dasselbe Schloss
+        wie der Fade und ist idempotent — der Aufruf wartet also auf einen schon
+        laufenden Fade und laeuft sonst leer.
+        """
+        try:
+            if getattr(self, "focus", None) is not None:
+                self.focus.on_recording_stop()
+        except Exception:
+            log.debug("Lautstaerken beim Beenden nicht zuruecksetzbar.", exc_info=True)
 
     def _open_settings(self) -> None:
         self.window.open_page("settings")
@@ -179,6 +228,7 @@ class LebenszyklusMixin:
     def _quit(self) -> None:
         self._stoppe_freihand()
         self.controller.stop_if_active()
+        self._stelle_lautstaerken_her()
         self.settings.save()
         self.hotkeys.stop()
         QApplication.instance().quit()

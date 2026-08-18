@@ -152,3 +152,38 @@ def test_unreadable_clipboard_does_not_stall():
     inj.inject("Text")
     assert time.monotonic() - started < 0.3        # deutlich unter dem 400-ms-Deckel
     assert ("paste",) in events
+
+
+# -- Nur TEXT wird gesichert (Befund B-10) ----------------------------------------
+# Vorher wurde blind `paste_text()` gesichert und nach dem Einfuegen zurueck-
+# geschrieben. Bei einem kopierten Bild lieferte das Lesen "" — und der leere
+# String landete danach in der Ablage. Der Screenshot war weg.
+
+
+def _clipboard_lauf(hat_text: bool, vorher: str = "alter Text"):
+    inj = TextInjector(restore_clipboard=True, paste_delay_ms=0)
+    events = []
+    inj._clipboard_has_text = lambda: hat_text
+    inj._get_clipboard = lambda: vorher
+    inj._set_clipboard = lambda t: events.append(t)
+    inj._paste_keystroke = lambda: events.append("PASTE")
+    inj._await_clipboard = lambda text: True     # Verifikation ist hier nicht das Thema
+    inj.inject("Diktierter Text")
+    return events
+
+
+def test_alter_text_wird_wie_bisher_wiederhergestellt():
+    assert _clipboard_lauf(hat_text=True) == ["Diktierter Text", "PASTE", "alter Text"]
+
+
+def test_ein_kopiertes_bild_wird_nicht_ueberschrieben():
+    """Kein Text in der Ablage → nach dem Einfuegen wird nichts zurueckgeschrieben."""
+    assert _clipboard_lauf(hat_text=False) == ["Diktierter Text", "PASTE"]
+
+
+def test_has_text_ist_auf_jeder_plattform_beantwortbar():
+    """Die Nahtstelle muss immer eine Antwort geben — ein Fehler beim Abfragen
+    darf das Einfuegen nie reissen (fail-open: dann wie bisher verfahren)."""
+    from fleech.clipboard import has_text
+
+    assert isinstance(has_text(), bool)

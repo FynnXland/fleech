@@ -103,7 +103,10 @@ def test_neue_aufnahme_beginnt_nie_pausiert(monkeypatch):
             return _FakeStream()
 
     monkeypatch.setitem(__import__("sys").modules, "sounddevice", FakeSD)
-    monkeypatch.setattr("fleech.audio.resolve_input_device", lambda d: None)
+    # Zweites Argument seit Befund B-7: Rueckmeldung beim Rueckfall auf den
+    # Systemstandard.
+    monkeypatch.setattr("fleech.audio.resolve_input_device",
+                        lambda d, on_fallback=None: None)
     r.start()
     assert r.paused is False
 

@@ -210,3 +210,46 @@ def test_style_hints_flow_into_cleanup_prompt():
     p.process(AUDIO, 16000)
     system2, _ = llm.calls[1]
     assert "Stil-Vorgaben" not in system2
+
+
+# -- „Die lokale KI laeuft gar nicht" (Befund E-13) --------------------------------
+
+
+def _rueckfall_grund(fehler, base_url="http://127.0.0.1:11434"):
+    """Ein Cleanup-Rueckfall mit einem Endpunkt-Fehler → welcher Grund kommt an?"""
+    import types
+
+    llm = FakeLLM(error=fehler)
+    llm.cfg = types.SimpleNamespace(base_url=base_url)
+    p, _, injector = make_pipeline(RAW_NONTRIVIAL, llm=llm)
+    assert p.process(AUDIO, 16000) == "fallback"
+    assert injector.injected == [RAW_NONTRIVIAL]     # Rohtext kommt weiter an
+    return p.last_error_kind
+
+
+def test_nicht_laufender_ollama_wird_als_solcher_erkannt():
+    """Wer die Einfuehrung ueberspringt, ueberspringt die Einrichtung von Ollama.
+    Jedes Diktat kommt dann als Roh-Transkript an — und der einzige Klartext dazu
+    stand in der Logdatei. Damit die Pille es sagen kann, muss die Pipeline den
+    fehlenden DIENST von einem schlecht antwortenden Modell unterscheiden."""
+    import urllib.error
+
+    assert _rueckfall_grund(
+        urllib.error.URLError(ConnectionRefusedError(10061, "abgelehnt"))
+    ) == "llm_offline"
+    assert _rueckfall_grund(ConnectionRefusedError(10061, "abgelehnt")) == "llm_offline"
+
+
+def test_ein_antwortender_server_gilt_nicht_als_abwesend():
+    """HTTP-Fehler und Modell-Macken sind etwas anderes als „kein Dienst da" —
+    sonst schickte Fleech den Nutzer wegen jeder Stoerung in die Einfuehrung."""
+    import urllib.error
+
+    assert _rueckfall_grund(
+        urllib.error.HTTPError("http://127.0.0.1:11434/api/chat", 500,
+                               "Server Error", {}, None)
+    ) == ""
+    assert _rueckfall_grund(ValueError("kaputtes JSON")) == ""
+    # Ein entfernter Endpunkt ist kein Fall fuer den Einfuehrungs-Hinweis.
+    assert _rueckfall_grund(ConnectionRefusedError(),
+                            base_url="http://192.168.1.9:11434") == ""

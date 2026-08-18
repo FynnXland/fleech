@@ -91,7 +91,16 @@ def _linux_resolve_source(device_name: str):
     return None
 
 
-def resolve_input_device(device):
+def _default_input_name(sd) -> str:
+    """Name des Geraets, das der Systemstandard gerade meint ("" = nicht ermittelbar)."""
+    try:
+        return str(sd.query_devices(kind="input")["name"])
+    except Exception:
+        log.debug("Standard-Eingabegeraet nicht abfragbar.", exc_info=True)
+        return ""
+
+
+def resolve_input_device(device, on_fallback=None):
     """Mehrdeutigen Mikrofon-NAMEN auf einen eindeutigen Geraete-Index abbilden.
 
     Windows listet dasselbe Mikrofon unter mehreren Host-APIs (MME, DirectSound,
@@ -102,6 +111,10 @@ def resolve_input_device(device):
 
     Linux: None und Mikrofon-Namen werden ueber PipeWire aufgeloest (pulse-Device
     + PULSE_SOURCE), NICHT ueber rohe ALSA-hw-Geraete.
+
+    on_fallback(name): wird gerufen, wenn das gewaehlte Mikrofon nicht mehr da ist
+    und stattdessen der Systemstandard genommen wird (Befund B-7). `name` ist das
+    Geraet, ueber das dann wirklich aufgenommen wird.
     """
     is_linux = sys.platform.startswith("linux")
     if device is None:
@@ -125,6 +138,14 @@ def resolve_input_device(device):
     ]
     if not matches:
         log.warning("Mikrofon %r nicht gefunden — nutze Systemstandard.", device)
+        # Befund B-7: Bis 5.10.3 blieb es bei dieser Zeile im Protokoll. Wessen
+        # Interface aus war, diktierte ab da ueber die Webcam — und merkte es erst
+        # an schlechter Erkennung. Der Aufrufer meldet es jetzt sichtbar.
+        if on_fallback is not None:
+            try:
+                on_fallback(_default_input_name(sd))
+            except Exception:
+                log.debug("Meldung ueber Geraete-Rueckfall fehlgeschlagen.", exc_info=True)
         return None
     if len(matches) == 1:
         return matches[0][0]
@@ -172,6 +193,10 @@ class Recorder:
         # liefert der Recorder IMMER self.samplerate (Rueck-Resampling in _to_target).
         self._capture_rate = samplerate
         self._paused = False   # Aufnahme laeuft, sammelt aber nicht (siehe pause())
+        # Callable(name) | None: Das gewaehlte Mikrofon ist weg, aufgenommen wird
+        # ueber den Systemstandard (Befund B-7). Die Desktop-App haengt sich hier
+        # ein und meldet es einmal je Sitzung.
+        self.on_device_fallback = None
 
     @property
     def recording(self) -> bool:
@@ -217,7 +242,7 @@ class Recorder:
             self._frames = []
             self._samples = 0
         self._paused = False        # eine neue Aufnahme beginnt nie pausiert
-        device = resolve_input_device(self.device)
+        device = resolve_input_device(self.device, self.on_device_fallback)
         try:
             self._stream = self._open_stream(sd, device, self.samplerate)
             self._capture_rate = self.samplerate
