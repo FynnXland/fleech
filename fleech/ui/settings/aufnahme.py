@@ -73,9 +73,13 @@ def build(panel) -> None:
     )
     panel._add_hotkey_field(
         form, "Rohtext einsetzen", "undo_hotkey", "undo", "ctrl+alt+z",
+        # Befund A-12: Hier stand „solange der Cursor noch dort steht". Geprüft
+        # wird aber allein der Fensterwechsel — eigenes Tippen sieht Fleech nicht.
         hint_text="Ersetzt die zuletzt eingefügte Fassung durch das wörtliche "
                   "Transkript — für den Fall, dass die Bereinigung danebengriff. "
-                  "Nur direkt danach und solange der Cursor noch dort steht.",
+                  "Nur direkt danach und nur, solange du das Fenster nicht "
+                  "gewechselt hast. Ob du selbst getippt hast, kann Fleech nicht "
+                  "erkennen — dann lösche lieber von Hand.",
     )
     panel._add_hotkey_field(
         form, "Profil wechseln", "profile_hotkey", "profile", "",

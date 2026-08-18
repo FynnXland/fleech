@@ -306,10 +306,19 @@ class PlaybackDucker:
             if self._ducked or self._sessions is None:
                 return
             try:
-                self._saved = []
+                # Befund D-5: Bereits gemerkte Original-Pegel bleiben stehen. Wurde
+                # ein Lauf abgebrochen (Ausnahme mitten im Fade, Prozess weg), stehen
+                # die Pegel unten, waehrend `_saved` noch die Originale traegt — sie
+                # neu einzulesen wuerde 25 % als „Original" merken und die Lautstaerke
+                # bei jedem weiteren Diktat ein Stueck weiter absenken (Sperrklinke).
+                bekannt = {id(v): orig for _, v, orig in self._saved}
+                gemerkt = []
                 for name, volume in self._sessions.iter_foreign_sessions():
-                    original = float(volume.GetMasterVolume())
-                    self._saved.append((name, volume, original))
+                    original = bekannt.get(id(volume))
+                    if original is None:
+                        original = float(volume.GetMasterVolume())
+                    gemerkt.append((name, volume, original))
+                self._saved = gemerkt
                 if not self._saved:
                     self._ducked = True
                     return

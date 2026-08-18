@@ -78,7 +78,14 @@ class ProfilMixin:
                     return overrides_from(item)
             log.info("Gewaehltes Profil %r gibt es nicht mehr — zurueck auf automatisch.",
                      gewaehlt)
-            self._set_profile("")
+            # Befund D-7: Hier stand `self._set_profile("")` — und diese Methode
+            # laeuft im VERARBEITUNGS-Thread. `_set_profile` schreibt die
+            # Einstellungen (ungeschuetztes settings.save() aus dem Worker) und
+            # fasst zwei Mal die Pille an (Qt-Widgets im falschen Thread). Das
+            # Aufraeumen geht deshalb ueber den Bus in den GUI-Thread; dieses eine
+            # Diktat laeuft ohne Profil-Overrides.
+            self.bus.profil_zuruecksetzen.emit()
+            return ProfileOverrides()
         app = getattr(self, "_record_app", "") or ""
         title = getattr(self, "_record_title", "") or ""
 
@@ -190,6 +197,15 @@ class ProfilMixin:
         except ValueError:
             naechste = stationen[0]
         self._set_profile(naechste)
+
+    def _on_profil_zuruecksetzen(self) -> None:
+        """GUI-Thread: das gewaehlte Profil ist verschwunden — auf „automatisch".
+
+        Gegenstueck zum Signal aus `_app_profile_overrides` (Befund D-7). Eigene
+        Methode statt Lambda: eine gebundene Methode legt keine zusaetzliche
+        Referenz in den Qt-Objektgraphen.
+        """
+        self._set_profile("")
 
     def _set_profile(self, name: str) -> None:
         """Profil festlegen, merken und kurz anzeigen. "" = automatisch nach App."""

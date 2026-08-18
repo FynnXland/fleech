@@ -207,6 +207,24 @@ def test_sound_player_respects_switches(monkeypatch):
     player.play("stop")      # Lautstaerke 0 → still
     assert len(played) == 1
 
+def _undo_sofort(monkeypatch):
+    """Den Worker-Thread des Rueckgaengig-Wegs synchron machen.
+
+    Befund B-9/D-9: Die Backspaces laufen seit 5.10.4 in einem eigenen Thread —
+    im pynput-Listener haetten sie bis zu 23 s lang alle weiteren Fleech-Hotkeys
+    blockiert. Die Tests pruefen weiter dasselbe, nur ohne Wettlauf.
+    """
+    import fleech.ui.desktopapp.nachbereitung as nb
+
+    class SyncThread:
+        def __init__(self, target=None, daemon=None, args=()):
+            self._target, self._args = target, args
+
+        def start(self):
+            self._target(*self._args)
+
+    monkeypatch.setattr(nb.threading, "Thread", SyncThread)
+
 def _undo_fake(injected="Bereinigte Fassung.", raw="also die rohe fassung halt",
                alter_s=0.0, scope="dictated", busy=False):
     """Stellvertreter mit genau den Attributen, die _undo_last_output anfasst."""
@@ -217,7 +235,7 @@ def _undo_fake(injected="Bereinigte Fassung.", raw="also die rohe fassung halt",
     lock = threading.Lock()
     if busy:
         lock.acquire()
-    aufrufe = {"replace": [], "record": [], "status": [], "sound": []}
+    aufrufe = {"replace": [], "record": [], "status": [], "sound": [], "sync": []}
     return types.SimpleNamespace(
         _undo_candidate=(injected, raw, _t.monotonic() - alter_s),
         _process_lock=lock,
@@ -226,6 +244,8 @@ def _undo_fake(injected="Bereinigte Fassung.", raw="also die rohe fassung halt",
             injector=types.SimpleNamespace(
                 replace_tail=lambda n, t: aufrufe["replace"].append((n, t))),
             tracker=types.SimpleNamespace(
+                # Befund B-1/D-3: Das Fenster wird jetzt VOR der Wache nachgezogen.
+                sync_window=lambda: aufrufe["sync"].append(True),
                 resolve_scope=lambda s: scope,
                 record_replace=lambda n, t: aufrufe["record"].append((n, t))),
         ),
@@ -234,22 +254,26 @@ def _undo_fake(injected="Bereinigte Fassung.", raw="also die rohe fassung halt",
         _aufrufe=aufrufe,
     )
 
-def test_undo_ersetzt_die_ausgabe_durch_den_rohtext(qapp):
+def test_undo_ersetzt_die_ausgabe_durch_den_rohtext(qapp, monkeypatch):
     from fleech.ui.desktop import DesktopApp
 
+    _undo_sofort(monkeypatch)
     fake = _undo_fake()
     DesktopApp._undo_last_output(fake)
+
+    assert fake._aufrufe["sync"] == [True]      # Fenster frisch abgeglichen
 
     assert fake._aufrufe["replace"] == [(len("Bereinigte Fassung."),
                                          "also die rohe fassung halt")]
     assert fake._aufrufe["record"] == fake._aufrufe["replace"]   # Tracker mitgezogen
     assert fake._undo_candidate is None                          # nur EIN Versuch
 
-def test_undo_loescht_nichts_wenn_der_cursor_weg_ist(qapp):
+def test_undo_loescht_nichts_wenn_der_cursor_weg_ist(qapp, monkeypatch):
     """Kernsicherung: Nach einem Fensterwechsel ist unbekannt, wo der Cursor steht.
     Blind Backspaces zu senden hat schon einmal 2701 Zeichen vernichtet."""
     from fleech.ui.desktop import DesktopApp
 
+    _undo_sofort(monkeypatch)
     fake = _undo_fake(scope=None)
     DesktopApp._undo_last_output(fake)
 
@@ -276,15 +300,70 @@ def test_undo_ohne_kandidat_und_bei_gleichem_text(qapp):
     DesktopApp._undo_last_output(gleich)
     assert gleich._aufrufe["replace"] == []
 
-def test_undo_wartet_wenn_gerade_verarbeitet_wird(qapp):
+def test_undo_wartet_wenn_gerade_verarbeitet_wird(qapp, monkeypatch):
     """Waehrend ein Diktat eingefuegt wird, verschiebt sich die Zielstelle."""
     from fleech.ui.desktop import DesktopApp
 
+    _undo_sofort(monkeypatch)
     fake = _undo_fake(busy=True)
     DesktopApp._undo_last_output(fake)
 
     assert fake._aufrufe["replace"] == []
     assert fake._undo_candidate is not None       # bleibt erhalten, nur verschoben
+
+
+def test_undo_prueft_das_fenster_mit_dem_echten_tracker(qapp, monkeypatch):
+    """Befund B-1/D-3: Die Wache hielt nach einem Fensterwechsel faelschlich.
+
+    `resolve_scope` arbeitet auf dem Fenster, das der `DocumentTracker` zuletzt
+    gesehen hat — nachgezogen wurde das NUR beim Verarbeiten eines Diktats, nie im
+    Rueckgaengig-Weg. Wer nach einem Diktat das Fenster wechselte und den Hotkey
+    drueckte, schickte dort so viele Backspaces, wie das Diktat lang war.
+
+    Die uebrigen Undo-Tests reichen `scope` als Attrappe herein und pruefen damit
+    nur, was passiert, WENN der Tracker None sagt — nicht, ob er es sagt. Deshalb
+    hier der echte Tracker mit gefaelschtem Vordergrundfenster.
+    """
+    import threading
+    import time as _t
+    import types
+
+    from fleech.document import DocumentTracker
+    from fleech.ui.desktop import DesktopApp
+
+    _undo_sofort(monkeypatch)
+    vordergrund = {"hwnd": 1111}
+    tracker = DocumentTracker()
+    monkeypatch.setattr(tracker, "_foreground_window", lambda: vordergrund["hwnd"])
+    monkeypatch.setattr(tracker, "_window_alive", lambda hwnd: True)
+    tracker.sync_window()
+    tracker.record_append("Bereinigte Fassung.")
+
+    def lauf():
+        aufrufe = {"replace": [], "status": []}
+        fake = types.SimpleNamespace(
+            _undo_candidate=("Bereinigte Fassung.", "also die rohe fassung halt",
+                             _t.monotonic()),
+            _process_lock=threading.Lock(),
+            _UNDO_MAX_AGE_S=120,
+            pipeline=types.SimpleNamespace(
+                injector=types.SimpleNamespace(
+                    replace_tail=lambda n, t: aufrufe["replace"].append((n, t))),
+                tracker=tracker,
+            ),
+            notifier=types.SimpleNamespace(sound=lambda k: None),
+            _flash_status=lambda t: aufrufe["status"].append(t),
+        )
+        DesktopApp._undo_last_output(fake)
+        return aufrufe
+
+    # Gleiches Fenster: der bestimmungsgemaesse Gebrauch laeuft.
+    assert lauf()["replace"] == [(19, "also die rohe fassung halt")]
+
+    vordergrund["hwnd"] = 2222          # der Nutzer ist woandershin gewechselt
+    abgelehnt = lauf()
+    assert abgelehnt["replace"] == []
+    assert abgelehnt["status"] == ["Cursor nicht mehr an der Stelle"]
 
 
 # -- Automatisch absenden je Profil (v3.10.0) --------------------------------------
@@ -561,3 +640,297 @@ def test_geraetewechsel_erneuert_den_guard_der_ihn_auch_liest(monkeypatch):
     ctrl = AudioFocusController(FocusMode.PURE_MIC, None, focus.device_check)
     erlaubt, hinweis = ctrl.may_record()
     assert erlaubt is True and "WARNUNG" in hinweis
+
+
+# -- Was aus dem pynput-Thread kommt, fasst keine Widgets an ------------------------
+
+
+def test_ki_prompting_faerbt_die_pille_ueber_den_bus(qapp):
+    """Befund D-6: `_toggle_prompt_oneshot` rief `overlay.set_prompt_latched`
+    direkt — aus dem pynput-Listener-Thread. Das endet in `show()`, `hide()` und
+    `update()` auf einem Qt-Widget; ein Thread-Verstoss wirft dort keine Ausnahme,
+    er crasht spaeter irgendwo anders („wandernde access violation").
+
+    Wie beim Pause-Hotkey laesst dieser Test das Overlay ganz weg — greift die
+    Methode es doch an, wirft sie hier.
+    """
+    import types
+
+    from fleech.ui.desktop import DesktopApp
+
+    gemeldet, toene = [], []
+    fake = types.SimpleNamespace(
+        _prompt_oneshot=False,
+        bus=types.SimpleNamespace(prompt_latch_changed=types.SimpleNamespace(
+            emit=gemeldet.append)),
+        notifier=types.SimpleNamespace(sound=toene.append),
+        # KEIN `overlay`
+    )
+    DesktopApp._toggle_prompt_oneshot(fake)
+    assert gemeldet == [True] and toene == ["start"]
+    DesktopApp._toggle_prompt_oneshot(fake)
+    assert gemeldet == [True, False] and toene == ["start", "stop"]
+
+
+def test_aufnahmeende_meldet_den_prompt_latch_ueber_den_bus(qapp, monkeypatch):
+    """Dieselbe Stelle ein zweites Mal: Im Hold-Modus kommt auch `_on_record_stop`
+    aus dem pynput-Thread (Befund D-6)."""
+    import types
+
+    import fleech.ui.desktop as desktop_mod
+    from fleech.ui.desktop import DesktopApp
+
+    class SyncThread:
+        def __init__(self, target=None, daemon=None, args=(), kwargs=None):
+            self._target, self._args, self._kwargs = target, args, kwargs or {}
+
+        def start(self):
+            self._target(*self._args, **self._kwargs)
+
+    monkeypatch.setattr(desktop_mod.threading, "Thread", SyncThread)
+    gemeldet = []
+    fake = types.SimpleNamespace(
+        _last_dictation=0.0,
+        _freihand=None,
+        _stop_preview=lambda: None,
+        focus=types.SimpleNamespace(on_recording_stop=lambda: None),
+        recorder=types.SimpleNamespace(stop=lambda: b""),
+        _prompt_oneshot=True,
+        notifier=types.SimpleNamespace(sound=lambda n: None),
+        bus=types.SimpleNamespace(
+            prompt_latch_changed=types.SimpleNamespace(emit=gemeldet.append),
+            set_state=lambda *a: None),
+        _process=lambda audio, force_command=False, prompt_oneshot=False: None,
+        # KEIN `overlay`
+    )
+    DesktopApp._on_record_stop(fake, "dictate")
+    assert gemeldet == [False]
+
+
+def test_verschwundenes_profil_wird_im_gui_thread_aufgeraeumt(qapp):
+    """Befund D-7: `_app_profile_overrides` laeuft im VERARBEITUNGS-Thread und rief
+    dort `_set_profile("")` — das schreibt die settings.json (ungeschuetzt aus dem
+    Worker) und faerbt zwei Mal die Pille. Beides gehoert in den GUI-Thread."""
+    import types
+
+    from fleech.profiles import ProfileOverrides
+    from fleech.ui.desktopapp.profil import ProfilMixin
+
+    gemeldet = []
+    fake = types.SimpleNamespace(
+        settings=types.SimpleNamespace(profiles=types.SimpleNamespace(
+            enabled=True, active="Geloeschtes Profil", items=[
+                {"name": "E-Mail", "apps": ["outlook.exe"]},
+            ])),
+        bus=types.SimpleNamespace(profil_zuruecksetzen=types.SimpleNamespace(
+            emit=lambda: gemeldet.append(True))),
+        _record_app="outlook.exe", _record_title="",
+        # KEIN `_set_profile`, KEIN `overlay` — ein direkter Zugriff wuerde werfen.
+    )
+    ergebnis = ProfilMixin._app_profile_overrides(fake)
+    assert gemeldet == [True]
+    assert ergebnis == ProfileOverrides()      # dieses eine Diktat laeuft neutral
+
+
+def test_das_aufraeumen_selbst_setzt_auf_automatisch(qapp):
+    """Gegenstueck im GUI-Thread — dort darf gespeichert und gefaerbt werden."""
+    import types
+
+    from fleech.ui.desktopapp.profil import ProfilMixin
+
+    gesetzt = []
+    fake = types.SimpleNamespace(_set_profile=gesetzt.append)
+    ProfilMixin._on_profil_zuruecksetzen(fake)
+    assert gesetzt == [""]
+
+
+# -- Fehlgeschlagener Aufnahmestart (Befund D-10) ----------------------------------
+
+
+def test_mikrofon_fehlstart_erzeugt_kein_geister_diktat(qapp):
+    """Befund D-10: In den Abbruchzweigen stand `stop_if_active()`. Das laeuft den
+    vollen Stopp-Weg — Stoppton, Zustand PROCESSING, Worker-Thread mit dem leeren
+    Array aus `recorder.stop()`. Die Pipeline verwirft es („Aufnahme zu kurz
+    (0.00 s)") und setzt IDLE „nichts erkannt" — und ueberschreibt damit die
+    Fehlermeldung von drei Zeilen vorher. Im Protokoll 12-mal genau so.
+    """
+    import types
+
+    from fleech.ui.desktop import DesktopApp
+
+    ereignisse = []
+
+    def start_geht_nicht():
+        raise OSError("Geraet belegt")
+
+    fake = types.SimpleNamespace(
+        _license_ok=lambda: True,
+        focus=types.SimpleNamespace(may_record=lambda math_mode=False: (True, "")),
+        _freihand=None,
+        recorder=types.SimpleNamespace(start=start_geht_nicht),
+        controller=types.SimpleNamespace(
+            cancel=lambda: ereignisse.append("cancel"),
+            stop_if_active=lambda: ereignisse.append("stop_if_active")),
+        bus=types.SimpleNamespace(
+            set_state=lambda zustand, text="": ereignisse.append(("state", text))),
+        sounds=types.SimpleNamespace(play=lambda n: None),
+    )
+    DesktopApp._on_record_start(fake, "dictate")
+    assert ereignisse == [("state", "Mikrofon-Start fehlgeschlagen"), "cancel"]
+
+
+# -- Beenden mitten in der Aufnahme (Befund D-5) -----------------------------------
+
+
+def test_beenden_macht_fremde_apps_wieder_laut(qapp, monkeypatch):
+    """Befund D-5: `_quit` rief `stop_if_active()` und direkt danach
+    `QApplication.quit()`. Die Wiederherstellung laeuft aber nur als Daemon-Thread
+    (Fade ~250 ms) — der Prozess war vorher weg. Nach dem ueblichen Deploy-Ablauf
+    (beenden, kopieren, starten) blieben Discord und Spotify auf einem Viertel."""
+    import types
+
+    import fleech.ui.desktopapp.lebenszyklus as lz
+    from fleech.ui.desktopapp.lebenszyklus import LebenszyklusMixin
+
+    ablauf = []
+    fake = types.SimpleNamespace(
+        _stoppe_freihand=lambda: ablauf.append("freihand"),
+        controller=types.SimpleNamespace(
+            stop_if_active=lambda: ablauf.append("stop")),
+        focus=types.SimpleNamespace(
+            on_recording_stop=lambda: ablauf.append("lautstaerken")),
+        settings=types.SimpleNamespace(save=lambda: ablauf.append("save")),
+        hotkeys=types.SimpleNamespace(stop=lambda: ablauf.append("hotkeys")),
+    )
+    fake._stelle_lautstaerken_her = types.MethodType(
+        LebenszyklusMixin._stelle_lautstaerken_her, fake)
+
+    class FakeApp:
+        @staticmethod
+        def instance():
+            return types.SimpleNamespace(quit=lambda: ablauf.append("quit"))
+
+    monkeypatch.setattr(lz, "QApplication", FakeApp)
+    LebenszyklusMixin._quit(fake)
+    # Die Lautstaerken sind zurueck, BEVOR der Prozess geht.
+    assert ablauf.index("lautstaerken") < ablauf.index("quit")
+    assert ablauf == ["freihand", "stop", "lautstaerken", "save", "hotkeys", "quit"]
+
+
+# -- Weggefallenes Mikrofon (Befund B-7) --------------------------------------------
+
+
+def test_geraete_rueckfall_wird_einmal_gemeldet(qapp):
+    """Befund B-7: Der Rueckfall auf den Systemstandard stand nur im Protokoll.
+    Einmal je Geraet melden — bei jedem Diktat waere die Meldung selbst eine
+    Stoerung — und die Statuszeile auf das Geraet setzen, das WIRKLICH aufnimmt."""
+    import types
+
+    from fleech.audiofocus import DeviceCheck
+    from fleech.ui.desktopapp.lebenszyklus import LebenszyklusMixin
+
+    meldungen = []
+    fake = types.SimpleNamespace(
+        settings=types.SimpleNamespace(recording=types.SimpleNamespace(
+            microphone="Mikrofon (Scarlett Solo USB)")),
+        focus=types.SimpleNamespace(
+            device_check=DeviceCheck(ok=True, name="Mikrofon (Scarlett Solo USB)")),
+        _flash_status=meldungen.append,
+    )
+    melde = types.MethodType(LebenszyklusMixin._melde_mikrofon_rueckfall, fake)
+    melde("Webcam-Mikrofon")
+    assert len(meldungen) == 1
+    assert "Scarlett" in meldungen[0] and "Webcam-Mikrofon" in meldungen[0]
+    assert "Webcam-Mikrofon" in fake.focus.device_check.name   # Statuszeile
+    melde("Webcam-Mikrofon")                    # dasselbe Geraet: nicht noch einmal
+    assert len(meldungen) == 1
+
+
+# -- Rueckgaengig blockiert den Hotkey-Thread nicht (Befund B-9/D-9) ----------------
+
+
+def test_rueckgaengig_laeuft_im_worker_thread(qapp, monkeypatch):
+    """Die Backspaces kosten 4 ms pro Zeichen — Median 1,3 s, im Maximum 23 s. So
+    lange blockierte der pynput-Listener und damit JEDER weitere Fleech-Hotkey;
+    wer in dieser Zeit den Diktat-Hotkey drueckte, verlor den Satzanfang."""
+    import fleech.ui.desktopapp.nachbereitung as nb
+    from fleech.ui.desktop import DesktopApp
+
+    gestartet = []
+
+    class ZaehlThread:
+        def __init__(self, target=None, daemon=None, args=()):
+            self._target, self._args = target, args
+            gestartet.append(daemon)
+
+        def start(self):
+            self._target(*self._args)
+
+    monkeypatch.setattr(nb.threading, "Thread", ZaehlThread)
+    fake = _undo_fake()
+    DesktopApp._undo_last_output(fake)
+    assert gestartet == [True]                  # genau ein Daemon-Worker
+    assert fake._aufrufe["replace"]             # und der macht die Arbeit
+
+
+# -- Fehlende lokale KI (Befund E-13) ----------------------------------------------
+
+
+def test_hinweis_auf_die_fehlende_lokale_ki_kommt_einmal(qapp):
+    """Wer die Einfuehrung ueberspringt, hat keinen Ollama-Dienst — jedes Diktat
+    kommt als Roh-Transkript an, sichtbar nur als „eingefügt (Fallback — Log
+    prüfen)". Der Rueckweg stand nirgends. Einmal je Sitzung, nicht bei jedem
+    Diktat: Wer den Hinweis kennt, will ihn nicht zwanzig Mal lesen."""
+    import types
+
+    from fleech.ui.desktopapp.modelle import ModelleMixin
+
+    gemeldet = []
+    fake = types.SimpleNamespace(
+        bus=types.SimpleNamespace(progress=types.SimpleNamespace(emit=gemeldet.append)))
+    melde = types.MethodType(ModelleMixin._melde_ki_offline, fake)
+    melde()
+    melde()
+    assert len(gemeldet) == 1
+    assert "Einführung erneut zeigen" in gemeldet[0]
+
+
+def test_der_fallback_weg_fragt_nach_dem_grund(qapp):
+    """Die Verdrahtung selbst: Nur bei „llm_offline" kommt der Einfuehrungs-Hinweis
+    — ein abgeschnittener Cleanup oder eine leere Modellantwort ist etwas anderes."""
+    import types
+
+    from fleech.profiles import ProfileOverrides
+    from fleech.ui.desktop import DesktopApp
+
+    def lauf(grund):
+        hinweise = []
+        still = types.SimpleNamespace(emit=lambda *a: None)
+        fake = types.SimpleNamespace(
+            _app_profile_overrides=ProfileOverrides,
+            _setze_sprache=lambda s: None,
+            settings=types.SimpleNamespace(
+                output=types.SimpleNamespace(command_enabled=True),
+                general=types.SimpleNamespace(language="de", save_history=False)),
+            config=types.SimpleNamespace(audio=types.SimpleNamespace(samplerate=16000)),
+            pipeline=types.SimpleNamespace(
+                process=lambda *a, **k: "fallback", last_mode="cleanup",
+                last_injected="Text", last_raw="roh", last_formulas=[],
+                last_dropped_tail="", last_error_kind=grund, last_tier="",
+                last_stt_ms=0, last_llm_ms=0),
+            bus=types.SimpleNamespace(
+                injection_fallback=still, formula_preview=still, tail_dropped=still,
+                transcript_ready=still, history_changed=still,
+                set_state=lambda *a: None),
+            notifier=types.SimpleNamespace(sound=lambda k: None,
+                                           toast=lambda *a: None),
+            _record_app="", _record_title="", _undo_candidate=None,
+            _check_dictionary_candidates=lambda t: None,
+            _count_dictionary_usage=lambda t: None,
+            _melde_ki_offline=lambda: hinweise.append(True),
+        )
+        DesktopApp._process_locked(fake, b"\x00" * 32)
+        return hinweise
+
+    assert lauf("llm_offline") == [True]
+    assert lauf("") == []

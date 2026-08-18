@@ -59,6 +59,16 @@ class StateBus(QObject):
     # Pille direkt von dort umzufaerben ist derselbe Thread-Fehler wie oben, nur
     # leiser — er crasht sporadisch statt sofort.
     paused_changed = Signal(bool)
+    # KI-Prompting fuer DIESES Diktat an/aus. Der Hotkey kommt aus dem
+    # pynput-Thread, und die Pille faerbte sich bis 5.10.3 direkt von dort um
+    # (`overlay.set_prompt_latched` → Widget-Operationen im falschen Thread,
+    # Befund D-6) — derselbe Fehler wie oben, nur ohne Ausnahme, die ihn zeigt.
+    prompt_latch_changed = Signal(bool)
+    # Das gewaehlte Profil gibt es nicht mehr → zurueck auf „automatisch".
+    # Bemerkt wird das beim Aufloesen im VERARBEITUNGS-Thread (Befund D-7); das
+    # Aufraeumen selbst speichert die Einstellungen und faerbt die Pille, gehoert
+    # also in den GUI-Thread.
+    profil_zuruecksetzen = Signal()
     # Rohtranskript, sobald die Erkennung fertig ist (~0,8 s) — also LANGE bevor
     # die Bereinigung durch ist (~4 s). Wer schon lesen kann, waehrend das Modell
     # arbeitet, wartet gefuehlt nicht mehr. Wird spaeter von `transcript_ready`

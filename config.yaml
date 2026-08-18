@@ -80,5 +80,7 @@ overlay:                      # M4: Live-Vorschau (roh, streamend) waehrend des 
   window_seconds: 12          # gleitendes Fenster; aeltere Segmente werden eingefroren
 
 injection:
-  restore_clipboard: true     # alte Zwischenablage nach dem Einfuegen wiederherstellen
+  restore_clipboard: true     # alten TEXT der Zwischenablage nach dem Einfuegen
+                              # wiederherstellen. Bilder/Dateien werden nicht
+                              # gesichert — sie bleiben unangetastet erhalten.
   paste_delay_ms: 150

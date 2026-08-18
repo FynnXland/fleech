@@ -52,6 +52,11 @@ class TextInjector:
 
         return paste_text()
 
+    def _clipboard_has_text(self) -> bool:
+        from .clipboard import has_text
+
+        return has_text()
+
     def _set_clipboard(self, text: str) -> None:
         from .clipboard import copy_text
 
@@ -113,7 +118,12 @@ class TextInjector:
             time.sleep(_CLIPBOARD_POLL_S)
 
     def _inject_locked(self, text: str) -> None:
-        previous = self._get_clipboard() if self.restore_clipboard else None
+        # Nur sichern, wenn wirklich TEXT in der Ablage liegt (Befund B-10). Bei
+        # einem kopierten Bild lieferte das Lesen frueher "" — und nach dem Diktat
+        # wurde genau dieser leere String zurueckgeschrieben, das Bild war weg.
+        previous = None
+        if self.restore_clipboard and self._clipboard_has_text():
+            previous = self._get_clipboard()
 
         self._set_clipboard(text)
         self._await_clipboard(text)  # statt blinder Wartezeit (siehe Modul-Kopf)

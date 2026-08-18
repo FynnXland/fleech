@@ -145,6 +145,8 @@ class DesktopApp(
         self.bus.profile_key.connect(self._on_profile_key)
         self.bus.license_needed.connect(self.show_license_dialog)
         self.bus.paused_changed.connect(self.overlay.set_paused)
+        self.bus.prompt_latch_changed.connect(self.overlay.set_prompt_latched)
+        self.bus.profil_zuruecksetzen.connect(self._on_profil_zuruecksetzen)
         # Live-Vorschau (Opt-in): kleines separates Whisper-Modell + Streamer, beide
         # lazy — wer das Feature nie einschaltet, zahlt keinerlei Kosten.
         self._preview_model = None
@@ -294,17 +296,19 @@ class DesktopApp(
         # Mikrofon gehen, und der Nutzer bekommt sofort den Dialog statt einer
         # Fehlermeldung nach dem Sprechen.
         if not self._license_ok():
-            self.controller.stop_if_active()
+            # `cancel()` statt `stop_if_active()` (Befund D-10): Letzteres laeuft in
+            # den vollen Stopp-Weg — Stoppton, Zustand PROCESSING und ein Worker mit
+            # 0 Samples, der eine Zehntelsekunde spaeter „nichts erkannt" in die
+            # Pille schreibt und damit die Meldung ueberdeckt, die weiterhelfen wuerde.
+            self.controller.cancel()
             # NICHT direkt aufrufen: diese Methode laeuft im pynput-Listener-Thread.
             self.bus.license_needed.emit()
             return
-        allowed, message = self.focus.may_record(math_mode=False)
-        if not allowed:
-            log.error(message)
-            self.bus.set_state(AppState.ERROR, message)
-            self.sounds.play("error")
-            self.controller.stop_if_active()
-            return
+        # `may_record` blockiert seit v3.0.0 nichts mehr (der Cloud-Formel-Weg ist
+        # weg) — es bleibt die Warnung bei einem Loopback-/Mix-Geraet. Der frueher
+        # hier stehende Abbruchzweig war damit tot (Befund D-10); die Nahtstelle
+        # bleibt, die Warnung auch.
+        _, message = self.focus.may_record(math_mode=False)
         if message:
             log.warning(message)
         strom = getattr(self, "_freihand", None)
@@ -316,7 +320,7 @@ class DesktopApp(
             log.exception("Mikrofon-Start fehlgeschlagen.")
             self.bus.set_state(AppState.ERROR, "Mikrofon-Start fehlgeschlagen")
             self.sounds.play("error")
-            self.controller.stop_if_active()
+            self.controller.cancel()   # kein Geister-Diktat (Befund D-10)
             return
         # Ziel-App + Titel JETZT festhalten, nicht aus dem 3-s-Poll: Der Text
         # landet spaeter in genau diesem Fenster, und davon haengt ab, welches
@@ -367,7 +371,9 @@ class DesktopApp(
         # in den Normalzustand zurueck.
         prompt_oneshot, self._prompt_oneshot = self._prompt_oneshot, False
         if prompt_oneshot:
-            self.overlay.set_prompt_latched(False)
+            # Ueber den Bus: im Hold-Modus kommt auch dieser Weg aus dem
+            # pynput-Thread, und die Pille ist ein Qt-Widget (Befund D-6).
+            self.bus.prompt_latch_changed.emit(False)
         self.notifier.sound("stop")
         self.bus.set_state(AppState.PROCESSING)
         threading.Thread(
@@ -392,6 +398,8 @@ class DesktopApp(
             log.info("Abbrechen ohne laufende Aufnahme — nichts zu verwerfen.")
             return
         self._prompt_oneshot = False
+        # Hier ausnahmsweise direkt: dieser Weg haengt am X der Pille, kommt also
+        # ohnehin aus dem GUI-Thread (anders als `_on_record_stop`, Befund D-6).
         self.overlay.set_prompt_latched(False)
         self._stop_preview()
         threading.Thread(target=self.focus.on_recording_stop, daemon=True).start()
@@ -540,6 +548,8 @@ class DesktopApp(
         elif result == "fallback":
             self.notifier.sound("error")
             self.bus.set_state(AppState.IDLE, "eingefügt (Fallback — Log prüfen)")
+            if self.pipeline.last_error_kind == "llm_offline":
+                self._melde_ki_offline()
             if self.pipeline.last_error_kind == "quota":
                 self.notifier.toast(
                     "provider_quota", "Fleech",
@@ -629,15 +639,11 @@ class DesktopApp(
         on = self._prompt_oneshot
         # Den dauerhaften Latch gab es hier bis 5.10.2 noch als Feld — ohne jeden
         # Aufrufer, seit der Punkt in der Pille das Profil wechselt. Entfernt.
-        self._safe_overlay_latch("prompt", on)
+        # Ueber den Bus, nicht direkt ans Overlay: Dieser Weg kommt aus dem
+        # pynput-Thread (Befund D-6).
+        self.bus.prompt_latch_changed.emit(on)
         self.notifier.sound("start" if on else "stop")
         log.info("KI-Prompting fuer DIESES Diktat %s.", "an" if on else "aus")
-
-    def _safe_overlay_latch(self, kind: str, on: bool) -> None:
-        try:
-            self.overlay.set_prompt_latched(on)
-        except Exception:
-            log.debug("Overlay-Latch-Anzeige fehlgeschlagen.", exc_info=True)
 
     def _apply_hotkey_bindings(self) -> None:
         bindings = {}
@@ -711,6 +717,7 @@ class DesktopApp(
             self.recorder = Recorder(
                 self.config.audio.samplerate, self.settings.recording.microphone
             )
+            self.recorder.on_device_fallback = self._melde_mikrofon_rueckfall
             # Overlay-Waveform folgt automatisch (level_provider ist late-bound).
             self._recheck_input_device()
         elif section == "stt_device":
