@@ -11,6 +11,44 @@ GitHub-Release-Notizen (`packaging/release.py`).
 
 ---
 
+## 5.11.0 — 2026-08-18
+
+Sammel-Release der Tiefenanalyse vom 17./18. August: Alles aus 5.10.3 bis 5.10.5 ist
+enthalten (die Abschnitte darunter sagen es im Einzelnen), dazu drei neue
+Fähigkeiten rund um Profile und Apps. Was du im Alltag merkst, in einem Absatz: Der
+Verlauf sagt jetzt *warum* etwas schiefging und lässt sich durchsuchen; die Pille
+zeigt das Profil, das wirklich gilt, und warnt, wenn das Mikrofon nichts liefert;
+Hotkeys auf Makro-Tasten funktionieren; Uhrzeiten kosten keinen Fehlversuch mehr;
+Stichpunkte- und KI-Prompt-Profil tun endlich, was sie versprechen; die
+Einstellungsdatei geht nicht mehr verloren; und die Insights zeigen ehrliche Zahlen.
+
+**Profile lassen sich sichern und weitergeben.** Auf der Profilseite schreiben zwei
+Knöpfe alle Profile samt App-Zuordnung und Schnellwechsel in eine JSON-Datei und lesen
+sie wieder ein — die Datei enthält bewusst nur Profile (kein Lizenzschlüssel, keine
+Mikrofoneinstellung), man kann sie also einem Empfänger mitgeben. Beim Import kommt
+nichts abhanden: Unbekannte Profile werden ergänzt, gleichnamige nur nach Rückfrage
+überschrieben, gelöscht wird nie etwas.
+
+**Fenstertitel muss man nicht mehr abtippen.** Auf der Apps-Seite trägt „Aktuellen
+Titel übernehmen" den Titel des Fensters ein, aus dem du gerade kamst — darunter
+steht, welcher Titel angeboten wird. Kleine Knöpfe daneben bieten nur den stabilen
+Teil des Titels an (etwa „fleech" statt „apps.py - Fleech - Visual Studio Code"),
+denn genau der ist die brauchbare Bedingung.
+
+**Fleech fragt von sich aus nach der App-Zuordnung.** Oben auf der Apps-Seite steht
+für stark genutzte Programme ohne Profil eine Karte wie „In claude.exe hast du 895
+Diktate gemacht (64 % aller). Kein Profil zugewiesen." — mit einem Knopf, der die
+Regel anlegt. Vorgeschlagen wird, was dort bisher tatsächlich lief: dein häufig von
+Hand gewähltes Profil oder das benutzte Ausgabeformat. Zugewiesen wird nie von
+selbst; „Nicht mehr fragen" lässt die Karte für diese Anwendung verschwinden.
+
+Noch offen und mit dir zu klären: die Schwelle der Kein-Ton-Warnung (hergeleitet,
+nicht am Mikrofon gemessen), und ob drei Dinge entfernt werden sollen, die der
+Verlauf als ungenutzt ausweist (Textbausteine, die stillgelegte Freihand-Oberfläche,
+der Schalter „Adaptive Geschwindigkeit").
+
+---
+
 ## 5.10.5 — 2026-08-18
 
 *Nicht einzeln veröffentlicht.* Dritte Runde aus der Tiefenanalyse: Profile werden

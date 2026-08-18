@@ -7,7 +7,7 @@
 
 from __future__ import annotations
 
-APP_VERSION = "5.10.5"  # 5.10.5: Tiefenanalyse Runde 3 — Profile sichtbar, Kein-Ton-Warnung, Verlaufssuche, Varianten, letzte Aufnahme
+APP_VERSION = "5.11.0"  # 5.11.0: Sammel-Release der Tiefenanalyse (5.10.3-5.10.5 + Profil-Export, Titel uebernehmen, Zuordnungsvorschlaege)
 
 
 def _read_build() -> str:
