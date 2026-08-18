@@ -2136,6 +2136,10 @@ Die Zahlen, die das Verhalten bestimmen — alle mit Begründung im Quellcode.
 | **0,4 s / 0,004** | Mindestlänge und Mindestpegel eines Textfensters im Formel-Mix |
 | **600 Zeichen** | Kontextfenster für Befehle |
 | **60 Begriffe** | Obergrenze für das Vokabular-Priming |
+| **0,002** (`KEIN_TON_SCHWELLE`) | roher RMS-Pegel, unter dem „da kommt nichts" gilt — eine Zehnerpotenz unter dem leisesten real gemessenen Mikrofon, noch **nicht am Gerät kalibriert** |
+| **4,0 s** (`KEIN_TON_AB_S`) | Aufnahmedauer, ab der die Kein-Ton-Wache überhaupt prüft |
+| **5,0 s** (`KEIN_TON_FENSTER_S`) | Fenster, über das der lauteste Rohpegel zählt |
+| **10 s** (`_ROHPEGEL_VORRAT_S`) | wie weit `Recorder` den Rohpegel-Verlauf zurückhält — großzügig über dem 5-s-Fenster der Wache |
 
 ### Befehle
 
@@ -2150,7 +2154,8 @@ Die Zahlen, die das Verhalten bestimmen — alle mit Begründung im Quellcode.
 
 | Wert | Bedeutung |
 |---|---|
-| **0,4 s** | Schonfrist der Hotkey-Selbstheilung (Auto-Repeat: ~30 ms) |
+| **250–1000 ms** (`system_repeat_delay_s`) | Windows-Verzögerung bis zur ersten Auto-Wiederholung (`SPI_GETKEYBOARDDELAY`, vier Stufen) |
+| **+0,3 s / min 0,6 s / 1,1 s ohne Auskunft** (`repeat_grace_s`) | daraus abgeleitete Schonfrist der Hotkey-Selbstheilung — Aufschlag auf die Systemverzögerung, Untergrenze, und der Wert ohne Windows-Auskunft (über der größtmöglichen Verzögerung) |
 | **3 s** | Takt der Fokus-/Spielerkennung |
 | **60 s** | Takt der Modell-Warmhaltung |
 | **10 Min** | Standard-Leerlauf bis zum Entladen |
@@ -2163,6 +2168,7 @@ Die Zahlen, die das Verhalten bestimmen — alle mit Begründung im Quellcode.
 | **90 s** | Cooldown je Banner-Art |
 | **2 / 4 / 8 s** | Wartezeiten beim Formel-Rate-Limit |
 | **30 min** | Warmhalte-Zeitraum je Ollama-Ping |
+| **20 MB × 3** | Log-Rotation (`fleech.log` + drei ältere Stände) |
 
 ### Freihand und Anstupsen
 
@@ -2228,7 +2234,12 @@ verschwindet neben den 810 ms der Erkennung.
 Die Kontexte entstehen aus App **und** Fenstertitel: Derselbe Editor trägt mal das eine,
 mal das andere Projekt. Gespeichert wird in `kontext.db` neben dem Verlauf — kein
 Diktattext, nur die Begriffe und wie oft sie vorkamen. Löschen lässt sich das wie der
-Verlauf.
+Verlauf — komplett, oder seit 5.10.5 auch **ein einzelner Begriff** (Einstellungen →
+Textersetzung → „Begriff vergessen"): In `kontext.db` stehen auch echte Hörfehler
+(`Cloud-Code`, `FLEACH`), die sich über den `initial_prompt` selbst weiter primen; bis
+5.10.5 ließ sich dagegen nur alles auf einmal löschen. Dieselbe Funktion nutzt die
+Schreibvarianten-Vorschlagskarte ([9](#9-verlauf-und-statistiken)): Übernimmt man dort
+eine Regel, vergisst Fleech die als falsch erkannte Form auch hier.
 
 ---
 
@@ -2540,10 +2551,33 @@ Verfügung. „In Klammern … Klammer zu" und „das Ganze durch" muss man desh
 sagen. Der Handel war bewusst: Bestimmtheit und Offline-Betrieb gegen etwas
 Bequemlichkeit.
 
-**Freihand ist kein Diktat für die Hosentasche.** Das Gate ist auf einen ruhigen
-Arbeitsplatz ausgelegt. In einer Besprechung oder bei laufendem Fernseher hält Stufe 1
-kaum etwas zurück, und das kleine Modell prüft dauernd — dafür gibt es die
-Ausschlussliste je Programm.
+**Freihand ist kein Diktat für die Hosentasche — und seit 5.10.1 ohnehin stillgelegt.**
+Das Gate ist auf einen ruhigen Arbeitsplatz ausgelegt: In einer Besprechung oder bei
+laufendem Fernseher hält Stufe 1 kaum etwas zurück, und das kleine Modell prüft
+dauernd — dafür gibt es die Ausschlussliste je Programm. Seit 5.10.1 startet der Modus
+gar nicht mehr (`freihand.STILLGELEGT`), unverändert im Auslieferungszustand; Details
+und der Ersatzweg über „Anstupsen" stehen in Kapitel 21.
+
+**Die Kein-Ton-Wache ist eine Warnung, kein Messgerät.** Die Schwelle (RMS 0,002) ist
+konservativ hergeleitet, aber **noch nicht am echten Mikrofon kalibriert** — dafür
+bräuchte es einen Vergleich stumm/leise/normal gesprochen an echten Geräten, den es bis
+5.11.0 nicht gab. Und sie läuft nur, solange die Pille **sichtbar** ist: Sie hängt am
+50-ms-Waveform-Takt der Pille (`level_provider`), bei Sichtbarkeit „Deaktiviert" oder
+außerhalb einer laufenden Aufnahme prüft niemand.
+
+**Bei zwei sich überlappenden Diktaten ist das Fokusziel kein Schnappschuss.** Die
+Cursor-Rückkehr (12.3) hält genau ein Fokusziel als Instanzfeld, gesetzt beim
+Aufnahmestart. Beginnt ein zweites Diktat in einem **anderen** Fenster, während das
+erste noch verarbeitet wird (typisches Zeitfenster: median 2 s, p90 7 s), landet der
+Text des ersten Diktats im Fenster des zweiten — Ausgabeformat, Profil und Vokabular
+bleiben davon unberührt, und der Text ist über Verlauf und „Rückgängig" wiederherstellbar.
+Eine Nachprüfung an 1399 protokollierten Diktaten fand **keinen einzigen** Fall (der
+schnellste beobachtete App-Wechsel-Start lag 1,9 s nach dem Ende des vorherigen
+Diktats). Ein sauberer Fix — ein Fokusziel-Schnappschuss je Diktat — hätte einen Preis:
+die bewusste Entscheidung, ob das erste Diktat dem zweiten den Vordergrund entreißen
+darf. Bei kürzerer Verarbeitung (kleines Modell, warmes Ollama) ist das Risiko
+praktisch geschlossen; bricht die Latenz wieder auf, wie es kaltes Ollama zeigt (bis 19 s
+im Protokoll beobachtet), wächst es.
 
 **Die Fachbegriff-Heuristik ist eine Heuristik.** Sie erkennt Begriffe an ihrer
 Schreibweise, nicht an ihrer Bedeutung. Ein klein geschriebenes Fachwort ohne Ziffer
