@@ -1,6 +1,6 @@
 # Fleech — Gesamtkonzept, Funktionen und technische Umsetzung
 
-> Stand: Version 5.10.0 · Diese Datei ist die Gesamtdarstellung des Projekts: Idee,
+> Stand: Version 5.11.0 · Diese Datei ist die Gesamtdarstellung des Projekts: Idee,
 > Bedienung, jede Funktion, jede Einstellung und die technische Umsetzung dahinter.
 > Die themenspezifischen Vertiefungen liegen daneben in `docs/`
 > ([Audio-Architektur](audio-architektur.md), [Focus & Notifications](focus-notifications.md),
@@ -557,7 +557,13 @@ lieber unbereinigt als in fremden Worten.
 Zwei bewusste Ausnahmen: Der Eingriffsgrad **Strong** ist die ausdrückliche Erlaubnis
 zu stärkerem Glätten (der Guard schweigt dort), und bei **Selbstkorrekturen** misst
 die Kennzahl nicht „umformuliert", sondern nur die Länge der zurückgenommenen Passage
-— dort gilt nur noch ein abgesenkter Boden gegen Total-Umschreibung.
+— dort gilt nur noch ein abgesenkter Boden gegen Total-Umschreibung. Was bei „Strong"
+trotzdem weiterläuft: die Zahl-/Verneinungs-Prüfung aus 5.4b — Termine und Beträge
+sollen auch im geschäftlichen und E-Mail-Profil nicht verschwinden.
+
+Liefert das Modell gar keine Antwort (leerer Content), zählt das wie jeder andere
+Rückfall: Fleech fügt das Rohtranskript ein und meldet den Grund, statt einen grünen
+Haken für unbereinigten Text zu zeigen.
 
 ### 5.4 Erfundene Sätze am Textende
 
@@ -568,9 +574,10 @@ längeren Diktat unter. Deshalb prüft Fleech den **Schwanz gezielt**: Sätze we
 hinten verworfen, solange ihre Inhaltswörter im Rohtranskript keine Entsprechung
 haben; der erste gestützte Satz stoppt die Prüfung. Konservativ abgesichert: Der erste
 Satz bleibt immer stehen, und Sätze mit Formeln oder Platzhaltern werden nie
-angetastet (LaTeX teilt naturgemäß keine Wörter mit dem Gesprochenen). Der Prompt
-verbietet das Anhängen zusätzlich ausdrücklich („dein Text endet genau dort, wo der
-Sprecher aufgehört hat — auch mitten im Satz").
+angetastet (LaTeX teilt naturgemäß keine Wörter mit dem Gesprochenen). Erkannt wird das
+am Platzhalter-Präfix `[[M` (Formeln, `formula.formula_marker`) bzw. `[[B` (Bausteine,
+8a) im Satz. Der Prompt verbietet das Anhängen zusätzlich ausdrücklich („dein Text
+endet genau dort, wo der Sprecher aufgehört hat — auch mitten im Satz").
 
 ### 5.4a Ausschmückung — der häufigste reale Fehler
 
@@ -610,6 +617,13 @@ Textende dieselbe Einheit (ab 3× bei Phrasen, ab 5× bei Einzelwörtern — ein
 rhetorisches „nein, nein, nein" überlebt), bleibt genau eine Nennung stehen. Jede
 Kürzung wird sichtbar geloggt.
 
+Dieselbe Schleife kann auch **mitten im Text** stehen, mit echtem Diktat davor und
+danach — die Schwanz-Prüfung sieht sie dann nicht (`collapse_inner_repetitions`, real
+beobachtet: „G-G-G-G-…" 34×, „um, um, um, um, um.", „No-no-no-no-no."). Sie lief bisher
+mit grünem Haken durch. Derselbe 5×-Boden wie beim Schwanz, dieselbe Regel gegen
+rhetorische Wiederholung; erhalten bleibt die letzte Nennung, sie trägt die
+Interpunktion des Laufs.
+
 ### 5.4b Sinnumkehr — und was der Guard NICHT abdeckt
 
 `meaning_flipped` (in `fleech/textfilter.py`) fängt den Fall, für den alle anderen
@@ -624,6 +638,14 @@ Geprüft werden **genau zwei Träger**:
 - **Verneinungen** — aus „nicht bezahlt" wird „bezahlt".
 - **Zahlen** — real gemessen: „Heute ist der 6.7." wurde zu „der 6., oder der 7.?"; in
   einem anderen Diktat verschwanden zwei Geldbeträge ersatzlos.
+
+Beim Zahlenvergleich zählt nur der **Trenner-normalisierte** Wert: „18.50 Uhr" und
+„18:50 Uhr" gelten als dieselbe Zahl. Ohne das meldete jede korrekt umgeschriebene
+Uhrzeit einen Fehlalarm — an 967 echten Paaren waren das 10 von 16 Zahl-Treffern, jeder
+mit Fehlerton und unbereinigtem Text im Feld. Ebenso zählt ein Datum als erhalten, wenn
+aus „15.07." ein „15. Juli" wird (Tag als Ziffer, Monat als Name — beides muss stehen).
+Bekannter Rest: Wird ein Datum anders umgeschrieben („am fünfzehnten Juli"), gilt die
+Zahl weiterhin als verloren.
 
 **Was er nicht abdeckt, ausdrücklich:** vertauschte Modalverben („kann" ↔ „muss"),
 gedrehte Zeitbezüge („vor" ↔ „nach"), verlorene Einschränkungen („nur", „außer"). Alle
@@ -702,11 +724,11 @@ Ein Profil bündelt heute sechs Dinge und wird **Ziel-Apps zugewiesen**:
 
 | Bestandteil | Wirkung |
 |---|---|
-| **Ausgabeformat** | `Diktat` / `Stichpunkte` / `E-Mail` / `KI-Prompt` / `Formeln` — exklusiv, eines pro Profil |
+| **Ausgabeformat** | `Diktat` / `Stichpunkte` / `E-Mail` / `KI-Prompt` — exklusiv, eines pro Profil |
 | **Stil-Tags** | freie Vorgaben an das Modell, z. B. „professioneller, sachlicher Ton" |
-| **Sprache** | `Wie Einstellungen` / `Deutsch` / `Englisch` / `Automatisch` (seit 5.4.0) |
+| **Sprache** | `Wie Einstellungen` / `Deutsch` / `Englisch` / `Automatisch` (seit 5.4.0, seit 5.10.5 auch auf der Profilseite einstellbar, nicht nur in der `settings.json`) |
 | **Safe-Word** | pro Profil erzwingen oder abschalten |
-| **Automatisch senden** | nach dem Einfügen zusätzlich Enter — bewusst je Profil und bewusst aus als Vorgabe |
+| **Automatisch senden** | nach dem Einfügen zusätzlich Enter — greift bei `Diktat` / `KI-Prompt` / `Stichpunkte`, bewusst NICHT bei `E-Mail` (eine Mail, die sich selbst abschickt, ist der eine Fall, in dem ein Versehen echte Folgen hat) und nie nach einem Befehl oder Rohtext-Rückfall; bewusst je Profil und bewusst aus als Vorgabe |
 | **App-Zuordnung** | Prozessnamen, für die das Profil automatisch greift — optional auf einen Fenstertitel eingegrenzt |
 
 **Das Ausgabeformat ist der eigentliche Sprung.** Bis 3.x regelte ein Profil nur, *wie
@@ -716,21 +738,38 @@ stark* geglättet wird. Seit 4.x entscheidet es, *was* aus dem Diktat wird: Dies
 **absichtlich neu**; sie sind deshalb vom Wortgetreue-Guard ausgenommen, der sonst genau
 das verhindert. Die anderen Schutzschichten laufen weiter.
 
+Ein „Formeln"-Ausgabeformat gab es bis 5.10.2 in der Liste, aber ohne jeden Codepfad —
+Formeln laufen seit 3.0.0 ausschließlich global über Einstellungen → Ausgabe, nie über
+ein Profil. Es ist entfallen; das Profil **Mathe** bleibt als reines
+Eingriffsgrad-Profil mit fester violetter Farbe erhalten.
+
 Mitgeliefert sind: **Standard** (Fallback für alle nicht zugewiesenen Apps),
-**Geschäftlich**, **Privat**, **Coding**, **Formeln**, **Stichpunkte**, **E-Mail** und
+**Geschäftlich**, **Privat**, **Coding**, **Mathe**, **Stichpunkte**, **E-Mail** und
 **KI-Prompt**. Die umformulierenden Vorlagen werden nur dann ergänzt, wenn kein Profil
 dieses Format trägt — wer sie gelöscht oder umbenannt hat, bekommt sie nicht wieder
 aufgedrängt.
 
+**Jetzt aktiv.** Oben auf der Profilseite lässt sich das von Hand gewählte Profil auch
+**ohne laufende Aufnahme und ohne Hotkey** setzen — bis 5.10.4 ging das nur über den
+Pillen-Punkt (nimmt Klicks nur während einer Aufnahme an) oder den Profil-Hotkey (von
+Haus aus unbelegt). Die Zeile schreibt dieselbe Auswahl wie die anderen beiden Wege und
+lässt Ring und Kapsel an der Pille nachziehen.
+
 ### Schnellwechsel und „App-Standard"
 
 Neben der automatischen Zuordnung lässt sich ein Profil **von Hand** wählen: über den
-Punkt in der Pille oder den Profil-Hotkey. Diese Wahl ist persistent — wer im
-E-Mail-Profil arbeitet, will nach einem Neustart nicht stillschweigend wieder normal
-diktieren; genau das fällt erst am fertigen Text auf. Zurück zur Automatik geht es über
-den Eintrag **„App-Standard"**.
+Punkt in der Pille, den Profil-Hotkey oder die Zeile „Jetzt aktiv" auf der Profilseite.
+Diese Wahl ist persistent — wer im E-Mail-Profil arbeitet, will nach einem Neustart
+nicht stillschweigend wieder normal diktieren; genau das fällt erst am fertigen Text
+auf. Zurück zur Automatik geht es über den Eintrag **„App-Standard"**.
 
-Zwei Feinheiten, die aus dem Alltag kamen:
+**Das Standardprofil läuft im Schnellwechsel nicht mit** — weder im Zyklus des
+Pillen-Punkts noch in der Auswahlliste des Profil-Hotkeys noch in „Jetzt aktiv". Von
+Hand gewählt sah es genauso aus wie „App-Standard" (gleicher Name, gleiche Farbe), legte
+dabei aber die gesamte App-Zuordnung still und dauerhaft — bis der Fehler bemerkt wurde.
+„App-Standard" am Ende des Zyklus leistet dasselbe und lässt die Zuordnung zu.
+
+Zwei weitere Feinheiten, die aus dem Alltag kamen:
 
 - **Nicht jedes Profil gehört in den Schnellwechsel.** Wer acht Profile pflegt, aber
   nur zwei umschaltet, blendet den Rest aus — sonst wird Durchschalten zur Zumutung,
@@ -752,6 +791,12 @@ Formel-Modus bzw. als KI-Prompting — ohne jedes Umschalten. In der Profilliste
 an einem farbigen Punkt vor dem Namen erkennbar (violett bzw. amber, dieselbe Sprache
 wie im Overlay).
 
+**Profile sichern und zurückholen.** Zwei Knöpfe unter der Profilliste schreiben
+Profile und Schnellwechsel-Zuordnungen in eine JSON-Datei und lesen sie wieder ein.
+Bewusst NUR das — kein Lizenzschlüssel, kein Mikrofonpfad —, damit sich die Datei auch
+weitergeben lässt. Import ist additiv: Unbekannte Profile kommen dazu, gleichnamige nur
+nach Rückfrage, gelöscht wird nie etwas.
+
 ### Zuordnung über den Fenstertitel
 
 Ein Prozessname allein ist oft zu grob: Derselbe Editor trägt mal Code, mal Notizen.
@@ -768,12 +813,40 @@ Zwei Festlegungen dazu:
 - **Spezifisch schlägt allgemein.** Einträge *mit* Titel-Bedingung werden zuerst
   geprüft, unabhängig von der Reihenfolge der Profile. Sonst würde ein schlichtes
   `Code.exe` in Profil A das genauere `Code.exe :: Tagebuch` in Profil B je nach
-  Listenposition verdecken, ohne dass man etwas dagegen tun kann.
+  Listenposition verdecken, ohne dass man etwas dagegen tun kann. Passen zwei
+  Titel-Bedingungen auf dasselbe Fenster, gewinnt die **längere** — auch das
+  unabhängig von der Listenposition.
 
 Ist ein zugewiesener Prozess weder gerade sichtbar noch in den letzten 30 Tagen
 Diktat-Ziel gewesen, steht das hinter dem Eintrag („seit 80 Tagen nicht gesehen",
 „noch nie gesehen"). Das ist fast immer ein Tippfehler oder ein umbenanntes Programm —
-und fällt sonst nie auf, weil das Profil einfach stumm nie greift.
+und fällt sonst nie auf, weil das Profil einfach stumm nie greift. Auf der Seite „Apps"
+ist die Anwendungsliste nach diktierten Wörtern sortiert (die meistgenutzte App vorn),
+und solche Einträge stehen farbig ganz oben — davor, statt zwischen den anderen
+unterzugehen.
+
+**„Wenn du jetzt diktierst" — die Live-Zeile.** Oben auf der Apps-Seite steht
+mitlaufend ein Satz, was ein Diktat *jetzt* ergäbe: Ziel-Anwendung, Fenstertitel, das
+daraus aufgelöste Profil samt Fundstelle der Regel, Ausgabeformat, Eingriffsgrad und
+Sprache. Vorher ließ sich nur durch Ausprobieren herausfinden, ob und welche Regel
+gerade greift.
+
+**Titel per Knopf übernehmen.** Beim Anlegen einer Titel-Bedingung trägt „Aktuellen
+Titel übernehmen" den Fenstertitel der zuletzt im Vordergrund gewesenen fremden
+Anwendung ein (Fleech selbst zählt nicht) — angezeigt statt still eingetragen, das Feld
+bleibt editierbar. Dazu Segment-Knöpfe für den stabilen Teil eines Titels (z. B.
+„fleech" aus „apps.py - Fleech - Visual Studio Code" statt des ganzen, meist zu
+genauen Titels), gespeist aus den zuletzt gesehenen Fenstern und den von `kontext.db`
+gelernten Titelsegmenten der Anwendung.
+
+**Zuordnungsvorschläge aus dem eigenen Verlauf.** Oben auf der Apps-Seite kann eine
+Karte stehen: „In claude.exe hast du 895 Diktate gemacht (64 % aller). Kein Profil
+zugewiesen." mit Knöpfen zum Zuweisen oder dauerhaften Ignorieren. Die Regel dahinter:
+mindestens 25 Diktate in dieser Anwendung, keine bestehende Zuordnung (auch eine reine
+Titel-Ausnahme zählt) und nicht ignoriert; höchstens zwei Karten gleichzeitig.
+Vorbelegt wird — in dieser Reihenfolge — mit dem dort häufig von Hand gewählten Profil
+(mindestens 8 Diktate und mindestens 70 %), sonst mit dem dort tatsächlich gelaufenen
+Ausgabeformat, sonst mit dem Standardprofil. Zugewiesen wird **nie automatisch**.
 
 Profile lassen sich global abschalten; dann gilt überall die Grundeinstellung.
 
@@ -835,6 +908,19 @@ braucht viele hundert Aufnahmen, Stunden GPU-Zeit und liefert ein Modell, das na
 nächsten Update neu gebaut werden müsste. Priming erreicht dasselbe zur Laufzeit, kostet
 nichts und gilt sofort.
 
+**Gesprochene Zeichen.** „Slash Hunter" wird zu „/Hunter" — ersetzt werden bewusst nur
+vier eindeutige Wörter (Slash, Backslash, Hashtag, Klammeraffe), und nur dann, wenn ein
+weiteres Wort folgt: klebt an einem Namen („/Hunter"), steht mit Leerzeichen vor
+gewöhnlichem Text („# oder"). „Raute", „Unterstrich", „Schrägstrich", „Minus" und
+„Plus" bleiben Text — das sind gewöhnliche deutsche Wörter, und an 1399 echten
+Diktaten waren beide gemessenen Fehltreffer genau von dieser Art
+(„zeichne eine Raute darunter" wurde sonst zu „zeichne eine #darunter").
+
+Die Vorschlagskarte in den Insights, die aus wiederholten Korrekturen eine
+Wörterbuch-Regel macht, und das dabei ebenfalls einzeln vergessbare gelernte Vokabular
+des Projekt-Gedächtnisses sind in [9](#9-verlauf-und-statistiken) bzw.
+[20](#20-projekt-gedächtnis-seit-510) beschrieben.
+
 ---
 
 ## 8a. Text-Bausteine
@@ -868,6 +954,14 @@ kleine Zweitmodell (`qwen2.5:3b`) im Live-Test die Marker in der Mehrzahl der ku
 Sätze. Seit 3.5.0 gibt es nur noch **ein** Modell (`gemma3:4b`) — damit erübrigt sich
 die Unterscheidung; siehe [13.2](#132-der-llm-zugang).
 
+**Formel und Baustein im selben Diktat.** Sagt man in einem Zug „Baustein Signatur"
+*und* eine Formel, sieht das Modell beide Platzhalter-Arten (`[[M…]]`, `[[B…]]`) und
+braucht für beide eine Ansage — sonst kannte es nur die Baustein-Regel und warf den
+Formel-Marker weg. Geht trotzdem ein Marker verloren, fällt Fleech auf das
+unbereinigte Roh-Gerüst zurück statt den Platzhalter ersatzlos verschwinden zu lassen
+— ein verlorener Baustein oder eine verlorene Formel wäre schlimmer als ein Diktat
+ohne jede Bereinigung.
+
 **Die Kürzel werden der Erkennung genannt.** Sie gehen als `initial_prompt` an Whisper —
 ohne dieses Priming wird „Baustein Signatur" gern zu „Bau Stein Signatur". Wird das
 Signalwort erkannt, aber kein Kürzel getroffen, steht das im Log: dann hat die Erkennung
@@ -882,31 +976,69 @@ Befehle verändern vorhandenen Text — zwei sehr verschiedene Risiken.
 
 Jedes Diktat wird lokal in einer SQLite-Datei gespeichert (abschaltbar, jederzeit
 löschbar). Gespeichert werden Zeitpunkt, Rohtranskript, eingefügter Text, Wortzahl,
-Anzahl korrigierter Wörter, Sprechdauer, Ziel-App, Modus, Modell-Stufe, Status und die
-beiden Latenzen.
+Anzahl korrigierter Wörter, Sprechdauer, Ziel-App, Modus, Modell-Stufe, Status, die
+beiden Latenzen — und seit 5.10.4 der **erklärende Teil**: `reason` (Grund, falls das
+Diktat nicht glatt lief), `profile` (welches Profil galt), `title` (gekürzter
+Fenstertitel) und `dropped` (Text, den die Roh-Guards am Ende des Transkripts
+verworfen haben). Ein Diktat mit `reason` trägt in der Home-Zeitleiste einen kleinen
+ambernen Punkt; ein Klick öffnet den Detail-Dialog, der alle vier Felder zeigt — bei
+`dropped` lässt sich ein Fehlgriff der Filter so zurückholen. Ältere Einträge bleiben
+vollständig erhalten, die vier Spalten sind bei ihnen leer.
 
 Daraus berechnet Fleech die Insights:
 
 | Kennzahl | Berechnung |
 |---|---|
 | **Wörter/Minute** | Wörter geteilt durch **Sprechzeit** (nicht Wanduhrzeit) |
-| **Korrekturen** | Wort-Diff Roh → bereinigt; gezählt werden geänderte und entfernte Wörter |
+| **Korrekturen** | Wort-Diff Roh → bereinigt, **nur** Diktate im Modus `cleanup`; umformulierte Diktate (Stichpunkte/E-Mail/KI-Prompt) zählen als eigene Zeile darunter |
 | **Wörter gesamt** | Summe aller eingefügten Wörter |
 | **App-Nutzung** | Wortanteil je Ziel-App |
 | **Serie** | aufeinanderfolgende Tage mit Diktat; heute noch nichts diktiert bricht die Serie **nicht** sofort |
 | **Häufigste Wörter** | ohne deutsche Füllwörter; Balkenlänge relativ zum häufigsten Wort |
-| **Deine Muster** | produktivste Tageszeit und Wochentag — erst ab **5 Diktaten** |
-| **Verarbeitung** | Ø Latenzen, Verteilung der Modell-Stufen, Fallback-Quote |
+| **Deine Muster** | produktivste Tageszeit und Wochentag — erst ab **5 Diktaten**; Befehlsarten stehen hier als eigene Zeile |
+| **Verarbeitung** | **Median und p90** der Latenzen (kein Mittelwert — der wird von Kaltstarts verzerrt), Verteilung der Modell-Stufen, Fallback-Quote samt Gründen („Rückfälle: 2× Ollama · 1× Sinnumkehr") |
 
-Die Tageszeit-Einteilung ist bewusst grob (morgens 5–11, mittags 11–14, nachmittags
-14–18, abends 18–23, sonst nachts), damit sich schon bei kleiner Historie ein stabiles
-Muster zeigt.
+Große Zahlen tragen einen Tausenderpunkt. Die Tageszeit-Einteilung ist bewusst grob
+(morgens 5–11, mittags 11–14, nachmittags 14–18, abends 18–23, sonst nachts), damit
+sich schon bei kleiner Historie ein stabiles Muster zeigt.
+
+**Der Buchvergleich** („das 2,3-Fache von Goethes Faust") bezieht sich immer auf
+**alle** je diktierten Wörter (`Stats.lifetime_words`), nicht auf den gewählten
+Zeitraum, und ist deterministisch — er wechselt nicht mehr bei jedem einzelnen Diktat
+den Titel.
+
+**Verlauf durchsuchen und ausgeben.** Home zeigte bis 5.10.4 nur die letzten 40
+Einträge, alles Ältere war praktisch unerreichbar. Eine Suche filtert jetzt nach Wort
+(auch nach Wörtern, die die Bereinigung entfernt hat — gesucht wird über Roh- **und**
+bereinigten Text), Anwendung und Zeitraum; die Treffer lassen sich als Markdown-Datei
+speichern. Der Knopf dafür sagt, dass darin der volle Wortlaut unverschlüsselt steht.
+
+**Die letzte Aufnahme bleibt im Arbeitsspeicher**, bis die nächste beginnt — auch dann,
+wenn gar kein Text herauskam (leeres Transkript, Ollama nicht erreichbar). Über das
+Tray-Menü lässt sie sich noch einmal erkennen oder als WAV-Datei sichern. Auf die
+Festplatte kommt sie nur, wenn man sie ausdrücklich sichert.
 
 ### Vorschläge
 
-Die Karte „Vorschläge" macht aus Zahlen eine Handlung: Wird ein Wort wiederholt zum
-selben anderen korrigiert („playside" → „PySide", viermal), steht das dort mit zwei
-Knöpfen.
+Die Karte „Vorschläge" macht aus Zahlen eine Handlung — zwei Quellen, in dieser
+Reihenfolge:
+
+**1 · Schreibvarianten** (`fleech/varianten.py`, seit 5.10.5). Der Wort-Diff Roh →
+bereinigt findet Grammatik, aber keine Eigennamen: In 1399 echten Diktaten stand
+„Cloud-Code" 18-mal und „Claude Code" 10-mal, derselbe Begriff in zwei Schreibweisen —
+und keine Diff-Zeile zeigt das, weil beide Wörter für sich genommen korrekt bereinigt
+wurden. Die Karte fragt stattdessen: „Cloud-Code 18× · Claude Code 10× — welche
+Schreibweise stimmt?", mit zwei **gleichwertigen** Knöpfen (die häufigere Form ist
+ausdrücklich kein Vorschlag — oft ist gerade sie die falsche). Die Antwort legt eine
+Wörterbuch-Regel an und lässt Fleech die falsche Form auch im Projekt-Gedächtnis
+vergessen, damit sie sich nicht über den `initial_prompt` selbst weiter primt (siehe
+[20](#20-projekt-gedächtnis-seit-510)).
+
+**2 · Korrektur-Diff.** Wird ein Wort wiederholt zum selben anderen korrigiert
+(„playside" → „PySide", viermal), steht das mit zwei Knöpfen dort. Seit 5.10.4 schlägt
+diese Quelle nur noch **echte Erkennungsfehler** vor — Grammatik („kann" → „können"),
+Formeln und Anführungszeichen sind ausgeschlossen, weil eine übernommene Regel davon
+künftig jedes Diktat verfälscht hätte.
 
 **Als Regel übernehmen** legt die Wörterbuch-Regel an. Der Vorschlag verschwindet
 danach — und zwar ohne eigenen Merkposten: Beim Aufbau der Karte wird jedes Paar
@@ -915,9 +1047,11 @@ taucht der Vorschlag zu Recht erneut auf.
 
 **Ignorieren** trägt das Paar dauerhaft in die Ignorier-Liste ein — dieselbe Liste, in
 der auch abgelehnte Wörterbuch-Rückfragen landen. Dauerhaft ist vertretbar, *weil* die
-Liste sichtbar ist: Sie steht als Editor unter **Einstellungen → Wörterbuch**
+Liste sichtbar ist: Sie steht als Editor unter **Einstellungen → Textersetzung**
 („Ignoriert"), und eine Zeile dort zu löschen holt den Vorschlag zurück. Ein Fehlklick
 ist damit jederzeit korrigierbar, ohne dass die Vorschläge je von selbst wiederkommen.
+Bei einer Schreibvarianten-Frage gilt „Ignorieren" für **beide** Richtungen — es steht
+ja noch nicht fest, welche Seite die falsche ist.
 
 Angezeigt werden höchstens drei Vorschläge, geprüft aber mehr — sonst bliebe die Karte
 leer, sobald die stärksten Paare erledigt sind, obwohl es dahinter weitere gibt.
@@ -946,7 +1080,9 @@ Bilddateien) und zeigt den Zustand über die Farbe:
 | Fehler | dunkelrot | „Fleech — Fehler (Log prüfen)" |
 
 Linksklick öffnet das Hauptfenster, Rechtsklick das Menü: *Aufnahme starten/stoppen*,
-*Overlay ein/aus*, *Einstellungen …*, *Neu laden*, *Beenden*.
+*Overlay ein/aus*, dahinter — sofern eine Aufnahme im Speicher liegt — *Letzte Aufnahme
+noch einmal erkennen* und *Letzte Aufnahme als WAV sichern …*, dann *Einstellungen …*,
+*Neu laden*, *Beenden*.
 
 ### 10.2 Die Pille (Overlay)
 
@@ -964,6 +1100,18 @@ Von links nach rechts:
 | **Wellenform** | Live-Pegel; färbt sich cyan, sobald das Safe-Word erkannt wurde |
 | **✓** | Aufnahme beenden und Text einfügen. Kam der Text als **Rohtext** (Modell nicht erreichbar oder Ausgabe verworfen), leuchtet der Haken kurz amber statt cyan — zusammen mit einem amber gerahmten Transkript-Fenster |
 | **»** | Befehls-Aufnahme starten/beenden (Alternative zum gesprochenen Safe-Word) |
+
+**Der Ring am Modus-Punkt** zeigt das Profil, das in der App gilt, in die gerade
+diktiert wird — nicht mehr nur ein von Hand gewähltes. Wechselt es beim Aufnahmestart,
+erscheint der Name kurz daneben.
+
+**Kein-Ton-Wache.** Kommt vier Sekunden lang kein Ton mehr an, füllt sich der
+Modus-Punkt rot und eine Blase sagt „Kein Ton vom Mikrofon — Gerät prüfen" — noch
+während man spricht, statt erst am leeren Ergebnis. Die Warnung stoppt nichts, gewinnt
+optisch gegen jede andere Punkt-Aussage (Profil, Modus) und verschwindet, sobald wieder
+Ton ankommt oder die Aufnahme endet. Die Schwelle (roher RMS-Pegel unter 0,002) ist noch
+**nicht am echten Mikrofon kalibriert** — Details und Grenzen siehe
+[25](#25-grenzen-und-bewusste-kompromisse).
 
 **Die Zustände auf einen Blick:**
 
@@ -1021,10 +1169,20 @@ ausblenden**; das Layout rückt dann zusammen.
 ![Profile](bilder/ui-profiles.png)
 
 Drei Spalten: links die laufenden und häufig genutzten Apps (Doppelklick weist zu), in
-der Mitte die Profilliste (farbiger Punkt = Modus-Slot), rechts das Detail des gewählten
-Profils — Name, Eingriffsgrad, Modus-Slot, Stil-Tags, zugewiesene Apps. Darunter ein
-abgesetzter Balken für globale Funktionen (Mathe an/aus). Der große Schalter oben rechts
-deaktiviert Profile insgesamt.
+der Mitte die Profilliste (farbiger Punkt = Modus-Slot) mit Export-/Import-Knöpfen für
+Profile und Schnellwechsel, rechts das Detail des gewählten Profils — Name,
+Eingriffsgrad, Sprache, Modus-Slot, Stil-Tags, zugewiesene Apps. Oben die Zeile
+„Jetzt aktiv" zum Profilwechsel ohne laufende Aufnahme. Darunter ein abgesetzter Balken
+für globale Funktionen (Mathe an/aus). Der große Schalter oben rechts deaktiviert
+Profile insgesamt.
+
+#### Apps
+
+Eigene Seite neben „Profile": Oben die Live-Zeile „Wenn du jetzt diktierst" (siehe
+[7](#7-profile)), darunter die Anwendungsliste — nach diktierten Wörtern sortiert,
+zugewiesene Programme ohne Nachweis in der eigenen Historie farbig oben, samt
+Zuordnungsvorschlagskarten und dem Titel-Übernehmen-Knopf beim Anlegen einer
+Titel-Bedingung.
 
 #### Einstellungen
 
@@ -1032,7 +1190,9 @@ deaktiviert Profile insgesamt.
 
 Elf Sektionen links, das Formular rechts. Das Bedienmuster ist überall gleich:
 **Beschriftung links, Steuerelement rechts, dahinter ein „?"-Badge**, dessen Erklärung
-beim Überfahren als Blase *unterhalb* erscheint. Unten ein Trenner, der Hinweis
+beim Überfahren als Blase *unterhalb* erscheint. Bei Auswahllisten erklärt das Badge
+**alle** Optionen, nicht nur die gerade gewählte — vorher musste man einen Bedienmodus
+erst einschalten, um zu erfahren, was er überhaupt tut. Unten ein Trenner, der Hinweis
 „Änderungen werden sofort übernommen" und ein Speichern-Knopf, der offene Eingabefelder
 verbindlich übernimmt und kurz „Gespeichert ✓" zurückmeldet.
 
@@ -1041,10 +1201,17 @@ verbindlich übernimmt und kurz „Gespeichert ✓" zurückmeldet.
 ### 10.4 Dialoge
 
 - **Transkript-Detail** (aus dem Verlauf) — bereinigte und rohe Fassung, Metazeile,
-  Kopieren. Nicht-modal: ein Klick daneben schließt ihn.
+  Kopieren. Nicht-modal: ein Klick daneben schließt ihn. Lief das Diktat nicht glatt
+  oder wurde etwas verworfen, stehen zusätzlich Profil, Fenster, Grund und der
+  verworfene Rohtext-Schwanz (siehe [9](#9-verlauf-und-statistiken)) — leere Felder
+  erzeugen keine Zeile.
 - **Alle Wörter** — die vollständige Wort-Rangliste.
 - **Wörterbuch-Rückfrage** — „Meintest du …?" mit hervorgehobenem Fund im Satz.
 - **Verlauf löschen** — verlangt das getippte Wort „Delete" als Bestätigung.
+- **Hotkey aufnehmen** — wartet auf einen Tastendruck; Esc/Entf/Backspace *löschen*
+  die Bindung (das steht auch am Feld selbst), ein sichtbarer „Abbrechen"-Knopf
+  schließt den Dialog dagegen ohne jede Änderung — für den Fall, dass man ihn aus
+  Versehen geöffnet hat.
 - **Einführung** (seit v2.0.0) — fünf Schritte beim Erststart: Willkommen, Mikrofon
   (mit Live-Pegelbalken), Bedienung (Halten/Umschalten, wirkt sofort), die vier Modi
   samt Safe-Word, Probediktat. Jederzeit abbrechbar; jeder Weg hinaus (auch das X)
@@ -1100,7 +1267,7 @@ der Knopf „Alle Karten wieder einblenden" unter **Allgemein**.
 | Sprechpause bis Ende | nur bei *Anstupsen* sichtbar: so lange still = fertig (1–4 s) | 2,0 s |
 | Diktat-Hotkey | Taste, Kombination oder Maustaste 4/5/Mitte | F9 |
 | KI-Prompting | **nur während einer Aufnahme**: dieses Diktat wird zum Prompt (dauerhaft: Profil „KI-Prompt" wählen) | Strg+Alt+P |
-| Freihand | dauerhaft auf ein Startwort lauschen (Abschnitt 21) — **stillgelegt seit 5.10.1**, Feld ausgegraut | aus |
+| Freihand | dauerhaft auf ein Startwort lauschen (Abschnitt 21) — **stillgelegt seit 5.10.1** | aus |
 | Startwörter | ein Wort pro Zeile; Fleech startet bei **jedem** davon | Kimono |
 | Genauigkeit | welches Modell das Startwort prüft: *wie beim Diktat* oder ein sparsames eigenes | wie beim Diktat |
 | Abbruchwort | fällt es im Diktat, wird verworfen statt eingefügt | Abbrechen |
@@ -1108,6 +1275,11 @@ der Knopf „Alle Karten wieder einblenden" unter **Allgemein**.
 | Nicht lauschen in | Prozessnamen, in denen Freihand ruht | leer |
 | Mikrofon | Gerätewahl; wirkt ab der nächsten Aufnahme | Systemstandard |
 | Gesperrte Geräte | Namensteile, die nie als Mikrofon gelten sollen | leer |
+
+Solange Freihand stillgelegt ist, ist der **gesamte Block ausgegraut** — nicht mehr nur
+der Ein-Schalter selbst und die Startwortliste, sondern auch Genauigkeit, Abbruchwort,
+Fehlersuche und „Nicht lauschen in". Vorher ließen sich diese vier Felder trotz
+stillgelegtem Modus weiter bearbeiten, ohne dass es etwas bewirkt hätte.
 
 Zu den gesperrten Geräten: Fleech erkennt gängige Loopback-Geräte („Stereomix",
 „CABLE Output", Monitor-Quellen) selbst — sie würden Systemton statt Stimme
@@ -1118,6 +1290,12 @@ Mikrofon zu unterscheiden. Dort bleiben Wortliste und diese Sperrliste die einzi
 Mittel — das ehrlich zu benennen ist besser, als eine Heuristik als Gewissheit
 auszugeben. Die Prüfung läuft seit v1.10.0 auch bei jedem **Gerätewechsel** neu, nicht
 mehr nur beim App-Start.
+
+**Fehlt das gewählte Mikrofon** (Interface aus, Rechner aus dem Standby, USB-Hub neu
+enumeriert), fällt Windows/PortAudio still auf den Systemstandard zurück — bisher stand
+das nur als `log.warning` im Protokoll, unbemerkt bis zur schlechten Erkennung. Fleech
+sagt es jetzt in der Pille und nennt das Gerät, über das tatsächlich aufgenommen wird;
+gemeldet wird einmal je Gerätewechsel, nicht bei jedem einzelnen Diktat.
 
 Der KI-Prompting-Hotkey wirkt bewusst **nur während einer laufenden Aufnahme** —
 außerhalb bleibt die Taste für andere Programme frei nutzbar. Das ist besonders für
@@ -1135,13 +1313,13 @@ Makro-/G-Tasten relevant.
 | Einstellung | Bedeutung | Standard |
 |---|---|---|
 | Sichtbarkeit | *Nur bei Aufnahme* / *Immer* / *Automatisch ausblenden* / *Deaktiviert* | Nur bei Aufnahme |
-| Auto-Hide nach | Wartezeit vor dem Ausblenden (0,5–60 s) | 4 s |
+| Auto-Hide nach | nur bei Sichtbarkeit „Automatisch ausblenden" sichtbar: Wartezeit vor dem Ausblenden (0,5–60 s) | 4 s |
 | Größe | Kompakt / Standard / Groß | Standard |
 | Pillen-Rand | *Eng* / *Standard* / *Luftig* — Innenabstand des Pillen-Hintergrunds | Standard |
 | Rand-Buttons | getrennte Inseln oder durchgehende Pille | getrennte Inseln |
 | Transparenz | Deckkraft (20–100 %) | 90 % |
 | Pegel-Empfindlichkeit | wie stark die Wellenform ausschlägt (20–300 %) | 100 % |
-| Click-Through | Mausklicks gehen durch die Pille hindurch | aus |
+| Click-Through | Mausklicks gehen durch die Pille hindurch — dabei auch durch ihre eigenen Knöpfe (✕, ✓, Pause, Ziehen); Rückweg über „Overlay bearbeiten" | aus |
 | Folgt dem Maus-Bildschirm | Pille erscheint auf dem Monitor des Zeigers | an |
 | Live-Transkription | Echtzeit-Vorschau beim Sprechen (~0,5 GB VRAM extra) | aus |
 | Erkannten Text zeigen | fertigen Text kurz über der Pille einblenden | an |
@@ -1190,7 +1368,7 @@ gesprochene Delimiter gibt es seit v3.0.0 nicht mehr.
 | Eingriffsgrad | Minimal / Standard / Strong | Standard |
 | Safe-Word-Befehle aktiv | Befehlsmodus insgesamt an/aus | an |
 | Cursor-Rückkehr | fügt den Text dort ein, wo das Diktat begann | an |
-| Safe-Word | Auslösewort für Befehle; leer = Wert aus `config.yaml` | Kimono |
+| Safe-Word | Auslösewort für Befehle; leeres Feld zeigt als Platzhalter den tatsächlich wirksamen Wert aus `config.yaml` (statt nur „leer = Wert aus config.yaml" zu behaupten, ohne ihn zu nennen) | Kimono |
 
 ### Textersetzung
 
@@ -1206,6 +1384,11 @@ zusammengelegt):
 - **Bausteine** — ein mehrzeiliger Editor im Format `Kürzel => Text` (`\n` im Text
   erzeugt einen Zeilenumbruch), plus ein Feld für das Signalwort (Standard
   „Baustein"). Format und Wirkweise siehe [Kapitel 8a](#8a-text-bausteine).
+- **Gelerntes Vokabular** (Projekt-Gedächtnis, Kapitel 20) — eine Auswahlliste der in
+  der aktuellen App gelernten Begriffe, häufigste zuerst, mit „Begriff vergessen" für
+  genau einen. Bis 5.10.5 ließ sich dort nur alles auf einmal löschen — ein einzelner
+  Hörfehler im Gedächtnis (`Cloud-Code`, `FLEACH`) bedeutete also entweder ihn zu
+  behalten oder das gesamte gelernte Vokabular zu verlieren.
 
 ### Advanced
 
@@ -1217,10 +1400,10 @@ zusammengelegt):
 | Updates | manuelle Prüfung | — |
 | Update-Feed | optionale Feed-URL | leer |
 | GPU-Beschleunigung (STT) | Erkennung auf der Grafikkarte; aus = CPU erzwingen | an |
-| Modell-Warmhaltung | *Nach Nutzung* / *Dauerhaft* / *Aus* | Nach Nutzung |
+| Modell-Warmhaltung | *Nach Nutzung* / *Dauerhaft* (~3,5 GB dauerhaft belegt) / *Aus* | Nach Nutzung |
 | Im Leerlauf entladen nach | 3 / 10 / 30 / 45 Minuten | 10 Minuten |
 | Adaptive Geschwindigkeit | kurze Diktate nehmen den kurzen Weg (weniger Prüfung) — derzeit dasselbe Modell für beide Wege | an |
-| Debug-Logging | ausführliches Protokoll | aus |
+| Debug-Logging | wirkt **ab dem nächsten Start** (Log-Level DEBUG statt INFO) — bis 5.10.2 wurde der Haken zwar gespeichert, aber von nichts gelesen | aus |
 
 ---
 
@@ -1238,9 +1421,14 @@ zuverlässig funktioniert — und der in einem Rutsch einfügt statt sichtbar zu
 
 Der exakte Ablauf:
 
-1. Alte Zwischenablage sichern (sofern aktiviert) — **nur als Text.** Lag vorher ein
-   Bild oder eine Datei in der Zwischenablage, ist es nach dem Diktat weg; `paste_text`/
-   `copy_text` (`fleech/clipboard.py`) kennen nur die Textebene.
+1. Alte Zwischenablage sichern (sofern aktiviert) — **nur wenn wirklich Text darin
+   liegt** (`clipboard.has_text()`, unter Windows `IsClipboardFormatAvailable`). Lag
+   vorher ein Bild oder eine Datei in der Zwischenablage, wird weder gesichert noch
+   nach dem Diktat etwas zurückgeschrieben — das Bild bleibt einfach stehen. Vorher
+   lieferte das Sichern eines Bildes einen leeren String, und genau der leere String
+   wurde nach dem Diktat zurückgeschrieben: Ein eben kopierter Screenshot war damit
+   weg. `paste_text`/`copy_text` (`fleech/clipboard.py`) kennen ohnehin nur die
+   Textebene.
 2. Text in die Zwischenablage schreiben
 3. **Warten, bis die Zwischenablage den Text bestätigt** — zurücklesen im 20-ms-Takt,
    Obergrenze 400 ms. Eine feste Wartezeit reichte für Electron-Apps, VMs und
@@ -1323,8 +1511,22 @@ wird. Das verhindert Fehlauslösungen bei überlappenden Belegungen.
 nach Zuweisung nur ein „Taste gedrückt" **ohne** „Taste losgelassen". Die Belegung bliebe
 dann dauerhaft „aktiv", und jeder weitere Druck würde als Auto-Repeat verschluckt — die
 Taste war nach dem ersten Druck tot. Lösung: Ein erneuter Druck auf eine noch aktive
-Belegung zählt nach **0,4 Sekunden Schonfrist** als neuer Druck. Echtes Auto-Repeat
-kommt im ~30-ms-Takt und bleibt damit weiterhin unterdrückt.
+Belegung zählt nach einer Schonfrist als neuer Druck; vorher wird die Belegung
+**deaktiviert**, bevor der neue Druck sie erneut aktiviert — sonst verwarf der
+Entprell-Schutz genau diesen nachgeholten Druck beim Diktat-Hotkey, und die Taste blieb
+trotz „Heilung" tot.
+
+Die Schonfrist ist **hergeleitet, nicht geraten**: Sie war lange fest auf 0,4 s gesetzt
+— UNTER der Windows-Verzögerung bis zur ersten Auto-Wiederholung (bei diesem Nutzer real
+500 ms). Das allererste Wiederholungsereignis einer normal gehaltenen Taste wurde damit
+selbst als „Release fehlte" gedeutet, 53-mal im Protokoll, und löste Pause,
+KI-Prompting oder Profilwechsel ein zweites Mal aus. Fleech liest deshalb
+`SPI_GETKEYBOARDDELAY` (250–1000 ms, vier Windows-Stufen) und legt 0,3 s Aufschlag
+drauf — der Hook sieht das Wiederholungsereignis nie exakt zum eingestellten Zeitpunkt.
+Untergrenze 0,6 s, und ohne Auskunft (Linux, oder die Abfrage schlägt fehl) 1,1 s —
+über der größtmöglichen Windows-Verzögerung, lieber eine Heilung zu spät als jeder
+Halte-Druck doppelt. Echtes Auto-Repeat kommt danach im ~30-ms-Takt und bleibt damit
+weiterhin unterdrückt.
 
 **Maus-Hooks sparsam.** Der systemweite Maus-Hook wird nur installiert, wenn tatsächlich
 eine Maustaste belegt ist — er würde sonst für **jede Mausbewegung** aufgerufen
@@ -1347,6 +1549,17 @@ Drei Modi: **Aus**, **Leiser stellen** (auf 25 % der jeweiligen Originallautstä
 **Stark absenken** (8 %). Die Absenkung ist **relativ** — leise Apps bleiben leise. Der
 Übergang läuft als weiche Rampe in 8 Schritten über 250 ms, kein harter Schnitt. Beim
 Beenden fährt Fleech vom aktuellen Ist-Pegel zurück auf die gemerkten Originalwerte.
+
+Beendet man Fleech **mitten in einer Aufnahme** — der übliche Ablauf bei einem Deploy —,
+läuft die Wiederherstellung normalerweise nur als Hintergrund-Fade (~250 ms) und würde
+vom beendeten Prozess abgeschnitten: Fremde Apps blieben auf der abgesenkten Lautstärke
+stehen, auch über einen Neustart hinweg. Der Beenden-Pfad stößt die Wiederherstellung
+deshalb zusätzlich **synchron** an, bevor der Prozess endet.
+
+Die gemerkten Originalwerte werden außerdem **nicht bei jedem Diktat neu eingelesen**,
+solange sie noch stehen: Bricht ein Fade ab (Ausnahme, Programm verschwunden), läse ein
+Neu-Einlesen den bereits abgesenkten Pegel als „Original" — bei jedem weiteren Diktat
+sänke die Lautstärke fremder Apps ein Stück weiter, wie eine Sperrklinke.
 
 Verschwindet ein Programm während des Übergangs, wird das abgefangen. Schlägt das
 Ducking insgesamt fehl, läuft das Diktat unverändert weiter.
@@ -1410,6 +1623,25 @@ selbst ohne Fehlermeldung. Bei „Neu laden" wird die Sperre gezielt vor dem Neu
 freigegeben.
 
 Für die Diagnose-Modi (`--cli`, Selbsttests) gilt die Sperre bewusst nicht.
+
+### 12.9 Weitere Fehlerpfade
+
+- **Kein Geister-Diktat bei Fehlstart.** Schlägt `recorder.start()` fehl, ruft Fleech
+  gezielt `controller.cancel()` statt des normalen Stopp-Wegs — der liefe sonst über
+  Stoppton und den Zustand „Verarbeitung" bis zu einem Worker mit null Samples, der
+  eine Zehntelsekunde später „nichts erkannt" in die Pille schreibt und damit die
+  eigentliche Fehlermeldung überdeckt.
+- **„Rückgängig" (`Strg+Alt+Z`) prüft das Zielfenster frisch**, statt sich auf den
+  letzten 3-Sekunden-Poll zu verlassen — sonst hielt die Wache nach einem
+  Fensterwechsel fälschlich fest, der Cursor stehe noch an der alten Stelle, und die
+  Rücktasten trafen ein fremdes Dokument. Das eigentliche Ersetzen läuft dazu im
+  **Worker-Thread**: Bei 4 ms je Rücktaste sind das bei einem mittleren Diktat 1,3 s,
+  im Maximum 23 s — Zeit, in der sonst alle weiteren Fleech-Hotkeys (auch der
+  Diktat-Hotkey) blockiert gewesen wären.
+- **„Lokale KI läuft nicht."** Wer die Einführung übersprungen und damit auch Ollama
+  nie eingerichtet hat, bekam bisher nur „eingefügt (Fallback — Log prüfen)" zu jedem
+  einzelnen Diktat. Einmal je Sitzung meldet die Pille jetzt den eigentlichen Grund
+  und den Weg zurück (Einstellungen → Allgemein → „Einführung erneut zeigen").
 
 ---
 
@@ -1514,7 +1746,7 @@ Sprechen** geladen, was die Ladezeit größtenteils verdeckt.
 
 ### 14.1 Modulkarte
 
-101 Dateien, rund 23.800 Zeilen. Der Kern ist bewusst klein geschnitten; die
+111 Dateien, rund 27.700 Zeilen. Der Kern ist bewusst klein geschnitten; die
 Oberfläche ist der größte Block, weil sie am meisten Fälle abdecken muss.
 
 > **Zur Dateizahl:** Sie ist zwischen 5.4.0 und 5.9.1 von 70 auf 101 gestiegen, ohne
@@ -1523,15 +1755,20 @@ Oberfläche ist der größte Block, weil sie am meisten Fälle abdecken muss.
 > `overlay_qt.py` 1409, `settings_window.py` 1379, `textutils.py` 898. Die Testsuite
 > wacht seither über die Aufteilung selbst: Obergrenzen je Datei, Richtung der
 > Abhängigkeiten, und dass ein Teil nie sein Ganzes importiert
-> (`tests/test_ui_struktur.py`, `tests/test_kernstruktur.py`). Reißt eine Grenze, ist
-> die Antwort ein neuer Ort für das neue Thema — nicht eine größere Zahl.
+> (`tests/test_ui_struktur.py`, `tests/test_kernstruktur.py`). Seit 5.10.3 kommt
+> `tests/test_anzeige_gegen_wirkung.py` dazu — es prüft gezielt, dass eine Einstellung,
+> die die Oberfläche anbietet, auch einen echten Codepfad hat (Anlass: die
+> Formel-Erkennung zeigte „Automatisch", ohne dass `auto_latex` je gesetzt wurde). Reißt
+> eine Grenze, ist die Antwort ein neuer Ort für das neue Thema — nicht eine größere
+> Zahl.
 
 ```
 fleech/
 ├── __main__.py          Einstiegspunkt, CLI-Argumente, Logging
 ├── app.py               Engine-Verdrahtung ohne GUI
 ├── config.py            config.yaml + ENV-Overrides → AppConfig
-├── usersettings.py      settings.json — atomar geschrieben, mit .bak-Heilung
+├── usersettings.py      settings.json — atomar, Modul-Lock, .bak-/Ruecksetzer-Heilung
+├── settingsheilung.py   erkennt einen Ruecksetzer, der wie eine gueltige Datei aussieht
 ├── version.py           eine Stelle für die Versionsnummer
 │
 ├── audio.py             Recorder: Mikrofon, Pegel, sample-genaue Position, tail()
@@ -1552,7 +1789,9 @@ fleech/
 │                          fremde Schrift, Sinnumkehr — Kern-Fachlogik
 ├── textutils.py         nur noch der Rahmen um den LLM-Call
 ├── dictionary.py        persönliches Wörterbuch (Priming, Ersetzung, Vorschläge)
+├── varianten.py         Schreibvarianten desselben Begriffs finden ("Cloud-Code"/"Claude Code")
 ├── profiles.py          App-Profile: Regeln, Farben, Schnellwechsel
+├── profilexport.py      Profile + Schnellwechsel sichern/zurückholen (JSON)
 ├── document.py          was habe ich selbst eingefügt?
 ├── kontext.py           Projekt-Gedächtnis: Fachbegriffe je App und Titel
 ├── prompts.py           Prompt-Dateien laden (Nutzerfassung bevorzugt)
@@ -1561,6 +1800,7 @@ fleech/
 ├── clipboard.py         Zwischenablage — eine Nahtstelle für beide Systeme
 ├── audiofocus.py        Ducking, Loopback-Erkennung, Mikrofonpegel
 ├── history.py           SQLite-Verlauf und Statistiken
+├── gruende.py           feste Texte: warum ein Diktat nicht glatt lief
 ├── overlay.py           Live-Vorschau (Streaming)
 ├── milestones.py        „das 2,3-Fache von Goethes Faust"
 │
@@ -1582,19 +1822,25 @@ fleech/
     ├── desktopapp/      die Teilgebiete von DesktopApp als Mixins
     │   ├── profil.py         Profilwahl, Farbe, Schnellwechsel
     │   ├── freihand.py       Lauscher aufbauen, Ereignisse, Startwort-Probe
+    │   ├── anstupsen.py      Bedienmodus "Anstupsen": Stille-Wache waehrend der Aufnahme
+    │   ├── keinton.py        Kein-Ton-Wache: Pegel im Waveform-Takt pruefen, warnen
     │   ├── modelle.py        Warmhaltung, Entladen bei Spielstart
-    │   ├── nachbereitung.py  neu bereinigen, Rohtext, Vorschläge
+    │   ├── nachbereitung.py  neu bereinigen, Rohtext, Vorschläge, letzte Aufnahme
     │   ├── lizenz.py         Freischaltung und Update-Prüfung
     │   └── lebenszyklus.py   Start, IPC, Beenden
     ├── theme.py         Design-Token, Seitenmaße, Button-Stile — unterste Schicht
     ├── widgets.py       wiederverwendbare Bausteine (Karten, Suchfeld, Gauge)
     ├── dialogs.py       Prompt, Transkript-Detail, Wort-Detail, Wörterbuch
     ├── main_window.py   das Fenstergerüst: Sidebar, Seitenwechsel, Geometrie
-    ├── pages/           je Seite eine Datei
+    ├── pages/           je Seite eine Datei, dazu Qt-freie Helfer je Thema
     │   ├── home.py          Begrüßung, Verlauf, Kurz-Statistik
     │   ├── insights.py      Kennzahlen aus der eigenen Historie
+    │   ├── verlauffilter.py Verlaufssuche (Wort/App/Zeitraum) + Markdown-Export, ohne Qt
     │   ├── apps.py          welches Profil greift in welchem Programm
-    │   └── profiles.py      Format, Stil, Sprache, Zuordnung
+    │   ├── jetztzeile.py    "Wenn du jetzt diktierst" als Satz, ohne Qt
+    │   ├── titelvorschlag.py zuletzt gesehene Fenstertitel + Segmente anbieten, ohne Qt
+    │   ├── appsvorschlaege.py Zuordnungsvorschläge aus dem Verlauf, ohne Qt
+    │   └── profiles.py      Format, Stil, Sprache, Zuordnung, Export/Import
     ├── settings_window.py  Panel-Gerüst + Widget-Bauer
     ├── settings/       die neun Einstellungsseiten, je Seite ein build(panel)
     │                   (allgemein, aufnahme, audiofokus, overlay, sounds,
@@ -1673,7 +1919,12 @@ Fleech läuft mit wenigen, klar abgegrenzten Threads:
 
 Die Verbindung zwischen Arbeits-Threads und Oberfläche läuft **ausschließlich** über
 einen Signal-Bus. Worker senden Signale, UI-Elemente empfangen sie — Qt stellt die
-Thread-Sicherheit her. Kein Worker fasst je direkt ein Widget an.
+Thread-Sicherheit her. Kein Worker fasst je direkt ein Widget an. Zwei real behobene
+Verstöße dagegen: Bis 5.10.3 färbte der KI-Prompting-Hotkey (pynput-Thread) die Pille
+direkt um, statt über den Bus zu gehen (`prompt_latch_changed`); dasselbe galt, wenn
+ein gewähltes Profil beim Auflösen im Verarbeitungs-Thread nicht mehr existierte
+(`profil_zuruecksetzen`). Beides ist derselbe Fehler wie ein Referenzzyklus-Crash — nur
+leiser, weil er nicht sofort eine Ausnahme wirft, sondern sporadisch verhält.
 
 **Zustandsmodell:**
 
@@ -1707,11 +1958,39 @@ Fehlersuche nicht pro Plattform verzweigen:
 | `kontext.db` | Projekt-Gedächtnis: gelernte Fachbegriffe (SQLite) |
 | `prompts/` | *optional* — eigene Fassungen der System-Prompts |
 | `settings.json.bak` | Sicherung der zuletzt funktionierenden Einstellungen |
+| `settings.json.zurueckgesetzt` | *nur nach einer Heilung* — die verworfene, auf Vorgaben zurückgefallene Fassung, zur Ansicht beiseitegelegt |
 | `config.yaml` | *optional* — überschreibt die mitgelieferte Konfiguration |
 | `.env` | *optional* — API-Schlüssel, nur bei fremden Anbietern |
 
 Die Programmdateien (Prompts, Icons) liegen getrennt davon im Installationsordner. Ein
 Update ersetzt nur diese; Einstellungen, Verlauf und Wörterbuch überleben.
+
+**Schreiben und Heilen der `settings.json` seit 5.10.3** (`usersettings.py` +
+`settingsheilung.py`): `save()` läuft unter einem prozessweiten Schloss — die
+Bereinigung am Ende jedes Diktats speichert aus dem Worker-Thread, die Oberfläche aus
+dem GUI-Thread, und ohne Schloss konnten zwei gleichzeitige Schreiber sich dieselbe
+Nebendatei teilen und ein Gemisch aus beiden Fassungen in `os.replace` schieben (6 %
+der beobachteten Kollisionen ergaben eine unlesbare Datei). Die Nebendatei trägt jetzt
+Prozess- und Thread-Kennung im Namen. Die `.bak` entsteht nur noch aus einer Fassung,
+die sich als JSON lesen lässt — sonst hätte der nächste Speichervorgang eine kaputte
+Datei zur „letzten guten Fassung" gemacht und die Rettung wäre mit ihr weg gewesen.
+
+`load()` erkennt zusätzlich einen **Rücksetzer, der wie eine gültige Datei aussieht**:
+Steht die `settings.json` auf allen „wertvollen" Feldern (Lizenz, Onboarding,
+Wörterbuch, Bausteine, Schnellwechsel, Profilliste, Hotkeys) auf Werkszustand, während
+die `.bak` in mindestens zweien davon abweicht — oder steht der Lizenzschlüssel leer,
+während er in der `.bak` gesetzt ist —, gilt die Datei als zurückgesetzt. Sie wird dann
+nicht geladen, sondern als `settings.json.zurueckgesetzt` beiseitegelegt, und Fleech
+lädt stattdessen die `.bak`. Die Kriterien sind bewusst eng: Einzelne Werte darf man
+zurücksetzen, erst wenn *alles auf einmal* auf Werk steht, war es kein Mensch. Beim
+Start steht außerdem eine Zeile im Protokoll, wie viele Profile, App-Zuordnungen,
+Schnellwechsel-Einträge und Wörterbuchzeilen geladen wurden und ob eine Lizenz da ist —
+ein Verlust fällt damit beim nächsten Blick ins Log auf, statt erst am fehlenden
+Hotkey.
+
+`fleech.log` trägt seit 5.10.4 bei jeder Zeile das Datum und rotiert ab 20 MB (drei
+ältere Stände bleiben als `fleech.log.1`–`.3`) — vorher wuchs es unbegrenzt und war ab
+einigen Megabyte nur noch über Zeilennummern durchsuchbar.
 
 **Was den Rechner verlässt:**
 
@@ -1862,6 +2141,10 @@ Die Zahlen, die das Verhalten bestimmen — alle mit Begründung im Quellcode.
 | **0,4 s / 0,004** | Mindestlänge und Mindestpegel eines Textfensters im Formel-Mix |
 | **600 Zeichen** | Kontextfenster für Befehle |
 | **60 Begriffe** | Obergrenze für das Vokabular-Priming |
+| **0,002** (`KEIN_TON_SCHWELLE`) | roher RMS-Pegel, unter dem „da kommt nichts" gilt — eine Zehnerpotenz unter dem leisesten real gemessenen Mikrofon, noch **nicht am Gerät kalibriert** |
+| **4,0 s** (`KEIN_TON_AB_S`) | Aufnahmedauer, ab der die Kein-Ton-Wache überhaupt prüft |
+| **5,0 s** (`KEIN_TON_FENSTER_S`) | Fenster, über das der lauteste Rohpegel zählt |
+| **10 s** (`_ROHPEGEL_VORRAT_S`) | wie weit `Recorder` den Rohpegel-Verlauf zurückhält — großzügig über dem 5-s-Fenster der Wache |
 
 ### Befehle
 
@@ -1876,7 +2159,8 @@ Die Zahlen, die das Verhalten bestimmen — alle mit Begründung im Quellcode.
 
 | Wert | Bedeutung |
 |---|---|
-| **0,4 s** | Schonfrist der Hotkey-Selbstheilung (Auto-Repeat: ~30 ms) |
+| **250–1000 ms** (`system_repeat_delay_s`) | Windows-Verzögerung bis zur ersten Auto-Wiederholung (`SPI_GETKEYBOARDDELAY`, vier Stufen) |
+| **+0,3 s / min 0,6 s / 1,1 s ohne Auskunft** (`repeat_grace_s`) | daraus abgeleitete Schonfrist der Hotkey-Selbstheilung — Aufschlag auf die Systemverzögerung, Untergrenze, und der Wert ohne Windows-Auskunft (über der größtmöglichen Verzögerung) |
 | **3 s** | Takt der Fokus-/Spielerkennung |
 | **60 s** | Takt der Modell-Warmhaltung |
 | **10 Min** | Standard-Leerlauf bis zum Entladen |
@@ -1889,6 +2173,7 @@ Die Zahlen, die das Verhalten bestimmen — alle mit Begründung im Quellcode.
 | **90 s** | Cooldown je Banner-Art |
 | **2 / 4 / 8 s** | Wartezeiten beim Formel-Rate-Limit |
 | **30 min** | Warmhalte-Zeitraum je Ollama-Ping |
+| **20 MB × 3** | Log-Rotation (`fleech.log` + drei ältere Stände) |
 
 ### Freihand und Anstupsen
 
@@ -1954,7 +2239,12 @@ verschwindet neben den 810 ms der Erkennung.
 Die Kontexte entstehen aus App **und** Fenstertitel: Derselbe Editor trägt mal das eine,
 mal das andere Projekt. Gespeichert wird in `kontext.db` neben dem Verlauf — kein
 Diktattext, nur die Begriffe und wie oft sie vorkamen. Löschen lässt sich das wie der
-Verlauf.
+Verlauf — komplett, oder seit 5.10.5 auch **ein einzelner Begriff** (Einstellungen →
+Textersetzung → „Begriff vergessen"): In `kontext.db` stehen auch echte Hörfehler
+(`Cloud-Code`, `FLEACH`), die sich über den `initial_prompt` selbst weiter primen; bis
+5.10.5 ließ sich dagegen nur alles auf einmal löschen. Dieselbe Funktion nutzt die
+Schreibvarianten-Vorschlagskarte ([9](#9-verlauf-und-statistiken)): Übernimmt man dort
+eine Regel, vergisst Fleech die als falsch erkannte Form auch hier.
 
 ---
 
@@ -2266,10 +2556,33 @@ Verfügung. „In Klammern … Klammer zu" und „das Ganze durch" muss man desh
 sagen. Der Handel war bewusst: Bestimmtheit und Offline-Betrieb gegen etwas
 Bequemlichkeit.
 
-**Freihand ist kein Diktat für die Hosentasche.** Das Gate ist auf einen ruhigen
-Arbeitsplatz ausgelegt. In einer Besprechung oder bei laufendem Fernseher hält Stufe 1
-kaum etwas zurück, und das kleine Modell prüft dauernd — dafür gibt es die
-Ausschlussliste je Programm.
+**Freihand ist kein Diktat für die Hosentasche — und seit 5.10.1 ohnehin stillgelegt.**
+Das Gate ist auf einen ruhigen Arbeitsplatz ausgelegt: In einer Besprechung oder bei
+laufendem Fernseher hält Stufe 1 kaum etwas zurück, und das kleine Modell prüft
+dauernd — dafür gibt es die Ausschlussliste je Programm. Seit 5.10.1 startet der Modus
+gar nicht mehr (`freihand.STILLGELEGT`), unverändert im Auslieferungszustand; Details
+und der Ersatzweg über „Anstupsen" stehen in Kapitel 21.
+
+**Die Kein-Ton-Wache ist eine Warnung, kein Messgerät.** Die Schwelle (RMS 0,002) ist
+konservativ hergeleitet, aber **noch nicht am echten Mikrofon kalibriert** — dafür
+bräuchte es einen Vergleich stumm/leise/normal gesprochen an echten Geräten, den es bis
+5.11.0 nicht gab. Und sie läuft nur, solange die Pille **sichtbar** ist: Sie hängt am
+50-ms-Waveform-Takt der Pille (`level_provider`), bei Sichtbarkeit „Deaktiviert" oder
+außerhalb einer laufenden Aufnahme prüft niemand.
+
+**Bei zwei sich überlappenden Diktaten ist das Fokusziel kein Schnappschuss.** Die
+Cursor-Rückkehr (12.3) hält genau ein Fokusziel als Instanzfeld, gesetzt beim
+Aufnahmestart. Beginnt ein zweites Diktat in einem **anderen** Fenster, während das
+erste noch verarbeitet wird (typisches Zeitfenster: median 2 s, p90 7 s), landet der
+Text des ersten Diktats im Fenster des zweiten — Ausgabeformat, Profil und Vokabular
+bleiben davon unberührt, und der Text ist über Verlauf und „Rückgängig" wiederherstellbar.
+Eine Nachprüfung an 1399 protokollierten Diktaten fand **keinen einzigen** Fall (der
+schnellste beobachtete App-Wechsel-Start lag 1,9 s nach dem Ende des vorherigen
+Diktats). Ein sauberer Fix — ein Fokusziel-Schnappschuss je Diktat — hätte einen Preis:
+die bewusste Entscheidung, ob das erste Diktat dem zweiten den Vordergrund entreißen
+darf. Bei kürzerer Verarbeitung (kleines Modell, warmes Ollama) ist das Risiko
+praktisch geschlossen; bricht die Latenz wieder auf, wie es kaltes Ollama zeigt (bis 19 s
+im Protokoll beobachtet), wächst es.
 
 **Die Fachbegriff-Heuristik ist eine Heuristik.** Sie erkennt Begriffe an ihrer
 Schreibweise, nicht an ihrer Bedeutung. Ein klein geschriebenes Fachwort ohne Ziffer
@@ -2323,8 +2636,8 @@ gestellt wurde.
 
 ---
 
-*Diese Datei beschreibt den Stand von Version 5.10.0 — rund 23.800 Zeilen Programm in
-101 Dateien, dazu die Testsuite mit 1211 Tests. Bei Verhaltensfragen ist der Quellcode
+*Diese Datei beschreibt den Stand von Version 5.11.0 — rund 27.700 Zeilen Programm in
+111 Dateien, dazu die Testsuite mit 1480 Tests. Bei Verhaltensfragen ist der Quellcode
 maßgeblich: Die Kommentare dort dokumentieren zu fast jeder Konstante auch den Grund
 ihres Werts, meist mit dem konkret aufgetretenen Fehlerbild. Was sich Version für
 Version geändert hat, steht in [CHANGELOG.md](../CHANGELOG.md).*
