@@ -7,7 +7,7 @@
 
 from __future__ import annotations
 
-APP_VERSION = "5.11.0"  # 5.11.0: Sammel-Release der Tiefenanalyse (5.10.3-5.10.5 + Profil-Export, Titel uebernehmen, Zuordnungsvorschlaege)
+APP_VERSION = "5.11.1"  # 5.11.1: Schwanz ohne Ton — Whisper-Floskeln am Diktatende („Vielen Dank.") verworfen
 
 
 def _read_build() -> str:

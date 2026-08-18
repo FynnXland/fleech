@@ -11,6 +11,27 @@ GitHub-Release-Notizen (`packaging/release.py`).
 
 ---
 
+## 5.11.1 — 2026-08-18 · nicht einzeln veröffentlicht
+
+**Kein erfundenes „Vielen Dank." mehr am Ende langer Diktate.** Whisper hängte
+hinter das letzte echte Wort gelegentlich Floskeln, die niemand gesagt hat —
+„Vielen Dank.", „Bis zum nächsten Mal.", „Untertitelung des ZDF" — und zwar fast
+nur bei langen Diktaten (über eine Minute), also gerade bei KI-Prompts. Im Verlauf
+war es 7-mal in 1419 Diktaten passiert; im Protokoll stand die Floskel meist
+mehrfach hintereinander, gekürzt blieb eine übrig, und die landete im Text.
+
+Fleech erkennt solche Sätze jetzt an dem, was sie verrät: An der Stelle wurde gar
+kein Ton aufgenommen. Segmente am Ende, unter denen die Aufnahme still ist (dieselbe
+Schwelle, ab der die Pille „Kein Ton vom Mikrofon" meldet), werden weggelassen —
+nur vom Ende her, nie mitten im Text, und der letzte erkannte Satz bleibt immer
+stehen (auch ein Flüster-Diktat wird nie ganz verworfen). Verworfenes bleibt
+sichtbar: Die Pille zeigt den entfernten Text, im Verlauf steht als Grund „Text
+ohne Ton am Ende entfernt".
+
+Am echten Modell nachgemessen: 19 von 22 halluzinierenden Läufen sauber, kein
+einziges echtes Wort verloren, keine messbare Verzögerung. Was die Prüfung nicht
+kann: eine Floskel entfernen, die noch in echtes Audio hineinragt.
+
 ## 5.11.0 — 2026-08-18
 
 Das erste Release nach der Tiefenanalyse vom 17./18. August: vierzehn Prüf-Agenten

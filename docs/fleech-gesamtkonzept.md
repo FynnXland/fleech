@@ -539,7 +539,7 @@ sperrt das an vier Stellen:
 | Formel-Segment | leeres Transkript → gar kein Modell-Aufruf |
 | Live-Vorschau | Pegel unter 0,004 → kein Dekodierlauf |
 
-**Der Schwanz ohne Ton (seit 5.11.x).** Bei langen Diktaten hängt Whisper hinter das
+**Der Schwanz ohne Ton (seit 5.11.1).** Bei langen Diktaten hängt Whisper hinter das
 letzte echte Wort noch Floskeln: „Vielen Dank. Vielen Dank.", „Bis zum nächsten Mal.",
 „Untertitelung des ZDF". Getroffen hat es 7 von 1419 Diktaten im Verlauf. Auslöser ist
 nicht die Stille am Ende, sondern der `initial_prompt` (Wörterbuch, gelernte
