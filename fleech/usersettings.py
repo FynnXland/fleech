@@ -14,18 +14,26 @@ from __future__ import annotations
 import json
 import logging
 import os
+import threading
 from dataclasses import asdict, dataclass, field
 from pathlib import Path
 
 from .platformpaths import user_data_dir
 from .profiles import ProfilesSettings
+from .settingsheilung import ist_zurueckgesetzt, protokolliere_umfang, wende_an
 
 log = logging.getLogger(__name__)
 
 SETTINGS_DIR = user_data_dir()
 SETTINGS_PATH = SETTINGS_DIR / "settings.json"
 
-
+# Ein Schloss fuer ALLE Speichervorgaenge dieses Prozesses (Befund D-2): `save()`
+# laeuft nicht nur aus dem GUI-Thread, sondern auch aus dem Pipeline-Worker (die
+# Woerterbuch-Zaehlung am Ende jedes Diktats). Ohne Schloss schreiben zwei Threads
+# in dieselbe Nebendatei und `os.replace` schiebt ein Gemisch aus beiden Fassungen
+# an die Stelle der Einstellungen — nachgestellt: 6 % der Kollisionen hinterliessen
+# eine unlesbare settings.json.
+_SAVE_LOCK = threading.Lock()
 
 
 def _backup_path(path: Path) -> Path:
@@ -477,7 +485,8 @@ class UserSettings:
     # -- Persistenz ---------------------------------------------------------------
 
     def save(self, path: Path | None = None) -> None:
-        """Atomar speichern, mit Sicherung der letzten guten Fassung.
+        """Atomar speichern, mit Sicherung der letzten guten Fassung — und unter
+        einem prozessweiten Schloss, weil mehrere Threads speichern.
 
         Frueher: `path.write_text(...)`. Das kuerzt die Datei auf 0 und schreibt neu
         — wird der Prozess in genau diesem Moment beendet (hartes Kill beim Update,
@@ -492,48 +501,79 @@ class UserSettings:
         Stromausfall liefert eine Datei voller Nullen), dann `os.replace`. Das ist
         auf NTFS wie auf ext4 atomar: Es gibt nur die alte ODER die neue Fassung,
         nie etwas dazwischen.
+
+        Drei Ergaenzungen aus Befund D-2, alle gegen dasselbe Bild — zwei Threads
+        gleichzeitig im Schreibpfad:
+        * `_SAVE_LOCK` um Serialisieren, Schreiben und `os.replace`;
+        * die Nebendatei traegt Prozess- und Thread-Kennung im Namen, damit sich
+          zwei Schreiber nie dieselbe teilen (das war die Quelle des Gemischs);
+        * die `.bak` entsteht nur aus einer Fassung, die sich als JSON lesen laesst.
+          Sonst machte der naechste Speichervorgang eine kaputte Datei zur
+          „letzten guten Fassung" und die Rettung war mit ihr weg.
+
+        Was der Docstring frueher zu viel versprach: Eine bewusst oder versehentlich
+        auf VORGABEN gesetzte Datei ist syntaktisch in Ordnung — dagegen hilft nicht
+        dieser Weg hier, sondern die Erkennung in `load()`.
         """
         path = path or SETTINGS_PATH
-        try:
-            inhalt = json.dumps(asdict(self), indent=2, ensure_ascii=False)
-        except Exception:
-            log.exception("Einstellungen liessen sich nicht serialisieren — nichts geschrieben.")
-            return
-        try:
-            path.parent.mkdir(parents=True, exist_ok=True)
-            # Sicherung der bisherigen Fassung, BEVOR sie ersetzt wird. Sie ist die
-            # Rettung fuer den Fall, dass die neue Datei kaputt geht — und der
-            # Grund, warum ein Reset nicht mehr endgueltig ist.
-            if path.is_file() and path.stat().st_size > 0:
+        with _SAVE_LOCK:
+            try:
+                inhalt = json.dumps(asdict(self), indent=2, ensure_ascii=False)
+            except Exception:
+                log.exception("Einstellungen liessen sich nicht serialisieren — "
+                              "nichts geschrieben.")
+                return
+            tmp = path.with_name(
+                f"{path.name}.{os.getpid()}.{threading.get_ident()}.tmp")
+            try:
+                path.parent.mkdir(parents=True, exist_ok=True)
+                # Sicherung der bisherigen Fassung, BEVOR sie ersetzt wird. Sie ist
+                # die Rettung fuer den Fall, dass die neue Datei kaputt geht.
+                if _lies_json(path) is not None:
+                    try:
+                        _backup_path(path).write_bytes(path.read_bytes())
+                    except Exception:
+                        log.debug("Sicherung der Einstellungen fehlgeschlagen.",
+                                  exc_info=True)
+                with open(tmp, "w", encoding="utf-8") as f:
+                    f.write(inhalt)
+                    f.flush()
+                    os.fsync(f.fileno())
+                os.replace(tmp, path)
+            except Exception:
+                log.exception("Einstellungen konnten nicht gespeichert werden: %s", path)
+            finally:
+                # Nach `os.replace` ist die Nebendatei weg; nach einem Fehler liegt
+                # sie noch da und hat nichts verloren zu suchen. Scheitert selbst
+                # das Aufraeumen, ist das kein Grund, den Speichervorgang als
+                # gescheitert zu melden — die Einstellungen stehen bereits.
                 try:
-                    _backup_path(path).write_bytes(path.read_bytes())
+                    tmp.unlink()
+                except FileNotFoundError:
+                    pass
                 except Exception:
-                    log.debug("Sicherung der Einstellungen fehlgeschlagen.", exc_info=True)
-            tmp = path.with_name(path.name + ".tmp")
-            with open(tmp, "w", encoding="utf-8") as f:
-                f.write(inhalt)
-                f.flush()
-                os.fsync(f.fileno())
-            os.replace(tmp, path)
-        except Exception:
-            log.exception("Einstellungen konnten nicht gespeichert werden: %s", path)
+                    log.debug("Nebendatei %s nicht aufraeumbar.", tmp, exc_info=True)
 
     @classmethod
     def load(cls, path: Path | None = None) -> "UserSettings":
         path = path or SETTINGS_PATH
         settings = cls()
         data = _lies_json(path)
-        if data is None and path.is_file():
-            # Kaputte Datei NICHT stillschweigend durch Vorgaben ersetzen: Der
-            # naechste `save()` wuerde die Vorgaben zementieren und alles waere
-            # endgueltig weg. Stattdessen die Sicherung ziehen und die kaputte
-            # Fassung zur Ansicht aufheben.
+        if data is None:
             sicherung = _lies_json(_backup_path(path))
             if sicherung is not None:
-                log.warning("settings.json war unbrauchbar — Sicherung von %s "
-                            "wiederhergestellt.", _backup_path(path).name)
+                # Unbrauchbare Datei NICHT stillschweigend durch Vorgaben ersetzen:
+                # Der naechste `save()` wuerde die Vorgaben zementieren und alles
+                # waere endgueltig weg. Dasselbe gilt, wenn die Datei ganz FEHLT,
+                # eine Sicherung aber danebenliegt — genau der Zustand, den die
+                # Heilung unten hinterlaesst, wenn die App danach nicht mehr zum
+                # Speichern kommt. Ohne diesen Zweig waere die Rettung beim
+                # uebernaechsten Start still verfallen.
+                log.warning("settings.json %s — Sicherung von %s wiederhergestellt.",
+                            "war unbrauchbar" if path.is_file() else "fehlte",
+                            _backup_path(path).name)
                 data = sicherung
-            else:
+            elif path.is_file():
                 try:
                     path.replace(path.with_name(path.name + ".kaputt"))
                     log.error("settings.json unbrauchbar und keine Sicherung da — "
@@ -541,15 +581,22 @@ class UserSettings:
                               "Vorgaben.")
                 except Exception:
                     log.debug("Kaputte settings.json nicht verschiebbar.", exc_info=True)
-        if data is None:
-            return settings
-        for section_name, section_data in (data or {}).items():
-            section = getattr(settings, section_name, None)
-            if section is None or not isinstance(section_data, dict):
-                continue
-            for key, value in section_data.items():
-                if hasattr(section, key):
-                    setattr(section, key, value)
+        else:
+            # Die Datei ist lesbar — und trotzdem kann alles weg sein: ein
+            # Ruecksetzer auf Vorgaben ist gueltiges JSON (Befund A-5).
+            sicherung = _lies_json(_backup_path(path))
+            if sicherung is not None and ist_zurueckgesetzt(data, sicherung, cls):
+                beiseite = path.with_name(path.name + ".zurueckgesetzt")
+                try:
+                    path.replace(beiseite)
+                except Exception:
+                    log.debug("Zurueckgesetzte settings.json nicht verschiebbar.",
+                              exc_info=True)
+                log.warning("settings.json stand auf Vorgaben, die Sicherung nicht — "
+                            "geladen wird %s; die zurueckgesetzte Fassung liegt als %s.",
+                            _backup_path(path), beiseite)
+                data = sicherung
+        wende_an(settings, data)
         # Migration v1.10.1 → v1.10.2: Insights-Ignores lagen kurz in einem eigenen
         # Feld advice_dismissed ({"falsch => richtig": ts}); jetzt gibt es nur noch
         # die eine sichtbare Liste dictionary_ignores.
@@ -570,6 +617,7 @@ class UserSettings:
             settings.freihand.modell = "diktat"
             log.info("Freihand-Pruefmodell von 'base' auf 'diktat' umgestellt "
                      "(alte Vorgabe, siehe FreihandSettings).")
+        protokolliere_umfang(settings)
         return settings
 
     # -- Anwendung auf die technische Config ---------------------------------------
