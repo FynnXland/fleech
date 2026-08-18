@@ -271,8 +271,13 @@ class AppsPage(QWidget):
             knopfreihe.addWidget(knopf)
         weg = style_button(QPushButton("Nicht mehr fragen"), "ghost")
         weg.setProperty("app", vorschlag.app)
-        weg.setToolTip("Diese Anwendung nicht mehr vorschlagen. Dauerhaft — "
-                       "steht danach in den Einstellungen unter Profile.")
+        # Ehrlich, wo es weh tut: Die Liste hat (noch) keinen Editor. Ein Tooltip,
+        # der auf eine Seite verweist, die es nicht gibt, ist genau die Sorte
+        # Anzeige-ohne-Wirkung, gegen die diese ganze Karte gebaut ist.
+        weg.setToolTip("Diese Anwendung nicht mehr vorschlagen. Gilt dauerhaft; "
+                       "zurückholen lässt es sich nur in der settings.json "
+                       "(profiles.vorschlag_ignores). Ein Profil kannst du ihr "
+                       "trotzdem jederzeit unten von Hand geben.")
         weg.clicked.connect(self._vorschlag_ignoriert)
         knopfreihe.addWidget(weg)
         knopfreihe.addStretch(1)
