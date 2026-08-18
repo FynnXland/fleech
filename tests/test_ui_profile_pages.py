@@ -1072,3 +1072,54 @@ def test_wache_ueberlebt_eine_kaputte_maus_abfrage(qapp, monkeypatch):
     p._pruefe_fremdklick()                 # darf nicht werfen
     assert not p.isHidden()
     p.hide()
+
+
+# -- Profile sichern und zurueckholen (V-10/G-6) ---------------------------------------
+
+def test_profilseite_exportiert_und_importiert_ueber_den_dialog(qapp, tmp_path,
+                                                                monkeypatch):
+    """Die beiden Knoepfe an der echten Seite — Datei-Dialog und Rueckfrage
+    vorgegeben, damit nichts modal stehen bleibt.
+
+    Geprueft wird die Kette, die der Nutzer erlebt: exportieren, Profil von Hand
+    aendern, wieder importieren, Rueckfrage mit „Ja" beantworten."""
+    from PySide6.QtWidgets import QFileDialog, QMessageBox
+
+    window, _p, _store, settings, _c = make_main_window(tmp_path, monkeypatch)
+    page = window.profiles
+    ziel = tmp_path / "sicherung.json"
+    settings.profiles.items[1]["apps"] = ["Word.exe"]
+    settings.profiles.app_quick = {"claude.exe": ["KI-Prompt"]}
+
+    monkeypatch.setattr(QFileDialog, "getSaveFileName",
+                        staticmethod(lambda *a, **k: (str(ziel), "")))
+    monkeypatch.setattr(QMessageBox, "information", staticmethod(lambda *a, **k: None))
+    page._profile_exportieren()
+    assert ziel.is_file()
+    assert "Word.exe" in ziel.read_text(encoding="utf-8")
+
+    # Zuordnung geht verloren (Befund G-B10) — und kommt aus der Datei zurueck.
+    settings.profiles.items[1]["apps"] = []
+    settings.profiles.app_quick = {}
+    monkeypatch.setattr(QFileDialog, "getOpenFileName",
+                        staticmethod(lambda *a, **k: (str(ziel), "")))
+    monkeypatch.setattr(QMessageBox, "question",
+                        staticmethod(lambda *a, **k: QMessageBox.Yes))
+    page._profile_importieren()
+    assert settings.profiles.items[1]["apps"] == ["Word.exe"]
+    assert settings.profiles.app_quick == {"claude.exe": ["KI-Prompt"]}
+
+
+def test_abgebrochener_dateidialog_aendert_nichts(qapp, tmp_path, monkeypatch):
+    from PySide6.QtWidgets import QFileDialog
+
+    window, _p, _store, settings, _c = make_main_window(tmp_path, monkeypatch)
+    page = window.profiles
+    vorher = len(settings.profiles.items)
+    monkeypatch.setattr(QFileDialog, "getSaveFileName",
+                        staticmethod(lambda *a, **k: ("", "")))
+    monkeypatch.setattr(QFileDialog, "getOpenFileName",
+                        staticmethod(lambda *a, **k: ("", "")))
+    page._profile_exportieren()
+    page._profile_importieren()
+    assert len(settings.profiles.items) == vorher

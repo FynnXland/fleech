@@ -260,7 +260,81 @@ class ProfilesPage(QWidget):
         row.addWidget(add_btn, 1)
         row.addWidget(del_btn)
         box.addLayout(row)
+        # Sichern und Zurueckholen (Vorschlag G-6, Befund G-B10): Profile leben
+        # sonst nur in der settings.json — und die einzige App-Konfiguration, die
+        # je angelegt wurde, ist daraus zweimal verschwunden.
+        sicher_row = QHBoxLayout()
+        sicher_row.setSpacing(8)
+        export_btn = style_button(QPushButton("Profile exportieren …"), "ghost")
+        export_btn.setToolTip(
+            "Schreibt Profile und Schnellwechsel in eine JSON-Datei. Bewusst nur "
+            "das — Lizenzschlüssel, Mikrofon und alle anderen Einstellungen "
+            "bleiben draußen, damit man die Datei weitergeben kann.")
+        export_btn.clicked.connect(self._profile_exportieren)
+        import_btn = style_button(QPushButton("Profile importieren …"), "ghost")
+        import_btn.setToolTip(
+            "Liest so eine Datei wieder ein. Additiv: Unbekannte Profile kommen "
+            "dazu, gleichnamige nur nach Rückfrage — gelöscht wird nie etwas.")
+        import_btn.clicked.connect(self._profile_importieren)
+        sicher_row.addWidget(export_btn, 1)
+        sicher_row.addWidget(import_btn, 1)
+        box.addLayout(sicher_row)
         return frame
+
+    # -- Sichern und Zurueckholen (V-10/G-6) -------------------------------------
+
+    def _profile_exportieren(self) -> None:
+        from PySide6.QtWidgets import QFileDialog, QMessageBox
+
+        from ...profilexport import export_daten, schreibe
+
+        pfad, _filter = QFileDialog.getSaveFileName(
+            self, "Profile exportieren", "fleech-profile.json",
+            "Fleech-Profile (*.json)")
+        if not pfad:
+            return
+        try:
+            schreibe(pfad, export_daten(self.settings))
+        except Exception as fehler:
+            log.exception("Profil-Export fehlgeschlagen: %s", pfad)
+            QMessageBox.warning(self, "Export fehlgeschlagen", str(fehler))
+            return
+        log.info("Profile exportiert nach %s", pfad)
+        QMessageBox.information(
+            self, "Profile exportiert",
+            f"{len(self.settings.profiles.items)} Profile stehen jetzt in\n{pfad}")
+
+    def _profile_importieren(self) -> None:
+        from PySide6.QtWidgets import QFileDialog, QMessageBox
+
+        from ...profilexport import importiere, lies, namenskonflikte
+
+        pfad, _filter = QFileDialog.getOpenFileName(
+            self, "Profile importieren", "", "Fleech-Profile (*.json)")
+        if not pfad:
+            return
+        try:
+            daten = lies(pfad)
+        except ValueError as fehler:
+            QMessageBox.warning(self, "Import nicht möglich", str(fehler))
+            return
+        # Rueckfrage NUR bei echtem Konflikt: Wer nichts ueberschreibt, soll auch
+        # nicht gefragt werden — sonst klickt man die Frage irgendwann blind weg.
+        konflikte = namenskonflikte(self.settings, daten)
+        ersetzen = False
+        if konflikte:
+            antwort = QMessageBox.question(
+                self, "Gleichnamige Profile ersetzen?",
+                "Diese Profile gibt es hier schon:\n\n"
+                + "\n".join(f"·  {n}" for n in konflikte)
+                + "\n\nJa = mit der Datei überschreiben.\n"
+                  "Nein = so lassen, nur die unbekannten ergänzen.")
+            ersetzen = antwort == QMessageBox.Yes
+        bericht = importiere(self.settings, daten, ersetzen)
+        self._save()
+        self._on_changed("profiles")
+        self.refresh()
+        QMessageBox.information(self, "Profile importiert", bericht.satz())
 
     def _baue_detail_spalte(self) -> QWidget:
         """Rechts: alles zum gewaehlten Profil — Name, Ausgabeformat, Farbe,
