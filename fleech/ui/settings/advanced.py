@@ -124,10 +124,12 @@ def build(panel) -> None:
             45: "Maximal reaktionsschnell, RAM am längsten belegt.",
         },
     )
-    panel._check(form, "Adaptive Geschwindigkeit (Cleanup)", s.advanced.adaptive_cleanup,
-                 "adaptive", lambda v: setattr(s.advanced, "adaptive_cleanup", v),
-                 "Kurze Diktate nehmen den kurzen Weg (weniger Prüfung, schneller "
-                 "fertig) — derzeit läuft für beide Wege dasselbe Modell.")
+    # Der Schalter „Adaptive Geschwindigkeit (Cleanup)" ist in 5.11.0 entfallen
+    # (Befund E-4): Er stand bei jedem Nutzer auf „an" und konnte nichts bewirken —
+    # `cleanup` und `cleanup_fast` fahren in config.yaml BEWUSST dasselbe Modell.
+    # Das Routing trivial/simple/complex laeuft unveraendert weiter; die Trennung
+    # der beiden Endpunkte bleibt als Nahtstelle bestehen. An einer Nahtstelle
+    # kann der Nutzer nichts entscheiden, nur falsch informiert werden.
 
     from ...usersettings import SETTINGS_DIR
 

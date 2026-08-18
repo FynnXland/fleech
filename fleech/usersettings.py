@@ -443,9 +443,12 @@ class AdvancedSettings:
     # Persistiert in settings.json — uebersteht Neustart und Autostart, kein
     # Env-Var-/setx-Umweg noetig.
     prefer_gpu: bool = True
-    # True (Default) = adaptives Routing: kurze, einfache Diktate → kleines schnelles
-    # Modell (~2x schneller), komplexe → grosses Modell. False = immer grosses Modell.
-    adaptive_cleanup: bool = True
+    # `adaptive_cleanup` ist nach 5.10.2 entfallen (Befund E-4): Der Schalter stand
+    # bei jedem Nutzer auf „an" und konnte nichts bewirken — `cleanup` und
+    # `cleanup_fast` fahren in config.yaml bewusst dasselbe Modell. Das Routing
+    # trivial/simple/complex laeuft fest weiter (`Pipeline.adaptive`); die Trennung
+    # der Endpunkte bleibt als Nahtstelle. Alte settings.json laden weiter, der
+    # Schluessel wird beim Laden still uebergangen.
     # LLM-Warmhaltung (RAM/VRAM vs. Latenz):
     # "always" = Modelle dauerhaft geladen (schnellste Antwort, ~3,5 GB belegt —
     #            seit v3.5.0 EIN Modell statt zwei, damals ~8 GB),

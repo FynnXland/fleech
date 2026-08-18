@@ -742,10 +742,8 @@ class DesktopApp(
                                          self.settings.output.dictionary_usage)
         elif section == "onboarding":
             self.show_onboarding()
-        elif section == "adaptive":
-            self.pipeline.adaptive = self.settings.advanced.adaptive_cleanup
-            if self.settings.advanced.adaptive_cleanup:
-                self._keep_warm_tick()
+        # Der Abschnitt „adaptive" ist mit dem Schalter „Adaptive Geschwindigkeit"
+        # in 5.11.0 entfallen (Befund E-4) — das Routing laeuft fest weiter.
         elif section == "warmhold":
             self._keep_warm_tick()  # bei "always"/"smart" sofort vorladen
         elif section == "focus":

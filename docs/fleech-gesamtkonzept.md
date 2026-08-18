@@ -707,8 +707,12 @@ Bei „Minimal" läuft gar kein Modell.
 **Fällt das kleine Modell aus**, wird automatisch das große nachgeschoben, bevor auf den
 Rohtext zurückgefallen wird.
 
-Das adaptive Routing lässt sich in den Einstellungen abschalten (dann immer das große
-Modell). Die tatsächliche Verteilung ist in den Insights unter „Verarbeitung" sichtbar.
+Das Routing läuft **immer**. Bis 5.10.x gab es dazu den Schalter „Adaptive
+Geschwindigkeit (Cleanup)"; er ist in 5.11.0 entfallen (Befund E-4): Er stand bei jedem
+Nutzer auf „an" und konnte nichts bewirken, weil beide Stufen dasselbe Modell fahren —
+an einer Nahtstelle kann der Nutzer nichts entscheiden, nur falsch informiert werden.
+Die tatsächliche Verteilung bleibt in den Insights unter „Verarbeitung" sichtbar
+(„kurzer Weg" gegen „voller Weg").
 
 **Gemessene Größenordnungen** (RTX 4070): Erkennung ~0,2 s bei warmem Modell;
 Bereinigung ~4,8 s mit warmem großem Modell gegenüber ~12,9 s bei kaltem.
@@ -1364,7 +1368,6 @@ Drei Blöcke auf einer Seite:
 | GPU-Beschleunigung (STT) | Erkennung auf der Grafikkarte; aus = CPU erzwingen | an |
 | Modell-Warmhaltung | *Nach Nutzung* / *Dauerhaft* (~3,5 GB dauerhaft belegt) / *Aus* | Nach Nutzung |
 | Im Leerlauf entladen nach | 3 / 10 / 30 / 45 Minuten | 10 Minuten |
-| Adaptive Geschwindigkeit | kurze Diktate nehmen den kurzen Weg (weniger Prüfung) — derzeit dasselbe Modell für beide Wege | an |
 | Debug-Logging | wirkt **ab dem nächsten Start** (Log-Level DEBUG statt INFO) — bis 5.10.2 wurde der Haken zwar gespeichert, aber von nichts gelesen | aus |
 
 ---

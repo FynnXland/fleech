@@ -169,16 +169,25 @@ def test_safe_word_platzhalter_faellt_bei_kaputter_config_zurueck(qapp, monkeypa
     assert panel._trigger_field.placeholderText() == "leer = Wert aus config.yaml"
 
 
-# -- A-2/E-10: "Adaptive Geschwindigkeit" nennt kein zweites Modell -----------------
+# -- A-2/E-10/E-4: "Adaptive Geschwindigkeit" gibt es gar nicht mehr ----------------
 
-def test_adaptive_tooltip_verspricht_kein_zweites_modell(qapp):
+def test_es_gibt_keinen_schalter_fuer_adaptive_geschwindigkeit_mehr(qapp):
+    """Bis 5.10.x stand hier ein Schalter, dessen Tooltip ein „kleines, schnelleres
+    Modell" versprach — dieser Test prüfte nur noch, dass der Tooltip nicht mehr
+    lügt. Befund E-4: Der Schalter stand bei jedem auf „an" und konnte gar nichts
+    bewirken, weil `cleanup` und `cleanup_fast` bewusst dasselbe Modell fahren.
+    In 5.11.0 ist er entfernt; das Routing läuft fest weiter."""
     import inspect
 
     from fleech.ui.settings import advanced
+    from fleech.usersettings import AdvancedSettings
 
     quelle = inspect.getsource(advanced.build)
+    # Kein Bedienelement mehr (der erklärende Kommentar im Code darf bleiben).
+    assert 'form, "Adaptive Geschwindigkeit' not in quelle
     assert "kleines, schnelleres Modell" not in quelle
-    assert "kurzen Weg" in quelle
+    assert "kurzen Weg" not in quelle
+    assert not hasattr(AdvancedSettings(), "adaptive_cleanup")
 
 
 # -- A-14/E-16: Warmhaltung-Zahlen auf dem heutigen Stand ---------------------------
