@@ -15,6 +15,7 @@ from __future__ import annotations
 import datetime as _dt
 import difflib
 import logging
+import math
 import re
 import sqlite3
 from collections import Counter
@@ -66,6 +67,14 @@ def _daypart_for_hour(hour: int) -> str:
     return "nachts"
 
 
+# Stundenbreite je Tageszeit-Fach — die Faecher sind unterschiedlich breit
+# (6/3/4/5/6 h). Verglichen wird in `stats()` NICHT die Summe, sondern die Summe
+# JE STUNDE, sonst gewinnt strukturell das breiteste Fach, selbst wenn es je
+# Stunde weniger traegt (F-B8, aus Bahn F an der echten Historie belegt: "nachts"
+# gewann als Summe, obwohl 16 Uhr die staerkste Einzelstunde war).
+_DAYPART_HOURS = {"morgens": 6, "mittags": 3, "nachmittags": 4, "abends": 5, "nachts": 6}
+
+
 _WEEKDAY_NAMES_DE = {
     "0": "Sonntag", "1": "Montag", "2": "Dienstag", "3": "Mittwoch",
     "4": "Donnerstag", "5": "Freitag", "6": "Samstag",
@@ -113,6 +122,19 @@ _MIGRATION_COLUMNS = {
 }
 
 
+def _percentile(sorted_values: list[int], q: float) -> int:
+    """Perzentil per Index (nearest-rank) auf einer BEREITS sortierten Liste —
+    kein numpy/scipy noetig, bei ein paar tausend Zeilen unkritisch (Bahn F: rund
+    5 ms fuer 1399 Zeilen, gemessen). Ersetzt AVG(): Ein Mittelwert ueberzeichnet
+    kurze, haeufige Faelle durch seltene Ausreisser (Kaltstarts) — Median/p90
+    zeigen stattdessen, was die Haelfte bzw. neun von zehn Diktaten wirklich
+    erlebt haben (F-B4)."""
+    if not sorted_values:
+        return 0
+    idx = max(0, min(len(sorted_values) - 1, math.ceil(q * len(sorted_values)) - 1))
+    return int(sorted_values[idx])
+
+
 def corrected_word_count(raw: str, cleaned: str) -> int:
     """Wie viele Woerter des Roh-Transkripts wurden veraendert/entfernt (Fuellwoerter,
     Selbstkorrekturen, Erkennungsfehler)? Wort-Diff, case-insensitiv."""
@@ -151,19 +173,28 @@ class Stats:
     total_dictations: int = 0
     total_words: int = 0
     total_audio_seconds: float = 0.0
-    corrected_words: int = 0
+    corrected_words: int = 0             # NUR mode='cleanup' (F-B11 — Umformulieren
+                                          # zaehlt separat, siehe non_cleanup_dictations)
+    non_cleanup_dictations: int = 0      # Diktate im Zeitraum mit mode != 'cleanup'
     wpm: float = 0.0                     # Sprechtempo: Woerter / Sprechminute
     app_usage: list = None               # [(app, words, anteil 0..1)]
     top_words: list = None               # [(wort, anzahl, anteil am haeufigsten 0..1)]
     daily_counts: dict = None            # {"YYYY-MM-DD": anzahl}
     streak: int = 0                      # aktuelle Serie (Tage, bis heute/gestern)
     longest_streak: int = 0
+    # Ungefiltert wie die Serie (F-B2/F-B3) — die Meilenstein-Karte vergleicht immer
+    # gegen ALLES je Diktierte, nicht gegen den gewaehlten Zeitraum.
+    lifetime_words: int = 0
     # "Deine Muster": leer ("") solange < MIN_DICTATIONS_FOR_PATTERN Diktate vorliegen.
     productive_daypart: str = ""         # morgens | mittags | nachmittags | abends | nachts
     productive_weekday: str = ""         # "Montag".."Sonntag"
-    # Verarbeitungs-Telemetrie (lokal): Durchschnittslatenzen + Routing-/Fallback-Bild.
-    avg_stt_ms: int = 0
-    avg_llm_ms: int = 0
+    # Verarbeitungs-Telemetrie (lokal): Median/p90 statt Mittelwert (F-B4) — ein
+    # Mittelwert ueberzeichnet die Erkennung durch Kaltstart-Ausreisser und wird
+    # durch Diktate ohne Modelllauf (llm_ms=0) nach unten verzerrt.
+    stt_median_ms: int = 0
+    stt_p90_ms: int = 0
+    llm_median_ms: int = 0               # NUR llm_ms > 0 (kein echter Lauf sonst)
+    llm_p90_ms: int = 0
     tier_shares: dict = None             # {"trivial"|"simple"|"complex": anteil 0..1}
     fallback_rate: float = 0.0           # Anteil Diktate mit status "fallback"
 
@@ -241,26 +272,60 @@ class HistoryStore:
     # Kennzahlen allein sagen dem Nutzer nicht, was er TUN kann. Diese drei Abfragen
     # liefern Beobachtungen, aus denen eine konkrete Handlung folgt.
 
+    # Modi, in denen ein "replace"-Block KEINE Erkennungskorrektur ist, sondern
+    # Absicht: Formeln (LaTeX aus dem Formel-Parser), Umschreibungen (prompt/email)
+    # und Befehls-Antworten. Ein Vorschlag daraus wuerde nie eine Fehlerkennung
+    # treffen, sondern kuenftig jedes Diktat verfaelschen (F-1/Befund 1).
+    _KEIN_KORREKTUR_MODUS = ("math", "math_mix", "prompt", "email", "command")
+
+    # Ab dieser Quote gilt ein Wort als "fast nur als Fehlerkennung gesehen":
+    # n_korrekturen / (n_korrekturen + n_vorkommen_im_bereinigten_text). An den
+    # echten Daten kalibriert (Bahn F, Befund 1) — 0,5 laesst matrize/kompliment/
+    # pfoehne/realen/buchstuhl durch und keinen einzigen Grammatikfall (kann/wird/
+    # auch liegen alle unter 0,02).
+    _KONSISTENZ_SCHWELLE = 0.5
+
+    @staticmethod
+    def _normalisiert_anfuehrung(wort: str) -> str:
+        """Typografische Apostrophe/Anfuehrungszeichen auf die ASCII-Form bringen —
+        "geht's" vs. "geht’s" ist keine Fehlerkennung, sondern derselbe Text in
+        zwei Schreibweisen (F-1)."""
+        return wort.translate(str.maketrans({
+            "’": "'", "‘": "'", "‚": "'", "“": '"', "„": '"', "”": '"',
+        }))
+
     def top_corrections(self, limit: int = 5, scan: int = 300,
                         min_count: int = 2) -> list[tuple[str, str, int]]:
-        """Haeufigste Ein-Wort-Korrekturen (roh → bereinigt) der letzten `scan` Diktate.
+        """Haeufigste Ein-Wort-Korrekturen (roh → bereinigt) der letzten `scan` Diktate
+        (nur Modi, in denen eine Abweichung wirklich eine Fehlerkennung sein kann).
 
         Systematisch falsch erkannte Fachbegriffe tauchen hier oben auf und lassen
         sich mit einem Klick als Woerterbuch-Regel uebernehmen. Einmal-Treffer
-        (`min_count`) bleiben draussen — die sind Rauschen, keine Systematik.
+        (`min_count`) bleiben draussen — die sind Rauschen, keine Systematik. Ein
+        Konsistenz-Test verwirft zusaetzlich Paare, deren "falsches" Wort im
+        eigenen bereinigten Textbestand selbst haeufig vorkommt — das sind fast
+        immer Grammatik-/Flexionsfaelle (kann/wird/auch …), keine Erkennungsfehler,
+        und eine automatische Regel wuerde sie kuenftig kaputt ersetzen.
         """
+        placeholders = ",".join("?" * len(self._KEIN_KORREKTUR_MODUS))
         try:
             with self._connect() as con:
                 rows = con.execute(
-                    "SELECT raw, cleaned FROM dictations ORDER BY ts DESC LIMIT ?",
-                    (max(1, scan),),
+                    f"SELECT raw, cleaned FROM dictations WHERE mode NOT IN "
+                    f"({placeholders}) ORDER BY ts DESC LIMIT ?",
+                    (*self._KEIN_KORREKTUR_MODUS, max(1, scan)),
                 ).fetchall()
         except Exception:
             log.exception("Historie: Korrektur-Auswertung fehlgeschlagen.")
             return []
         pairs: Counter = Counter()
+        # Wie oft steht das (kleingeschriebene) Wort selbst im bereinigten
+        # Textbestand — Grundlage fuer den Konsistenz-Test unten.
+        cleaned_word_counts: Counter = Counter()
         for raw, cleaned in rows:
             before_words, after_words = (raw or "").split(), (cleaned or "").split()
+            for w in after_words:
+                cleaned_word_counts[w.strip(".,;:!?\"'„“()").lower()] += 1
             matcher = difflib.SequenceMatcher(
                 a=[w.lower() for w in before_words],
                 b=[w.lower() for w in after_words],
@@ -281,10 +346,22 @@ class HistoryStore:
                     if len(wrong) < 4 or len(right) < 4 \
                             or wrong.lower() == right.lower():
                         continue
+                    if self._normalisiert_anfuehrung(wrong.lower()) == \
+                            self._normalisiert_anfuehrung(right.lower()):
+                        continue   # nur typografisches Apostroph/Anfuehrung
                     pairs[(wrong.lower(), right)] += 1
-        return [(wrong, right, count)
-                for (wrong, right), count in pairs.most_common(limit)
-                if count >= min_count]
+        results = []
+        for (wrong, right), count in pairs.most_common():
+            if count < min_count:
+                continue
+            vorkommen = cleaned_word_counts.get(wrong, 0)
+            quote = count / (count + vorkommen) if (count + vorkommen) else 0.0
+            if quote < self._KONSISTENZ_SCHWELLE:
+                continue
+            results.append((wrong, right, count))
+            if len(results) >= limit:
+                break
+        return results
 
     def fallback_trend(self, days: int = 3) -> tuple[float, float, int]:
         """(Quote aktuell, Quote davor, Diktate im aktuellen Fenster).
@@ -355,41 +432,24 @@ class HistoryStore:
             return []
         return [(day, int(avg or 0)) for day, avg in rows]
 
-    # Modi, die den einzigen Cloud-Pfad von Fleech benutzen: das multimodale
-    # Formel-Modell. Alles andere laeuft vollstaendig auf diesem Rechner.
-    CLOUD_MODES = ("math", "math_mix", "prompt_math_mix")
-
-    def privacy_split(self) -> tuple[int, int]:
-        """(Diktate gesamt, davon ueber den Formel-Cloud-Pfad).
-
-        Fleechs Kernversprechen ist „laeuft lokal" — dann muss auch nachpruefbar
-        sein, wie oft das NICHT galt. Die Zahl ehrlich zu zeigen ist mehr wert als
-        ein Werbe-Siegel."""
-        try:
-            with self._connect() as con:
-                placeholders = ",".join("?" * len(self.CLOUD_MODES))
-                total = con.execute("SELECT COUNT(*) FROM dictations").fetchone()[0]
-                cloud = con.execute(
-                    f"SELECT COUNT(*) FROM dictations WHERE mode IN ({placeholders})",
-                    self.CLOUD_MODES,
-                ).fetchone()[0]
-        except Exception:
-            log.exception("Historie: Privacy-Verteilung nicht ermittelbar.")
-            return 0, 0
-        return int(total or 0), int(cloud or 0)
-
-    def command_kinds(self, limit: int = 4) -> list[tuple[str, int]]:
-        """[(Befehlsart, Anzahl)] — welche Befehle nutzt du wirklich?
+    def command_kinds(self, limit: int = 4, since: float | None = None) -> list[tuple[str, int]]:
+        """[(Befehlsart, Anzahl)] — welche Befehle nutzt du wirklich, im gewaehlten
+        Zeitraum (`since` = Unix-Zeit, None = gesamter Verlauf, F-B5)?
 
         Klassifiziert wird das ROH-Transkript (die gesprochene Anweisung), nicht
         das Ergebnis: nur dort steht, was verlangt wurde."""
         from .commands import classify_command
 
         counts: Counter = Counter()
+        where = "WHERE mode = 'command' AND raw != ''"
+        p: tuple = ()
+        if since:
+            where += " AND ts >= ?"
+            p = (since,)
         try:
             with self._connect() as con:
                 rows = con.execute(
-                    "SELECT raw FROM dictations WHERE mode = 'command' AND raw != ''"
+                    f"SELECT raw FROM dictations {where}", p
                 ).fetchall()
         except Exception:
             log.exception("Historie: Befehlsarten nicht ermittelbar.")
@@ -443,10 +503,24 @@ class HistoryStore:
             return (where + " AND " + bedingung) if where else " WHERE " + bedingung
 
         with self._connect() as con:
-            total, words, seconds, corrected = con.execute(
-                "SELECT COUNT(*), COALESCE(SUM(words),0), COALESCE(SUM(audio_seconds),0),"
-                " COALESCE(SUM(corrected),0) FROM dictations" + where, p
+            total, words, seconds = con.execute(
+                "SELECT COUNT(*), COALESCE(SUM(words),0), COALESCE(SUM(audio_seconds),0)"
+                " FROM dictations" + where, p
             ).fetchone()
+            # NUR mode='cleanup' (F-B11): Umformulierende Modi (prompt/math/…)
+            # aendern Text absichtlich, das ist keine "Korrektur von Fleech".
+            corrected = con.execute(
+                "SELECT COALESCE(SUM(corrected),0) FROM dictations" +
+                und("mode = 'cleanup'"), p
+            ).fetchone()[0]
+            non_cleanup = con.execute(
+                "SELECT COUNT(*) FROM dictations" + und("mode != 'cleanup'"), p
+            ).fetchone()[0]
+            # Ungefiltert wie die Serie (F-B2/F-B3) — Lebenszeit-Wortzahl fuer die
+            # Meilenstein-Karte, unabhaengig vom gewaehlten Zeitraum.
+            lifetime_words = con.execute(
+                "SELECT COALESCE(SUM(words),0) FROM dictations"
+            ).fetchone()[0]
             usage_rows = con.execute(
                 "SELECT app, SUM(words) w FROM dictations" + und("app != ''") +
                 " GROUP BY app ORDER BY w DESC", p
@@ -464,9 +538,18 @@ class HistoryStore:
                 "SELECT strftime('%w', ts, 'unixepoch', 'localtime') wd, "
                 "COALESCE(SUM(words),0) w FROM dictations" + where + " GROUP BY wd", p
             ).fetchall()
-            latency_row = con.execute(
-                "SELECT AVG(stt_ms), AVG(llm_ms) FROM dictations" + und("stt_ms > 0"), p
-            ).fetchone()
+            # Median/p90 statt Mittelwert (F-B4): zwei sortierte Listen statt
+            # zweier AVG()s, in Python per Index gegriffen. Die KI-Zeile filtert
+            # EIGENSTAENDIG auf llm_ms > 0 (nicht auf stt_ms > 0 wie zuvor) — sonst
+            # ziehen Diktate ohne Modelllauf (trivial) den Wert nach unten.
+            stt_rows = con.execute(
+                "SELECT stt_ms FROM dictations" + und("stt_ms > 0") +
+                " ORDER BY stt_ms", p
+            ).fetchall()
+            llm_rows = con.execute(
+                "SELECT llm_ms FROM dictations" + und("llm_ms > 0") +
+                " ORDER BY llm_ms", p
+            ).fetchall()
             tier_rows = con.execute(
                 "SELECT tier, COUNT(*) FROM dictations" + und("tier != ''") +
                 " GROUP BY tier", p
@@ -478,11 +561,16 @@ class HistoryStore:
         stats = Stats(
             total_dictations=total, total_words=words,
             total_audio_seconds=seconds, corrected_words=corrected,
+            non_cleanup_dictations=non_cleanup, lifetime_words=int(lifetime_words or 0),
             wpm=(words / (seconds / 60.0)) if seconds > 0 else 0.0,
             app_usage=[], top_words=[], daily_counts={}, tier_shares={},
         )
-        stats.avg_stt_ms = int(latency_row[0] or 0)
-        stats.avg_llm_ms = int(latency_row[1] or 0)
+        stt_vals = [r[0] for r in stt_rows]
+        llm_vals = [r[0] for r in llm_rows]
+        stats.stt_median_ms = _percentile(stt_vals, 0.5)
+        stats.stt_p90_ms = _percentile(stt_vals, 0.9)
+        stats.llm_median_ms = _percentile(llm_vals, 0.5)
+        stats.llm_p90_ms = _percentile(llm_vals, 0.9)
         tier_total = sum(c for _t, c in tier_rows) or 1
         stats.tier_shares = {t: c / tier_total for t, c in tier_rows}
         stats.fallback_rate = (fallback_count / total) if total else 0.0
@@ -497,7 +585,10 @@ class HistoryStore:
             for h, w in hour_rows:
                 daypart_words[_daypart_for_hour(int(h))] += w
             if daypart_words:
-                stats.productive_daypart = max(daypart_words, key=daypart_words.get)
+                # Je Stunde vergleichen, nicht als Summe (F-B8) — sonst gewinnt
+                # strukturell das breiteste Fach (z. B. "nachts", 6 h).
+                je_stunde = {dp: w / _DAYPART_HOURS[dp] for dp, w in daypart_words.items()}
+                stats.productive_daypart = max(je_stunde, key=je_stunde.get)
             if weekday_rows:
                 best_wd, _w = max(weekday_rows, key=lambda row: row[1])
                 stats.productive_weekday = _WEEKDAY_NAMES_DE[best_wd]

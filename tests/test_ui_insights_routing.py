@@ -18,8 +18,8 @@ def _stats(**kw):
     from fleech.history import Stats
 
     basis = dict(
-        avg_stt_ms=450, avg_llm_ms=1200, tier_shares={"trivial": 0.1, "simple": 0.2,
-                                                        "complex": 0.7},
+        stt_median_ms=450, stt_p90_ms=900, llm_median_ms=1200, llm_p90_ms=2400,
+        tier_shares={"trivial": 0.1, "simple": 0.2, "complex": 0.7},
         fallback_rate=0.0,
     )
     basis.update(kw)

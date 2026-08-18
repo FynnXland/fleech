@@ -219,7 +219,9 @@ class InterfaceSettings:
     insights_show_patterns: bool = True  # "Deine Muster" (produktivste Tageszeit/Wochentag)
     insights_show_processing: bool = True  # Verarbeitung: Latenzen, Routing, Fallback-Quote
     insights_show_advice: bool = True   # Vorschlaege (Korrektur-Regeln, Fallback-Trend)
-    insights_show_commands: bool = True  # Befehlsarten (umformulieren/loeschen/…)
+    # insights_show_commands ist entfallen (U7/F-B5): Die eigene "Befehle"-Karte
+    # gibt es nicht mehr, ihr Inhalt steht als Zeile in "Deine Muster" und folgt
+    # dessen Sichtbarkeits-Schalter (insights_show_patterns).
     # Profilseite: erweiterte Felder (Eingriff, Safe-Word, Absenden, App-Zuweisung)
     # zeigen. Aus = nur Name, Ausgabeformat, Schnellwechsel — das reicht fuer den
     # Normalfall, und ein Profil ohne zugewiesene Apps ist voellig in Ordnung:

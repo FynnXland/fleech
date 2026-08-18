@@ -350,7 +350,8 @@ def test_die_verarbeitungs_karte_nennt_die_haeufigsten_gruende():
     from fleech.history import Stats
     from fleech.ui.pages.insights import _processing_summary
 
-    stats = Stats(total_dictations=10, avg_stt_ms=200, avg_llm_ms=3000,
+    stats = Stats(total_dictations=10, stt_median_ms=200, llm_median_ms=3000,
+                  stt_p90_ms=400, llm_p90_ms=6000,
                   tier_shares={"complex": 1.0}, fallback_rate=0.3)
     text = _processing_summary(stats, Counter({
         gruende.OLLAMA: 2,
