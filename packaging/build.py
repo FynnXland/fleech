@@ -182,7 +182,25 @@ def install_linux() -> int:
     return 0
 
 
+def sichere_einstellungen() -> None:
+    """Die eigenen Einstellungen wegsichern, bevor der Build laeuft.
+
+    Anlass: Am 2026-08-20 hat ein Testlauf `settings.json` mit den Vorgabewerten
+    ueberschrieben — Hotkeys, Mikrofon, Woerterbuch und der Lizenzschluessel waren
+    weg, und es gab nichts zum Zurueckholen. Die Ursache ist behoben, aber wer
+    baut, aendert Code, und Code kann wieder etwas anfassen, das ihm nicht gehoert.
+    Zwei Zeilen Vorsicht vor einem Vorgang, der ohnehin eine Minute dauert.
+    """
+    from fleech.einstellungssicherung import sichere
+    from fleech.usersettings import SETTINGS_PATH
+
+    ziel = sichere(SETTINGS_PATH, "build")
+    if ziel is not None:
+        print(f"[build] Einstellungen gesichert: {ziel}")
+
+
 def main() -> int:
+    sichere_einstellungen()
     gpu = resolve_gpu_flag(sys.argv)
     is_win = sys.platform == "win32"
     # Getrennte Ausgabepfade: dist/Fleech (Windows, historisch — robocopy und

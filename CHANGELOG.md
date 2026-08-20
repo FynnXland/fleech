@@ -11,6 +11,125 @@ GitHub-Release-Notizen (`packaging/release.py`).
 
 ---
 
+## 5.12.0 — 2026-08-20
+
+Ein Release über Verlässlichkeit. Vier Dinge, die im Alltag geärgert haben, sind
+weg — und deine Einstellungen sind jetzt mehrfach abgesichert. Die Einzelheiten
+stehen in den Abschnitten der Zwischenversionen darunter.
+
+- **Der Diktier-Hotkey stirbt nicht mehr lautlos.** Es konnte passieren, dass die
+  Taste von einem Moment auf den anderen nichts mehr tat: richtige Taste, richtige
+  Einstellung, keine Aufnahme. Dahinter steckte eine Zusatztaste (Strg, Alt,
+  Umschalt, Windows), deren Loslassen verlorengegangen war — beim Sperrbildschirm,
+  bei einer Windows-Rückfrage, beim Fenstertausch oder bei einer Makrotaste, die nur
+  das Drücken meldet. Fleech hielt sie danach für dauerhaft gedrückt, und damit
+  passte kein einziger Hotkey mehr, bis zum Neustart. Jetzt wird bei jedem
+  Tastendruck der echte Zustand der Tastatur abgefragt.
+
+- **Kein erfundenes „Vielen Dank." mehr am Ende langer Diktate.** Die Spracherkennung
+  hängte hinter das letzte echte Wort gelegentlich Floskeln, die niemand gesagt hat.
+  Fleech prüft jetzt, ob hinter dem letzten Wort überhaupt noch Ton liegt, und wirft
+  weg, was nur aus Stille entstanden ist.
+
+- **Deine Einstellungen werden datiert gesichert.** Beim ersten Start einer neuen
+  Version legt Fleech eine Kopie in `%APPDATA%\Fleech\sicherungen\` an — bevor
+  irgendetwas geschrieben wird. Aufgehoben werden die zwölf jüngsten Stände.
+  Zurückholen: Fleech beenden, die gewünschte Datei nach
+  `%APPDATA%\Fleech\settings.json` kopieren, starten.
+
+  Bisher gab es genau eine Sicherheitskopie, und die wird bei *jedem* Speichern
+  überschrieben. Sie schützt gegen einen abgebrochenen Schreibvorgang — nicht gegen
+  einen erfolgreichen mit falschem Inhalt.
+
+- **Ein Update lässt deine Einstellungen unangetastet.** Das war schon immer so
+  gedacht: Das Programm liegt unter `%LOCALAPPDATA%\Programs\Fleech`, deine Daten
+  unter `%APPDATA%\Fleech`. Neu ist, dass eine Prüfung darüber wacht, dass niemand
+  das versehentlich ändert.
+
+- **Ein verworfener Tastendruck hinterlässt jetzt immer eine Spur** im Protokoll.
+  Klingt nach Kleinigkeit, war aber der Grund, warum der tote Hotkey oben so lange
+  unauffindbar blieb: In den Minuten, in denen die Taste nichts tat, stand im
+  Protokoll überhaupt nichts.
+
+Wer Fleech selbst aus dem Quellcode baut: Der Testlauf fasst die echten
+Einstellungen nicht mehr an. Für alle, die die fertige Installation nutzen, ändert
+sich dadurch nichts.
+
+---
+
+## 5.11.4 — 2026-08-20 · nicht einzeln veröffentlicht
+
+**Fleech legt jetzt datierte Sicherungen deiner Einstellungen an.** Sie liegen in
+`%APPDATA%\Fleech\sicherungen\` und heißen nach Zeitpunkt und Anlass, zum
+Beispiel `settings-20260820-101530-update.json`. Aufgehoben werden die zwölf
+jüngsten.
+
+Gesichert wird bei einem **Versionswechsel** — beim ersten Start einer neuen
+Fleech-Version, und zwar bevor irgendetwas geschrieben wird. Genau dann existiert
+der alte Stand noch vollständig. Wer selbst baut, bekommt zusätzlich vor jedem
+Build eine Sicherung.
+
+Eine Sicherung entsteht nur, wenn sich wirklich etwas geändert hat. Zwölf
+identische Kopien würden sonst jeden Stand verdrängen, der noch etwas anderes
+wusste.
+
+Zum Zurückholen: Fleech beenden, die gewünschte Datei aus `sicherungen\` nach
+`%APPDATA%\Fleech\settings.json` kopieren, Fleech starten.
+
+**Warum das nötig war:** Bisher gab es genau eine Sicherheitskopie
+(`settings.json.bak`), und die wird bei *jedem* Speichern überschrieben. Sie
+schützt gegen einen abgebrochenen Schreibvorgang — nicht gegen einen
+erfolgreichen mit falschem Inhalt. Schreibt etwas zweimal hintereinander Unsinn,
+steht der Unsinn danach in beiden Dateien.
+
+Ein Update über den Installer hat die Einstellungen übrigens noch nie angefasst:
+Das Programm liegt unter `%LOCALAPPDATA%\Programs\Fleech`, die Einstellungen
+unter `%APPDATA%\Fleech`. Ein Test wacht jetzt darüber, dass das so bleibt.
+
+---
+
+## 5.11.3 — 2026-08-20 · nicht einzeln veröffentlicht
+
+**Einstellungen und Lizenzschlüssel gehen beim Bauen einer neuen Version nicht
+mehr verloren.** Wer Fleech selbst baut, ließ vorher die Testsuite laufen — und
+ein einzelner Test hat dabei die echte Einstellungsdatei mit den Vorgabewerten
+überschrieben. Danach standen Hotkeys, Mikrofon, Fensterposition, App-Zuordnungen,
+Wörterbuch und der Lizenzschlüssel auf Anfang, und Fleech meldete sich als nicht
+freigeschaltet.
+
+Der Testlauf schreibt jetzt grundsätzlich in ein Wegwerf-Verzeichnis, nicht mehr
+nur dort, wo jemand daran gedacht hat. Drei zusätzliche Tests wachen darüber, dass
+dieser Schutz bestehen bleibt.
+
+Für Benutzer der fertigen Installation ändert sich nichts — sie führen keine Tests
+aus.
+
+---
+
+## 5.11.2 — 2026-08-20 · nicht einzeln veröffentlicht
+
+**Der Diktat-Hotkey stirbt nicht mehr lautlos.** Es konnte passieren, dass die
+Taste von einem Moment auf den anderen nichts mehr tat — im Fenster stand der
+richtige Hotkey, gedrückt wurde die richtige Taste, und trotzdem startete keine
+Aufnahme. Wer dann in den Einstellungen das Hotkey-Feld anfasste, bei dem ging es
+wieder; deshalb sah es so aus, als hätte die Einstellung gefehlt. Tatsächlich hat
+schon das Anfassen des Feldes den Fehler geheilt, ganz gleich welche Taste danach
+darin stand.
+
+Dahinter steckte eine verklemmte Zusatztaste. Fleech merkt sich, ob Strg, Alt,
+Umschalt oder die Windows-Taste gerade gedrückt sind. Geht das Loslassen einmal
+verloren — beim Sperrbildschirm, bei einer Windows-Rückfrage, beim Fenstertausch
+oder bei einer Makrotaste, die grundsätzlich nur das Drücken meldet —, dann hielt
+Fleech die Taste für dauerhaft gedrückt. Von da an passte kein Hotkey mehr, bis
+zum nächsten Neustart. Jetzt fragt Fleech bei jedem Tastendruck den echten
+Zustand der Tastatur ab und räumt die Buchführung auf.
+
+Dazu kommt: Ein Tastendruck, den Fleech verwirft, schreibt jetzt immer eine Zeile
+ins Protokoll. Genau daran ist die Suche nach diesem Fehler fast gescheitert — in
+den neun Minuten, in denen die Taste tot war, stand im Protokoll überhaupt nichts.
+
+---
+
 ## 5.11.1 — 2026-08-18 · nicht einzeln veröffentlicht
 
 **Kein erfundenes „Vielen Dank." mehr am Ende langer Diktate.** Whisper hängte

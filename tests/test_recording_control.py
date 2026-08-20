@@ -176,3 +176,17 @@ def test_abbruch_aus_dem_start_callback_verklemmt_nicht():
     c.press("dictate")
     assert abgebrochen == ["dictate"]
     assert not c.active
+
+
+def test_verworfener_druck_hinterlaesst_eine_spur(caplog):
+    """Der `_key_down`-Waechter ist die zweite Stelle, an der ein Druck lautlos
+    verschwand. Verwerfen bleibt richtig — schweigen nicht."""
+    from fleech.recording_control import RecordingController
+
+    starts = []
+    c = RecordingController("toggle", on_start=starts.append, on_stop=lambda k: None)
+    c.press("dictate")
+    assert starts == ["dictate"]
+    with caplog.at_level("INFO"):
+        c.press("dictate")          # Release ging verloren → zweiter Druck faellt raus
+    assert "dictate" in caplog.text

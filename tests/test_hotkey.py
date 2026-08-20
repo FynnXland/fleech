@@ -102,6 +102,10 @@ class ManagerHarness:
             on_activate=lambda n: self.events.append(("on", n)),
             on_deactivate=lambda n: self.events.append(("off", n)),
         )
+        # Die Wache gegen verklemmte Modifier fragt sonst die ECHTE Tastatur ab
+        # und wuerde jeden SIMULIERTEN Modifier-Druck sofort wieder verwerfen.
+        # None = keine Auskunft, also genau der Zustand auf Linux.
+        self.mgr._modifier_fn = lambda: None
         self.mgr.set_bindings({k: HotkeySpec.parse(v) for k, v in bindings.items()})
 
     def press(self, key):
@@ -456,3 +460,87 @@ def test_parse_key_single_and_combo_fallback():
 def test_parse_key_rejects_mouse_tokens_with_clear_message():
     with pytest.raises(ValueError, match="Desktop-App"):
         parse_key("mouse5")
+
+
+# -- Verklemmte Modifier (realer Fehler vom 2026-08-20) --------------------------------
+
+
+def test_verklemmter_modifier_wird_beim_naechsten_druck_korrigiert(caplog):
+    """Ein Loslassen ging verloren → der Modifier gilt ewig als gedrueckt.
+
+    Genau so ist der Diktat-Hotkey am 2026-08-20 lautlos gestorben: Danach passt
+    KEIN Binding mehr auf seine Bedingung, und weil der Fehlschlag nichts
+    protokollierte, stand im Log ueber neun Minuten hinweg gar nichts.
+    """
+    h = ManagerHarness({"dictate": "f23"})
+    h.mgr._modifier_fn = lambda: set()      # Windows: nichts ist gedrueckt
+
+    h.press(Key.ctrl_l)                     # DOWN kommt an …
+    # … das UP geht verloren (Sperrbildschirm, Rechteabfrage, Makrotaste).
+    assert h.mgr._mods == {"ctrl"}
+
+    with caplog.at_level("INFO"):
+        h.press(KeyCode.from_vk(0x70 + 22))  # f23
+    assert h.events == [("on", "dictate")]
+    assert h.mgr._mods == set()
+    assert "ctrl" in caplog.text
+
+
+def test_echt_gedrueckter_modifier_bleibt_erhalten():
+    """Die Korrektur darf nur AUFRAEUMEN, nicht Kombinationen zerstoeren."""
+    h = ManagerHarness({"math": "ctrl+f23"})
+    h.mgr._modifier_fn = lambda: {"ctrl"}   # Ctrl ist wirklich gedrueckt
+    h.press(Key.ctrl_l)
+    h.press(KeyCode.from_vk(0x70 + 22))
+    assert h.events == [("on", "math")]
+
+
+def test_verpasstes_modifier_down_wird_nachgetragen():
+    """Auch der umgekehrte Fall: DOWN verloren, Taste physisch gedrueckt."""
+    h = ManagerHarness({"math": "ctrl+f23"})
+    h.mgr._modifier_fn = lambda: {"ctrl"}
+    h.press(KeyCode.from_vk(0x70 + 22))     # ohne je ein Ctrl-Ereignis gesehen zu haben
+    assert h.events == [("on", "math")]
+
+
+def test_ohne_auskunft_bleibt_die_buchfuehrung_massgeblich():
+    """Linux/gesperrte API: `None` darf den Zustand NICHT anfassen."""
+    h = ManagerHarness({"math": "ctrl+f23"})
+    h.mgr._modifier_fn = lambda: None
+    h.press(Key.ctrl_l)
+    h.press(KeyCode.from_vk(0x70 + 22))
+    assert h.events == [("on", "math")]
+
+
+def test_fehlgriff_an_den_modifiern_wird_protokolliert(caplog):
+    """Taste stimmt, Modifier nicht → das MUSS eine Zeile hinterlassen.
+
+    Ohne sie ist ein toter Hotkey hinterher nicht mehr aufzuklaeren; genau daran
+    ist die Diagnose am 2026-08-20 fast gescheitert.
+    """
+    h = ManagerHarness({"dictate": "f23"})
+    h.mgr._modifier_fn = lambda: None
+    h.press(Key.ctrl_l)
+    with caplog.at_level("INFO"):
+        h.press(KeyCode.from_vk(0x70 + 22))
+    assert h.events == []
+    assert "dictate" in caplog.text and "Modifier" in caplog.text
+
+
+def test_neustart_meldet_aktive_bindings_ab():
+    """`start()` leerte `_active` frueher still — der Aufrufer blieb verklemmt.
+
+    Der Nutzer heilt einen toten Hotkey, indem er das Hotkey-Feld in den
+    Einstellungen anfasst; das stoppt und startet den Listener. Ohne Abmeldung
+    behielt `RecordingController._key_down` seinen Eintrag und verwarf danach
+    weiter jeden Druck — die Heilung wirkte nur zur Haelfte.
+    """
+    h = ManagerHarness({"dictate": "f23"})
+    h.press(KeyCode.from_vk(0x70 + 22))
+    assert h.events == [("on", "dictate")]
+
+    h.mgr._listener = None                  # kein echter pynput-Listener im Test
+    h.mgr.start()
+    h.mgr.stop()
+    assert h.events == [("on", "dictate"), ("off", "dictate")]
+    assert h.mgr._active == {}

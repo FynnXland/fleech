@@ -18,6 +18,7 @@ import threading
 from dataclasses import asdict, dataclass, field
 from pathlib import Path
 
+from . import einstellungssicherung
 from .platformpaths import user_data_dir
 from .profiles import ProfilesSettings
 from .settingsheilung import ist_zurueckgesetzt, protokolliere_umfang, wende_an
@@ -78,6 +79,11 @@ class GeneralSettings:
     # Leer = Fleech diktiert nicht; alles andere bleibt bedienbar, damit man den
     # Schluessel ueberhaupt eintragen kann.
     license_key: str = ""
+    # Welche Fleech-Version zuletzt in diese Datei geschrieben hat. Einziger Zweck:
+    # Der Start erkennt einen Versionswechsel und legt VOR dem ersten Schreiben
+    # eine datierte Sicherung an (fleech/einstellungssicherung.py). Leer =
+    # Bestandsdatei aus der Zeit vor 5.11.4; das zaehlt als Wechsel und sichert.
+    last_version: str = ""
 
 
 @dataclass
@@ -629,8 +635,36 @@ class UserSettings:
             settings.freihand.modell = "diktat"
             log.info("Freihand-Pruefmodell von 'base' auf 'diktat' umgestellt "
                      "(alte Vorgabe, siehe FreihandSettings).")
+        cls._sichere_bei_versionswechsel(settings, path)
         protokolliere_umfang(settings)
         return settings
+
+    @staticmethod
+    def _sichere_bei_versionswechsel(settings: "UserSettings", path: Path) -> None:
+        """Hat zuletzt eine ANDERE Fleech-Version in diese Datei geschrieben?
+        Dann eine datierte Kopie anlegen, bevor die neue Version das erste Mal
+        speichert.
+
+        Der Zeitpunkt ist der Kern: Gesichert wird die Datei so, wie sie auf der
+        Platte liegt — vor jeder Migration, vor jedem `save()`. Das ist der
+        einzige Moment, in dem der alte Stand noch vollstaendig existiert.
+
+        Warum es die eine `settings.json.bak` nicht schon leistet: Die wird bei
+        JEDEM Speichern ueberschrieben. Schreibt etwas zweimal hintereinander
+        Unsinn, steht der Unsinn danach in beiden Dateien — genau so ist am
+        2026-08-20 die Heilung ins Leere gelaufen, die es fuer diesen Fall
+        eigentlich gibt.
+        """
+        from .version import APP_VERSION
+
+        if settings.general.last_version == APP_VERSION:
+            return
+        einstellungssicherung.sichere(path, "update")
+        # Erst nach der Sicherung mitschreiben, wer wir sind. Der Wert landet mit
+        # dem naechsten `save()` in der Datei; kommt es nie dazu, wird beim
+        # naechsten Start erneut gesichert — und weil eine unveraenderte Datei
+        # keine zweite Kopie erzeugt, kostet das nichts.
+        settings.general.last_version = APP_VERSION
 
     # -- Anwendung auf die technische Config ---------------------------------------
 

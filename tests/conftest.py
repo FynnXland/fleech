@@ -27,6 +27,34 @@ def _kein_echtes_gedaechtnis(tmp_path, monkeypatch):
     monkeypatch.setattr(kontext, "DB_PATH", tmp_path / "kontext.db")
 
 
+@pytest.fixture(autouse=True)
+def _keine_echten_einstellungen(tmp_path, monkeypatch):
+    """Kein Test fasst die echten Einstellungen des Nutzers an.
+
+    Am 2026-08-20 hat ein Testlauf `%APPDATA%\\Fleech\\settings.json` mit den
+    Vorgabewerten ueberschrieben — Hotkeys, App-Zuordnungen, Woerterbuch und der
+    **Lizenzschluessel** waren weg. Der Weg dorthin ist kurz und unauffaellig: Ein
+    Test baut ein `SettingsPanel` mit einem frischen `UserSettings()`, tippt auf
+    ein Auswahlfeld, das Panel speichert brav — und speichert eben dorthin, wo
+    ohne Pfadangabe gespeichert wird.
+
+    Deshalb wird der Pfad hier fuer JEDEN Test umgebogen, nicht in einzelnen
+    Helfern. Ein Schutz, an den man sich erinnern muss, ist keiner: Die eine
+    Testdatei, die den Helfer nicht benutzte, hat gereicht.
+
+    `history.db` haengt am selben Verzeichnis und faehrt mit — der Verlauf ist
+    genauso wenig Testmaterial.
+    """
+    import fleech.history as history
+    import fleech.usersettings as us
+
+    heim = tmp_path / "appdata"
+    heim.mkdir()
+    monkeypatch.setattr(us, "SETTINGS_DIR", heim)
+    monkeypatch.setattr(us, "SETTINGS_PATH", heim / "settings.json")
+    monkeypatch.setattr(history, "DB_PATH", heim / "history.db")
+
+
 @pytest.fixture
 def qapp():
     """Eine QApplication für alle Qt-Tests.

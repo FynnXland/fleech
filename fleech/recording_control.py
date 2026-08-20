@@ -65,7 +65,15 @@ class RecordingController:
 
     def press(self, kind: str) -> None:
         with self._lock:
-            if kind in self._key_down:  # Auto-Repeat des gehaltenen Keys
+            if kind in self._key_down:
+                # Normalfall: Auto-Repeat der gehaltenen Taste. Es kann aber auch
+                # ein verwaister Eintrag sein — ein Loslassen, das nie ankam. Dann
+                # verschwindet hier JEDER weitere Druck, und zwar bisher spurlos:
+                # Die Taste war tot, und im Protokoll stand nichts. Der Hotkey-
+                # Manager entprellt Auto-Repeat bereits selbst, hier kommt also
+                # ohnehin kaum etwas an — die Zeile kostet nichts und ist beim
+                # naechsten Mal der halbe Befund.
+                log.info("Druck %r verworfen — Taste gilt noch als gedrueckt.", kind)
                 return
             self._key_down.add(kind)
             if self.mode == "hold":

@@ -7,7 +7,7 @@
 
 from __future__ import annotations
 
-APP_VERSION = "5.11.1"  # 5.11.1: Schwanz ohne Ton — Whisper-Floskeln am Diktatende („Vielen Dank.") verworfen
+APP_VERSION = "5.12.0"  # 5.12.0: Hotkey-Zuverlaessigkeit, Einstellungen sicher, keine Floskeln
 
 
 def _read_build() -> str:

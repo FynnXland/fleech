@@ -143,6 +143,45 @@ def system_repeat_delay_s():
     return 0.25 + stufe * 0.25
 
 
+# -- Verklemmte Modifier (real aufgetreten, 2026-08-20) ---------------------------------
+
+# Virtual-Key-Codes der Modifier. `win` hat zwei Tasten, deshalb je ein Tupel.
+_VK_MODIFIER = {"ctrl": (0x11,), "alt": (0x12,), "shift": (0x10,), "win": (0x5B, 0x5C)}
+
+
+def echte_modifier():
+    """Welche Modifier sind WIRKLICH gedrueckt? None = keine Auskunft moeglich.
+
+    Der Grund fuer diese Funktion: `_mods` wird allein aus den Ereignissen des
+    Hooks gefuellt. Geht ein Loslassen verloren — beim Sperrbildschirm (Win+L),
+    bei einer Rechteabfrage auf dem sicheren Desktop, beim Fenstertausch, oder
+    weil eine Makrotaste grundsaetzlich nur DOWN sendet —, gilt der Modifier bis
+    zum Programmende als gedrueckt. Danach passt KEIN Hotkey mehr auf seine
+    Bedingung, und zwar lautlos: Die Taste tut einfach nichts mehr.
+
+    Windows kennt den wahren Zustand jederzeit. Also fragen wir ihn, statt
+    unserer Buchfuehrung zu vertrauen.
+    """
+    if sys.platform != "win32":
+        return None
+    try:
+        import ctypes
+
+        gedrueckt_fn = ctypes.windll.user32.GetAsyncKeyState
+    except Exception:
+        log.debug("Modifier-Zustand nicht abfragbar.", exc_info=True)
+        return None
+    gedrueckt = set()
+    try:
+        for token, vks in _VK_MODIFIER.items():
+            if any(gedrueckt_fn(vk) & 0x8000 for vk in vks):
+                gedrueckt.add(token)
+    except Exception:
+        log.debug("Modifier-Zustand nicht abfragbar.", exc_info=True)
+        return None
+    return gedrueckt
+
+
 def repeat_grace_s(delay_fn=system_repeat_delay_s) -> float:
     """Schonfrist, nach der ein erneuter Druck als NEUER Druck zaehlt.
 
@@ -235,6 +274,8 @@ class HotkeyManager:
         self._listener = None
         self._mouse_listener = None
         self._clock = None  # Test-Injektion; None = time.monotonic
+        # Ebenfalls injizierbar: die Abfrage des echten Modifier-Zustands.
+        self._modifier_fn = echte_modifier
 
     def set_bindings(self, bindings: dict[str, HotkeySpec]) -> None:
         self._bindings = dict(bindings)
@@ -283,6 +324,12 @@ class HotkeyManager:
             self._mouse_listener = None
 
     def start(self) -> None:
+        # Aktive Bindings ABMELDEN, nicht bloss vergessen. Frueher wurde `_active`
+        # hier still geleert — der Aufrufer (`RecordingController`) behielt seinen
+        # `_key_down`-Eintrag und verwarf danach JEDEN Druck lautlos. Ein Neustart
+        # des Listeners (Hotkey-Erfassung in den Einstellungen) heilte damit nur
+        # die halbe Verklemmung.
+        self._melde_aktive_ab()
         self.stop()
         self._mods.clear()
         self._active.clear()
@@ -293,6 +340,16 @@ class HotkeyManager:
         self._sync_mouse_listener()
         if self not in HotkeyManager._lebende:
             HotkeyManager._lebende.append(self)
+
+    def _melde_aktive_ab(self) -> None:
+        """Jedes aktive Binding beim Aufrufer beenden. Fehler eines Callbacks
+        duerfen die uebrigen nicht aufhalten — sonst bliebe die Haelfte haengen."""
+        for name in list(self._active):
+            del self._active[name]
+            try:
+                self.on_deactivate(name)
+            except Exception:
+                log.exception("Abmelden des Hotkeys %s fehlgeschlagen.", name)
 
     def stop(self) -> None:
         if self._listener is not None:
@@ -330,11 +387,32 @@ class HotkeyManager:
 
         return (self._clock or time.monotonic)()
 
+    def _gleiche_modifier_ab(self) -> None:
+        """Buchfuehrung gegen den echten Tastaturzustand abgleichen.
+
+        Laeuft bei jedem Tastendruck, kostet vier Windows-Aufrufe und verhindert
+        den Fehler, der am 2026-08-20 einen ganzen Vormittag lang den Diktat-
+        Hotkey lautlos totgelegt hat (siehe `echte_modifier`)."""
+        echt = self._modifier_fn()
+        if echt is None or echt == self._mods:
+            return
+        verschwunden = self._mods - echt
+        if verschwunden:
+            log.info("Modifier %s galten als gedrueckt, sind es aber nicht — "
+                     "Zustand korrigiert.", "+".join(sorted(verschwunden)))
+        self._mods = set(echt)
+
     def _press_token(self, token: str) -> bool:
         """True = mindestens ein Binding aktiviert (→ Maus-Event unterdruecken)."""
         now = self._now()
+        self._gleiche_modifier_ab()
         current_mods = frozenset(self._mods)
         matched = False
+        # Ein Binding, dessen TASTE stimmt, das aber an den Modifiern scheitert.
+        # Gemerkt, um den Fehlschlag zu protokollieren: Genau hier verschwand ein
+        # Druck bisher spurlos, und ohne Zeile im Protokoll ist die Ursache
+        # hinterher nicht mehr zu ermitteln.
+        knapp_daneben = None
         for name, spec in self._bindings.items():
             if name in self._active:
                 if self._active[name] == token:
@@ -356,11 +434,20 @@ class HotkeyManager:
                         self.on_activate(name)
                     self._last_press[name] = now
                 continue
-            if spec.key == token and spec.modifiers == current_mods:
-                self._active[name] = token
-                self._last_press[name] = now
-                matched = True
-                self.on_activate(name)
+            if spec.key != token:
+                continue
+            if spec.modifiers != current_mods:
+                knapp_daneben = (name, spec)
+                continue
+            self._active[name] = token
+            self._last_press[name] = now
+            matched = True
+            self.on_activate(name)
+        if not matched and knapp_daneben is not None:
+            name, spec = knapp_daneben
+            log.info("Hotkey %s (%s) nicht ausgeloest: Taste stimmt, aber es galten "
+                     "die Modifier %s.", name, spec.display(),
+                     "+".join(sorted(current_mods)) or "keine")
         return matched
 
     def _release_token(self, token: str) -> bool:
