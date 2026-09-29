@@ -76,7 +76,7 @@ audio_focus:                  # Heavy-Math-Dictation: Hintergrund-Apps weich duc
 overlay:                      # M4: Live-Vorschau (roh, streamend) waehrend des Sprechens
   enabled: true
   model_size: small           # eigenes kleines Whisper nur fuer die Vorschau
-  interval_ms: 700            # Dekodier-Takt
+  interval_ms: 1000           # Dekodier-Takt (weniger GPU-Last, s. config.py)
   window_seconds: 12          # gleitendes Fenster; aeltere Segmente werden eingefroren
 
 injection:

@@ -443,7 +443,12 @@ class HotkeyManager:
             self._last_press[name] = now
             matched = True
             self.on_activate(name)
-        if not matched and knapp_daneben is not None:
+        # Nur melden, wenn eine Zusatztaste als gedrueckt GILT. Ohne jede Zusatztaste
+        # ist der Druck schlicht Tippen: Liegt „Pause" auf Strg+Alt+Leertaste, waere
+        # sonst jede getippte Leertaste eine Zeile — real passiert (2026-09-24, neun
+        # Zeilen in neun Sekunden). Der Fall, fuer den die Zeile gebaut wurde, ist
+        # ein VERKLEMMTER Modifier — und der steht dann in `current_mods`.
+        if not matched and knapp_daneben is not None and current_mods:
             name, spec = knapp_daneben
             log.info("Hotkey %s (%s) nicht ausgeloest: Taste stimmt, aber es galten "
                      "die Modifier %s.", name, spec.display(),

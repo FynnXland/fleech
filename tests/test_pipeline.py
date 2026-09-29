@@ -253,3 +253,34 @@ def test_ein_antwortender_server_gilt_nicht_als_abwesend():
     # Ein entfernter Endpunkt ist kein Fall fuer den Einfuehrungs-Hinweis.
     assert _rueckfall_grund(ConnectionRefusedError(),
                             base_url="http://192.168.1.9:11434") == ""
+
+
+def test_zeitueberschreitung_heisst_nicht_dass_die_ki_fehlt():
+    """Ein Dienst, der NICHT laeuft, lehnt sofort ab. Einer, der in eine Zeit-
+    ueberschreitung laeuft, laeuft — er rechnet nur zu lange (im Log am 25.09.:
+    Timeout, eine Sekunde spaeter „Lokale KI laeuft nicht", obwohl das Warmhalten
+    kurz davor erfolgreich war). Die Meldung schickte den Nutzer in die Einfuehrung."""
+    import socket
+    import urllib.error
+
+    assert _rueckfall_grund(TimeoutError("timed out")) == ""
+    assert _rueckfall_grund(socket.timeout("timed out")) == ""
+    assert _rueckfall_grund(urllib.error.URLError(TimeoutError("timed out"))) == ""
+
+
+def test_nur_in_der_ablage_wird_nicht_als_eingefuegt_gefuehrt():
+    """Lag der Text am Ende nur in der Zwischenablage (spaet fertig, Nutzer
+    woanders), steht er in keinem Dokument. Der Tracker darf ihn dann nicht als
+    angehaengt fuehren — sonst bezoegen sich Befehle wie „mach den letzten Satz
+    formeller" auf Text, der nirgends steht. Und die App muss es melden koennen."""
+    llm = FakeLLM(reply=RAW_NONTRIVIAL)
+    p, _, injector = make_pipeline(RAW_NONTRIVIAL, llm=llm)
+    injector.inject = lambda text: (injector.injected.append(text), False)[1]
+
+    assert p.process(AUDIO, 16000) == "ok"
+    assert p.in_ablage_statt_eingefuegt is True
+    assert p.tracker.context_tail() == ""
+
+    injector.inject = lambda text: (injector.injected.append(text), True)[1]
+    p.process(AUDIO, 16000)
+    assert p.in_ablage_statt_eingefuegt is False        # je Diktat zurueckgesetzt

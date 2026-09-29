@@ -7,6 +7,10 @@ import logging
 import sys
 
 
+# Wurde stderr gegen fleech-cli.log getauscht? Dann kein zweiter Log-Ausgang.
+_STDERR_IST_ERSATZ = False
+
+
 def _attach_console_if_available() -> None:
     """Windowed EXE (console=False): sys.stdout/sys.stderr sind dann oft None —
     ein blankes print() wuerde crashen (AttributeError), und zwar lautlos, weil
@@ -19,6 +23,7 @@ def _attach_console_if_available() -> None:
        umleiten, damit --audio-selftest/--pipeline-selftest NIE lautlos
        sterben, sondern immer ein auswertbares Ergebnis hinterlassen.
     """
+    global _STDERR_IST_ERSATZ
     # NUR eingreifen, wenn stdout/stderr tatsächlich fehlen (echtes GUI-Subsystem
     # ohne Umleitung). Hat der Elternprozess bereits umgeleitet (`> datei`, Pipe, …),
     # ist sys.stdout schon ein gueltiger Handle — den darf AttachConsole NIEMALS
@@ -45,6 +50,7 @@ def _attach_console_if_available() -> None:
             sys.stdout = fallback
         if sys.stderr is None:
             sys.stderr = fallback
+            _STDERR_IST_ERSATZ = True
 
 
 def _debug_logging_gewuenscht() -> bool:
@@ -121,7 +127,10 @@ def main() -> int:
         handlers = [RotatingFileHandler(
             SETTINGS_DIR / "fleech.log", maxBytes=20 * 1024 * 1024, backupCount=3,
             encoding="utf-8")]
-        if sys.stderr is not None:  # bei pythonw ist stderr None
+        # Nur bei einer echten Konsole mitschreiben. Ist stderr der Ersatz von oben
+        # (fleech-cli.log), landete sonst JEDE Zeile ein zweites Mal dort — ohne
+        # Rotation: 22 MB, zeilengleich mit fleech.log (gefunden 2026-09-29).
+        if sys.stderr is not None and not _STDERR_IST_ERSATZ:
             handlers.append(logging.StreamHandler())
 
     logging.basicConfig(

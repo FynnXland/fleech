@@ -527,6 +527,21 @@ def test_fehlgriff_an_den_modifiern_wird_protokolliert(caplog):
     assert "dictate" in caplog.text and "Modifier" in caplog.text
 
 
+def test_normales_tippen_schreibt_keine_zeile(caplog):
+    """Liegt ein Hotkey auf Strg+Alt+Leertaste, ist JEDE getippte Leertaste ein
+    „Taste stimmt, Modifier nicht". Das ist Tippen, kein Fehlgriff — am 2026-09-24
+    standen dadurch neun Zeilen in neun Sekunden im Protokoll. Gemeldet wird nur,
+    wenn wirklich eine Zusatztaste als gedrueckt gilt (verklemmt oder falsch)."""
+    h = ManagerHarness({"pause": "ctrl+alt+space"})
+    h.mgr._modifier_fn = lambda: None
+    with caplog.at_level("INFO"):
+        for _ in range(5):
+            h.press(Key.space)
+            h.release(Key.space)
+    assert h.events == []
+    assert "nicht ausgeloest" not in caplog.text
+
+
 def test_neustart_meldet_aktive_bindings_ab():
     """`start()` leerte `_active` frueher still — der Aufrufer blieb verklemmt.
 

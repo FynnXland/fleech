@@ -186,3 +186,74 @@ def test_spitzenwert_faellt_wieder():
         w._scaled(0.03, 1.0)
     assert w._peak < loud_peak
 
+
+
+
+def test_nur_stille_dazugekommen_wird_nicht_neu_dekodiert():
+    """In jeder Sprechpause lief bisher dasselbe Audio erneut durch Whisper: Das
+    Fenster-Gate sah die Sprache von vorhin und liess durch. Jetzt zaehlt, was
+    seit dem letzten Lauf DAZUGEKOMMEN ist."""
+    sprache = (0.1 * np.sin(np.linspace(0, 2000, int(2 * SR)))).astype(np.float32)
+    stand = {"audio": sprache}
+    laeufe = []
+
+    def transkribiere(w):
+        laeufe.append(w.size)
+        return [PreviewSegment("hallo", 0.0, 1.0)]
+
+    texts = []
+    s = PreviewStreamer(snapshot_fn=lambda: stand["audio"], transcribe_fn=transkribiere,
+                        on_text=texts.append, samplerate=SR)
+    s._tick()
+    assert len(laeufe) == 1                              # Sprache → dekodiert
+
+    stand["audio"] = np.concatenate([sprache, np.zeros(SR, np.float32)])
+    s._tick()
+    assert len(laeufe) == 1                              # nur Stille dazu → kein Lauf
+
+    stand["audio"] = np.concatenate([stand["audio"], sprache])
+    s._tick()
+    assert len(laeufe) == 2                              # wieder Sprache → Lauf
+
+
+def test_stoppen_wartet_nicht_auf_einen_laufenden_lauf():
+    """`stop()` laeuft beim Aufnahme-Ende im Tastatur-Hook von Windows. Ein Hook,
+    der zu lange braucht, wird ohne Meldung entfernt — danach tut kein Hotkey mehr
+    etwas. Frueher wartete `stop()` bis zu 2 s auf den Vorschau-Lauf."""
+    import threading
+    import time
+
+    im_lauf = threading.Event()
+    freigabe = threading.Event()
+    texts = []
+
+    def langsam(w):
+        im_lauf.set()
+        freigabe.wait(5)                  # simuliert eine ausgelastete Grafikkarte
+        return [PreviewSegment("zu spaet", 0.0, 1.0)]
+
+    s = make_streamer(lambda: seconds(3), langsam, texts, interval=0.01)
+    s.start()
+    assert im_lauf.wait(2)
+    t0 = time.perf_counter()
+    s.stop()
+    assert time.perf_counter() - t0 < 0.1          # kein Warten mehr
+    freigabe.set()
+    time.sleep(0.1)
+    # Der gestoppte Lauf rechnet zu Ende, verwirft sein Ergebnis aber.
+    assert texts == []
+
+
+def test_alter_lauf_ueberlebt_keinen_neustart():
+    """Jeder Lauf liest SEIN Stopp-Signal. Laese er das Attribut, saehe ein alter
+    Lauf nach dem naechsten start() das neue, ungesetzte Signal und liefe weiter."""
+    import threading
+
+    s = make_streamer(lambda: seconds(3), lambda w: [], [], interval=0.01)
+    s.start()
+    alter = s._thread
+    s.stop()
+    s.start()
+    alter.join(timeout=1)
+    assert not alter.is_alive()
+    s.stop(warten=True)

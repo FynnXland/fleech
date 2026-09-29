@@ -7,7 +7,7 @@
 
 from __future__ import annotations
 
-APP_VERSION = "5.12.0"  # 5.12.0: Hotkey-Zuverlaessigkeit, Einstellungen sicher, keine Floskeln
+APP_VERSION = "5.13.0"  # 5.13.0: Fenster, weniger GPU-Last, nichts haengt mehr stumm
 
 
 def _read_build() -> str:

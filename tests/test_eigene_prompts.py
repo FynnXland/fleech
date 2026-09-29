@@ -127,22 +127,32 @@ def test_leerer_prompt_wird_nicht_gespeichert(qapp, werk, monkeypatch):
 # -- Stichpunkte: verdichten statt umschreiben -------------------------------------------
 
 
-def test_stichpunkte_prompt_verlangt_verdichtung():
-    """An echten Diktaten gemessen schrieb das Modell Satz fuer Satz um, statt zu
-    verdichten: Aus „Manche Profile haben einen farbigen Punkt und andere nicht"
-    wurde derselbe Satz — statt „Farbigen Punkt fuer alle Profile".
+def test_stichpunkte_prompt_zeigt_verdichten_am_gegenbeispiel():
+    """Die Regel allein reicht nicht — es braucht ein Gegenbeispiel.
 
-    Was gefehlt hat, war ein GEGENbeispiel. Die Regel allein reichte nicht; erst
-    mit „So NICHT / So RICHTIG" sank die Ausgabe an ungesehenen Diktaten um 29
-    bis 65 Prozent, ohne dass Inhalt verlorenging.
+    Der Test hat frueher den Wortlaut zweier Ueberschriften festgenagelt („So
+    NICHT / So RICHTIG", „Verdichten ist Pflicht"). Seine Begruendung behauptete,
+    dieser Block kuerze die Ausgabe „ohne dass Inhalt verlorenging". Am
+    2026-09-05 an acht echten Diktaten nachgemessen: Genau dort ging Inhalt
+    verloren — 47 % aller Namen und Zahlen aus dem Diktat fehlten in der Ausgabe.
+    Der Block war zum staerksten Signal des Prompts geworden und las sich als
+    „sei kurz".
+
+    Geprueft wird deshalb jetzt die ABSICHT und nicht die Ueberschrift: Es muss
+    weiterhin an einem Beispiel zu sehen sein, wie eine gesprochene Feststellung
+    zur benannten Sache wird.
     """
     from pathlib import Path
 
     from fleech.prompts import load_prompt
 
     text = load_prompt(Path("prompts"), "summary")
-    assert "So NICHT" in text and "So RICHTIG" in text, "Gegenbeispiel fehlt"
-    assert "Verdichten ist Pflicht" in text
+    assert "Verdichten" in text, "Der Gedanke des Verdichtens fehlt ganz"
+    # Das Gegenbeispiel: die Feststellung UND ihre bessere Fassung.
+    assert "Manche Profile haben einen Punkt" in text
+    assert "Farbigen Punkt für ALLE Profile" in text
+    # Und das Gegenstueck dazu — Verdichten darf nicht ins Verallgemeinern kippen.
+    assert "Konkretes bleibt konkret" in text
 
 
 def test_stichpunkte_prompt_haelt_die_kernregel():

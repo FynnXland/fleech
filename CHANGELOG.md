@@ -11,6 +11,119 @@ GitHub-Release-Notizen (`packaging/release.py`).
 
 ---
 
+## 5.13.0 — 2026-09-29
+
+Ein Durchgang über das ganze Programm: fünf Prüfungen parallel, jeder Befund am
+Code und am echten Protokoll nachgeprüft, bevor er umgesetzt wurde.
+
+**Das Fenster öffnet sich wieder mit sichtbarer Titelleiste.** Fleech merkte sich
+die Fensterlage so, dass es bei jedem Start um die Höhe der Titelleiste nach oben
+rutschte — nach drei, vier Starts war sie außerhalb des Bildschirms, und nur ein
+Ziehen an der Fenstergröße holte sie zurück. Das ist behoben, und beim Start prüft
+Fleech zusätzlich, ob die gespeicherte Lage überhaupt auf einem vorhandenen
+Bildschirm liegt (auch nach dem Abstecken eines Monitors).
+
+**Weniger Last auf der Grafikkarte.**
+- Nach dem Spielen lädt Fleech das Sprachmodell nicht mehr sofort zurück, sondern
+  erst nach fünf Minuten ohne Spiel. Bisher löste jedes kurze Wechseln aus dem
+  Spiel heraus einen Ladevorgang von rund 4 GB aus — 729-mal in sechs Wochen, und
+  nur selten folgte überhaupt ein Diktat. Wer diktiert, bekommt das Modell wie
+  gewohnt: Es lädt beim Aufnahmestart parallel zum Sprechen.
+- Die Live-Vorschau rechnet seltener: im Sekundentakt statt alle halbe Sekunde,
+  und in Sprechpausen gar nicht mehr. Die Einstellung für den Takt in
+  `config.yaml` wurde bisher nie angewendet.
+- Das Sprachmodell bleibt nach einem Diktat 30 Minuten geladen, ohne dass Fleech
+  es jede Minute anstoßen muss.
+
+**Nichts hängt mehr stumm.**
+- Dauert die Verarbeitung ungewöhnlich lange (etwa weil ein anderes Programm die
+  Grafikkarte auslastet), sagt die Pille das — mit Laufzeit — statt nur zu drehen.
+- Wird ein Diktat erst spät fertig und du bist inzwischen in einem anderen
+  Fenster, holt Fleech das alte Fenster nicht mehr nach vorn und klickt nicht
+  hinein. Der Text liegt dann in der Zwischenablage, und eine Meldung sagt es dir.
+  Wer im Feld wartet, bekommt seinen Text wie immer.
+- Eine Zeitüberschreitung der lokalen KI wird nicht mehr als „Lokale KI läuft
+  nicht" gemeldet — sie läuft, sie war nur zu langsam.
+- Während ein Diktat läuft, wird das Sprachmodell nicht mehr entladen.
+- Beim Beenden einer Aufnahme wartet Fleech nicht mehr bis zu zwei Sekunden im
+  Tastatur-Hook von Windows. Braucht ein Hook zu lange, entfernt Windows ihn ohne
+  Meldung — danach reagiert kein Hotkey mehr.
+
+**Protokoll aufgeräumt.** Eine getippte Leertaste schreibt keine Zeile mehr ins
+Protokoll, nur weil ein Hotkey auf Strg+Alt+Leertaste liegt (vorher über 100 000
+Zeilen). Und das Protokoll wird nicht mehr zusätzlich ungedreht in
+`fleech-cli.log` verdoppelt.
+
+---
+
+## 5.12.3 — 2026-09-05 · nicht einzeln veröffentlicht
+
+**Stichpunkte lassen deutlich weniger weg.** An acht echten Diktaten aus dem
+eigenen Verlauf gemessen: Von allen Namen und Zahlen im gesprochenen Text fielen
+bisher **47 %** heraus, jetzt sind es **27 %**. Aus einem Diktat wurden vorher im
+Schnitt 27 % Text, jetzt 51 % — es kommen also spürbar mehr Punkte an.
+
+Was konkret zurückkommt: Produkt- und Programmnamen (die wurden vorher durch
+Umschreibungen ersetzt), Zahlen, beiläufige Nebenthemen, die nur einmal am Anfang
+vorkommen, und Entscheidungen *gegen* etwas („keine Bewertungen"). Konkretes bleibt
+konkret — aus „drei Dateien gleichzeitig hineinziehen soll einen Link ergeben" wird
+nicht mehr „kontextbezogene Übertragung mehrerer Dateien".
+
+**Und das Beispiel aus der Anleitung landet nicht mehr im Ergebnis.** In einem von
+acht Fällen standen vorher Punkte in der Ausgabe, die im Diktat gar nicht vorkamen
+— sie stammten aus dem Beispiel, das der Anleitung beilag. Das Beispiel zeigt jetzt
+nur noch, wie das Ergebnis aussieht, statt ein Diktat wörtlich abzudrucken.
+
+---
+
+## 5.12.2 — 2026-09-05 · nicht einzeln veröffentlicht
+
+**Der Lizenzschlüssel liegt jetzt zusätzlich in einer eigenen Datei** —
+`%APPDATA%\Fleech\lizenz.key`. Verlieren die Einstellungen ihren Inhalt, holt
+Fleech den Schlüssel beim nächsten Start von dort zurück, statt sich als nicht
+freigeschaltet zu melden.
+
+Der Grund: Alles andere in den Einstellungen klickt man in einer Minute neu. Den
+Schlüssel muss man suchen — und ohne ihn diktiert Fleech nicht. Ein leeres
+Schlüsselfeld löscht die Sicherung **nicht**; genau dieser Zustand ist ja der
+Schaden, gegen den sie hilft.
+
+**Fleech sagt jetzt, wenn beim Speichern etwas verlorengeht.** Verringert sich
+die Zahl der App-Zuordnungen, Wörterbuchzeilen oder Schnellwechsel-Einträge —
+oder verschwindet der Lizenzschlüssel —, steht das als Warnung im Protokoll,
+mit Vorher- und Nachher-Zahl. Unverändertes Speichern bleibt still, sonst
+schriebe jede Fensterbewegung eine Zeile.
+
+Das ist kein Schönheitsfehler gewesen: Zweimal sind Einstellungen verschwunden,
+und beide Male ließ sich hinterher nicht feststellen, welcher Schreibvorgang es
+war, weil erfolgreiches Speichern nichts hinterließ.
+
+---
+
+## 5.12.1 — 2026-08-30 · nicht einzeln veröffentlicht
+
+**„Neu bereinigen als …" zeigt jetzt, dass es arbeitet — und was dabei
+herauskam.** Bisher passierte auf dem Bildschirm nichts: Der neue Text wurde
+gebildet und in die Zwischenablage gelegt, aber gesagt hat das niemand. Man
+klickte, wartete, klickte noch einmal.
+
+Der Grund war eine Rückmeldung, die ins Leere lief. Sie ging an die Pille am
+Bildschirmrand, und die zeigt Zwischenschritte nur, solange gerade ein Diktat
+verarbeitet wird. Beim Nachbearbeiten aus dem Verlauf ist das nie der Fall — die
+Meldung wurde also jedes Mal verworfen.
+
+Jetzt öffnet sich beim Klick sofort ein Fenster: oben der Bereich für das
+Ergebnis mit einem laufenden Balken, darunter der Rohtext, aus dem gearbeitet
+wird. Sobald der neue Text da ist, steht er an der Stelle des Balkens — mit dem
+Hinweis, dass er schon in der Zwischenablage liegt.
+
+Geht etwas schief, steht **warum** dort: dass die lokale KI nicht antwortet, dass
+gerade ein Diktat läuft, oder dass zu diesem Eintrag kein Rohtranskript
+gespeichert ist (das hebt der Verlauf erst seit 5.10.4 auf). Vorher war jeder
+dieser Fälle dasselbe Nichts.
+
+---
+
 ## 5.12.0 — 2026-08-20
 
 Ein Release über Verlässlichkeit. Vier Dinge, die im Alltag geärgert haben, sind

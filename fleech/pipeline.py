@@ -145,7 +145,15 @@ def _lokaler_endpunkt_nicht_erreichbar(llm, exc: Exception) -> bool:
     if isinstance(exc, urllib.error.HTTPError):
         return False                     # der Dienst laeuft, er mag nur die Anfrage nicht
     grund = exc.reason if isinstance(exc, urllib.error.URLError) else exc
-    return isinstance(grund, (ConnectionError, TimeoutError, OSError))
+    if isinstance(grund, TimeoutError):
+        # Er laeuft, rechnet aber zu lange — genau der Fall „Timeout beim Rechnen"
+        # aus dem Docstring. Stand frueher mit in der Offline-Liste (TimeoutError
+        # ist eine Unterklasse von OSError) und meldete dann „Lokale KI laeuft
+        # nicht", waehrend das Warmhalten Sekunden davor erfolgreich war (Log vom
+        # 25.09., 03:52 und 11:38). Ein nicht laufender Dienst lehnt die
+        # Verbindung sofort ab, er laeuft nicht in eine Zeitueberschreitung.
+        return False
+    return isinstance(grund, (ConnectionError, OSError))
 
 
 class Pipeline:
@@ -229,6 +237,7 @@ class Pipeline:
         # Fuer die Historie (Home/Insights): was ist beim letzten process() passiert?
         self.last_raw = ""
         self.last_injected = ""
+        self.in_ablage_statt_eingefuegt = False
         self.last_mode = "cleanup"
         self.last_tier = ""
         self.last_stt_ms = 0       # Latenz-Telemetrie (lokal, fuer Insights)
@@ -323,6 +332,7 @@ class Pipeline:
         self.last_reason = ""
         self.last_raw = ""
         self.last_injected = ""
+        self.in_ablage_statt_eingefuegt = False
         self.last_mode = "cleanup"
         self.last_tier = ""
         self.last_stt_ms = 0
@@ -1212,7 +1222,13 @@ class Pipeline:
             return
         self._status("Füge ein …")
         injected = self.tracker.separator() + text
-        self.injector.inject(injected)
+        if self.injector.inject(injected) is False:
+            # Nicht eingefuegt, liegt in der Zwischenablage (zu spaet fertig, Nutzer
+            # woanders). Der Tracker darf dann nichts mitschreiben — der Text steht
+            # in keinem Dokument; der Aufrufer meldet es sichtbar.
+            self.in_ablage_statt_eingefuegt = True
+            log.info("In der Zwischenablage statt eingefuegt: %s", text)
+            return
         self.tracker.record_append(injected)
         # Erst nach dem Einfuegen lernen: Was nie beim Nutzer ankam (verworfen,
         # abgebrochen, Fehler), soll auch das Vokabular nicht praegen.

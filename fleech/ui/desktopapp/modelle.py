@@ -24,6 +24,12 @@ from ..state import AppState, StateBus
 
 log = logging.getLogger(__name__)
 
+# Wie lange nach einem Spielende das Modell NICHT im Hintergrund zurueckgeholt
+# wird. Fuenf Minuten: Im Log lagen 609 von 729 Neuladevorgaengen nach einem Spiel
+# unter dieser Schwelle — genau die Alt-Tab-Pendelei. Wer diktiert, bekommt das
+# Modell trotzdem sofort: Der Aufnahmestart laedt es parallel zum Sprechen vor.
+SPIELPAUSE_S = 300
+
 class ModelleMixin:
     def _build_engine(self) -> None:
         cfg = self.config
@@ -40,9 +46,10 @@ class ModelleMixin:
         self.pipeline.raw_callback = self.bus.raw_ready.emit
         # Cursor-Rueckkehr: Restorer in den Injector einhaengen (plattformabhaengig,
         # damit injection.py portabel bleibt). Das Ziel-Feld wird pro Aufnahme gesetzt.
-        from ..focusrestore import restore_focus_target
+        from ..focusrestore import restore_focus_target, ziel_ist_vorn
 
         self.pipeline.injector.focus_restorer = restore_focus_target
+        self.pipeline.injector.vordergrund_pruefer = ziel_ist_vorn
         self.focus = DictationApp._build_focus_controller(cfg)
 
     def _warm_up(self) -> None:
@@ -76,8 +83,13 @@ class ModelleMixin:
         from ...overlay import PreviewModel
 
         if self._preview_model is None:
+            # Aus der Konfiguration — bis 5.12.3 stand hier fest „small", und der
+            # Takt aus `config.yaml` (interval_ms) erreichte die Desktop-App nie:
+            # Sie dekodierte mit dem Standard von 0,5 s, 1,3-mal pro Sekunde
+            # Aufnahme (20 818 Vorschau-Laeufe bei 454 Diktaten im Log).
             self._preview_model = PreviewModel(
-                model_size="small", language=self.settings.general.language,
+                model_size=self.config.overlay.model_size,
+                language=self.settings.general.language,
                 samplerate=self.config.audio.samplerate,
             )
         try:
@@ -100,6 +112,8 @@ class ModelleMixin:
                     transcribe_fn=model.transcribe_segments,
                     on_text=self.bus.preview_text.emit,  # Signal = thread-sicher zur UI
                     samplerate=self.config.audio.samplerate,
+                    interval=max(0.3, self.config.overlay.interval_ms / 1000),
+                    window_seconds=self.config.overlay.window_seconds,
                 )
             # Aufnahme koennte waehrend des Modell-Ladens schon beendet worden sein.
             if gen == self._preview_gen and self.bus.state is AppState.LISTENING:
@@ -115,6 +129,11 @@ class ModelleMixin:
     def _on_preview_text(self, text: str) -> None:
         """Live-Vorschau anzeigen + Signalwort-Erkennung: faellt das Safe-Word,
         faerbt sich die Pille (sichtbares "Befehl erkannt")."""
+        # Zweites Netz zum Stopp-Signal der Vorschau: Seit die Vorschau beim
+        # Aufnahme-Ende nicht mehr gejoint wird, kann ein letzter Lauf knapp nach
+        # dem Stopp noch Text liefern. Der gehoert nicht mehr in die Pille.
+        if getattr(getattr(self, "bus", None), "state", AppState.LISTENING)                 is not AppState.LISTENING:
+            return
         self.overlay.show_live_text(text)
         trigger = (self.pipeline.trigger_word or "").lower()
         if trigger and trigger in (text or "").lower():
@@ -135,6 +154,11 @@ class ModelleMixin:
         idle = time.monotonic() - self._last_dictation > self._idle_unload_window_s()
         if mode == "smart" and (gaming or idle):
             self._unload_llms_async("Spiel erkannt" if gaming else "Leerlauf")
+            return
+        seit_spiel = time.monotonic() - getattr(self, "_spiel_ende", float("-inf"))
+        if getattr(self, "_llms_unloaded", False) and seit_spiel < SPIELPAUSE_S:
+            # Kurz aus dem Spiel getabbt ist kein Arbeitsbeginn. Das Modell bleibt
+            # entladen; diktiert jemand, laedt der Aufnahmestart es vor.
             return
         threading.Thread(target=self._keep_llm_warm, daemon=True).start()
 
@@ -202,6 +226,16 @@ class ModelleMixin:
         nach einem Entladen passiert bis zum naechsten Aufwaermen nichts mehr (kein
         Request-Spam alle 4 min gegen ein ohnehin leeres Ollama)."""
         if getattr(self, "_llms_unloaded", False):
+            return
+        # Nicht mitten in ein Diktat hinein entladen. Im Log lag das Entladen
+        # siebenmal zwischen Spracherkennung und Bereinigung — die Bereinigung
+        # musste das Modell dann neu laden (einmal 28 s, einmal Zeitueberschreitung).
+        # Aufgeschoben, nicht verworfen: `_llms_unloaded` bleibt unveraendert,
+        # der naechste Takt versucht es wieder.
+        sperre = getattr(self, "_process_lock", None)
+        zustand = getattr(getattr(self, "bus", None), "state", None)
+        if (sperre is not None and sperre.locked()) or                 zustand in (AppState.LISTENING, AppState.PROCESSING):
+            log.info("Entladen (%s) aufgeschoben — ein Diktat laeuft.", reason)
             return
         self._llms_unloaded = True
         from ...llm.client import ollama_unload

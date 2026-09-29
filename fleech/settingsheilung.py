@@ -88,6 +88,47 @@ def ist_zurueckgesetzt(data, sicherung, fabrik) -> bool:
     return sum(1 for feld in werk if bak[feld] != werk[feld]) >= 2
 
 
+def umfang(settings) -> dict:
+    """Kennzahlen dessen, was in den Einstellungen steht — reine Zaehlung.
+
+    Dient zwei Zwecken: der Zeile beim Laden (unten) und dem Vergleich VOR dem
+    Speichern (`usersettings.save`). Der Vergleich ist der Grund, warum es diese
+    Funktion getrennt gibt: Zweimal — am 2026-08-20 und am 2026-09-05 — sind
+    Zuordnungen, Woerterbuch und Lizenzschluessel verschwunden, und beide Male
+    liess sich hinterher nicht feststellen, welcher Schreibvorgang es war. Ein
+    `save()`, das schweigend schrumpft, ist ein Datenverlust ohne Zeugen.
+    """
+    items = [i for i in (settings.profiles.items or []) if isinstance(i, dict)]
+    quick = settings.profiles.app_quick
+    quick = quick if isinstance(quick, dict) else {}
+    return {
+        "profile": len(items),
+        "zuordnungen": sum(len(i.get("apps") or []) for i in items),
+        "schnellwechsel": sum(len(v or []) for v in quick.values()
+                              if isinstance(v, (list, tuple))),
+        "woerter": len(settings.output.dictionary or []),
+        "lizenz": 1 if str(settings.general.license_key or "").strip() else 0,
+    }
+
+
+def schrumpfung(vorher: dict, nachher: dict) -> str:
+    """Was ist WENIGER geworden? Leerer Text = nichts verloren.
+
+    Bewusst nur die Richtung nach unten: Etwas hinzuzufuegen ist der Normalfall
+    und braucht keine Warnung. Etwas zu verlieren ist der Fall, der zweimal
+    unbemerkt geblieben ist.
+    """
+    teile = []
+    for feld, wert in nachher.items():
+        alt = vorher.get(feld)
+        if isinstance(alt, int) and wert < alt:
+            # Bewusst "->" statt eines Pfeils: Der Text landet im Log, und der
+            # laeuft unter Windows ueber cp1252 — ein Pfeil bricht ihn ab
+            # (CLAUDE.md, real passiert).
+            teile.append(f"{feld} {alt}->{wert}")
+    return ", ".join(teile)
+
+
 def protokolliere_umfang(settings) -> None:
     """Was tatsaechlich geladen wurde, in einer Zeile (Befund B10).
 

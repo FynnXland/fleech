@@ -87,20 +87,33 @@ def test_ergebnis_landet_in_der_zwischenablage(qapp, monkeypatch):
     from fleech.ui.desktop import DesktopApp
 
     gemeldet = []
-    fake = types.SimpleNamespace(_flash_status=gemeldet.append)
+    ans_fenster = []
+    fake = types.SimpleNamespace(
+        _flash_status=gemeldet.append,
+        _melde_nachbearbeitung=lambda t, g: ans_fenster.append((t, g)),
+    )
     DesktopApp._on_reprocessed(fake, "Sehr geehrte Damen und Herren, …", "E-Mail")
     assert QApplication.clipboard().text().startswith("Sehr geehrte")
     assert "E-Mail" in gemeldet[0]
+    # Das Fortschritts-Fenster bekommt denselben Text — ohne diesen Weg blieb der
+    # Erfolg unsichtbar (die Pille zeigt ihn nur waehrend einer Verarbeitung).
+    assert ans_fenster == [("Sehr geehrte Damen und Herren, …", "")]
 
 
 def test_gescheiterte_nachbearbeitung_meldet_sich_ehrlich(qapp):
     from fleech.ui.desktop import DesktopApp
 
     gemeldet = []
-    fake = types.SimpleNamespace(_flash_status=gemeldet.append)
-    DesktopApp._on_reprocessed(fake, "", "E-Mail")
+    ans_fenster = []
+    fake = types.SimpleNamespace(
+        _flash_status=gemeldet.append,
+        _melde_nachbearbeitung=lambda t, g: ans_fenster.append((t, g)),
+    )
+    DesktopApp._on_reprocessed(fake, "", "E-Mail", "Die lokale KI antwortet nicht.")
     assert "fehlgeschlagen" in gemeldet[0]
     assert "unverändert" in gemeldet[0]
+    # Der GRUND reist mit: „fehlgeschlagen" allein sagt nicht, was zu tun ist.
+    assert ans_fenster == [("", "Die lokale KI antwortet nicht.")]
 
 
 def test_waehrend_eines_diktats_wird_nicht_nachbearbeitet(qapp):
@@ -111,10 +124,16 @@ def test_waehrend_eines_diktats_wird_nicht_nachbearbeitet(qapp):
 
     lock = threading.Lock()
     lock.acquire()
-    gemeldet = []
-    fake = types.SimpleNamespace(_process_lock=lock, _flash_status=gemeldet.append)
+    gesendet = []
+    bus = types.SimpleNamespace(
+        reprocessed=types.SimpleNamespace(emit=lambda *a: gesendet.append(a)))
+    fake = types.SimpleNamespace(_process_lock=lock, bus=bus)
     DesktopApp._reprocess_entry(fake, "roh", "email", "E-Mail")
-    assert gemeldet == ["Ein Diktat läuft noch"]
+    # Beantwortet wird ueber DASSELBE Signal wie ein Erfolg. Ein stilles `return`
+    # liesse das Fortschritts-Fenster endlos laufen — das war der ganze Fehler.
+    assert len(gesendet) == 1
+    text, name, grund = gesendet[0]
+    assert text == "" and name == "E-Mail" and "Diktat läuft" in grund
     lock.release()
 
 
@@ -130,6 +149,11 @@ def test_eintrag_ohne_rohtranskript_wird_uebersprungen(qapp, tmp_path, monkeypat
     monkeypatch.setattr(store, "raw_text", lambda _id: "")
     seite._reprocess({"id": 1, "cleaned": "Text"}, "email", "E-Mail")
     assert gerufen == []
+    # Uebersprungen heisst nicht stumm: Wer klickt, erfaehrt warum nichts kommt.
+    dialog = seite._nachbearbeitung_dialog
+    assert not dialog.isHidden()
+    assert "kein Rohtranskript" in dialog._ergebnis.toPlainText()
+    dialog.close()
 
 
 def test_kontextmenue_bietet_die_ausgabeformate(qapp, tmp_path):
@@ -170,3 +194,79 @@ def test_kopieren_legt_text_in_die_zwischenablage(qapp, tmp_path):
     seite = HomePage(UserSettings(), HistoryStore(tmp_path / "h.db"))
     seite._kopiere("Der bereinigte Text")
     assert QApplication.clipboard().text() == "Der bereinigte Text"
+
+
+# -- Das Fortschritts-Fenster ----------------------------------------------------------
+
+def _dialog(qapp, roh="roher text", name="KI-Prompt"):
+    from fleech.ui.nachbearbeitungdialog import NachbearbeitungDialog
+
+    return NachbearbeitungDialog(roh, name, {"ts": 0, "app": "Code.exe"})
+
+
+def test_fenster_zeigt_sofort_den_rohtext_und_dass_es_laeuft(qapp):
+    """Der Kern der Sache: Zwischen Klick und Ergebnis darf der Bildschirm nicht
+    schweigen. Vorher lief die Rueckmeldung ueber die Pille, und die zeigt
+    Zwischenschritte nur waehrend einer Verarbeitung — beim Nachbearbeiten aus dem
+    Verlauf also nie."""
+    d = _dialog(qapp)
+    assert not d._balken.isHidden()
+    assert d._balken.maximum() == 0          # unbestimmt: die Dauer kennt niemand
+    assert "wird neu bereinigt" in d._ergebnis.toPlainText()
+    assert not d._kopieren.isEnabled()       # es gibt noch nichts zu kopieren
+    d.close()
+
+
+def test_fenster_setzt_das_ergebnis_ein(qapp):
+    d = _dialog(qapp)
+    d.zeige_ergebnis("Der fertige Prompt.")
+    assert d._balken.isHidden()
+    assert d._ergebnis.toPlainText() == "Der fertige Prompt."
+    assert d._kopieren.isEnabled()
+    # Dass automatisch kopiert wurde, muss dastehen — ungesagt war es Teil des Problems.
+    assert "Zwischenablage" in d._hinweis.text()
+    d.close()
+
+
+def test_fenster_nennt_den_grund_statt_nur_zu_scheitern(qapp):
+    d = _dialog(qapp)
+    d.zeige_fehler("Die lokale KI antwortet nicht.")
+    assert d._balken.isHidden()
+    assert "lokale KI" in d._ergebnis.toPlainText()
+    assert not d._kopieren.isEnabled()
+    d.close()
+
+
+def test_fenster_haelt_auch_einen_eintrag_ohne_zeitstempel_aus(qapp):
+    """Altbestand hat keinen vollstaendigen Eintrag — das Fenster IST die
+    Rueckmeldung und darf daran nicht scheitern."""
+    from fleech.ui.nachbearbeitungdialog import NachbearbeitungDialog
+
+    d = NachbearbeitungDialog("roh", "E-Mail", {})
+    assert "wird neu bereinigt" in d._ergebnis.toPlainText()
+    d.close()
+
+
+def test_startseite_oeffnet_das_fenster_VOR_dem_auftrag(qapp, tmp_path):
+    """Reihenfolge: erst das Fenster, dann die Arbeit. Andersherum koennte eine
+    sehr schnelle Antwort da sein, bevor es jemanden gibt, der sie anzeigt."""
+    from fleech.history import HistoryStore
+    from fleech.ui.main_window import HomePage
+    from fleech.usersettings import UserSettings
+
+    reihenfolge = []
+    store = HistoryStore(tmp_path / "h.db")
+
+    def auftrag(*_a):
+        seite = getattr(page, "_nachbearbeitung_dialog", None)
+        reihenfolge.append("fenster" if seite is not None else "kein fenster")
+
+    page = HomePage(UserSettings(), store, on_reprocess=auftrag)
+    page.store.raw_text = lambda _id: "roher text"
+    page._reprocess({"id": 1, "ts": 0, "cleaned": "Text"}, "prompt", "KI-Prompt")
+    assert reihenfolge == ["fenster"]
+
+    # Und das Ergebnis findet den Weg hinein.
+    page.melde_nachbearbeitung("Fertig.", "")
+    assert page._nachbearbeitung_dialog._ergebnis.toPlainText() == "Fertig."
+    page._nachbearbeitung_dialog.close()

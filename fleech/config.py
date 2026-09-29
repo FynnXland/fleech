@@ -118,7 +118,10 @@ class AudioFocusConfig:
 class OverlayConfig:
     enabled: bool = True
     model_size: str = "small"     # kleines, eigenes Modell nur fuer die Vorschau
-    interval_ms: int = 700        # wie oft neu dekodiert wird
+    # Wie oft neu dekodiert wird. 1000 statt 700 ms (5.12.4): Die Vorschau ist
+    # eine Lesehilfe, das Diktat haengt nicht an ihr — und jeder Lauf konkurriert
+    # mit dem finalen Erkennen um dieselbe Grafikkarte.
+    interval_ms: int = 1000
     window_seconds: float = 12.0  # gleitendes Fenster; Aelteres wird eingefroren
 
 

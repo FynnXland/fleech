@@ -266,6 +266,12 @@ class ChatClient:
                 {"role": "user", "content": user_text},
             ],
             "options": options,
+            # Ohne dieses Feld setzt Ollama nach JEDEM Diktat seine eigene Vorgabe
+            # (OLLAMA_KEEP_ALIVE, hier 5 min) — kuerzer als Fleechs Warmhaltefenster.
+            # Deshalb musste ein Takt das Modell jede Minute neu „vorladen" (im Log
+            # 82-mal am Tag). Mit demselben Wert wie beim Vorladen haelt schon das
+            # Diktat selbst das Modell warm.
+            "keep_alive": OLLAMA_KEEP_ALIVE,
         }
         # Thinking-Modelle: "none" heisst hier schlicht nicht denken. gemma3 denkt
         # ohnehin nicht — dort bleibt reasoning_effort leer und das Feld entfaellt.

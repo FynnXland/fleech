@@ -230,3 +230,17 @@ def test_preload_setzt_num_ctx_mit(monkeypatch):
     ollama_unload(cfg)
     assert calls[0]["keep_alive"] == 0
     assert "options" not in calls[0]
+
+
+
+def test_chat_haelt_das_modell_selbst_warm(monkeypatch):
+    """Ohne `keep_alive` setzt Ollama nach jedem Diktat seine eigene Vorgabe
+    (5 min) — kuerzer als Fleechs Warmhaltefenster. Deshalb musste ein Takt das
+    Modell jede Minute neu „vorladen". Jetzt traegt schon das Diktat den Wert."""
+    from fleech.llm.client import OLLAMA_KEEP_ALIVE
+
+    calls = []
+    _fake_urlopen(monkeypatch, {"message": {"content": "Sauber."},
+                               "done_reason": "stop"}, calls)
+    ChatClient(LLMEndpointConfig(num_ctx=8192, reasoning_effort="")).complete("S", "t")
+    assert calls[0]["body"]["keep_alive"] == OLLAMA_KEEP_ALIVE

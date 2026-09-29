@@ -24,6 +24,13 @@ _CLIPBOARD_POLL_S = 0.02      # Abstand zwischen zwei Lesungen
 _CLIPBOARD_TIMEOUT_S = 0.40   # Deckel — danach wird trotzdem gepastet (Fail-Open)
 _CLIPBOARD_SETTLE_S = 0.05    # Zwischenablage nicht lesbar → wie frueher kurz warten
 
+# Ab wann ein Diktat als SPAET fertig gilt (Sekunden nach Aufnahmeende). Dann wird
+# nur noch eingefuegt, wenn der Nutzer weiterhin im Ziel-Fenster ist; sonst bleibt
+# der Text in der Zwischenablage. 30 s: Im Log von 454 Diktaten lag das 99. Perzentil
+# von „Aufnahme zu Ende" bis „eingefuegt" bei 27 s — wer laenger wartet, wartet
+# entweder bewusst im Feld (dann wird eingefuegt) oder ist laengst woanders.
+SPAET_S = 30.0
+
 
 class TextInjector:
     def __init__(self, restore_clipboard: bool = True, paste_delay_ms: int = 150,
@@ -36,6 +43,10 @@ class TextInjector:
         # dieses Modul portabel bleibt.
         self.focus_restorer = focus_restorer
         self._focus_target = None  # FocusTarget | None, pro Aufnahme gesetzt
+        # Callable(target) -> bool | None: Ist das Ziel-Fenster gerade vorn? Ebenfalls
+        # plattformabhaengig injiziert (focusrestore.ziel_ist_vorn). None = unbekannt.
+        self.vordergrund_pruefer = None
+        self._aufnahmeende = None  # time.monotonic() beim Ende der Aufnahme
 
     def set_focus_target(self, target) -> None:
         """Ziel-Feld, in das der naechste inject() zurueckschreiben soll.
@@ -43,6 +54,29 @@ class TextInjector:
         None = keine Wiederherstellung (Text geht an den aktuellen Fokus).
         Wird von der DesktopApp beim Aufnahme-Start gesetzt, wenn die Option aktiv ist."""
         self._focus_target = target
+
+    def markiere_aufnahmeende(self) -> None:
+        """Wann das Sprechen endete — Bezugspunkt fuer `SPAET_S`."""
+        self._aufnahmeende = time.monotonic()
+
+    def _zu_spaet_und_woanders(self) -> bool:
+        """Wuerde das Einfuegen jemanden aus etwas anderem herausreissen?
+
+        Nur wenn BEIDES zutrifft: lange nach dem Sprechen UND ein anderes Fenster
+        vorn. Wer bei einem langen Diktat im Feld wartet, bekommt seinen Text wie
+        immer. Ohne Auskunft ueber den Vordergrund bleibt es beim alten Verhalten."""
+        if self._aufnahmeende is None or self._focus_target is None:
+            return False
+        if time.monotonic() - self._aufnahmeende <= SPAET_S:
+            return False
+        pruefer = self.vordergrund_pruefer
+        if pruefer is None:
+            return False
+        try:
+            return pruefer(self._focus_target) is False
+        except Exception:
+            log.debug("Vordergrund-Pruefung fehlgeschlagen.", exc_info=True)
+            return False
 
     # -- testbare Nahtstellen (in Tests gestubbt, damit keine echten Tastendruecke/
     #    Clipboard-Zugriffe passieren) --------------------------------------------------
@@ -83,11 +117,22 @@ class TextInjector:
 
     # -- Injection --------------------------------------------------------------------
 
-    def inject(self, text: str) -> None:
+    def inject(self, text: str) -> bool:
+        """True = eingefuegt. False = liegt nur in der Zwischenablage (siehe
+        `_zu_spaet_und_woanders`) — der Aufrufer muss das dem Nutzer sagen."""
         if not text:
-            return
+            return True
         with _INJECT_LOCK:
+            if self._zu_spaet_und_woanders():
+                self._set_clipboard(text)
+                self._await_clipboard(text)
+                log.warning("Diktat erst %.0f s nach Aufnahmeende fertig, Nutzer ist "
+                            "in einem anderen Fenster — nicht eingefuegt, liegt in "
+                            "der Zwischenablage.",
+                            time.monotonic() - self._aufnahmeende)
+                return False
             self._inject_locked(text)
+            return True
 
     def _await_clipboard(self, text: str) -> bool:
         """Wartet, bis die Zwischenablage den geschriebenen Text wirklich fuehrt.

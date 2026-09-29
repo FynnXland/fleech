@@ -26,8 +26,9 @@ from .lizenz import LizenzUpdateMixin
 from .modelle import ModelleMixin
 from .nachbereitung import NachbereitungMixin
 from .profil import ProfilMixin
+from .wachhund import WachhundMixin
 
 __all__ = [
     "AnstupsenMixin", "FreihandMixin", "KeinTonMixin", "LebenszyklusMixin", "LizenzUpdateMixin",
-    "ModelleMixin", "NachbereitungMixin", "ProfilMixin",
+    "ModelleMixin", "NachbereitungMixin", "ProfilMixin", "WachhundMixin",
 ]

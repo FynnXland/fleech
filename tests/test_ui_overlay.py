@@ -400,7 +400,9 @@ def test_preview_streamer_start_stop_wiring(qapp, monkeypatch):
         bus=types.SimpleNamespace(state=AppState.LISTENING,
                                   preview_text=types.SimpleNamespace(emit=lambda t: None)),
         recorder=types.SimpleNamespace(snapshot=lambda: None),
-        config=types.SimpleNamespace(audio=types.SimpleNamespace(samplerate=16000)),
+        config=types.SimpleNamespace(audio=types.SimpleNamespace(samplerate=16000),
+                                     overlay=types.SimpleNamespace(
+                                         interval_ms=1000, window_seconds=12.0)),
         _preview=None, _preview_gen=0,
         _ensure_preview_model=lambda: types.SimpleNamespace(transcribe_segments=lambda a: []),
         # Seit 5.5.0 zieht die Vorschau ihr Audio ueber `_laufendes_audio` —

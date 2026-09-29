@@ -79,10 +79,14 @@ class StateBus(QObject):
     # arbeitet, wartet gefuehlt nicht mehr. Wird spaeter von `transcript_ready`
     # (der fertigen Fassung) abgeloest.
     raw_ready = Signal(str)
-    # Ergebnis einer Nachbearbeitung (Text, Formatname). Der Lauf haengt am LLM und
-    # gehoert deshalb in einen Worker-Thread — das Ergebnis muss ueber ein Signal
-    # zurueck, sonst faende die Zwischenablage im falschen Thread statt.
-    reprocessed = Signal(str, str)
+    # Ergebnis einer Nachbearbeitung (Text, Formatname, Grund des Scheiterns). Der
+    # Lauf haengt am LLM und gehoert deshalb in einen Worker-Thread — das Ergebnis
+    # muss ueber ein Signal zurueck, sonst faende die Zwischenablage im falschen
+    # Thread statt. Der dritte Wert ist leer, wenn es geklappt hat; sonst traegt er
+    # den Grund. Ohne ihn koennte das Fortschritts-Fenster nur „fehlgeschlagen"
+    # sagen — und „ein Diktat laeuft noch" ist etwas ganz anderes als „das Modell
+    # hat nichts geliefert".
+    reprocessed = Signal(str, str, str)
     # Freihand-Ereignis (Name des Ereignisses). Kommt aus dem AUDIO-Thread — dort
     # darf nichts mit Qt passieren, deshalb der Umweg ueber dieses Signal.
     freihand_ereignis = Signal(str)

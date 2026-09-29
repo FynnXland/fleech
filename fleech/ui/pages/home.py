@@ -400,8 +400,41 @@ class HomePage(QWidget):
         if not roh.strip():
             log.info("Kein Rohtranskript zu Eintrag %s — Nachbearbeitung entfaellt.",
                      entry["id"])
+            self._zeige_nachbearbeitung(entry["cleaned"], name, entry)
+            self.melde_nachbearbeitung(
+                "", "Zu diesem Eintrag ist kein Rohtranskript gespeichert — es gibt "
+                    "nichts, was sich neu bereinigen liesse. Der Verlauf hebt den "
+                    "Rohtext erst seit 5.10.4 auf.")
             return
+        self._zeige_nachbearbeitung(roh, name, entry)
         self._on_reprocess(roh, fmt, name)
+
+    def _zeige_nachbearbeitung(self, roh: str, name: str, entry: dict) -> None:
+        """Das Fortschritts-Fenster oeffnen — SOFORT, vor dem Anstossen der Arbeit.
+
+        Die Reihenfolge ist der Punkt: Erst das Fenster, dann der Auftrag. Sonst
+        koennte eine sehr schnelle Antwort da sein, bevor es jemanden gibt, der sie
+        anzeigt. Referenz halten, sonst raeumt der GC das Fenster sofort ab.
+        """
+        from ..nachbearbeitungdialog import NachbearbeitungDialog
+
+        altes = getattr(self, "_nachbearbeitung_dialog", None)
+        if altes is not None:
+            altes.close()      # zwei Laeufe gleichzeitig gibt es nicht (Prozess-Lock)
+        self._nachbearbeitung_dialog = NachbearbeitungDialog(roh, name, entry, self)
+        self._nachbearbeitung_dialog.show()
+        self._nachbearbeitung_dialog.raise_()
+        self._nachbearbeitung_dialog.activateWindow()
+
+    def melde_nachbearbeitung(self, text: str, grund: str) -> None:
+        """Ergebnis (oder Grund des Scheiterns) ins offene Fenster tragen."""
+        dialog = getattr(self, "_nachbearbeitung_dialog", None)
+        if dialog is None:
+            return
+        if text:
+            dialog.zeige_ergebnis(text)
+        else:
+            dialog.zeige_fehler(grund or "Es kam kein Text zurück.")
 
     def _open_entry(self, entry: dict) -> None:
         # Nicht-modal (.show statt .exec) — schliesst bei Klick daneben. Referenz

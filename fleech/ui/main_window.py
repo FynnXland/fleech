@@ -124,8 +124,21 @@ class MainWindow(QMainWindow):
         # in dem Text einfach verschwand — statt umzubrechen oder zu scrollen.
         self.setMinimumSize(940, 620)
         w = settings.window
+        lage = None
         if w.x is not None and w.y is not None:
-            self.setGeometry(w.x, w.y, max(w.width, 940), max(w.height, 620))
+            # Gegen die Bildschirme pruefen, bevor die gespeicherte Lage gilt —
+            # sonst oeffnet ein alter oder verrutschter Wert das Fenster mit der
+            # Titelleiste ausserhalb (siehe fensterlage.py).
+            from PySide6.QtGui import QGuiApplication
+
+            from .fensterlage import sichtbare_lage
+
+            flaechen = [(g.x(), g.y(), g.width(), g.height()) for g in
+                        (s.availableGeometry() for s in QGuiApplication.screens())]
+            lage = sichtbare_lage(w.x, w.y, max(w.width, 940), max(w.height, 620),
+                                  flaechen)
+        if lage is not None:
+            self.setGeometry(lage[0], lage[1], max(w.width, 940), max(w.height, 620))
         else:
             self.resize(w.width, w.height)
 
@@ -341,6 +354,14 @@ class MainWindow(QMainWindow):
         self.raise_()
         self.activateWindow()
 
+    def melde_nachbearbeitung(self, text: str, grund: str) -> None:
+        """Ergebnis der Nachbearbeitung an die Startseite durchreichen.
+
+        Nur ein Durchreicher: Das Fortschritts-Fenster gehoert zum Verlauf, und der
+        liegt auf der Startseite. Die Verdrahtung kommt aber von der App, die die
+        Seiten nicht kennt."""
+        self.home.melde_nachbearbeitung(text, grund)
+
     def apply_interface(self) -> None:
         """UI-Bausteine gemaess settings.interface schalten (live aus den Settings)."""
         self.home.apply_interface(self.settings.interface)
@@ -385,7 +406,14 @@ class MainWindow(QMainWindow):
         # geht ein noch nicht bestaetigter Eintrag (Cursor im Feld) verloren.
         self.settings_panel.commit()
         w = self.settings.window
-        w.x, w.y, w.width, w.height = self.x(), self.y(), self.width(), self.height()
+        # `geometry()`, nicht `x()`/`y()`: Letztere sind bei einem Hauptfenster die
+        # Ecke des RAHMENS mitsamt Titelleiste, `setGeometry()` beim Start setzt
+        # aber die Innenflaeche. Der Unterschied liess das Fenster bei jedem Start
+        # um die Titelleistenhoehe (31 px) nach oben wandern, bis die Leiste aus
+        # dem Bild war. Minimiert oder maximiert geschlossen zaehlt die normale Lage.
+        g = (self.normalGeometry() if (self.isMaximized() or self.isMinimized())
+             else self.geometry())
+        w.x, w.y, w.width, w.height = g.x(), g.y(), g.width(), g.height()
         self.settings.save()
         event.ignore()
         self.hide()

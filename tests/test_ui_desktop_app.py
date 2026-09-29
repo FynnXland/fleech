@@ -934,3 +934,102 @@ def test_der_fallback_weg_fragt_nach_dem_grund(qapp):
 
     assert lauf("llm_offline") == [True]
     assert lauf("") == []
+
+
+def test_nach_spielende_wird_nicht_sofort_nachgeladen(monkeypatch):
+    """Alt-Tab aus dem Spiel ist kein Arbeitsbeginn.
+
+    Im Log von 42 Tagen: 729 Neuladevorgaenge direkt nach einem Spiel-Entladen,
+    im Median 40 s spaeter — jedes Mal rund 4 GB in die Grafikkarte, waehrend das
+    Spiel noch offen war. Nur 249 von 849 Ladevorgaengen folgte ein Diktat."""
+    import time as _t
+
+    from fleech.ui.desktop import DesktopApp
+    from fleech.ui.desktopapp.modelle import SPIELPAUSE_S
+
+    fake, calls = _keep_warm_fake(monkeypatch)
+    fake.settings.advanced.llm_keep_warm = "smart"
+    fake._llms_unloaded = True
+    fake._spiel_ende = _t.monotonic() - 40          # vor 40 s aus dem Spiel
+    DesktopApp._keep_warm_tick(fake)
+    assert calls["warm"] == []
+
+    fake._spiel_ende = _t.monotonic() - (SPIELPAUSE_S + 1)   # laengere Pause
+    DesktopApp._keep_warm_tick(fake)
+    assert calls["warm"] == [1]
+
+
+def test_ohne_spiel_bleibt_das_warmhalten_wie_bisher(monkeypatch):
+    """Die Sperre gilt NUR nach einem Spiel-Entladen — warm ist warm."""
+    from fleech.ui.desktop import DesktopApp
+
+    fake, calls = _keep_warm_fake(monkeypatch)
+    fake.settings.advanced.llm_keep_warm = "smart"
+    fake._llms_unloaded = False
+    DesktopApp._keep_warm_tick(fake)
+    assert calls["warm"] == [1]
+
+
+def test_vorschau_nimmt_modell_und_takt_aus_der_konfiguration(monkeypatch):
+    """Bis 5.12.3 stand „small" fest im Code, und `interval_ms` aus config.yaml
+    erreichte die Desktop-App nie — sie dekodierte mit 0,5 s statt dem
+    konfigurierten Takt (20 818 Vorschau-Laeufe bei 454 Diktaten im Log)."""
+    import types
+
+    import fleech.overlay as overlay_mod
+    from fleech.config import AppConfig
+    from fleech.ui.desktop import DesktopApp
+
+    gebaut = {}
+
+    class FakeModell:
+        def __init__(self, model_size, language, samplerate):
+            gebaut["modell"] = model_size
+
+        def load(self):
+            pass
+
+        def transcribe_segments(self, w):
+            return []
+
+    monkeypatch.setattr(overlay_mod, "PreviewModel", FakeModell)
+    cfg = AppConfig()
+    cfg.overlay.model_size = "tiny"
+    fake = types.SimpleNamespace(settings=UserSettings(), config=cfg, _preview_model=None)
+    DesktopApp._ensure_preview_model(fake)
+    assert gebaut["modell"] == "tiny"
+
+
+def test_waehrend_eines_diktats_wird_nicht_entladen(monkeypatch):
+    """Im Log lag das Entladen siebenmal zwischen Spracherkennung und Bereinigung;
+    die Bereinigung musste das Modell dann neu laden. Aufgeschoben heisst: Der
+    naechste Takt darf es wieder versuchen."""
+    import threading
+    import types
+
+    import fleech.ui.desktopapp.modelle as modelle_mod
+    from fleech.ui.desktop import DesktopApp
+    from fleech.ui.state import AppState
+
+    entladen = []
+    monkeypatch.setattr("fleech.llm.client.ollama_unload", entladen.append)
+
+    class SyncThread:
+        def __init__(self, target=None, daemon=None, args=()):
+            self._t = target
+
+        def start(self):
+            self._t()
+
+    monkeypatch.setattr(modelle_mod.threading, "Thread", SyncThread)
+    sperre = threading.Lock()
+    fake = types.SimpleNamespace(_llms_unloaded=False, _process_lock=sperre,
+                                 bus=types.SimpleNamespace(state=AppState.IDLE),
+                                 _llm_endpoints=lambda: ["gemma"])
+    sperre.acquire()
+    DesktopApp._unload_llms_async(fake, "Spiel gestartet")
+    assert entladen == [] and fake._llms_unloaded is False      # aufgeschoben
+
+    sperre.release()
+    DesktopApp._unload_llms_async(fake, "Spiel gestartet")
+    assert entladen == ["gemma"] and fake._llms_unloaded is True

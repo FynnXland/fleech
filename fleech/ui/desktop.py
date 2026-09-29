@@ -35,7 +35,7 @@ from .settings_window import SettingsPanel
 from .tray import TrayController
 from .desktopapp import (
     AnstupsenMixin, FreihandMixin, KeinTonMixin, LebenszyklusMixin, LizenzUpdateMixin,
-    ModelleMixin, NachbereitungMixin, ProfilMixin,
+    ModelleMixin, NachbereitungMixin, ProfilMixin, WachhundMixin,
 )
 # Der Name des IPC-Kanals gehoert zum Server (desktopapp/lebenszyklus.py). Hier
 # re-exportiert, weil `packaging/stop_fleech.py` ihn von `fleech.ui.desktop` holt —
@@ -48,7 +48,7 @@ log = logging.getLogger(__name__)
 
 class DesktopApp(
     ProfilMixin, FreihandMixin, KeinTonMixin, AnstupsenMixin, ModelleMixin,
-    NachbereitungMixin, LizenzUpdateMixin, LebenszyklusMixin,
+    NachbereitungMixin, LizenzUpdateMixin, LebenszyklusMixin, WachhundMixin,
 ):
     """Verdrahtung der App: Aufbau, Aufnahme-Lebenszyklus, Hotkeys, Fenster.
 
@@ -129,6 +129,9 @@ class DesktopApp(
         # Konstruktor (real abgestuerzt: AttributeError _was_gaming beim App-Start).
         self._llms_unloaded = False   # LLMs aktiv entladen (Gaming/Smart-Fenster)
         self._was_gaming = False      # Flanken-Erkennung Spielstart/-ende (Fokus-Poll)
+        # Wann zuletzt ein Spiel endete — siehe `modelle._keep_warm_tick`: Direkt
+        # danach wird NICHT nachgeladen, sonst laedt jedes Alt-Tab 4 GB neu.
+        self._spiel_ende = float("-inf")
         # Haelt ueberlappende Diktat-Verarbeitungen auseinander (siehe _process).
         self._process_lock = threading.Lock()
         self._last_dictation = time.monotonic()  # App-Start zaehlt als Aktivitaet
@@ -227,6 +230,7 @@ class DesktopApp(
         self.bus.history_changed.connect(self.window.refresh_data)
         self.bus.state_changed.connect(self.tray.set_state)
         self.bus.state_changed.connect(self.overlay.set_app_state)
+        self._baue_wachhund()   # meldet ungewoehnlich lange Verarbeitung (wachhund.py)
         self.bus.command_armed.connect(self.overlay.set_command_armed)
         self.bus.feedback.connect(self.overlay.set_feedback)
         # Reihenfolge wichtig: der Fallback-Hinweis muss VOR transcript_ready
@@ -375,6 +379,9 @@ class DesktopApp(
         self._stop_preview()
         threading.Thread(target=self.focus.on_recording_stop, daemon=True).start()
         audio = self.recorder.stop()
+        injector = getattr(getattr(self, "pipeline", None), "injector", None)
+        if injector is not None and hasattr(injector, "markiere_aufnahmeende"):
+            injector.markiere_aufnahmeende()
         # One-Shot-Prompt-Modus hier (UI-Thread) einsammeln + zuruecksetzen — der
         # Verarbeitungs-Thread bekommt den Schnappschuss; die Pille faellt sofort
         # in den Normalzustand zurueck.
@@ -564,7 +571,17 @@ class DesktopApp(
             self.bus.transcript_ready.emit(self.pipeline.last_injected)
             self._check_dictionary_candidates(self.pipeline.last_injected)
             self._count_dictionary_usage(self.pipeline.last_injected)
-        if result == "ok":
+        if result == "ok" and getattr(self.pipeline, "in_ablage_statt_eingefuegt", False):
+            # Zu spaet fertig und der Nutzer ist woanders: nicht hineingeklickt, der
+            # Text wartet in der Zwischenablage. Das MUSS ankommen — ohne Meldung
+            # saehe es aus, als waere das Diktat verloren.
+            self.bus.set_state(AppState.IDLE, "in der Zwischenablage")
+            self.notifier.toast(
+                "critical_error", "Fleech",
+                "Das Diktat wurde erst spät fertig — damit du nicht aus deinem "
+                "Fenster gerissen wirst, liegt der Text in der Zwischenablage. "
+                "Strg+V zum Einfügen.", bypass_cooldown=True)
+        elif result == "ok":
             self.notifier.sound("commit")
             self.bus.set_state(AppState.IDLE, "eingefügt")
             if _time.monotonic() - t0 > 15:
@@ -837,7 +854,14 @@ class DesktopApp(
                 if gaming:
                     self._unload_llms_async("Spiel gestartet")
                 else:
-                    self._keep_warm_tick()  # zurueck am Desktop → ggf. wieder aufwaermen
+                    # Frueher: sofort wieder aufwaermen. Im Log von 42 Tagen waren das
+                    # 729 Neuladevorgaenge direkt nach dem Spiel-Entladen, im Median
+                    # 40 s spaeter — Alt-Tab raus, 4 GB in die Grafikkarte, zurueck
+                    # ins Spiel, wieder entladen. Nur 249 von 849 Ladevorgaengen
+                    # folgte ueberhaupt ein Diktat. Jetzt: Zeitpunkt merken; das
+                    # naechste Diktat laedt ohnehin beim Aufnahmestart vor, und der
+                    # Warmhalte-Takt holt das Modell erst nach laengerer Spielpause.
+                    self._spiel_ende = time.monotonic()
 
 
 

@@ -181,3 +181,43 @@ def test_jedes_umformulierende_format_hat_eine_prompt_datei():
                if not (prompts / f"{f}.md").is_file()
                and not (prompts / f"{f}_engineer.md").is_file()]
     assert not fehlend, f"Formate ohne Prompt-Datei in prompts/: {fehlend}"
+
+
+def test_der_stichpunkte_prompt_enthaelt_kein_beispiel_diktat():
+    """Ein wortwoertliches Beispiel-Diktat im Prompt landet in der Ausgabe.
+
+    Am 2026-09-05 an acht echten Diktaten gemessen: Die Fassung mit einem
+    ausgeschriebenen Beispiel-Diktat lieferte in einem von acht Faellen Zeilen aus
+    dem BEISPIEL statt aus dem Diktat („Icons vergroessern", „Inventar"), und bei
+    einem langen Diktat schrieb das Modell erst das Beispiel und dann den Rohtext
+    ab, ohne einen einzigen Stichpunkt zu bilden.
+
+    Grund: Ein Block, der wie gesprochener Rohtext aussieht, ist fuer ein kleines
+    Modell nicht von der Eingabe zu unterscheiden. Das Beispiel darf deshalb nur
+    das ERGEBNIS zeigen, die Eingabe wird beschrieben statt zitiert.
+    """
+    text = (pathlib.Path(__file__).resolve().parent.parent / "prompts" / "summary.md") \
+        .read_text(encoding="utf-8")
+    for marke in ("[Diktat]:", "[Beispiel-Diktat]:", "[Stichpunkte]:"):
+        assert marke not in text, (
+            f"{marke} im Stichpunkte-Prompt — ein zitiertes Roh-Diktat wird "
+            f"nachweislich mit ausgegeben.")
+    # Auch kein Codeblock: Der war der Ausloeser des schlimmsten Falls.
+    assert "```" not in text, "Codeblock im Stichpunkte-Prompt (siehe Docstring)."
+
+
+def test_der_stichpunkte_prompt_haelt_seine_drei_regeln_fest():
+    """Die drei Regeln, die den gemessenen Verlust halbiert haben.
+
+    Ohne sie fielen 47 % aller Namen und Zahlen aus dem Diktat heraus (176 von 366
+    an acht echten Diktaten, zwei Laeufe). Mit ihnen 28 %. Der Test bewacht nicht
+    den Wortlaut, sondern dass die drei Gedanken ueberhaupt noch dastehen.
+    """
+    text = (pathlib.Path(__file__).resolve().parent.parent / "prompts" / "summary.md") \
+        .read_text(encoding="utf-8").lower()
+    # 1. Kuerzen wirkt in der Zeile, nicht auf die Anzahl der Zeilen.
+    assert "anzahl" in text and "zeilen" in text
+    # 2. Namen und Zahlen bleiben wortgleich erhalten.
+    assert "eigenname" in text and "zahl" in text
+    # 3. Das Ergebnis ist eine Liste, kein durchgereichter Rohtext.
+    assert "abschreiben" in text or "wortwörtlich" in text

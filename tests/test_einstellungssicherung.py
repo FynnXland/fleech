@@ -156,3 +156,106 @@ def test_grund_wird_auf_saubere_dateinamen_reduziert(tmp_path, grund, erwartet):
     datei = _schreibe(tmp_path / "settings.json")
     ziel = sicherung.sichere(datei, grund, jetzt=datetime(2026, 8, 20, 10, 0, 0))
     assert ziel.name.endswith(f"-{erwartet}.json")
+
+
+# -- Der Lizenzschluessel ueberlebt getrennt -------------------------------------------
+
+
+def test_schluessel_wird_gespiegelt_und_zurueckgeholt(tmp_path):
+    """Der Fall aus dem Alltag: Die Einstellungen verlieren ihren Inhalt, und
+    Fleech steht als nicht freigeschaltet da. Alles andere klickt man neu — den
+    Schluessel muss man suchen."""
+    from fleech.usersettings import UserSettings
+
+    pfad = tmp_path / "settings.json"
+    s = UserSettings()
+    s.general.license_key = "FLEECH-1.abc.def"
+    s.save(pfad)
+    assert sicherung.gemerkter_schluessel(pfad) == "FLEECH-1.abc.def"
+
+    # Jetzt verliert die Datei ihren Schluessel (fremder Schreibvorgang).
+    roh = json.loads(pfad.read_text(encoding="utf-8"))
+    roh["general"]["license_key"] = ""
+    pfad.write_text(json.dumps(roh), encoding="utf-8")
+
+    geladen = UserSettings.load(pfad)
+    assert geladen.general.license_key == "FLEECH-1.abc.def"
+
+
+def test_leerer_schluessel_loescht_die_spiegelung_nicht(tmp_path):
+    """Genau der Zustand „keine Lizenz mehr in den Einstellungen" ist der Schaden.
+    Naehme er die Sicherung mit, waere sie wertlos."""
+    pfad = tmp_path / "settings.json"
+    pfad.write_text("{}", encoding="utf-8")
+    sicherung.merke_schluessel(pfad, "FLEECH-1.xyz")
+    sicherung.merke_schluessel(pfad, "")
+    assert sicherung.gemerkter_schluessel(pfad) == "FLEECH-1.xyz"
+
+    sicherung.vergiss_schluessel(pfad)          # der bewusste Weg
+    assert sicherung.gemerkter_schluessel(pfad) == ""
+
+
+def test_vorhandener_schluessel_wird_nicht_ueberschrieben(tmp_path):
+    """Der Spiegel ist die Rueckfallebene, nicht die Wahrheit."""
+    pfad = tmp_path / "settings.json"
+    pfad.write_text("{}", encoding="utf-8")
+    sicherung.merke_schluessel(pfad, "ALT")
+    assert sicherung.hole_schluessel_zurueck(pfad, "NEU") == "NEU"
+
+
+# -- Ein schrumpfender Schreibvorgang wird gemeldet ------------------------------------
+
+
+def _umfang(**kw):
+    basis = {"profile": 8, "zuordnungen": 4, "schnellwechsel": 2, "woerter": 4,
+             "lizenz": 1}
+    basis.update(kw)
+    return basis
+
+
+def test_erster_schreibvorgang_meldet_nichts(tmp_path, caplog):
+    """Ohne Vorher-Wert gibt es nichts zu vergleichen — und nichts zu melden."""
+    sicherung._LETZTER_UMFANG.clear()
+    with caplog.at_level("INFO"):
+        sicherung.melde_schreibvorgang(tmp_path / "settings.json", _umfang())
+    assert "geschrieben" not in caplog.text
+
+
+def test_unveraenderter_umfang_bleibt_still(tmp_path, caplog):
+    """`save()` laeuft bei jeder Fensterbewegung. Ein Protokoll, das dabei jedes
+    Mal schreibt, liest niemand."""
+    pfad = tmp_path / "settings.json"
+    sicherung._LETZTER_UMFANG.clear()
+    sicherung.melde_schreibvorgang(pfad, _umfang())
+    with caplog.at_level("INFO"):
+        sicherung.melde_schreibvorgang(pfad, _umfang())
+    assert caplog.text == ""
+
+
+def test_verlust_wird_als_warnung_gemeldet(tmp_path, caplog):
+    """Der Fall, der zweimal unbemerkt blieb."""
+    pfad = tmp_path / "settings.json"
+    sicherung._LETZTER_UMFANG.clear()
+    sicherung.melde_schreibvorgang(pfad, _umfang())
+    with caplog.at_level("INFO"):
+        sicherung.melde_schreibvorgang(pfad, _umfang(zuordnungen=0, lizenz=0))
+    assert "WENIGER" in caplog.text
+    assert "zuordnungen 4->0" in caplog.text
+    assert "lizenz 1->0" in caplog.text
+    assert any(r.levelname == "WARNING" for r in caplog.records)
+
+
+def test_zuwachs_wird_nur_vermerkt(tmp_path, caplog):
+    pfad = tmp_path / "settings.json"
+    sicherung._LETZTER_UMFANG.clear()
+    sicherung.melde_schreibvorgang(pfad, _umfang())
+    with caplog.at_level("INFO"):
+        sicherung.melde_schreibvorgang(pfad, _umfang(woerter=9))
+    assert "WENIGER" not in caplog.text
+    assert "9 Woerterbuchzeilen" in caplog.text
+
+
+def test_meldung_reisst_den_schreibvorgang_nie_mit(tmp_path):
+    """Die Einstellungen stehen zu diesem Zeitpunkt bereits auf der Platte."""
+    sicherung._LETZTER_UMFANG.clear()
+    sicherung.melde_schreibvorgang(tmp_path / "settings.json", None)  # kaputte Eingabe

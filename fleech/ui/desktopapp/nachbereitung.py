@@ -248,25 +248,50 @@ class NachbereitungMixin:
         die Cursor-Regeln stammen (einmal 2701 Zeichen fremder Text geloescht).
         """
         if self._process_lock.locked():
-            self._flash_status("Ein Diktat läuft noch")
+            # Bewusst ueber dasselbe Signal wie das Ergebnis: Wer den Weg hierher
+            # ausgeloest hat, wartet auf eine Antwort. Ein stilles `return` liesse
+            # das Fortschritts-Fenster endlos laufen.
+            self.bus.reprocessed.emit("", name, "Ein Diktat läuft gerade — "
+                                                "danach noch einmal versuchen.")
             return
 
         def arbeit():
             with self._process_lock:
                 self.bus.progress.emit(f"Neu bereinigen als {name} …")
+                grund = ""
                 try:
                     text = self.pipeline.reprocess(roh, fmt)
                 except Exception:
                     log.exception("Nachbearbeitung fehlgeschlagen.")
                     text = ""
-                self.bus.reprocessed.emit(text, name)
+                    grund = ("Die Nachbearbeitung ist fehlgeschlagen. Läuft die "
+                             "lokale KI? Einzelheiten stehen im Protokoll.")
+                if not text and not grund:
+                    grund = ("Das Modell hat keinen Text geliefert — der Rohtext "
+                             "bleibt unverändert.")
+                self.bus.reprocessed.emit(text, name, grund)
 
         threading.Thread(target=arbeit, daemon=True).start()
 
-    def _on_reprocessed(self, text: str, name: str) -> None:
+    def _melde_nachbearbeitung(self, text: str, grund: str) -> None:
+        """Das Fortschritts-Fenster im Verlauf beliefern, falls eines offen ist.
+
+        Ueber das Fenster statt ueber `_flash_status()`: Das laeuft auf die Pille,
+        und die zeigt Zwischenschritte nur waehrend einer laufenden Verarbeitung
+        (`show_progress`). Beim Nachbearbeiten aus dem Verlauf war die Pille also
+        stumm — der Text landete in der Zwischenablage, sichtbar wurde nichts.
+        """
+        try:
+            self.window.melde_nachbearbeitung(text, grund)
+        except Exception:
+            log.debug("Nachbearbeitungs-Fenster nicht erreichbar.", exc_info=True)
+
+    def _on_reprocessed(self, text: str, name: str, grund: str = "") -> None:
         """UI-Thread: Ergebnis in die Zwischenablage und Rueckmeldung geben."""
         if not text:
+            grund = grund or f"{name} fehlgeschlagen — Text unverändert."
             self._flash_status(f"{name} fehlgeschlagen — Text unverändert")
+            self._melde_nachbearbeitung("", grund)
             return
         try:
             from PySide6.QtWidgets import QApplication
@@ -275,7 +300,11 @@ class NachbereitungMixin:
         except Exception:
             log.exception("Zwischenablage nicht beschreibbar.")
             self._flash_status("Zwischenablage nicht erreichbar")
+            self._melde_nachbearbeitung("", "Die Zwischenablage ist nicht "
+                                            "erreichbar — der Text konnte nicht "
+                                            "abgelegt werden.")
             return
+        self._melde_nachbearbeitung(text, "")
         log.info("Neu bereinigt als %s (%d Zeichen) — in der Zwischenablage.",
                  name, len(text))
         self._flash_status(f"{name} kopiert — Strg+V zum Einfügen")

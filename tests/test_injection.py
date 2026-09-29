@@ -187,3 +187,72 @@ def test_has_text_ist_auf_jeder_plattform_beantwortbar():
     from fleech.clipboard import has_text
 
     assert isinstance(has_text(), bool)
+
+
+# -- Spät fertig und der Nutzer ist woanders -------------------------------------------
+
+
+def _spaet(inj: TextInjector, sekunden: float, monkeypatch) -> None:
+    """Das Aufnahmeende `sekunden` in die Vergangenheit legen."""
+    import fleech.injection as inj_mod
+
+    jetzt = inj_mod.time.monotonic()
+    inj._aufnahmeende = jetzt - sekunden
+
+
+def test_spaet_und_woanders_klickt_nicht_hinein(monkeypatch):
+    """Am 2026-09-24 kam ein Diktat 8,5 min nach dem Sprechen an; 19 s vorher
+    hatte ein Spiel angefangen. Fleech haette das Ziel-Fenster nach vorn geholt,
+    hineingeklickt und Strg+V gedrueckt. Jetzt: Text in die Zwischenablage, nichts
+    anfassen — und der Aufrufer erfaehrt es."""
+    wiederhergestellt = []
+    inj = TextInjector(restore_clipboard=True,
+                       focus_restorer=lambda t: wiederhergestellt.append(t) or True)
+    events = _instrument(inj)
+    inj._get_clipboard = lambda: "Der Text"          # bestaetigt die Ablage sofort
+    inj.vordergrund_pruefer = lambda t: False         # anderes Fenster vorn
+    inj.set_focus_target(("fenster", (100, 200)))
+    _spaet(inj, 60, monkeypatch)
+
+    assert inj.inject("Der Text") is False
+    assert ("paste",) not in events                   # kein Strg+V
+    assert wiederhergestellt == []                    # kein Fenster nach vorn geholt
+    assert ("clip", "Der Text") in events             # aber in der Zwischenablage
+
+
+def test_spaet_aber_noch_im_feld_wird_normal_eingefuegt(monkeypatch):
+    """Wer bei einem langen Diktat im Feld wartet, bekommt seinen Text wie immer —
+    das Alter allein entscheidet nicht."""
+    inj = TextInjector(restore_clipboard=False, focus_restorer=lambda t: True)
+    events = _instrument(inj)
+    inj.vordergrund_pruefer = lambda t: True          # Ziel-Fenster ist noch vorn
+    inj.set_focus_target(("fenster", (100, 200)))
+    _spaet(inj, 600, monkeypatch)
+
+    assert inj.inject("Langes Diktat") is True
+    assert ("paste",) in events
+
+
+def test_rechtzeitig_und_woanders_holt_das_feld_zurueck_wie_bisher(monkeypatch):
+    """Die Cursor-Rueckkehr bleibt, was sie war: kurz weggeklickt → zurueckgeholt."""
+    wiederhergestellt = []
+    inj = TextInjector(restore_clipboard=False,
+                       focus_restorer=lambda t: wiederhergestellt.append(t) or True)
+    events = _instrument(inj)
+    inj.vordergrund_pruefer = lambda t: False
+    inj.set_focus_target(("fenster", (100, 200)))
+    _spaet(inj, 5, monkeypatch)
+
+    assert inj.inject("Kurz") is True
+    assert wiederhergestellt and ("paste",) in events
+
+
+def test_ohne_auskunft_ueber_den_vordergrund_bleibt_alles_beim_alten(monkeypatch):
+    """Linux oder ein Fehler in der Abfrage: None heisst unbekannt, nicht „woanders"."""
+    inj = TextInjector(restore_clipboard=False, focus_restorer=lambda t: True)
+    events = _instrument(inj)
+    inj.vordergrund_pruefer = lambda t: None
+    inj.set_focus_target(("fenster", (100, 200)))
+    _spaet(inj, 600, monkeypatch)
+
+    assert inj.inject("Text") is True and ("paste",) in events

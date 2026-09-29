@@ -203,3 +203,21 @@ def restore_focus_target(target) -> bool:
             except Exception:
                 log.debug("Caret-Ruecklick fehlgeschlagen.", exc_info=True)
     return ok
+
+
+def ziel_ist_vorn(target) -> bool | None:
+    """Ist das Fenster vom Aufnahme-Start gerade noch vorn? None = unbekannt.
+
+    Gebraucht fuer spaet fertige Diktate (`injection.SPAET_S`): Wartet der Nutzer
+    noch im Ziel-Fenster, wird ganz normal eingefuegt, egal wie lange es dauerte.
+    Ist er inzwischen woanders — im belegten Fall in einem Spiel, das 19 Sekunden
+    vor dem Einfuegen startete —, reisst Fleech ihm das Fenster nicht mehr weg.
+    """
+    hwnd = getattr(target, "hwnd", None)
+    if not hwnd or sys.platform != "win32":
+        return None
+    try:
+        return int(_user32().GetForegroundWindow() or 0) == int(hwnd)
+    except Exception:
+        log.debug("Vordergrundfenster nicht ermittelbar.", exc_info=True)
+        return None

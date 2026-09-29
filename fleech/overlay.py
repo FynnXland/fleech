@@ -167,29 +167,46 @@ class PreviewStreamer:
         self._stop = threading.Event()
         self._frozen = ""
         self._window_start = 0.0
+        self._dekodiert_bis = 0   # Samples, die beim letzten Lauf schon da waren
 
     def start(self) -> None:
         self._frozen = ""
         self._window_start = 0.0
-        self._stop = threading.Event()
-        self._thread = threading.Thread(target=self._loop, name="fleech-preview", daemon=True)
+        self._dekodiert_bis = 0
+        # Jeder Lauf bekommt SEIN eigenes Stopp-Signal und liest es als Argument,
+        # nicht als Attribut. Sonst saehe ein alter, noch rechnender Lauf nach dem
+        # naechsten start() das NEUE, ungesetzte Signal und liefe einfach weiter.
+        ereignis = threading.Event()
+        self._stop = ereignis
+        self._thread = threading.Thread(target=self._loop, args=(ereignis,),
+                                        name="fleech-preview", daemon=True)
         self._thread.start()
 
-    def stop(self) -> None:
-        self._stop.set()
-        if self._thread is not None:
-            self._thread.join(timeout=2)
-            self._thread = None
+    def stop(self, warten: bool = False) -> None:
+        """Vorschau beenden. Wartet standardmaessig NICHT auf den laufenden Lauf.
 
-    def _loop(self) -> None:
-        while not self._stop.wait(self.interval):
+        Frueher: `join(timeout=2)`. Aufgerufen wird `stop()` aber beim Aufnahme-
+        Ende — und das laeuft im Tastatur-Hook von Windows. Ein Hook, der zu lange
+        braucht, wird von Windows ohne Meldung entfernt; danach tut kein Hotkey
+        mehr etwas. Im Log dauerte der letzte Vorschau-Lauf unter GPU-Last bis zu
+        10 s, die 2 s liefen also voll aus. Ein gestoppter Lauf rechnet jetzt
+        allein zu Ende und verwirft sein Ergebnis (siehe `_tick`)."""
+        self._stop.set()
+        if warten and self._thread is not None:
+            self._thread.join(timeout=2)
+        self._thread = None
+
+    def _loop(self, ereignis: threading.Event | None = None) -> None:
+        if ereignis is None:          # direkter Aufruf (Tests): das aktuelle Signal
+            ereignis = self._stop
+        while not ereignis.wait(self.interval):
             try:
-                self._tick()
+                self._tick(ereignis)
             except Exception:
                 # Best-Effort: ein kaputter Tick darf weder Loop noch Diktat reissen.
                 log.debug("Preview-Tick fehlgeschlagen.", exc_info=True)
 
-    def _tick(self) -> None:
+    def _tick(self, ereignis: threading.Event | None = None) -> None:
         audio = self.snapshot_fn()
         window = audio[int(self._window_start * self.samplerate) :]
         duration = window.size / self.samplerate
@@ -200,8 +217,21 @@ class PreviewStreamer:
         if self.silence_rms > 0 and \
                 float(np.sqrt(np.mean(np.square(window)))) < self.silence_rms:
             return
+        # Zweites Gate: Ist seit dem letzten Lauf nur STILLE dazugekommen, ergaebe
+        # derselbe Lauf denselben Text. Das Fenster-Gate oben greift dann nicht —
+        # es sieht die Sprache von vorhin im Fenster und liess in jeder Sprechpause
+        # dasselbe Audio immer wieder durch Whisper laufen.
+        neu = audio[self._dekodiert_bis:]
+        if self.silence_rms > 0 and neu.size and \
+                float(np.sqrt(np.mean(np.square(neu)))) < self.silence_rms:
+            return
+        self._dekodiert_bis = audio.size
 
         segments = list(self.transcribe_fn(window))
+        if ereignis is not None and ereignis.is_set():
+            # Waehrend dieses Laufs gestoppt: Das Ergebnis gehoert zu einer
+            # beendeten Aufnahme und darf weder Zustand noch Anzeige anfassen.
+            return
 
         if duration > self.window_seconds:
             # Segmente, die weit genug vor dem Fensterende liegen, einfrieren und
