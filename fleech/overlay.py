@@ -271,12 +271,14 @@ class PreviewModel:
                 return
             from faster_whisper import WhisperModel
 
-            from .stt.faster_whisper_stt import _register_cuda_dlls
+            from .stt.faster_whisper_stt import _register_cuda_dlls, waehle_rechenart
 
             _register_cuda_dlls()
             log.info("Lade Preview-Modell %s …", self.model_size)
             try:
-                self._model = WhisperModel(self.model_size, device="auto", compute_type="auto")
+                # Wie das Diktat: int8 auf der Grafikkarte halbiert den Speicher.
+                self._model = WhisperModel(self.model_size, device="auto",
+                                           compute_type=waehle_rechenart("auto", "auto"))
             except Exception as exc:
                 log.warning("Preview-Modell GPU-Init fehlgeschlagen (%s) — CPU/int8.", exc)
                 self._model = WhisperModel(self.model_size, device="cpu", compute_type="int8")

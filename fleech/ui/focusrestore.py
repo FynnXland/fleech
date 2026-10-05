@@ -27,6 +27,7 @@ from __future__ import annotations
 import ctypes
 import ctypes.wintypes as wt  # reine Typ-Aliase, auf allen Plattformen importierbar
 import logging
+import os
 import sys
 import time
 from dataclasses import dataclass
@@ -217,7 +218,36 @@ def ziel_ist_vorn(target) -> bool | None:
     if not hwnd or sys.platform != "win32":
         return None
     try:
-        return int(_user32().GetForegroundWindow() or 0) == int(hwnd)
+        u = _user32()
+        vorn = int(u.GetForegroundWindow() or 0)
+        if vorn == int(hwnd):
+            return True
+        # Ein Fenster von Fleech selbst zaehlt nicht als „woanders": Wer waehrend
+        # einer langen Verarbeitung auf die Pille klickt, hat das Ziel-Feld nicht
+        # verlassen — dort soll der Text weiterhin hin.
+        if _prozess_von(vorn) == os.getpid():
+            return None
+        log.info("Ziel-Fenster nicht mehr vorn: Ziel %r, vorn %r.",
+                 _fenstertitel(int(hwnd)), _fenstertitel(vorn))
+        return False
     except Exception:
         log.debug("Vordergrundfenster nicht ermittelbar.", exc_info=True)
         return None
+
+
+def _prozess_von(hwnd: int) -> int:
+    """Prozess-ID des Fensters (0 = unbekannt)."""
+    pid = wt.DWORD(0)
+    _user32().GetWindowThreadProcessId(wt.HWND(hwnd), ctypes.byref(pid))
+    return int(pid.value)
+
+
+def _fenstertitel(hwnd: int) -> str:
+    """Titel fuers Protokoll, gekuerzt — damit sich ein „woanders" spaeter
+    nachvollziehen laesst, statt geraten werden zu muessen."""
+    try:
+        puffer = ctypes.create_unicode_buffer(120)
+        ctypes.windll.user32.GetWindowTextW(wt.HWND(hwnd), puffer, 120)
+        return puffer.value[:80]
+    except Exception:
+        return "?"

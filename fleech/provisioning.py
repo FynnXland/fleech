@@ -30,6 +30,7 @@ log = logging.getLogger(__name__)
 STT_GROESSEN_GB = {
     "large-v3-turbo": 1.6, "turbo": 1.6, "large-v3": 3.1, "large-v2": 3.1,
     "medium": 1.5, "small": 0.5, "base": 0.15, "tiny": 0.08,
+    "jimmymeister/whisper-large-v3-turbo-german-ct2": 1.6,
 }
 
 

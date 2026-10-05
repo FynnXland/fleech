@@ -25,6 +25,7 @@ from ..profiles import AUTO_SEND_MODES, REWRITING_FORMATS
 from ..recording_control import RecordingController
 from ..stt import create_stt
 from ..usersettings import UserSettings
+from .. import gruende
 from ..history import DictationRecord, HistoryStore
 from .main_window import MainWindow
 from .notifications import NotificationPolicy, Notifier
@@ -35,7 +36,10 @@ from .settings_window import SettingsPanel
 from .tray import TrayController
 from .desktopapp import (
     AnstupsenMixin, FreihandMixin, KeinTonMixin, LebenszyklusMixin, LizenzUpdateMixin,
-    ModelleMixin, NachbereitungMixin, ProfilMixin, WachhundMixin,
+    ModelleMixin, NachbereitungMixin, ProfilMixin, VorerkennungMixin, WachhundMixin,
+)
+from .desktopapp.vorerkennung import (
+    abschnitte_ergebnis, uebergib_abschnitte, verwirf_abschnitte,
 )
 # Der Name des IPC-Kanals gehoert zum Server (desktopapp/lebenszyklus.py). Hier
 # re-exportiert, weil `packaging/stop_fleech.py` ihn von `fleech.ui.desktop` holt —
@@ -49,6 +53,7 @@ log = logging.getLogger(__name__)
 class DesktopApp(
     ProfilMixin, FreihandMixin, KeinTonMixin, AnstupsenMixin, ModelleMixin,
     NachbereitungMixin, LizenzUpdateMixin, LebenszyklusMixin, WachhundMixin,
+    VorerkennungMixin,
 ):
     """Verdrahtung der App: Aufbau, Aufnahme-Lebenszyklus, Hotkeys, Fenster.
 
@@ -238,6 +243,8 @@ class DesktopApp(
         self.bus.progress.connect(self.overlay.show_progress)
         self.bus.formula_preview.connect(self.overlay.show_formula_preview)
         self.bus.tail_dropped.connect(self.overlay.show_dropped_tail)
+        self.bus.in_ablage.connect(self.overlay.zeige_in_ablage)
+        self.bus.hinweis.connect(self.overlay.zeige_hinweis)
         self.bus.injection_fallback.connect(self.overlay.flash_fallback)
         self.bus.transcript_ready.connect(self.overlay.show_transcript)
         self.bus.raw_ready.connect(self.overlay.show_raw_preview)
@@ -370,6 +377,7 @@ class DesktopApp(
             self.bus.command_armed.emit(True)
         if self.settings.overlay.live_preview:
             self._start_preview_async()
+        self._starte_abschnitte()
 
     def _on_record_stop(self, kind: str) -> None:
         self._last_dictation = time.monotonic()  # haelt das Smart-Warm-Fenster offen
@@ -377,6 +385,7 @@ class DesktopApp(
         if strom is not None:
             strom.pausiere(False)
         self._stop_preview()
+        abschnitte = uebergib_abschnitte(self)
         threading.Thread(target=self.focus.on_recording_stop, daemon=True).start()
         audio = self.recorder.stop()
         injector = getattr(getattr(self, "pipeline", None), "injector", None)
@@ -395,7 +404,7 @@ class DesktopApp(
         threading.Thread(
             target=self._process, args=(audio,),
             kwargs={"force_command": kind == "command",
-                    "prompt_oneshot": prompt_oneshot},
+                    "prompt_oneshot": prompt_oneshot, "abschnitte": abschnitte},
             daemon=True,
         ).start()
 
@@ -418,6 +427,7 @@ class DesktopApp(
         # ohnehin aus dem GUI-Thread (anders als `_on_record_stop`, Befund D-6).
         self.overlay.set_prompt_latched(False)
         self._stop_preview()
+        verwirf_abschnitte(self)
         threading.Thread(target=self.focus.on_recording_stop, daemon=True).start()
         self.recorder.stop()  # Audio bewusst verwerfen
         self.bus.set_state(AppState.IDLE, "verworfen")
@@ -440,7 +450,7 @@ class DesktopApp(
 
 
     def _process(self, audio, force_command: bool = False,
-                 prompt_oneshot: bool = False) -> None:
+                 prompt_oneshot: bool = False, abschnitte=None) -> None:
         """Verarbeitung eines Diktats — global serialisiert.
 
         Aus Nutzersicht sind Diktate ohnehin sequenziell, technisch koennen sich zwei
@@ -465,10 +475,10 @@ class DesktopApp(
                 # die App haengengeblieben.
                 self.bus.progress.emit("KI-Modell wird geladen …")
             self._process_locked(audio, force_command,
-                                 prompt_oneshot)
+                                 prompt_oneshot, abschnitte)
 
     def _process_locked(self, audio, force_command: bool = False,
-                        prompt_oneshot: bool = False) -> None:
+                        prompt_oneshot: bool = False, abschnitte=None) -> None:
         import time as _time
 
         t0 = _time.monotonic()
@@ -497,6 +507,10 @@ class DesktopApp(
             # die Erkennung, den sprachgebundenen Teil der Guards und die
             # Zielsprache der umformulierenden Formate.
             self._setze_sprache(prof.sprache or self.settings.general.language)
+            # Schon beim Sprechen Erkanntes (nur wenn es das gibt — aeltere
+            # Pipeline-Attrappen kennen das Argument nicht).
+            vorab = abschnitte_ergebnis(abschnitte)
+            extra = {"vorab": vorab} if vorab is not None else {}
             result = self.pipeline.process(
                 audio, self.config.audio.samplerate,
                 intervention_override=override,
@@ -509,16 +523,25 @@ class DesktopApp(
                 # Vokabular gehoert zu dem Fenster, in das der Text auch geht.
                 app=getattr(self, "_record_app", ""),
                 window_title=getattr(self, "_record_title", ""),
+                **extra,
             )
         except Exception:
             log.exception("Pipeline-Fehler.")
             result = "error"
+        # Was beim Nutzer ankam — im Feld ODER nur in der Zwischenablage. Frueher
+        # zaehlte nur das Feld, und ein Diktat, das in der Ablage lag, fehlte im
+        # Verlauf, also genau dort, wo man es spaeter noch gefunden haette.
+        in_ablage = getattr(self.pipeline, "in_ablage_text", "") or ""
+        geliefert = self.pipeline.last_injected or in_ablage
         if result in ("ok", "fallback") and self.settings.general.save_history \
-                and self.pipeline.last_injected:
+                and geliefert:
+            grund = self.pipeline.last_reason or ""
+            if in_ablage and not self.pipeline.last_injected:
+                grund = gruende.TRENNER.join(g for g in (grund, gruende.IN_ABLAGE) if g)
             record = DictationRecord(
                 ts=_time.time(),
                 raw=self.pipeline.last_raw,
-                cleaned=self.pipeline.last_injected,
+                cleaned=geliefert,
                 audio_seconds=len(audio) / max(1, self.config.audio.samplerate),
                 app=getattr(self, "_record_app", ""),
                 mode=self.pipeline.last_mode,
@@ -530,7 +553,7 @@ class DesktopApp(
                 # Roh-Guards weggeschnitten haben (V-1). Der Titel haengt an
                 # derselben Schranke wie der uebrige Verlauf (`save_history`, die
                 # Bedingung oben) und wird wie dort gekuerzt: kein zweiter Weg.
-                reason=self.pipeline.last_reason,
+                reason=grund,
                 profile=prof.name,
                 title=(getattr(self, "_record_title", "") or "")[:MAX_TITLE_LEN],
                 dropped=self.pipeline.last_dropped_tail,
@@ -576,6 +599,10 @@ class DesktopApp(
             # Text wartet in der Zwischenablage. Das MUSS ankommen — ohne Meldung
             # saehe es aus, als waere das Diktat verloren.
             self.bus.set_state(AppState.IDLE, "in der Zwischenablage")
+            # Zuerst die Blase an der Pille — sie haengt an keiner Benachrichtigungs-
+            # Einstellung. Der Toast bleibt als zusaetzlicher Weg fuer alle, die
+            # Benachrichtigungen an haben (am 2026-10-02 war er abgeschaltet).
+            self.bus.in_ablage.emit(getattr(self.pipeline, "in_ablage_text", ""))
             self.notifier.toast(
                 "critical_error", "Fleech",
                 "Das Diktat wurde erst spät fertig — damit du nicht aus deinem "
@@ -773,6 +800,8 @@ class DesktopApp(
             self.recorder.on_device_fallback = self._melde_mikrofon_rueckfall
             # Overlay-Waveform folgt automatisch (level_provider ist late-bound).
             self._recheck_input_device()
+        elif section == "stt_modell":
+            self._wechsle_stt_modell()
         elif section == "stt_device":
             self.controller.stop_if_active()
             self.config.stt.device = "auto" if self.settings.advanced.prefer_gpu else "cpu"

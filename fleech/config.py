@@ -47,6 +47,10 @@ class STTConfig:
     compute_type: str = "auto"
     language: str = "de"
     vad_filter: bool = True
+    # Erkennen, waehrend man spricht (`fleech/stt/abschnitte.py`): Abschnitte an
+    # Sprechpausen schon in der Aufnahme erkennen — nach dem Loslassen bleibt nur
+    # der letzte. Aus = alles erst nach dem Loslassen, am Stueck.
+    abschnitte: bool = True
 
 
 @dataclass

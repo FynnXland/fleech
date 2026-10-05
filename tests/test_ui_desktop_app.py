@@ -700,7 +700,8 @@ def test_aufnahmeende_meldet_den_prompt_latch_ueber_den_bus(qapp, monkeypatch):
         bus=types.SimpleNamespace(
             prompt_latch_changed=types.SimpleNamespace(emit=gemeldet.append),
             set_state=lambda *a: None),
-        _process=lambda audio, force_command=False, prompt_oneshot=False: None,
+        _process=lambda audio, force_command=False, prompt_oneshot=False,
+        abschnitte=None: None,
         # KEIN `overlay`
     )
     DesktopApp._on_record_stop(fake, "dictate")
@@ -1033,3 +1034,46 @@ def test_waehrend_eines_diktats_wird_nicht_entladen(monkeypatch):
     sperre.release()
     DesktopApp._unload_llms_async(fake, "Spiel gestartet")
     assert entladen == ["gemma"] and fake._llms_unloaded is True
+
+
+_GEMMA = __import__('types').SimpleNamespace(model='gemma3:4b')
+
+
+def _ki_fake(monkeypatch, auf_cpu, stt_auf_cpu=False):
+    import types
+
+    import fleech.llm.client as client
+
+    hinweise = []
+    monkeypatch.setattr(client, "ollama_auf_cpu", lambda ep: auf_cpu())
+    return types.SimpleNamespace(
+        pipeline=types.SimpleNamespace(stt=types.SimpleNamespace(_on_cpu=stt_auf_cpu)),
+        bus=types.SimpleNamespace(hinweis=types.SimpleNamespace(emit=hinweise.append)),
+    ), hinweise
+
+
+def test_ki_auf_dem_prozessor_wird_einmal_gemeldet(monkeypatch):
+    """Ollama fand am 2026-10-02 nach einem Update die Grafikkarte nicht — jedes
+    Diktat dauerte 13–27 s, und niemand sagte warum."""
+    from fleech.ui.desktop import DesktopApp
+
+    zustand = {"cpu": True}
+    fake, hinweise = _ki_fake(monkeypatch, lambda: zustand["cpu"])
+    DesktopApp._pruefe_ki_auf_grafikkarte(fake, _GEMMA)
+    DesktopApp._pruefe_ki_auf_grafikkarte(fake, _GEMMA)
+    assert len(hinweise) == 1 and "Prozessor" in hinweise[0]
+
+    zustand["cpu"] = False                    # Ollama neu gestartet → wieder GPU
+    DesktopApp._pruefe_ki_auf_grafikkarte(fake, _GEMMA)
+    zustand["cpu"] = True                     # spaeterer Rueckfall
+    DesktopApp._pruefe_ki_auf_grafikkarte(fake, _GEMMA)
+    assert len(hinweise) == 2
+
+
+def test_ohne_grafikkarte_kein_hinweis(monkeypatch):
+    """Laeuft schon Whisper auf der CPU, gibt es keine Grafikkarte zu finden."""
+    from fleech.ui.desktop import DesktopApp
+
+    fake, hinweise = _ki_fake(monkeypatch, lambda: True, stt_auf_cpu=True)
+    DesktopApp._pruefe_ki_auf_grafikkarte(fake, _GEMMA)
+    assert hinweise == []

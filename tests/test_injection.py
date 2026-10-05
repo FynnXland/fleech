@@ -256,3 +256,26 @@ def test_ohne_auskunft_ueber_den_vordergrund_bleibt_alles_beim_alten(monkeypatch
     _spaet(inj, 600, monkeypatch)
 
     assert inj.inject("Text") is True and ("paste",) in events
+
+
+def test_fleechs_eigenes_fenster_zaehlt_nicht_als_woanders(monkeypatch):
+    """Wer waehrend einer langen Verarbeitung auf die Pille klickt, macht Fleech
+    zum Vordergrundfenster. Das ist kein Fensterwechsel — der Text gehoert
+    weiterhin ins Ziel-Feld (Vermutung zum Fall vom 2026-10-02)."""
+    import os
+    import sys
+
+    import pytest
+
+    if sys.platform != "win32":
+        pytest.skip("Vordergrund-Abfrage nur unter Windows")
+    import fleech.ui.focusrestore as fr
+
+    fake = type("U", (), {"GetForegroundWindow": staticmethod(lambda: 4242)})()
+    monkeypatch.setattr(fr, "_user32", lambda: fake)
+    monkeypatch.setattr(fr, "_prozess_von", lambda h: os.getpid())
+    assert fr.ziel_ist_vorn(fr.FocusTarget(hwnd=1111)) is None   # unbekannt, nicht „woanders"
+
+    monkeypatch.setattr(fr, "_prozess_von", lambda h: os.getpid() + 1)
+    monkeypatch.setattr(fr, "_fenstertitel", lambda h: "Spiel")
+    assert fr.ziel_ist_vorn(fr.FocusTarget(hwnd=1111)) is False  # fremdes Fenster

@@ -80,6 +80,37 @@ def _ollama_generate_keepalive(endpoint, keep_alive) -> bool:
     return True
 
 
+def ollama_auf_cpu(endpoint) -> bool | None:
+    """Ist das Modell geladen, liegt aber mit 0 Byte auf der Grafikkarte?
+
+    True = es rechnet komplett auf dem Prozessor. None = unbekannt (nicht geladen,
+    entfernter Server, Ollama nicht erreichbar).
+
+    Anlass: Am 2026-10-02 fand Ollama nach einem Selbst-Update die Grafikkarte
+    nicht (`inference compute id=cpu`, `size_vram 0`). Jede Bereinigung dauerte
+    dadurch 13–27 s statt ~0,5 s, und das Modell belegte 2,8 GB Arbeitsspeicher.
+    Fleech merkte nichts — der Nutzer sah nur „dauert ewig".
+    """
+    if "localhost" not in endpoint.base_url and "127.0.0.1" not in endpoint.base_url:
+        return None
+    import json
+    import urllib.request
+
+    try:
+        root = ollama_root(endpoint.base_url)
+        with urllib.request.urlopen(f"{root}/api/ps", timeout=3) as antwort:
+            daten = json.load(antwort)
+    except Exception:
+        log.debug("Ollama /api/ps nicht abfragbar.", exc_info=True)
+        return None
+    for modell in daten.get("models") or []:
+        if endpoint.model in (modell.get("name"), modell.get("model")):
+            if int(modell.get("size") or 0) <= 0:
+                return None
+            return int(modell.get("size_vram") or 0) == 0
+    return None
+
+
 def ollama_preload(endpoint, keep_alive: str = OLLAMA_KEEP_ALIVE) -> bool:
     """Laedt das Modell eines LOKALEN Ollama in den VRAM und setzt keep_alive.
 

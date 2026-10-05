@@ -68,6 +68,9 @@ def _wire(monkeypatch, clock: FakeClock, clip: LaggyClipboard) -> tuple[TextInje
     events: list = []
     inj = TextInjector(restore_clipboard=False)
     inj._get_clipboard = clip.get
+    # Sonst fragt der Test die ECHTE Windows-Zwischenablage, ob dort Text liegt —
+    # und faellt durch, sobald der Nutzer gerade ein Bild kopiert hat.
+    inj._clipboard_has_text = lambda: clip.pending is not None
     inj._set_clipboard = lambda text: (clip.set(text), events.append(("clip", text)))[1]
     inj._paste_keystroke = lambda: events.append(("paste", clip.get()))
     return inj, events

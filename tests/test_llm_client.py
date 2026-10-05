@@ -244,3 +244,33 @@ def test_chat_haelt_das_modell_selbst_warm(monkeypatch):
                                "done_reason": "stop"}, calls)
     ChatClient(LLMEndpointConfig(num_ctx=8192, reasoning_effort="")).complete("S", "t")
     assert calls[0]["body"]["keep_alive"] == OLLAMA_KEEP_ALIVE
+
+
+@pytest.mark.parametrize("ps, erwartet", [
+    ({"models": [{"name": "gemma3:4b", "size": 3_000_000_000, "size_vram": 0}]}, True),
+    ({"models": [{"name": "gemma3:4b", "size": 3_000_000_000,
+                  "size_vram": 3_000_000_000}]}, False),
+    ({"models": []}, None),                                   # nicht geladen
+    ({"models": [{"name": "anderes:1b", "size": 1, "size_vram": 0}]}, None),
+])
+def test_erkennt_ki_auf_dem_prozessor(monkeypatch, ps, erwartet):
+    """Am 2026-10-02 rechnete Ollama nach einem Selbst-Update auf dem Prozessor
+    (size_vram 0): 13–27 s je Bereinigung statt ~0,5 s, und Fleech merkte nichts."""
+    from fleech.llm.client import ollama_auf_cpu
+
+    abgefragt = []
+
+    def urlopen(url, timeout=None):
+        abgefragt.append(url)
+        return _FakeResponse(json.dumps(ps).encode("utf-8"))
+
+    monkeypatch.setattr("urllib.request.urlopen", urlopen)
+    assert ollama_auf_cpu(LLMEndpointConfig(model="gemma3:4b")) is erwartet
+    assert abgefragt == ["http://127.0.0.1:11434/api/ps"]
+
+
+def test_ki_pruefung_fasst_keinen_entfernten_server_an():
+    from fleech.llm.client import ollama_auf_cpu
+
+    assert ollama_auf_cpu(LLMEndpointConfig(model="gemma3:4b",
+                                            base_url="http://192.168.1.9:11434")) is None

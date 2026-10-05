@@ -56,6 +56,9 @@ AUDIO = np.zeros(16000, dtype=np.float32)  # 1 s
 
 
 RAW_NONTRIVIAL = "also äh das hier ist der rohe text mit ein paar mehr worten"
+# Was davon ankommt, wenn die KI ausfaellt: der Rohtext OHNE Fuellwoerter — die
+# entfernt `vorbereinigung.py` vor dem Modell, also auch vor jedem Rueckfall.
+RAW_NONTRIVIAL_OHNE_FW = "also das hier ist der rohe text mit ein paar mehr worten"
 
 
 # Realistische Cleanup-Ausgabe dazu: wortgetreu, nur Fuellwoerter/Interpunktion. Eine

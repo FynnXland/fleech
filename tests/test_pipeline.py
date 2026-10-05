@@ -12,7 +12,7 @@ from pipelinehelpers import (
     AUDIO,
     CLEAN_NONTRIVIAL,
     FakeLLM,
-    RAW_NONTRIVIAL,
+    RAW_NONTRIVIAL, RAW_NONTRIVIAL_OHNE_FW,
     make_pipeline,
 )
 
@@ -27,14 +27,16 @@ def test_happy_path_injects_cleaned_text():
     assert injector.injected == ["sauberer Text."]
     system, user = llm.calls[0]
     assert system == "SYSTEM"
-    assert "also äh der text halt" in user           # Roh-Transkript im User-Turn …
+    # Roh-Transkript im User-Turn, UNVERAENDERT: Fuellwoerter entfernt Fleech erst
+    # NACH dem Modell (vorbereinigte Eingabe liess es live anders formulieren).
+    assert "also äh der text halt" in user
     assert "⟦TRANSKRIPT⟧" in user                     # … als abgegrenzter Datenblock
 
 
 def test_llm_failure_falls_back_to_raw_transcript():
     p, _, injector = make_pipeline(RAW_NONTRIVIAL, llm=FakeLLM(error=ConnectionError("down")))
     p.process(AUDIO, 16000)
-    assert injector.injected == [RAW_NONTRIVIAL]
+    assert injector.injected == [RAW_NONTRIVIAL_OHNE_FW]
 
 
 def test_empty_llm_reply_falls_back_to_raw():
@@ -43,7 +45,7 @@ def test_empty_llm_reply_falls_back_to_raw():
     Bestaetigungston fuer ein unbereinigtes Transkript."""
     p, _, injector = make_pipeline(RAW_NONTRIVIAL, llm=FakeLLM(reply=""))
     assert p.process(AUDIO, 16000) == "fallback"
-    assert injector.injected == [RAW_NONTRIVIAL]
+    assert injector.injected == [RAW_NONTRIVIAL_OHNE_FW]
 
 
 def test_too_short_audio_is_dropped():
@@ -88,7 +90,7 @@ def test_process_returns_status_codes():
 def test_llm_failure_returns_fallback_status():
     p, _, injector = make_pipeline(RAW_NONTRIVIAL, llm=FakeLLM(error=ConnectionError("down")))
     assert p.process(AUDIO, 16000) == "fallback"
-    assert injector.injected == [RAW_NONTRIVIAL]
+    assert injector.injected == [RAW_NONTRIVIAL_OHNE_FW]
 
 
 def test_trivial_utterance_skips_llm_entirely():
@@ -193,6 +195,7 @@ def test_app_profile_override_minimal_skips_llm():
     p, llm, injector = make_pipeline(RAW_NONTRIVIAL)
     p.process(AUDIO, 16000, intervention_override="minimal")
     assert llm.calls == []                       # App-Profil: kein LLM-Eingriff
+    # … und auch keine Fuellwort-Entfernung: „minimal" heisst Text wie gesprochen.
     assert injector.injected == [RAW_NONTRIVIAL]
     # Override gilt nur pro Durchlauf — die Grundeinstellung bleibt unveraendert.
     assert p.intervention == "standard"
@@ -223,7 +226,7 @@ def _rueckfall_grund(fehler, base_url="http://127.0.0.1:11434"):
     llm.cfg = types.SimpleNamespace(base_url=base_url)
     p, _, injector = make_pipeline(RAW_NONTRIVIAL, llm=llm)
     assert p.process(AUDIO, 16000) == "fallback"
-    assert injector.injected == [RAW_NONTRIVIAL]     # Rohtext kommt weiter an
+    assert injector.injected == [RAW_NONTRIVIAL_OHNE_FW]     # Rohtext kommt weiter an
     return p.last_error_kind
 
 
@@ -279,8 +282,27 @@ def test_nur_in_der_ablage_wird_nicht_als_eingefuegt_gefuehrt():
 
     assert p.process(AUDIO, 16000) == "ok"
     assert p.in_ablage_statt_eingefuegt is True
+    assert p.in_ablage_text                             # die App zeigt ihn in der Blase
     assert p.tracker.context_tail() == ""
 
     injector.inject = lambda text: (injector.injected.append(text), True)[1]
     p.process(AUDIO, 16000)
     assert p.in_ablage_statt_eingefuegt is False        # je Diktat zurueckgesetzt
+
+
+def test_fuellwoerter_verschwinden_nach_dem_modell():
+    """Die Regel im Prompt entfernte 14 von 564 Füllwörtern. Bleibt eines in der
+    Modellantwort stehen, entfernt Fleech es danach — das Modell selbst sieht den
+    Rohtext unverändert."""
+    llm = FakeLLM(reply="Also, ähm, das ist der Text.")
+    p, _, injector = make_pipeline(RAW_NONTRIVIAL, llm=llm)
+    p.process(AUDIO, 16000)
+    assert "ähm" not in injector.injected[0].lower()
+    assert "äh" in llm.calls[0][1]                        # Eingabe unverändert
+
+
+def test_minimal_behaelt_die_fuellwoerter():
+    """„minimal" heißt: Text wie gesprochen."""
+    p, _, injector = make_pipeline(RAW_NONTRIVIAL)
+    p.process(AUDIO, 16000, intervention_override="minimal")
+    assert injector.injected == [RAW_NONTRIVIAL]

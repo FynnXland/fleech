@@ -12,6 +12,7 @@ wird hier weiter geprueft, jetzt am verbliebenen Formel-Zweig.
 """
 
 
+from fleech.vorbereinigung import entferne_fuellwoerter
 from pipelinehelpers import (
     AUDIO,
     FakeLLM,
@@ -19,6 +20,7 @@ from pipelinehelpers import (
 )
 
 PE_RAW = "ähm kannst du mir den code cleaner machen also vor allem parse config"
+PE_RAW_OHNE_FW = entferne_fuellwoerter(PE_RAW)[0]
 
 
 def test_prompt_mode_structures_dictation():
@@ -41,7 +43,9 @@ def test_prompt_mode_failure_falls_back_to_cleanup():
     p.prompt_engineer_prompt = "PE-SYSTEM"
     result = p.process(AUDIO, 16000, prompt_mode=True)
     assert result == "fallback"
-    assert injector.injected == [PE_RAW]
+    # Rueckfall = Rohtext, aber ohne das Fuellwort am Anfang: Fuellwoerter
+    # entfernt Fleech nach jedem Cleanup-Weg, auch nach dem Rueckfall.
+    assert injector.injected == [PE_RAW_OHNE_FW]
 
 
 def test_prompt_mode_without_prompt_file_degrades_to_cleanup():
@@ -51,7 +55,9 @@ def test_prompt_mode_without_prompt_file_degrades_to_cleanup():
     p, _, injector = make_pipeline(PE_RAW)
     result = p.process(AUDIO, 16000, prompt_mode=True)
     assert result == "fallback"
-    assert injector.injected == [PE_RAW]
+    # Rueckfall = Rohtext, aber ohne das Fuellwort am Anfang: Fuellwoerter
+    # entfernt Fleech nach jedem Cleanup-Weg, auch nach dem Rueckfall.
+    assert injector.injected == [PE_RAW_OHNE_FW]
 
 
 FORMEL_RAW = "vielen dank die formel lautet x hoch zwei plus eins bis bald"

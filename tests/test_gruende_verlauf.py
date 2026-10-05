@@ -370,3 +370,93 @@ def test_leere_gruende_erzeugen_keine_zeile(grund):
     from fleech.ui.pages.insights import _gruende_zeile
 
     assert _gruende_zeile(grund) == ""
+
+
+def test_nur_in_der_ablage_loest_die_blase_aus_auch_ohne_benachrichtigungen(qapp, tmp_path):
+    """Der Fall vom 2026-10-02: Diktat 33 s nach dem Sprechen fertig, Nutzer in
+    einem anderen Fenster → Text in die Zwischenablage. Der Toast wurde
+    unterdrueckt (Benachrichtigungen auf „Nichts"), die Pille verschwand — der
+    Nutzer sah nichts. Die Blase muss IMMER kommen, egal was der Toast tut."""
+    import types
+
+    from fleech.profiles import ProfileOverrides
+    from fleech.ui.desktop import DesktopApp
+
+    blasen, toasts = [], []
+    still = types.SimpleNamespace(emit=lambda *a: None)
+    fake = types.SimpleNamespace(
+        _app_profile_overrides=lambda: ProfileOverrides(),
+        _setze_sprache=lambda s: None,
+        settings=types.SimpleNamespace(
+            output=types.SimpleNamespace(command_enabled=True),
+            general=types.SimpleNamespace(language="de", save_history=False),
+        ),
+        config=types.SimpleNamespace(audio=types.SimpleNamespace(samplerate=16000)),
+        store=HistoryStore(tmp_path / "history.db"),
+        pipeline=types.SimpleNamespace(
+            process=lambda audio, samplerate, **kw: "ok",
+            last_mode="cleanup", last_injected="", last_raw="roh",
+            last_formulas=[], last_dropped_tail="", last_reason="",
+            last_error_kind="", last_tier="", last_stt_ms=0, last_llm_ms=0,
+            in_ablage_statt_eingefuegt=True, in_ablage_text="Mein spätes Diktat.",
+            injector=types.SimpleNamespace(send_enter=lambda: None),
+        ),
+        bus=types.SimpleNamespace(
+            injection_fallback=still, formula_preview=still, tail_dropped=still,
+            transcript_ready=still, history_changed=still, set_state=lambda *a: None,
+            in_ablage=types.SimpleNamespace(emit=blasen.append),
+        ),
+        # Ein Notifier, der ALLES unterdrueckt — wie bei der Stufe „Nichts".
+        notifier=types.SimpleNamespace(sound=lambda k: None,
+                                       toast=lambda *a, **k: toasts.append(a) and False),
+        _record_app="", _record_title="", _undo_candidate=None,
+        _check_dictionary_candidates=lambda t: None,
+        _count_dictionary_usage=lambda t: None,
+        _flash_status=lambda t: None,
+    )
+    DesktopApp._process_locked(fake, b"\x00" * 32)
+    assert blasen == ["Mein spätes Diktat."]
+
+
+def test_nur_in_der_ablage_landet_trotzdem_im_verlauf(qapp, tmp_path):
+    """Am 2026-10-02 fehlte das spaete Diktat im Verlauf — dem einzigen Ort, an
+    dem man es haette wiederfinden koennen. Es stand nur noch im Protokoll."""
+    import types
+
+    from fleech.profiles import ProfileOverrides
+    from fleech.ui.desktop import DesktopApp
+
+    still = types.SimpleNamespace(emit=lambda *a: None)
+    store = HistoryStore(tmp_path / "history.db")
+    fake = types.SimpleNamespace(
+        _app_profile_overrides=lambda: ProfileOverrides(),
+        _setze_sprache=lambda s: None,
+        settings=types.SimpleNamespace(
+            output=types.SimpleNamespace(command_enabled=True),
+            general=types.SimpleNamespace(language="de", save_history=True),
+        ),
+        config=types.SimpleNamespace(audio=types.SimpleNamespace(samplerate=16000)),
+        store=store,
+        pipeline=types.SimpleNamespace(
+            process=lambda audio, samplerate, **kw: "ok",
+            last_mode="cleanup", last_injected="", last_raw="roh",
+            last_formulas=[], last_dropped_tail="", last_reason="",
+            last_error_kind="", last_tier="", last_stt_ms=0, last_llm_ms=0,
+            in_ablage_statt_eingefuegt=True, in_ablage_text="Mein spätes Diktat.",
+            injector=types.SimpleNamespace(send_enter=lambda: None),
+        ),
+        bus=types.SimpleNamespace(
+            injection_fallback=still, formula_preview=still, tail_dropped=still,
+            transcript_ready=still, history_changed=still, set_state=lambda *a: None,
+            in_ablage=still,
+        ),
+        notifier=types.SimpleNamespace(sound=lambda k: None, toast=lambda *a, **k: False),
+        _record_app="", _record_title="", _undo_candidate=None,
+        _check_dictionary_candidates=lambda t: None,
+        _count_dictionary_usage=lambda t: None,
+        _flash_status=lambda t: None,
+    )
+    DesktopApp._process_locked(fake, b"\x00" * 32)
+    eintrag = store.recent()[0]
+    assert eintrag["cleaned"] == "Mein spätes Diktat."
+    assert gruende.IN_ABLAGE in eintrag["reason"]

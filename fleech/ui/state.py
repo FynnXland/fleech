@@ -39,6 +39,12 @@ class StateBus(QObject):
     # Vorschau ist das eine LOESCHUNG — sie wird immer gemeldet, auch wenn die
     # Transkript-Blase aus ist.
     tail_dropped = Signal(str)
+    # Text liegt nur in der Zwischenablage (spaet fertig, Nutzer woanders) —
+    # die Pille zeigt es als Blase, unabhaengig von Benachrichtigungen.
+    in_ablage = Signal(str)
+    # Wichtiger Hinweis ohne Bezug zu einem Diktat (z. B. KI auf dem Prozessor) —
+    # als Blase an der Pille, unabhaengig von Benachrichtigungs-Einstellungen.
+    hinweis = Signal(str)
     dictionary_suggestion = Signal(str, str, str)  # (erkannt, gemeint, satz) — Rueckfrage
     command_armed = Signal(bool)     # Befehls-Aufnahme laeuft (Trigger-Button) → Pille armen
     # Update-Pruefung/-Download laufen im Worker-Thread; das Ergebnis darf die UI nur

@@ -186,8 +186,38 @@ class ModelleMixin:
             for endpoint in endpoints:
                 ollama_preload(endpoint)
             self._llms_unloaded = False  # wieder warm → naechstes Entladen erlaubt
+            self._pruefe_ki_auf_grafikkarte(endpoints[0] if endpoints else None)
         except Exception:
             log.debug("Keep-Warm fehlgeschlagen.", exc_info=True)
+
+    def _pruefe_ki_auf_grafikkarte(self, endpoint) -> None:
+        """Warnen, wenn Ollama auf dem Prozessor rechnet, obwohl eine Grafikkarte da ist.
+
+        Nur dann: Laeuft Whisper selbst auf der CPU, gibt es keine Grafikkarte zu
+        finden, und die Meldung waere bloss Laerm. Einmal je Auftreten — kommt
+        Ollama wieder auf die Grafikkarte, darf ein spaeterer Rueckfall erneut
+        gemeldet werden."""
+        from ...llm.client import ollama_auf_cpu
+
+        if endpoint is None:
+            return
+        stt = getattr(getattr(self, "pipeline", None), "stt", None)
+        if getattr(stt, "_on_cpu", True):
+            return
+        auf_cpu = ollama_auf_cpu(endpoint)
+        if auf_cpu is False:
+            self._ki_cpu_gemeldet = False
+            return
+        if not auf_cpu or getattr(self, "_ki_cpu_gemeldet", False):
+            return
+        self._ki_cpu_gemeldet = True
+        log.warning("Ollama rechnet %s auf dem PROZESSOR, nicht auf der Grafikkarte — "
+                    "jede Bereinigung dauert dadurch ein Vielfaches. Abhilfe: Ollama "
+                    "neu starten.", endpoint.model)
+        self.bus.hinweis.emit(
+            "Die lokale KI rechnet gerade auf dem Prozessor statt auf der "
+            "Grafikkarte — Diktate dauern dadurch 10–30 Sekunden. Abhilfe: Ollama "
+            "im Infobereich beenden und neu starten.")
 
     def _report_model_download(self, text: str) -> None:
         """Download-Fortschritt sichtbar machen — mehrere GB duerfen nicht wie eine
@@ -249,3 +279,36 @@ class ModelleMixin:
                 log.debug("LLM-Entladen fehlgeschlagen.", exc_info=True)
 
         threading.Thread(target=work, daemon=True).start()
+
+    def _wechsle_stt_modell(self) -> None:
+        """Erkennungsmodell umstellen (Einstellung „Spracherkennung") — ohne Neustart.
+
+        Fehlt das Modell, wird es zuerst geladen; bis dahin erkennt das bisherige
+        weiter. Erst wenn das neue vollständig da ist, wird umgesteckt — ein
+        abgebrochener Download hinterlässt nie eine Erkennung, die nicht startet.
+        """
+        from ... import provisioning
+        from ...stt import create_stt
+        from ...stt.modellwahl import modell_fuer
+
+        ziel = modell_fuer(self.settings.advanced.stt_modell, self.config.stt.model_size)
+        if ziel == self.config.stt.model_size:
+            return
+        name = "deutsche" if self.settings.advanced.stt_modell == "deutsch" else "allgemeine"
+
+        def lauf():
+            if not provisioning.whisper_present(ziel):
+                self.bus.hinweis.emit(f"Lade {name} Spracherkennung (1,6 GB) …")
+                if not provisioning.ensure_whisper(ziel, on_progress=log.info):
+                    self.bus.hinweis.emit(
+                        "Spracherkennung konnte nicht geladen werden — die bisherige "
+                        "bleibt aktiv. Internetverbindung prüfen.")
+                    return
+            self.controller.stop_if_active()
+            self.config.stt.model_size = ziel
+            self.pipeline.stt = create_stt(self.config.stt)
+            self._warm_up_stt()
+            log.info("Erkennungsmodell gewechselt: %s", ziel)
+            self.bus.hinweis.emit(f"Jetzt aktiv: {name} Spracherkennung.")
+
+        threading.Thread(target=lauf, name="fleech-sttwechsel", daemon=True).start()

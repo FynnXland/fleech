@@ -81,6 +81,34 @@ def _register_cuda_dlls() -> None:
             log.debug("CUDA-Libs vorgeladen: %s", ", ".join(sorted(loaded)))
 
 
+def waehle_rechenart(device: str, compute_type: str) -> str:
+    """Rechenart fuer `compute_type: auto` — bewusst gewaehlt statt geerbt.
+
+    „auto" hiess bei CTranslate2: der Typ, in dem das Modell gespeichert ist —
+    float16. Gemessen (RTX 4070, 6 Aufnahmen 5–120 s, beam 5): int8_float16
+    belegt 1,0 statt 2,1 GB Grafikspeicher, ist gleich schnell oder schneller
+    und macht nicht mehr Fehler (Standard 14 statt 32, Deutsch 4 wie 4). Ein
+    Gigabyte weniger heisst: Neben Stimmwandler oder Spiel laeuft die Karte
+    seltener voll — und eine volle Karte macht die Erkennung 50-mal langsamer.
+
+    Auf dem Prozessor gibt es kein float16; dort int8 (wie im CPU-Rueckfall).
+    Ein in config.yaml ausdruecklich gesetzter Typ gilt unveraendert.
+    """
+    if compute_type not in ("", "auto", "default"):
+        return compute_type
+    if device == "cpu":
+        return "int8"
+    if device == "auto":
+        try:
+            import ctranslate2
+
+            if ctranslate2.get_cuda_device_count() == 0:
+                return "int8"
+        except Exception:
+            return "int8"
+    return "int8_float16"
+
+
 class FasterWhisperSTT(STTEngine):
     def __init__(self, cfg):
         self.cfg = cfg
@@ -105,7 +133,8 @@ class FasterWhisperSTT(STTEngine):
             return
         _register_cuda_dlls()
         try:
-            self._model = self._load_model(self.cfg.device, self.cfg.compute_type)
+            self._model = self._load_model(
+                self.cfg.device, waehle_rechenart(self.cfg.device, self.cfg.compute_type))
         except Exception as exc:
             if self.cfg.device == "cpu":
                 raise
@@ -141,10 +170,14 @@ class FasterWhisperSTT(STTEngine):
                  nsp * 100, (seg.text or "").strip()[:80])
         return False
 
-    def _run(self, audio: np.ndarray, initial_prompt: str | None = None) -> str:
+    def _run(self, audio: np.ndarray, initial_prompt: str | None = None,
+             sprache: str | None = None) -> str:
         # "auto" (oder leer) = Whisper bestimmt die Sprache selbst — fuer
-        # zweisprachiges Diktat (deutsch/englisch gemischt).
-        language = None if self.cfg.language in ("", "auto") else self.cfg.language
+        # zweisprachiges Diktat (deutsch/englisch gemischt). `sprache` setzt sie
+        # fuer genau diesen Lauf (Abschnitte: Das Profil steht schon beim Druecken
+        # fest, `cfg.language` aber erst bei der Verarbeitung).
+        sprache = self.cfg.language if sprache is None else sprache
+        language = None if sprache in ("", "auto") else sprache
         self.letzter_schwanz_ohne_ton = ""
         with self._lock:
             segments, _info = self._model.transcribe(
@@ -200,6 +233,21 @@ class FasterWhisperSTT(STTEngine):
             )
             return " ".join(seg.text.strip() for seg in segments
                             if self._keep_segment(seg)).strip()
+
+    def transcribe_abschnitt(self, audio: np.ndarray, initial_prompt: str | None,
+                             sprache: str) -> tuple[str, str]:
+        """Einen Abschnitt WAEHREND der Aufnahme erkennen (`stt/abschnitte.py`).
+
+        16-kHz-Audio. Gleiche Einstellungen wie das Diktat (beam 5, VAD, Schwanz-
+        Guard) — die Abschnitte ersetzen dessen Erkennung, also muessen sie ihr
+        gleichen. Rueckgabe: (Text, verworfener tonloser Schwanz)."""
+        self._ensure_model()
+        if self._on_cpu:
+            # Auf der CPU kostet ein Abschnitt 7–8 s und belegt alle Kerne,
+            # waehrend der Nutzer noch spricht — Vorschau und Pille ruckeln.
+            raise RuntimeError("STT laeuft auf der CPU — keine Abschnitte.")
+        text = self._run(audio, initial_prompt, sprache)
+        return text, self.letzter_schwanz_ohne_ton
 
     def transcribe(
         self, audio: np.ndarray, samplerate: int, initial_prompt: str | None = None

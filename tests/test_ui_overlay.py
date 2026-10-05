@@ -828,3 +828,21 @@ def test_profil_punkt_bleibt_ausserhalb_der_aufnahme_sichtbar(qapp):
     assert o._math_dot._profil_farbe == "#7FD1A6"
     assert not o._math_dot._klickbar
     o.close()
+
+
+def test_in_ablage_zeigt_eine_blase_mit_dem_text(qapp):
+    """Der Hinweis darf an keiner Benachrichtigungs-Einstellung haengen: Am
+    2026-10-02 wurde der Toast unterdrueckt, die Pille verschwand — der Nutzer sah
+    nichts. Die Blase zeigt den Anfang des Textes und wo er liegt."""
+    from fleech.ui.overlay_qt import OverlayWindow
+
+    s = UserSettings().overlay
+    s.visibility = "during_activity"
+    o = OverlayWindow(s)
+    o.set_app_state(AppState.PROCESSING)
+    o.zeige_in_ablage("Das ist mein Diktat, das spät fertig wurde.")
+    o.set_app_state(AppState.IDLE)                    # die Pille selbst geht weg …
+    assert not o._caption.isHidden()                  # … die Blase bleibt
+    text = o._caption._label.text() if hasattr(o._caption, "_label") else ""
+    assert "Das ist mein Diktat" in text and "Zwischenablage" in text
+    o.close()

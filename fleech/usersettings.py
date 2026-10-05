@@ -451,6 +451,9 @@ class AdvancedSettings:
     # Persistiert in settings.json — uebersteht Neustart und Autostart, kein
     # Env-Var-/setx-Umweg noetig.
     prefer_gpu: bool = True
+    # Erkennungsmodell: "standard" (Whisper turbo) | "deutsch" (auf Deutsch
+    # nachtrainiert, siehe fleech/stt/modellwahl.py).
+    stt_modell: str = "standard"
     # `adaptive_cleanup` ist nach 5.10.2 entfallen (Befund E-4): Der Schalter stand
     # bei jedem Nutzer auf „an" und konnte nichts bewirken — `cleanup` und
     # `cleanup_fast` fahren in config.yaml bewusst dasselbe Modell. Das Routing
@@ -661,6 +664,9 @@ class UserSettings:
         config.audio_focus.blocked_devices = list(self.recording.blocked_devices or [])
         config.stt.language = self.general.language
         config.stt.device = "auto" if self.advanced.prefer_gpu else "cpu"
+        from .stt.modellwahl import modell_fuer
+        config.stt.model_size = modell_fuer(self.advanced.stt_modell,
+                                            config.stt.model_size)
         config.audio_focus.mode = self.audio_focus.mode
         # Regelbare Restlautstaerke: greift fuer Soft- UND Hard-Duck (der Nutzer
         # steuert genau einen Wert, statt zwei getrennte config-Konstanten).

@@ -27,6 +27,9 @@ UMFORMULIERT = "KI hat umformuliert statt bereinigt"
 SINN_GEDREHT = "Aussage verändert"          # + Detail, siehe mit_detail()
 FORMEL_UNPLAUSIBEL = "Unplausibel viele Formel-Blöcke"
 FORMEL_MARKER = "Formel-Platzhalter verloren"
+# Je Block geprueft (fleech/bloecke.py) — der Block kam dann als Rohtext.
+PROMPT_BEISPIEL = "KI schrieb Beispielsätze aus ihrer Anleitung ins Diktat"
+AUSLASSUNG = "KI ließ zu viel vom Gesagten weg"
 # `BAUSTEIN_MARKER` ist mit den Text-Bausteinen in 5.11.0 entfallen. Kein Verlauf
 # kann ihn tragen: Er entstand nur, wenn Bausteine konfiguriert waren — und das
 # waren sie nie.
@@ -41,6 +44,12 @@ DOMINANZ_SCHWANZ = "Dominanz-Schwanz entfernt"
 WIEDERHOLUNG_INNEN = "Wiederholung im Text gekürzt"
 SCHWANZ_OHNE_TON = "Text ohne Ton am Ende entfernt"
 
+# -- Zustellung: der Text ist fertig, kam aber nicht ins Feld --------------------------
+# Spaet fertig und der Nutzer war in einem anderen Fenster (5.13.0): Der Text liegt in
+# der Zwischenablage. Gerade DIESE Diktate gehoeren in den Verlauf — dort ist der
+# einzige Ort, an dem man sie spaeter noch findet (am 2026-10-02 fehlte eines).
+IN_ABLAGE = "Nicht eingefügt — lag nur in der Zwischenablage (spät fertig, anderes Fenster)"
+
 # Etikett fuer die Zaehlzeile der Insights („Rückfälle: 2× Ollama, 1× Sinnumkehr").
 # Der volle Satz gehoert in den Einzelfall, nicht in eine Aufzaehlung.
 KURZFORM = {
@@ -52,6 +61,8 @@ KURZFORM = {
     SINN_GEDREHT: "Sinnumkehr",
     FORMEL_UNPLAUSIBEL: "Formel-Ausreißer",
     FORMEL_MARKER: "Formel verloren",
+    PROMPT_BEISPIEL: "Prompt-Beispiel",
+    AUSLASSUNG: "Auslassung",
     BEFEHL_GESCHEITERT: "Befehl",
     FORMAT_GESCHEITERT: "Ausgabeformat",
     ENDE_GEKUERZT: "Wiederholung",
@@ -60,6 +71,7 @@ KURZFORM = {
     DOMINANZ_SCHWANZ: "Halluzination",
     WIEDERHOLUNG_INNEN: "Wiederholung",
     SCHWANZ_OHNE_TON: "ohne Ton",
+    IN_ABLAGE: "nur Zwischenablage",
 }
 
 

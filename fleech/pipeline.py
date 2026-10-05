@@ -28,6 +28,9 @@ from .textutils import (
     strip_wrapping_quotes,
     wrap_transcript,
 )
+from .bloecke import beispielsaetze, bereinige_in_bloecken
+from .stt.abschnitte import erkenne_mit_vorab
+from .vorbereinigung import entferne_fuellwoerter
 from .textfilter import (
     added_ratio,
     classify_complexity,
@@ -238,6 +241,7 @@ class Pipeline:
         self.last_raw = ""
         self.last_injected = ""
         self.in_ablage_statt_eingefuegt = False
+        self.in_ablage_text = ""
         self.last_mode = "cleanup"
         self.last_tier = ""
         self.last_stt_ms = 0       # Latenz-Telemetrie (lokal, fuer Insights)
@@ -295,12 +299,36 @@ class Pipeline:
             log.info("Woerterbuch: %d Begriffe (%d geprimt), %d Ersetzungsregeln.",
                      len(terms), primed, len(rules))
 
+    def stt_hinweis(self, app: str = "", window_title: str = "",
+                    suppress_command: bool = False) -> str | None:
+        """Whisper-Priming fuer ein Diktat — auch fuer die Abschnitte waehrend der
+        Aufnahme, die genauso geprimt sein muessen wie die Erkennung am Stueck."""
+        # Math-Focus: beim Math-Hotkey bekommt Whisper das Mathe-Vokabular als Hinweis
+        # (stabilisiert Grenz-/Klammer-Woerter). Beim Delimiter-Weg ist der Modus erst
+        # NACH der Transkription bekannt — dort greift der Hinweis nicht.
+        # Das Nutzer-Woerterbuch (Eigennamen/Fachbegriffe) wird immer mitgegeben.
+        hints = []
+        if self._vocab_prompt:
+            hints.append(self._vocab_prompt)
+        gelernt = self._kontext_begriffe(app, window_title)
+        if gelernt:
+            # NACH dem Woerterbuch: Das ist von Hand gepflegt und damit praeziser
+            # als alles Gelernte — bei knappem Kontextfenster soll es vorn stehen.
+            hints.append("Fachbegriffe: " + ", ".join(gelernt) + ".")
+        if self.trigger_word and not suppress_command:
+            # Das Signalwort ist ein Kunst-/Fremdwort — Whisper darauf primen,
+            # sonst wird es je nach Stimme unzuverlaessig erkannt. Ist der
+            # gesprochene Befehlsweg fuer diese App aus, waere das Priming sogar
+            # schaedlich (erhoehte Trefferwahrscheinlichkeit ohne Nutzen).
+            hints.append(f"Signalwort: {self.trigger_word}.")
+        return " ".join(hints) or None
+
     def process(self, audio: np.ndarray, samplerate: int,
                 intervention_override: str | None = None,
                 style_hints: list | None = None, force_command: bool = False,
                 prompt_mode: bool = False, suppress_command: bool = False,
                 output_format: str = "", app: str = "",
-                window_title: str = "") -> str:
+                window_title: str = "", vorab=None) -> str:
         """Verarbeitet ein Segment. Rueckgabe fuer die UI (Status/Sounds):
         "ok" | "fallback" (Ergebnis eingefuegt, aber ueber einen Fehler-Fallback) |
         "empty" | "too_short" | "error"
@@ -320,6 +348,7 @@ class Pipeline:
         Nur fuer das Projekt-Gedaechtnis (`fleech/kontext.py`): Daraus kommt das
         gelernte Fachvokabular fuer das Whisper-Priming, und dorthin wird nach
         dem Einfuegen zurueckgelernt.
+        vorab: schon waehrend der Aufnahme erkannte Abschnitte (`stt/abschnitte.py`).
         """
         # Ziel fuer das Projekt-Gedaechtnis merken: `_inject_append` ist der EINE
         # Ort, an dem Text wirklich beim Nutzer landet (es gibt mehrere Wege
@@ -333,6 +362,7 @@ class Pipeline:
         self.last_raw = ""
         self.last_injected = ""
         self.in_ablage_statt_eingefuegt = False
+        self.in_ablage_text = ""
         self.last_mode = "cleanup"
         self.last_tier = ""
         self.last_stt_ms = 0
@@ -344,28 +374,10 @@ class Pipeline:
             return "too_short"
 
         t0 = time.perf_counter()
-        # Math-Focus: beim Math-Hotkey bekommt Whisper das Mathe-Vokabular als Hinweis
-        # (stabilisiert Grenz-/Klammer-Woerter). Beim Delimiter-Weg ist der Modus erst
-        # NACH der Transkription bekannt — dort greift der Hinweis nicht.
-        # Das Nutzer-Woerterbuch (Eigennamen/Fachbegriffe) wird immer mitgegeben.
-        hints = []
-        if self._vocab_prompt:
-            hints.append(self._vocab_prompt)
-        gelernt = self._kontext_begriffe(app, window_title)
-        if gelernt:
-            # NACH dem Woerterbuch: Das ist von Hand gepflegt und damit praeziser
-            # als alles Gelernte — bei knappem Kontextfenster soll es vorn stehen.
-            hints.append("Fachbegriffe: " + ", ".join(gelernt) + ".")
-        if self.trigger_word and not suppress_command:
-            # Das Signalwort ist ein Kunst-/Fremdwort — Whisper darauf primen,
-            # sonst wird es je nach Stimme unzuverlaessig erkannt. Ist der
-            # gesprochene Befehlsweg fuer diese App aus, waere das Priming sogar
-            # schaedlich (erhoehte Trefferwahrscheinlichkeit ohne Nutzen).
-            hints.append(f"Signalwort: {self.trigger_word}.")
-        hint = " ".join(hints) or None
+        hint = self.stt_hinweis(app, window_title, suppress_command)
         try:
             with self._stt_lock:  # nicht gleichzeitig mit Formel-Segment-Jobs
-                raw = self.stt.transcribe(audio, samplerate, initial_prompt=hint)
+                raw = erkenne_mit_vorab(self.stt, audio, samplerate, hint, vorab)
         except Exception:
             log.exception("STT fehlgeschlagen.")
             return "error"
@@ -479,9 +491,38 @@ class Pipeline:
             return self.fast_llm, "simple"
         return self.cleanup_llm, "complex"
 
+    def _eingriff(self, intervention_override: str | None) -> str:
+        """Wirksamer Eingriffsgrad: das App-Profil, sonst die Einstellung."""
+        if intervention_override in ("minimal", "standard", "strong"):
+            return intervention_override
+        return self.intervention
+
     def _cleanup(self, raw: str, intervention_override: str | None = None,
                  style_hints: list | None = None,
                  force_big: bool = False) -> tuple[str, bool]:
+        """Bereinigen und danach die Fuellwoerter entfernen. (Text, Fallback?)
+
+        Fuellwoerter („äh", „ähm", „öh") entfernt die Regel in prompts/cleanup.md
+        nachweislich nicht: 14 von 564. `vorbereinigung.py` traf im Verlauf alle 751
+        und kein echtes Wort. Bewusst NACH dem Modell statt davor: Mit vorbereinigter
+        Eingabe formulierte das Modell live in 2 von 8 Diktaten stabil anders
+        („irgendwie … was" → „irgendwas", ein „also" fiel weg). Danach entfernt sieht
+        es exakt die Eingabe von bisher — und Rohtext-Rueckfall sowie der Weg ohne
+        Modell werden gleich mit sauber. Nicht bei „minimal": Dort will der Nutzer
+        den Text, wie er gesprochen wurde. Bliebe nichts uebrig, bleibt der Text.
+        """
+        text, fallback = self._cleanup_kern(raw, intervention_override, style_hints,
+                                            force_big)
+        if self._eingriff(intervention_override) != "minimal":
+            ohne, anzahl = entferne_fuellwoerter(text)
+            if anzahl and ohne.strip():
+                log.info("Fuellwoerter entfernt: %d.", anzahl)
+                text = ohne
+        return text, fallback
+
+    def _cleanup_kern(self, raw: str, intervention_override: str | None = None,
+                      style_hints: list | None = None,
+                      force_big: bool = False) -> tuple[str, bool]:
         """(bereinigter Text, ueber Fehler-Fallback?)
 
         Klammert das eigentliche Bereinigen um die Formel-Aufloesung: Was der Parser
@@ -511,7 +552,22 @@ class Pipeline:
             text, fallback = self._clean_with_markers(
                 raw, intervention_override, style_hints, formulas)
             return restore_formulas(text, formulas), fallback
-        return self._clean_text(raw, intervention_override, style_hints, force_big)
+        return self._in_bloecken(raw, intervention_override, style_hints, force_big)
+
+    def _in_bloecken(self, raw, override, style_hints, force_big):
+        """Lange Diktate blockweise, jeder Block einzeln geprueft (bloecke.py)."""
+        eingriff, dauer = self._eingriff(override), []
+        if eingriff == "minimal":
+            return raw, False
+        prompts = "\n".join(p for p in (self.cleanup_prompt, self.cleanup_prompt_en) if p)
+        ergebnis = bereinige_in_bloecken(
+            raw, lambda t: (self._clean_text(t, override, style_hints, force_big),
+                            dauer.append(self.last_llm_ms))[0],
+            beispielsaetze(prompts), content_words, has_self_correction,
+            self._merke_grund, pruefe_abdeckung=not self.auto_latex and eingriff != "strong",
+            abbrechen=lambda: gruende.OLLAMA in self.last_reason)
+        self.last_llm_ms = sum(dauer)
+        return ergebnis
 
     def _clean_with_markers(self, text: str, intervention_override, style_hints,
                             formulas: list) -> tuple[str, bool]:
@@ -538,9 +594,7 @@ class Pipeline:
 
         force_big: adaptives Routing ueberspringen (Platzhalter im Text — die
         ueberfordern das kleine Modell nachweislich)."""
-        intervention = (intervention_override
-                        if intervention_override in ("minimal", "standard", "strong")
-                        else self.intervention)
+        intervention = self._eingriff(intervention_override)
         if intervention == "minimal":
             # Fast-Rohtranskript: kein LLM, keine Latenz — bewusste Nutzerwahl.
             return raw, False
@@ -1227,6 +1281,7 @@ class Pipeline:
             # woanders). Der Tracker darf dann nichts mitschreiben — der Text steht
             # in keinem Dokument; der Aufrufer meldet es sichtbar.
             self.in_ablage_statt_eingefuegt = True
+            self.in_ablage_text = text
             log.info("In der Zwischenablage statt eingefuegt: %s", text)
             return
         self.tracker.record_append(injected)

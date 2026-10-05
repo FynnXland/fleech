@@ -11,6 +11,153 @@ GitHub-Release-Notizen (`packaging/release.py`).
 
 ---
 
+## 5.16.0 — 2026-10-05
+
+Alles seit 5.13.0 auf einen Blick — die Einzelheiten stehen weiter unten bei
+5.13.1 bis 5.15.2.
+
+**Schneller.** Fleech erkennt deine Sprache jetzt schon, während du sprichst:
+Jeder Abschnitt wird in der nächsten Sprechpause erkannt. Nach dem Loslassen
+fehlt nur noch der letzte Satz — bei einer Minute Diktat wartest du rund
+0,3 Sekunden statt bis zu zwei, und die Erkennung ist dabei sogar genauer.
+
+**Treuer.** Die KI-Bereinigung bleibt beim Wortlaut. Lange Diktate werden in
+Abschnitten bereinigt, und jeder Abschnitt wird geprüft: Fehlt zu viel von dem,
+was du gesagt hast, oder taucht ein Satz auf, den du nie gesagt hast, kommt
+dieser Abschnitt unbereinigt. „Äh" und „ähm" verschwinden dafür jetzt
+zuverlässig.
+
+**Leichter für die Grafikkarte.** Die Spracherkennung braucht nur noch halb so
+viel Grafikspeicher (rund 1 statt 2 GB) — gut, wenn nebenher gespielt wird.
+
+**Neu zur Wahl: deutsche Spracherkennung.** Unter *Einstellungen → Advanced →
+Spracherkennung* gibt es „Deutsch-optimiert" — auf deutsche Sprache
+nachtrainiert, im Test mit deutlich weniger Fehlern. Einmaliger Download, 1,6 GB.
+
+**Nichts geht mehr unbemerkt verloren.** Ist ein Diktat erst fertig, wenn du
+schon in einem anderen Fenster bist, landet es in der Zwischenablage — jetzt
+sagt dir das eine Blase an der Pille (auch bei abgeschalteten
+Benachrichtigungen), und im Verlauf steht es auch. Rechnet die lokale KI
+versehentlich auf dem Prozessor statt auf der Grafikkarte, warnt Fleech.
+
+---
+
+## 5.15.2 — 2026-10-02 · nicht einzeln veröffentlicht
+
+**Lange Diktate kommen wieder so an, wie du sie gesprochen hast.** Bei einem
+Diktat von 15 Minuten hat die KI den Faden verloren: Sie schrieb an den Anfang
+Beispielsätze aus ihrer eigenen Anleitung („Ich wollte nur sagen, dass das
+Projekt ziemlich gut läuft …", sogar „schreib ein Gedicht über Katzen") und ließ
+dafür rund 650 deiner Wörter weg. Ab etwa 200 Wörtern bereinigt Fleech ein
+Diktat jetzt in Abschnitten von gut 150 Wörtern, jeweils an einem Satzende
+getrennt. Dasselbe Diktat kommt so vollständig an — kein Wort erfunden, keines
+verloren. Ein 15-Minuten-Diktat braucht dafür rund 30 statt 14 Sekunden.
+
+**Jeder Abschnitt wird zusätzlich geprüft.** Steht darin ein Satz aus der
+Anleitung der KI, oder fehlt zu viel von dem, was du gesagt hast, kommt genau
+dieser Abschnitt unbereinigt — der Rest bleibt bereinigt. Das gilt auch für
+kurze Diktate. Rückwirkend über deinen ganzen Verlauf hätte das 7-mal
+eingegriffen, jedes Mal zu Recht (z. B. „4-Tall vertical panel" → „4-Talfunktions-
+paneel", oder ein Satz, der umformuliert statt bereinigt wurde) — und kein
+einziges Mal grundlos. Selbstkorrekturen („am Montag, ach nein, online") und
+der Eingriffsgrad „Stark" sind ausgenommen. Im Verlauf steht dann der Grund.
+
+---
+
+## 5.15.1 — 2026-10-02 · nicht einzeln veröffentlicht
+
+**Die Spracherkennung braucht nur noch halb so viel Grafikspeicher** — rund 1 GB
+statt 2,1 GB, bei gleichem Tempo und ohne mehr Fehler (gemessen an sechs
+Aufnahmen von 5 bis 120 Sekunden). Das zählt vor allem, wenn nebenher der
+Stimmwandler oder ein Spiel die Grafikkarte nutzt: Ist sie voll, wird die
+Erkennung extrem langsam — mit einem Gigabyte mehr Luft passiert das seltener.
+Gilt auch für die Live-Vorschau.
+
+---
+
+## 5.15.0 — 2026-10-02 · nicht einzeln veröffentlicht
+
+**Neu: eine deutsche Spracherkennung zur Wahl.** Unter *Einstellungen → Advanced
+→ Spracherkennung* gibt es jetzt „Deutsch-optimiert": dasselbe Erkennungsmodell
+wie bisher, aber auf deutsche Sprache nachtrainiert. Im Test (Computerstimme)
+machte es zusammen 4 statt 11 Fehler — bei einer Minute Diktat 0 statt 7, bei
+zwei Minuten 0 statt 1, bei 45 Sekunden allerdings einen mehr (4 statt 3). Und
+es erfand am Ende keinen Schlusssatz, wenn nach dem letzten Wort noch Rauschen
+kam. Ob es mit deiner Stimme genauso gut ist, zeigt erst der Alltag. Satzzeichen und Großschreibung bleiben,
+schneller oder langsamer wird nichts.
+
+Beim ersten Umschalten lädt Fleech das Modell einmalig herunter (1,6 GB); bis es
+da ist, erkennt das bisherige weiter. Die Pille sagt Bescheid, wenn es fertig
+ist. Wer viel auf Englisch diktiert, bleibt besser bei „Standard".
+
+---
+
+## 5.14.0 — 2026-10-02 · nicht einzeln veröffentlicht
+
+**Längere Diktate sind fast sofort da.** Bisher fing Fleech erst nach dem
+Loslassen der Taste an, die Sprache zu erkennen — bei einer Minute Diktat
+wartete man danach anderthalb Sekunden nur darauf, bei ausgelasteter
+Grafikkarte bis zu siebeneinhalb. Jetzt erkennt Fleech jeden Abschnitt schon in
+der nächsten Sprechpause, während du weiterredest. Nach dem Loslassen fehlt nur
+noch der letzte Satz: gemessen 0,3 bis 0,45 Sekunden Wartezeit statt 0,8 bis 2,1
+— und die Erkennung wurde dabei sogar genauer (bei 45 und 67 Sekunden Diktat 0
+statt 3 bzw. 4 Fehler), weil jeder Abschnitt das Ende des vorigen als Kontext
+mitbekommt.
+
+Kurze Diktate unter sechs Sekunden laufen wie bisher. Ist die Grafikkarte von
+einem anderen Programm belegt, hört Fleech mit den Abschnitten auf und erkennt
+den Rest wie früher am Stück — schlechter als vorher wird es nie.
+
+---
+
+## 5.13.3 — 2026-10-02 · nicht einzeln veröffentlicht
+
+**„Äh" und „ähm" verschwinden zuverlässig.** Die Anweisung an die KI, Füllwörter
+wegzulassen, wirkte kaum: Von 564 Füllwörtern seit Ende Juli entfernte sie 14.
+Jetzt nimmt Fleech sie nach der Bereinigung selbst heraus, samt der Kommas drum
+herum. Geprüft an allen 1926 Diktaten im Verlauf: Jedes „äh", „ähm", „öh" und „öhm"
+wird getroffen, kein echtes Wort — „ähnlich", „ungefähr", „während" bleiben, ebenso
+„eh" im Sinn von „ohnehin", „hm" als Nachfrage und Ausrufe wie „ah" oder „oh".
+
+In Profilen mit dem Eingriff „minimal" bleibt der Text, wie er gesprochen wurde.
+
+**Fleech warnt, wenn die lokale KI auf dem Prozessor statt auf der Grafikkarte
+rechnet.** Genau das war heute die Ursache für Diktate, die 10 bis 30 Sekunden
+brauchten: Ollama hatte sich selbst aktualisiert und danach die Grafikkarte nicht
+gefunden. Eine Bereinigung dauerte so 13 bis 27 Sekunden statt einer halben, und
+das Modell belegte fast 3 GB Arbeitsspeicher. Fleech merkte nichts. Jetzt erscheint
+in dem Fall eine Blase an der Pille, mit der Abhilfe: Ollama neu starten.
+
+---
+
+## 5.13.2 — 2026-10-02 · nicht einzeln veröffentlicht
+
+**Ein Diktat, das nur in der Zwischenablage landete, steht jetzt auch im Verlauf.**
+Bisher speicherte Fleech nur, was ins Textfeld eingefügt wurde. Ein spät fertiges
+Diktat, das in die Zwischenablage ging, fehlte deshalb im Verlauf — genau an dem
+Ort, an dem man es später noch hätte wiederfinden können. Im Verlauf ist es mit
+dem Grund „nicht eingefügt — lag nur in der Zwischenablage" gekennzeichnet.
+
+---
+
+## 5.13.1 — 2026-10-02 · nicht einzeln veröffentlicht
+
+**Wenn ein Diktat nicht eingefügt wurde, siehst du es jetzt an der Pille.** Seit
+5.13.0 fügt Fleech ein spät fertiges Diktat nicht mehr ein, wenn du inzwischen in
+einem anderen Fenster bist — der Text kommt in die Zwischenablage. Die Meldung
+dazu lief aber als Windows-Benachrichtigung, und wer die abgeschaltet hat, sah gar
+nichts: kein Text im Feld, keine Nachricht, die Pille einfach weg.
+
+Jetzt erscheint eine Blase an der Pille, zwölf Sekunden lang, mit dem Anfang des
+Textes und dem Hinweis, dass er in der Zwischenablage liegt. Sie hängt an keiner
+Benachrichtigungs-Einstellung.
+
+Außerdem zählt ein Klick auf die Pille selbst nicht mehr als „in einem anderen
+Fenster". Wer während einer langen Verarbeitung auf die Pille klickt, bekommt
+seinen Text wie gewohnt ins Feld.
+
+---
+
 ## 5.13.0 — 2026-09-29
 
 Ein Durchgang über das ganze Programm: fünf Prüfungen parallel, jeder Befund am

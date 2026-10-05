@@ -89,6 +89,20 @@ def build(panel) -> None:
     panel._check(form, "GPU-Beschleunigung bevorzugen (STT)", s.advanced.prefer_gpu,
                  "stt_device", lambda v: setattr(s.advanced, "prefer_gpu", v),
                  "Erkennung auf der Grafikkarte (schneller). Aus = CPU erzwingen.")
+    panel._combo(
+        form, "Spracherkennung",
+        [("standard", "Standard"),
+         ("deutsch", "Deutsch-optimiert")],
+        s.advanced.stt_modell, "stt_modell",
+        lambda v: setattr(s.advanced, "stt_modell", v),
+        help_map={
+            "standard": "Whisper turbo — erkennt jede Sprache gleich gut.",
+            "deutsch": "Dasselbe Modell, auf deutsche Sprache nachtrainiert: im "
+                       "Test weniger Fehler und keine erfundenen Schlusssätze. "
+                       "Einmaliger Download, 1,6 GB. Für englische Diktate "
+                       "„Standard“ wählen.",
+        },
+    )
 
     panel._combo(
         form, "Modell-Warmhaltung",

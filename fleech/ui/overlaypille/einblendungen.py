@@ -12,7 +12,9 @@ from PySide6.QtCore import Signal
 
 from ..state import AppState
 from .bausteine import _glyph_icon
-from .konstanten import _PROMPT_ACCENT, _ACCENT, _FALLBACK_FLASH_MS, _FORMULA_PREVIEW_MS
+from .konstanten import (
+    _ACCENT, _FALLBACK_FLASH_MS, _FORMULA_PREVIEW_MS, _IN_ABLAGE_MS, _PROMPT_ACCENT,
+)
 
 def _guessed_line(formulas: list) -> str:
     """Eine kurze Zeile fuer geratene Formeln — in LESBARER Form.
@@ -92,6 +94,44 @@ class EinblendungenMixin:
             duration_ms=_FORMULA_PREVIEW_MS,
             accent_color=_PROMPT_ACCENT,
         )
+
+    def zeige_in_ablage(self, text: str) -> None:
+        """Der Text kam nicht ins Feld, er liegt in der Zwischenablage.
+
+        Diese Blase MUSS ankommen. Die erste Fassung schickte den Hinweis als
+        Windows-Benachrichtigung — und die laesst sich abschalten. Am 2026-10-02
+        hiess es im Protokoll „Toast unterdrueckt", die Pille verschwand mit dem
+        Ende der Verarbeitung, und der Nutzer sah ueberhaupt nichts: kein Text im
+        Feld, keine Meldung. Die Blase haengt an keiner Benachrichtigungs-
+        Einstellung und zeigt den Anfang des Textes, damit klar ist, WAS dort liegt.
+        """
+        text = (text or "").strip()
+        if self._edit_mode or not text:
+            return
+        auszug = text if len(text) <= 160 else text[:160].rsplit(" ", 1)[0] + " …"
+        self._flash_check()            # Haken kurz amber = „schau hier nach"
+        self._caption_is_live = False
+        self._caption_is_status = False
+        self._caption.show_above(
+            self.frameGeometry(),
+            f"{auszug}\n\nNicht eingefügt — du warst inzwischen in einem anderen "
+            f"Fenster. Der Text liegt in der Zwischenablage: Strg+V.",
+            duration_ms=_IN_ABLAGE_MS,
+            accent_color=_PROMPT_ACCENT,
+        )
+
+    def zeige_hinweis(self, text: str) -> None:
+        """Ein Hinweis, der ankommen muss — als Blase, nicht als Benachrichtigung.
+
+        Aus demselben Grund wie `zeige_in_ablage`: Windows-Benachrichtigungen kann
+        man abschalten, und dann hoerte man von einem echten Problem nichts."""
+        text = (text or "").strip()
+        if self._edit_mode or not text:
+            return
+        self._caption_is_live = False
+        self._caption_is_status = False
+        self._caption.show_above(self.frameGeometry(), text,
+                                 duration_ms=_IN_ABLAGE_MS, accent_color=_PROMPT_ACCENT)
 
     def show_transcript(self, text: str) -> None:
         """Erkannten Text kurz ueber der Pille einblenden (nach dem Diktat)."""

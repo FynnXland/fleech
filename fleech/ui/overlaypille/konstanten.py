@@ -57,6 +57,9 @@ _FALLBACK_FLASH_MS = 3000  # so lange bleibt der Haken nach einem Fallback amber
 # Formel-Vorschau: laenger als das normale Transkript, weil man eine Formel
 # tatsaechlich LESEN muss — aber ohne Bestaetigungsklick, der den Fluss braeche.
 _FORMULA_PREVIEW_MS = 5000
+# So lange steht der Hinweis „liegt in der Zwischenablage". Laenger als die
+# Formel-Vorschau: Wer ihn sehen soll, war gerade in einem anderen Fenster.
+_IN_ABLAGE_MS = 12000
 
 # Einrasten beim Ziehen: Innerhalb dieses Abstands springt die Pille auf eine
 # ausgezeichnete Linie (Bildschirmmitte, Standard-Rand). Von Hand exakt zu treffen

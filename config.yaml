@@ -16,6 +16,7 @@ stt:
   compute_type: auto
   language: de
   vad_filter: true            # schneidet Stille weg, verhindert Whisper-Halluzinationen
+  abschnitte: true            # schon beim Sprechen erkennen (an Pausen) — kuerzere Wartezeit
 
 llm:
   cleanup:                    # Prompt 1/2 — jeder OpenAI-kompatible Endpoint
