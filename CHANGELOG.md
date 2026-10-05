@@ -13,8 +13,7 @@ GitHub-Release-Notizen (`packaging/release.py`).
 
 ## 5.16.0 — 2026-10-05
 
-Alles seit 5.13.0 auf einen Blick — die Einzelheiten stehen weiter unten bei
-5.13.1 bis 5.15.2.
+Alles, was seit Version 5.13.0 dazugekommen ist.
 
 **Schneller.** Fleech erkennt deine Sprache jetzt schon, während du sprichst:
 Jeder Abschnitt wird in der nächsten Sprechpause erkannt. Nach dem Loslassen
