@@ -1,205 +1,203 @@
 <h1 align="center">Fleech</h1>
 
 <p align="center">
-  <b>Lokales Diktieren für Windows und Linux: Taste halten, sprechen, loslassen.</b><br>
-  Der Text landet bereinigt dort, wo dein Cursor steht. Alles läuft auf deinem Rechner.
+  <b>Free, open-source voice dictation for Windows and Linux — hold a key, speak, release.</b><br>
+  Your words appear, cleaned up, wherever your cursor is. Speech recognition and AI run on your own computer.
 </p>
 
+<p align="center"><b>English</b> · <a href="README.de.md">Deutsch</a></p>
+
 <p align="center">
-  <a href="https://github.com/FynnXland/fleech/releases/latest"><b>⬇ Neueste Version herunterladen</b></a>
+  <a href="https://github.com/FynnXland/fleech/releases/latest"><b>⬇ Download the latest release</b></a>
   &nbsp;·&nbsp;
   <a href="#installation">Installation</a>
   &nbsp;·&nbsp;
-  <a href="#selbst-bauen">Selbst bauen</a>
+  <a href="#build-from-source">Build from source</a>
   &nbsp;·&nbsp;
-  <a href="docs/">Dokumentation</a>
+  <a href="docs/">Documentation</a>
 </p>
 
 <p align="center">
-  <img src="docs/bilder/pille.png" alt="Die Fleech-Pille während einer Aufnahme: Abbrechen, Pegel, Fertig, Pause" width="404">
+  <img src="docs/bilder/pille.png" alt="The Fleech pill while recording: cancel, live level, done, pause" width="404">
 </p>
 
 <p align="center">
-  <img src="docs/bilder/hauptfenster.png" alt="Das Fleech-Hauptfenster mit dem Verlauf der letzten Diktate" width="900">
+  <img src="docs/bilder/hauptfenster.png" alt="The Fleech main window with recent dictations" width="900">
 </p>
+
+> **Language note:** Fleech dictates in **German and English**. The app's interface
+> is currently German; a full English interface is in progress.
 
 ---
 
-## Was Fleech ist
+## What Fleech is
 
-Eine Diktier-App. Du drückst eine Taste, sprichst, lässt los — und der Text erscheint
-im Feld, in dem der Cursor steht: Word, Browser, Mail, Chat, Editor, egal welches
-Programm. Fleech greift dafür nicht in Anwendungen hinein, sondern fügt über die
-Zwischenablage und ein simuliertes `Strg+V` ein.
+Fleech is a **local-first speech-to-text dictation app** — an offline, privacy-friendly
+alternative to cloud dictation tools such as Wispr Flow or Dragon. Press a hotkey,
+talk, let go, and the text is typed into whatever field has focus: Word, browser,
+email, chat, code editor — any application. Fleech doesn't hook into apps; it pastes
+through the clipboard and a simulated `Ctrl+V`.
 
-Anders als die eingebaute Spracherkennung des Betriebssystems räumt danach eine KI auf:
-„Ähm", Versprecher und doppelte Anläufe fallen weg, Satzzeichen kommen dazu. Was du
-gesagt hast, bleibt dabei so stehen, wie du es gesagt hast. Fleech glättet, es
-formuliert nicht um.
+Unlike built-in OS dictation, an AI cleans up afterwards: "um"s, slips of the tongue
+and false starts disappear, punctuation is added. What you said stays the way you
+said it — Fleech smooths, it does not rephrase.
 
-**Alles passiert lokal.** Spracherkennung ([faster-whisper](https://github.com/SYSTRAN/faster-whisper))
-und Textbereinigung ([Ollama](https://ollama.com)) laufen auf deinem Rechner. Kein
-Cloud-Dienst, kein Konto, keine Aufnahme verlässt das Gerät. Ins Netz geht Fleech nur
-für die Einrichtung und die Update-Prüfung (abschaltbar).
+**Everything runs locally.** Speech recognition uses
+[faster-whisper](https://github.com/SYSTRAN/faster-whisper) (OpenAI Whisper
+`large-v3-turbo`), and text cleanup uses a local LLM via [Ollama](https://ollama.com)
+(`gemma3:4b`). No cloud service, no account, no audio ever leaves your machine. Fleech
+only goes online for the initial setup and the update check (which can be turned off).
 
-## Was Fleech kann
+## Features
 
 |  |  |
 |---|---|
-| **Erkennt schon beim Sprechen** | Jeder Abschnitt wird in der nächsten Sprechpause erkannt. Nach dem Loslassen fehlt nur noch der letzte Satz — auch nach einer Minute Diktat ist der bereinigte Text nach ein bis zwei Sekunden da. |
-| **Bleibt beim Wortlaut** | Die Bereinigung wird geprüft: Fehlt zu viel von dem, was du gesagt hast, oder taucht etwas auf, das du nie gesagt hast, kommt der Abschnitt unbereinigt. Lieber roh als verfälscht. |
-| **Profile** | Je nach Programm wird aus dem Diktat bereinigter Text, eine fertige E-Mail, ein KI-Prompt oder eine Stichpunktliste. |
-| **Befehle** | Mitten im Reden das Safe-Word sagen (Standard „Kimono"), dann die Anweisung: *„… **Kimono**, mach den letzten Satz formeller."* |
-| **Formeln** | Gesprochene Mathematik wird zu LaTeX — in einem deterministischen Parser, ohne Modell. |
-| **Wörterbuch** | Namen und Fachbegriffe, die du einträgst, werden zuverlässig richtig geschrieben. |
-| **Verlauf** | Jedes Diktat lässt sich wiederfinden, durchsuchen, neu bereinigen und als Markdown speichern. |
-| **Geht nicht verloren** | Bist du schon in einem anderen Fenster, wenn ein Diktat fertig wird, landet es in der Zwischenablage — und die Pille sagt dir das. |
-| **Rücksicht beim Spielen** | Läuft ein Spiel, gibt Fleech den Grafikspeicher frei und lädt die KI erst beim nächsten Diktat wieder. |
+| **Transcribes while you speak** | Each section is recognised in the next pause. When you release the key, only the last sentence is left — even after a minute of dictation, the cleaned-up text arrives within one to two seconds. |
+| **Stays verbatim** | Every cleanup is checked: if too much of what you said is missing, or something appears that you never said, that section is pasted uncleaned. Raw beats falsified. |
+| **Profiles** | Depending on the app, your dictation becomes clean text, a ready-to-send email, an AI prompt or a bullet list. |
+| **Voice commands** | Say the safe word mid-dictation (default "Kimono"), then the instruction: *"… **Kimono**, make the last sentence more formal."* |
+| **Math to LaTeX** | Spoken maths becomes LaTeX — in a deterministic parser, no model involved. |
+| **Personal dictionary** | Names and technical terms you add are spelled correctly every time. |
+| **History & insights** | Find, search, re-clean and export every dictation as Markdown; see words per minute, app usage and streaks. |
+| **Nothing gets lost** | If you've switched windows by the time a dictation is ready, it lands in the clipboard — and the pill tells you. |
+| **Gaming-friendly** | When a game is running, Fleech frees GPU memory and reloads the AI only for your next dictation. |
 
-## Ein Blick hinein
+## A look inside
 
-**Die Pille** erscheint beim Diktieren am Bildschirmrand: links das aktive Profil,
-in der Mitte Abbrechen, Pegel und Fertig, rechts Pause. Sie nimmt nie den Fokus — sonst
-wäre das Ziel-Textfeld weg — und lässt sich an jede Stelle ziehen.
+**The pill** appears at the edge of the screen while you dictate: the active profile on
+the left, cancel / level / done in the middle, pause on the right. It never steals focus
+— otherwise your target text field would be gone — and you can drag it anywhere.
 
-**Insights** zeigen, wie viel und wie schnell du diktierst, in welchen Programmen und
-wie viel Fleech für dich korrigiert hat.
-
-<p align="center">
-  <img src="docs/bilder/insights.png" alt="Insights: Wörter pro Minute, App-Nutzung, Serie, häufigste Wörter" width="900">
-</p>
-
-**Profile** bestimmen, was aus dem Gesprochenen wird. Auf der Seite *Apps* legst du
-fest, welches Profil in welchem Programm automatisch gilt.
+**Insights** show how much and how fast you dictate, in which apps, and how much Fleech
+corrected for you.
 
 <p align="center">
-  <img src="docs/bilder/profile.png" alt="Profile: Standard, Geschäftlich, Privat, Coding, Mathe, E-Mail, KI-Prompt, Stichpunkte" width="900">
+  <img src="docs/bilder/insights.png" alt="Insights: words per minute, app usage, streak, most frequent words" width="900">
 </p>
 
-**Einstellungen** — Hotkeys, Mikrofon, Ausgabe, Wörterbuch. Alles, was du änderst,
-gilt sofort.
+**Profiles** decide what your speech turns into. On the *Apps* page you choose which
+profile applies automatically in which program.
 
 <p align="center">
-  <img src="docs/bilder/einstellungen-aufnahme.png" alt="Einstellungen, Seite Aufnahme: Bedienmodus, Hotkeys, Mikrofon" width="760">
+  <img src="docs/bilder/profile.png" alt="Profiles: standard, business, private, coding, maths, email, AI prompt, bullet points" width="900">
 </p>
 
-<sub>Alle Bilder zeigen Beispieldaten.</sub>
+**Settings** — hotkeys, microphone, output, dictionary. Every change applies instantly.
+
+<p align="center">
+  <img src="docs/bilder/einstellungen-aufnahme.png" alt="Settings, recording page: mode, hotkeys, microphone" width="760">
+</p>
+
+<sub>All screenshots show sample data.</sub>
 
 ---
 
 ## Installation
 
-### Was du brauchst
+### Requirements
 
-- Windows 10 oder 11 (Linux mit X11: siehe [Selbst bauen](#selbst-bauen))
-- Ein Mikrofon
-- Rund 8 GB freien Speicherplatz (Programm und Sprachmodelle)
-- Einmalig Internet für die Einrichtung
-- Eine NVIDIA-Grafikkarte ist ein großer Vorteil, aber keine Bedingung. Ohne läuft die
-  Erkennung auf dem Prozessor — spürbar langsamer, aber sie läuft.
+- Windows 10 or 11 (Linux with X11: see [Build from source](#build-from-source))
+- A microphone
+- About 8 GB of free disk space (app and speech models)
+- An internet connection once, for setup
+- An NVIDIA GPU helps a lot but isn't required. Without one, recognition runs on the
+  CPU — noticeably slower, but it works.
 
-### 1 — Installieren
+### 1 — Install
 
-1. Unter [**Releases**](https://github.com/FynnXland/fleech/releases/latest) die Datei
-   `FleechSetup-<Version>.exe` herunterladen (rund 1 GB).
-2. Doppelklick. **Keine Administratorrechte nötig** — Fleech installiert sich in dein
-   Benutzerverzeichnis.
-3. Meldet Windows „Der Computer wurde geschützt" (SmartScreen): *Weitere Informationen
-   → Trotzdem ausführen*. Das erscheint bei jedem Programm ohne gekaufte Signatur.
+1. Download `FleechSetup-<version>.exe` from
+   [**Releases**](https://github.com/FynnXland/fleech/releases/latest) (about 1 GB).
+2. Double-click it. **No administrator rights needed** — Fleech installs into your
+   user profile.
+3. If Windows SmartScreen says "Windows protected your PC": *More info → Run anyway*.
+   This appears for every program without a purchased code-signing certificate.
 
-### 2 — Fleech richtet sich selbst ein
+### 2 — Fleech sets itself up
 
-Beim ersten Start prüft Fleech, was fehlt, und holt es nach — mit Fortschrittsanzeige,
-ohne Terminal:
+On first launch Fleech checks what's missing and fetches it, with a progress display
+and no terminal:
 
-| Baustein | Wofür | Größe |
+| Component | Purpose | Size |
 |---|---|---|
-| **Ollama** | führt die KI lokal aus | klein |
-| **Sprachmodell** `gemma3:4b` | räumt den Text auf | ~3,3 GB |
-| **Spracherkennung** Whisper `large-v3-turbo` | macht aus Ton Text | ~1,6 GB |
+| **Ollama** | runs the AI locally | small |
+| **Language model** `gemma3:4b` | cleans up the text | ~3.3 GB |
+| **Speech recognition** Whisper `large-v3-turbo` | turns audio into text | ~1.6 GB |
 
-Das dauert je nach Leitung 5 bis 20 Minuten und passiert einmal. Ollama wird nur auf
-deinen Klick installiert (unter Windows per `winget`; fehlt es, nennt Fleech den Weg von
-Hand).
+Depending on your connection this takes 5 to 20 minutes, once. Ollama is only installed
+when you click (via `winget` on Windows; if that's missing, Fleech shows the manual way).
 
-### 3 — Diktieren
+### 3 — Dictate
 
-Vorgabe ist **F9**: gedrückt halten, sprechen, loslassen. Taste und Bedienart (Halten
-oder Umschalten) stellst du unter *Einstellungen → Aufnahme* um.
+The default hotkey is **F9**: hold, speak, release. Change the key and the mode (hold or
+toggle) under *Einstellungen → Aufnahme* (Settings → Recording).
 
-Das erste Diktat nach dem Start dauert ein paar Sekunden länger, weil die Modelle
-geladen werden. Danach ist der Text meist nach ein bis zwei Sekunden da.
+The first dictation after startup takes a few seconds longer while the models load.
+After that, text usually arrives within one to two seconds.
 
-## Gut zu wissen
+## Good to know
 
-- **Wörterbuch** (*Einstellungen → Textersetzung*): Trag Namen, Fachbegriffe und
-  Abkürzungen ein, die in deinem Alltag oft vorkommen. Der wirksamste Handgriff
-  überhaupt — die Einträge primen zusätzlich die Spracherkennung.
-- **Profil wechseln**: über den Punkt links an der Pille oder einen eigenen Hotkey —
-  Tippen schaltet weiter, Halten öffnet eine Auswahl. Das geht auch mitten in der
-  Aufnahme.
-- **Weitere Hotkeys**: `Strg+Alt+P` macht aus dem laufenden Diktat einen KI-Prompt,
-  `Strg+Alt+Leertaste` pausiert, `Strg+Alt+Z` nimmt eine Fehlausgabe zurück.
-- **Deutsche Spracherkennung**: Unter *Einstellungen → Advanced → Spracherkennung* gibt
-  es eine auf Deutsch nachtrainierte Variante. Wer viel Englisch diktiert, bleibt bei
-  „Standard".
-- **Fenster schließen beendet Fleech nicht** — es läuft im Infobereich neben der Uhr
-  weiter. Rechtsklick auf das Symbol → *Beenden*.
-- **Updates** meldet Fleech selbst und installiert sie erst auf Klick. Abschaltbar unter
-  *Einstellungen → Advanced*.
+- **Dictionary** (*Settings → Text replacement*): add names, jargon and abbreviations
+  you use a lot. It's the single most effective tweak — entries also prime the speech
+  recognition.
+- **Switch profiles** with the dot on the left of the pill or a dedicated hotkey: tap to
+  cycle, hold to pick from a list. Works mid-recording too.
+- **More hotkeys:** `Ctrl+Alt+P` turns the current dictation into an AI prompt,
+  `Ctrl+Alt+Space` pauses, `Ctrl+Alt+Z` undoes a bad paste.
+- **Closing the window doesn't quit Fleech** — it keeps running in the system tray.
+  Right-click the icon → *Beenden* (Quit).
+- **Updates** are announced by Fleech itself and only installed when you click.
 
-## Wenn etwas nicht geht
+## Troubleshooting
 
-| Problem | Lösung |
+| Problem | Fix |
 |---|---|
-| Es wird nichts erkannt | *Einstellungen → Aufnahme*: Stimmt das Mikrofon? Der Pegel muss sich beim Sprechen bewegen. |
-| Text kommt roh, ohne Aufräumen | Ollama läuft nicht. Fleech einmal neu starten — die Einrichtungsseite zeigt, was fehlt. |
-| Text landet im falschen Fenster | *Einstellungen → Ausgabe → Cursor-Rückkehr* merkt sich das Zielfeld beim Aufnahmestart. |
-| Es hängt oder stürzt ab | Das Protokoll liegt unter `%APPDATA%\Fleech\fleech.log` (Linux: `~/.config/Fleech/fleech.log`). Gern als [Issue](https://github.com/FynnXland/fleech/issues) melden, mit den letzten Zeilen daraus. |
+| Nothing is recognised | *Settings → Recording*: is the right microphone selected? The level meter must move when you speak. |
+| Text arrives raw, not cleaned up | Ollama isn't running. Restart Fleech — the setup page shows what's missing. |
+| Text lands in the wrong window | *Settings → Output → Cursor return* remembers the target field when recording starts. |
+| It hangs or crashes | The log is at `%APPDATA%\Fleech\fleech.log` (Linux: `~/.config/Fleech/fleech.log`). Please [open an issue](https://github.com/FynnXland/fleech/issues) with the last lines. |
 
-## Wo Daten liegen
+## Where your data lives
 
-Ausschließlich auf dem eigenen Rechner, außerhalb der Anwendung:
+Only on your own computer, outside the application folder:
 
-| Was | Windows | Linux |
+| What | Windows | Linux |
 |---|---|---|
-| Einstellungen | `%APPDATA%\Fleech\settings.json` | `~/.config/Fleech/settings.json` |
-| Verlauf | `%APPDATA%\Fleech\history.db` | `~/.config/Fleech/history.db` |
+| Settings | `%APPDATA%\Fleech\settings.json` | `~/.config/Fleech/settings.json` |
+| History | `%APPDATA%\Fleech\history.db` | `~/.config/Fleech/history.db` |
 | Log | `%APPDATA%\Fleech\fleech.log` | `~/.config/Fleech/fleech.log` |
 
-Der Verlauf enthält Diktattexte — wer das nicht möchte, schaltet ihn in den
-Einstellungen ab und löscht ihn dort. Audio wird nie gespeichert.
+The history contains your dictated text — if you don't want that, switch it off and
+clear it in the settings. Audio is never stored.
 
 ---
 
-## Selbst bauen
+## Build from source
 
-Voraussetzung: Python 3.11.
+Requires Python 3.11.
 
 ### Windows
 
 ```powershell
 python -m venv .venv
 .venv\Scripts\pip install -r requirements.txt
-.venv\Scripts\python -m fleech                        # direkt starten (oder Fleech.pyw)
+.venv\Scripts\python -m fleech                        # run directly (or Fleech.pyw)
 .venv\Scripts\python packaging\build.py               # → dist\Fleech\Fleech.exe
 .venv\Scripts\python packaging\build.py --installer   # → dist\FleechSetup-<version>.exe
 ```
 
-Für das Setup wird [Inno Setup 6](https://jrsoftware.org/isinfo.php) gebraucht
-(`winget install JRSoftware.InnoSetup`). Es installiert per-user ohne UAC, legt einen
-Startmenü-Eintrag an und bietet optional Autostart und Desktop-Symbol.
+The installer needs [Inno Setup 6](https://jrsoftware.org/isinfo.php)
+(`winget install JRSoftware.InnoSetup`). It installs per user without UAC, adds a Start
+menu entry and optionally autostart and a desktop shortcut.
 
-### Linux (X11, getestet auf Kubuntu)
+### Linux (X11, tested on Kubuntu)
 
 ```bash
-bash packaging/setup-linux.sh                              # venv unter ~/.venvs/fleech
+bash packaging/setup-linux.sh                              # venv in ~/.venvs/fleech
 ~/.venvs/fleech/bin/python packaging/build.py --install    # → ~/.local/opt/Fleech
 ```
 
-Die venv liegt bewusst außerhalb des Projekts, damit es auch auf NTFS liegen darf.
-Unter Wayland sind globale Hotkeys nicht möglich; Fleech sagt das, statt stumm zu
-versagen.
+The venv deliberately lives outside the project so the project itself may sit on NTFS.
+Global hotkeys aren't possible under Wayland; Fleech says so instead of failing silently.
 
 ### Tests
 
@@ -207,72 +205,78 @@ versagen.
 .venv\Scripts\python -m pytest -q
 ```
 
-Rund 1550 Tests, Spracherkennung und Sprachmodell gemockt. Optional ein echter
-faster-whisper-Lauf auf einer per TTS erzeugten Datei: `pwsh tests/fixtures/make_fixture.ps1`,
-dann `$env:FLEECH_STT_TEST = "1"` und `pytest tests/test_stt_integration.py`.
+About 1,550 tests with speech recognition and LLM mocked. For a real faster-whisper run
+on a TTS-generated file: `pwsh tests/fixtures/make_fixture.ps1`, then
+`$env:FLEECH_STT_TEST = "1"` and `pytest tests/test_stt_integration.py`.
 
-### Konfiguration
+### Configuration
 
-Nutzer-Einstellungen gehören ins Einstellungsfenster. Alles Technische (Modelle,
-Endpunkte, Schwellen) steht kommentiert in [config.yaml](config.yaml), mit
-ENV-Overrides (`FLEECH_HOTKEY`, `FLEECH_STT_MODEL`, `FLEECH_LLM_MODEL`, …). Eine eigene
-Kopie darf im Benutzerordner (`%APPDATA%\Fleech`) liegen und sticht die im App-Ordner.
-Die System-Prompts sind Dateien in [prompts/](prompts/) und ohne Code-Änderung
-editierbar.
+User settings belong in the settings window. Everything technical (models, endpoints,
+thresholds) is documented in [config.yaml](config.yaml), with environment overrides
+(`FLEECH_HOTKEY`, `FLEECH_STT_MODEL`, `FLEECH_LLM_MODEL`, …). A copy in the user folder
+(`%APPDATA%\Fleech`) takes precedence over the one in the app folder. The system prompts
+are plain files in [prompts/](prompts/) and can be edited without touching code.
 
-**Zu den Modellen:** `gemma3:4b` ist Standard, weil es an 15 echten Diktaten gemessen
-34 % schneller war als das zuvor genutzte 9B-Modell, halb so groß — und dabei
-wortgetreuer. Wer auf ein Thinking-Modell wechselt, muss `reasoning_effort: none`
-setzen, sonst denkt es 30–50 s pro Diktat. Ollama lädt Modelle immer mit 4096 Token
-Kontext; Fleech spricht deshalb bei lokalen Endpunkten Ollamas eigene `/api/chat` mit
-`num_ctx` an — sonst brechen lange Diktate mitten im Satz ab.
+**About the model:** `gemma3:4b` is the default because, measured on 15 real
+dictations, it was 34 % faster than the 9B model used before, half the size — and more
+faithful to the spoken words. Ollama always loads models with a 4,096-token context;
+Fleech therefore talks to Ollama's own `/api/chat` with `num_ctx`, otherwise long
+dictations would be cut off mid-sentence.
 
-### Aufbau
+### Architecture
 
-Die Pipeline ist eine Kette: `Audio → STT → Artefakt-Filter → Routing → LLM → Prüfungen
-→ Injection` ([fleech/pipeline.py](fleech/pipeline.py)).
+The pipeline is a chain: `audio → STT → artefact filters → routing → LLM → checks →
+injection` ([fleech/pipeline.py](fleech/pipeline.py)).
 
-| Modul | Aufgabe |
+| Module | Responsibility |
 |---|---|
-| `fleech/pipeline.py` | Orchestrierung der Kette |
-| `fleech/stt/` | faster-whisper (CUDA/CPU), Abschnitte beim Sprechen, Segment-Filter |
-| `fleech/routing.py` | Modus-Erkennung, Safe-Word-Fundstelle |
-| `fleech/llm/client.py` | Ollama-Client (`/api/chat` mit `num_ctx`) |
-| `fleech/textfilter.py` | Qualitäts-Prüfungen: erfundene Ergänzungen, Wortsalat, Sinnumkehr |
-| `fleech/commands.py` | Safe-Word-Befehle inkl. Plausibilitäts-Guards |
-| `fleech/formula.py` | gesprochene Mathematik → LaTeX (deterministisch) |
-| `fleech/dictionary.py` | persönliches Wörterbuch (Priming, Ersetzung, Vorschläge) |
-| `fleech/injection.py` | Zwischenablage + `Strg+V`, global serialisiert |
-| `fleech/audiofocus.py` | weiches Ducking anderer Apps, Loopback-Erkennung |
-| `fleech/provisioning.py` | Kaltstart: Ollama und Modelle besorgen |
-| `fleech/history.py` | SQLite-Verlauf und Auswertung |
-| `fleech/usersettings.py` | Einstellungen (atomar gespeichert, additive Migration) |
-| `fleech/ui/` | Tray, Hauptfenster, Einstellungen, Overlay-Pille, Einführung, Updates |
-| `packaging/` | PyInstaller-Spec, Build-, Release- und Stopp-Skript, Inno-Installer, Linux-Setup |
+| `fleech/pipeline.py` | orchestrates the chain |
+| `fleech/stt/` | faster-whisper (CUDA/CPU), sections while speaking, segment filters |
+| `fleech/routing.py` | mode detection, safe-word location |
+| `fleech/llm/client.py` | Ollama client (`/api/chat` with `num_ctx`) |
+| `fleech/textfilter.py` | quality checks: invented additions, word salad, inverted meaning |
+| `fleech/commands.py` | safe-word commands incl. plausibility guards |
+| `fleech/formula.py` | spoken maths → LaTeX (deterministic) |
+| `fleech/dictionary.py` | personal dictionary (priming, replacement, suggestions) |
+| `fleech/injection.py` | clipboard + `Ctrl+V`, globally serialised |
+| `fleech/audiofocus.py` | soft ducking of other apps, loopback detection |
+| `fleech/provisioning.py` | first-run setup: fetch Ollama and models |
+| `fleech/history.py` | SQLite history and statistics |
+| `fleech/usersettings.py` | settings (atomic writes, additive migration) |
+| `fleech/ui/` | tray, main window, settings, overlay pill, onboarding, updates |
+| `packaging/` | PyInstaller spec, build/release/stop scripts, Inno installer, Linux setup |
 
-Plattformunterschiede stecken hinter festen Nahtstellen (`platformpaths`, `clipboard`,
-`audiofocus`, `ui/x11tools`, `ui/autostart`, `singleinstance`) statt in verstreuten
-`sys.platform`-Abfragen. Die ausführliche Architektur steht im
-[Gesamtkonzept](docs/fleech-gesamtkonzept.md#14-architektur).
+Platform differences sit behind fixed seams (`platformpaths`, `clipboard`,
+`audiofocus`, `ui/x11tools`, `ui/autostart`, `singleinstance`) rather than scattered
+`sys.platform` checks. Code comments and domain names are German — the project started
+as a German-only app; see [CLAUDE.md](CLAUDE.md) for the naming convention. The full
+architecture is described (in German) in the
+[concept document](docs/fleech-gesamtkonzept.md#14-architektur).
 
-### Veröffentlichen
+### Releasing
 
 ```powershell
 .venv\Scripts\python packaging\release.py
 ```
 
-Baut EXE und Setup, bildet die SHA-256 und legt ein GitHub-Release mit den Notizen aus
-dem [CHANGELOG](CHANGELOG.md) an. Die installierte App findet es von dort selbst; vor
-jeder Installation prüft sie die Prüfsumme und verwirft die Datei, wenn sie nicht passt.
+Builds the EXE and installer, computes the SHA-256 and creates a GitHub release with
+the notes from the [CHANGELOG](CHANGELOG.md). Installed copies find it by themselves;
+before every install they verify the checksum and discard the file if it doesn't match.
 
 ```powershell
-Get-FileHash .\FleechSetup-<version>.exe -Algorithm SHA256   # von Hand nachrechnen
+Get-FileHash .\FleechSetup-<version>.exe -Algorithm SHA256   # verify by hand
 ```
 
-## Lizenz
+## Contributing
 
-Fleech ist freie Software unter der [GNU General Public License v3.0](LICENSE).
-Du darfst es benutzen, untersuchen, verändern und weitergeben — Veränderungen
-und Weitergaben ebenfalls unter der GPL-3.0 und mit Quellcode.
+Issues and pull requests are welcome. Please run the test suite before opening a PR;
+new behaviour needs tests. Bug reports are most useful with the relevant lines from
+`fleech.log`.
+
+## License
+
+Fleech is free software under the [GNU General Public License v3.0](LICENSE). You may
+use, study, modify and share it — modified versions and redistributions must also be
+licensed under the GPL-3.0 and come with their source code.
 
 Copyright © 2026 FynnXland
