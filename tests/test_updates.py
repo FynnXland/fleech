@@ -37,7 +37,7 @@ def test_bad_feed_url_returns_error_not_crash():
 
 
 def _github(monkeypatch, data):
-    monkeypatch.setattr(updates, "_fetch_json", lambda url, timeout, token="": data)
+    monkeypatch.setattr(updates, "_fetch_json", lambda url, timeout: data)
 
 
 def test_github_release_wird_gelesen(monkeypatch):
@@ -77,13 +77,11 @@ def test_repo_ohne_release_ist_kein_fehler(monkeypatch):
     class NotFound(Exception):
         code = 404
 
-    def kaputt(url, timeout, token=""):
+    def kaputt(url, timeout):
         raise NotFound()
 
     monkeypatch.setattr(updates, "_fetch_json", kaputt)
-    # MIT Token heisst 404 wirklich "kein Release"; ohne Token siehe
-    # test_404_ohne_token_meldet_fehlende_berechtigung.
-    assert check_for_updates(token="t")["status"] == "no_release"
+    assert check_for_updates()["status"] == "no_release"
 
 
 def test_fremder_download_host_wird_abgelehnt(monkeypatch):
@@ -99,7 +97,7 @@ def test_fremder_download_host_wird_abgelehnt(monkeypatch):
 
 
 def test_eigener_feed_wird_gelesen(monkeypatch):
-    monkeypatch.setattr(updates, "_fetch_json", lambda url, timeout, token="": {
+    monkeypatch.setattr(updates, "_fetch_json", lambda url, timeout: {
         "version": "99.0.0", "url": "https://eigen.test/FleechSetup.exe",
         "sha256": "cd" * 32, "size": 10,
     })
@@ -109,7 +107,7 @@ def test_eigener_feed_wird_gelesen(monkeypatch):
 
 
 def test_eigener_feed_darf_nicht_auf_fremden_host_zeigen(monkeypatch):
-    monkeypatch.setattr(updates, "_fetch_json", lambda url, timeout, token="": {
+    monkeypatch.setattr(updates, "_fetch_json", lambda url, timeout: {
         "version": "99.0.0", "url": "https://woanders.test/FleechSetup.exe",
     })
     assert check_for_updates("https://eigen.test/feed.json")["status"] == "error"
@@ -229,97 +227,35 @@ def test_automatische_pruefung_ist_an_installation_nicht():
     assert s.update_feed_url == ""        # leer = GitHub-Releases des Projekts
 
 
-# -- Privates Repository: Token ------------------------------------------------------
+# -- Download-Details ----------------------------------------------------------------
 
 
-def test_token_geht_nur_an_github():
-    """Ein Zugriffstoken darf nie an einen fremden Host — auch nicht an einen
-    selbst konfigurierten Feed."""
-    kopf = updates._auth_headers("https://api.github.com/repos/x/y/releases/latest", "t")
-    assert kopf["Authorization"] == "Bearer t"
-    assert "Authorization" not in updates._auth_headers("https://eigen.test/f.json", "t")
-
-
-def test_token_aus_umgebung_hat_vorrang(monkeypatch):
-    from fleech.usersettings import UserSettings
-
-    s = UserSettings()
-    s.advanced.update_token = "aus-datei"
-    monkeypatch.delenv("FLEECH_UPDATE_TOKEN", raising=False)
-    assert updates.update_token(s) == "aus-datei"
-    monkeypatch.setenv("FLEECH_UPDATE_TOKEN", "aus-env")
-    assert updates.update_token(s) == "aus-env"
-    assert updates.update_token(None) == "aus-env"
-
-
-def test_404_ohne_token_meldet_fehlende_berechtigung(monkeypatch):
-    """GitHub antwortet auf ein privates Repository mit 404, nicht 403. Ohne diese
-    Unterscheidung wuerde Fleech ewig „keine Veroeffentlichung" behaupten."""
-    class NotFound(Exception):
-        code = 404
-
-    monkeypatch.setattr(updates, "_fetch_json",
-                        lambda url, timeout, token="": (_ for _ in ()).throw(NotFound()))
-    assert check_for_updates()["status"] == "auth_required"
-    assert check_for_updates(token="t")["status"] == "no_release"
-
-
-def test_abgelehnter_token_wird_benannt(monkeypatch):
-    class Denied(Exception):
-        code = 401
-
-    monkeypatch.setattr(updates, "_fetch_json",
-                        lambda url, timeout, token="": (_ for _ in ()).throw(Denied()))
-    ergebnis = check_for_updates(token="alt")
-    assert ergebnis["status"] == "auth_required"
-    assert "abgelehnt" in ergebnis["message"]
-
-
-def test_mit_token_wird_die_api_adresse_des_assets_genutzt(monkeypatch):
-    """browser_download_url funktioniert bei privaten Repositories nicht."""
-    daten = {
-        "tag_name": "v99.0.0", "body": "",
-        "assets": [{"name": "FleechSetup-99.0.0.exe", "size": 7,
-                    "url": "https://api.github.com/repos/x/y/releases/assets/42",
-                    "browser_download_url": "https://github.com/x/y/FleechSetup-99.0.0.exe"}],
-    }
-    _github(monkeypatch, daten)
-    mit = check_for_updates(token="t")
-    assert mit["url"].endswith("/assets/42")
-    assert mit["name"] == "FleechSetup-99.0.0.exe"
-    ohne = check_for_updates()
-    assert ohne["url"].endswith("FleechSetup-99.0.0.exe")
-
-
-def test_download_nennt_datei_nach_dem_release_nicht_nach_der_asset_id(monkeypatch, tmp_path):
+def test_download_nennt_datei_nach_dem_release(monkeypatch, tmp_path):
     _urlopen(monkeypatch, _Antwort)
-    ziel = download_update("https://api.github.com/repos/x/y/releases/assets/42",
-                           tmp_path, expected_sha256=HASH, token="t",
+    ziel = download_update("https://github.com/x/y/releases/download/v99/setup",
+                           tmp_path, expected_sha256=HASH,
                            dateiname="FleechSetup-99.0.0.exe")
     assert ziel is not None and ziel.name == "FleechSetup-99.0.0.exe"
 
 
-def test_download_schickt_token_und_will_bytes(monkeypatch, tmp_path):
+def test_download_will_bytes_und_schickt_keine_anmeldung(monkeypatch, tmp_path):
     gesehen = []
     _urlopen(monkeypatch, _Antwort, gesehen)
-    download_update("https://api.github.com/repos/x/y/releases/assets/42", tmp_path,
-                    expected_sha256=HASH, token="t", dateiname="FleechSetup-9.exe")
+    download_update("https://github.com/x/y/releases/download/v9/FleechSetup-9.exe",
+                    tmp_path, expected_sha256=HASH, dateiname="FleechSetup-9.exe")
     kopf = gesehen[0].headers
-    assert kopf.get("Authorization") == "Bearer t"
+    assert kopf.get("Authorization") is None
     assert kopf.get("Accept") == "application/octet-stream"
 
 
-def test_weiterleitung_streift_den_token_ab_und_prueft_den_host():
-    """GitHub leitet auf einen vorsignierten Speicher um; mit mitgeschicktem Token
-    lehnt der ab. Fremde Ziele werden gar nicht angefragt."""
+def test_weiterleitung_prueft_den_host():
+    """GitHub leitet auf einen vorsignierten Speicher um — erlaubt. Fremde Ziele
+    werden gar nicht angefragt."""
     import urllib.request
 
     handler = updates._RedirectHandler()
-    req = urllib.request.Request("https://api.github.com/x",
-                                 headers={"Authorization": "Bearer t"})
-    neu = handler.redirect_request(req, None, 302, "Found", {},
-                                  "https://release-assets.githubusercontent.com/x")
-    assert neu is not None
-    assert "Authorization" not in neu.headers
+    req = urllib.request.Request("https://github.com/x")
     assert handler.redirect_request(req, None, 302, "Found", {},
-                                   "https://boese.test/x") is None
+                                    "https://release-assets.githubusercontent.com/x") is not None
+    assert handler.redirect_request(req, None, 302, "Found", {},
+                                    "https://boese.test/x") is None

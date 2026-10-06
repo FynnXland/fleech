@@ -23,7 +23,7 @@ from PySide6.QtWidgets import (
 )
 
 from ..provisioning import SetupRunner, build_steps
-from .theme import ACCENT, BORDER_HAIRLINE, CARD, MUTED, TEXT, style_button
+from .theme import ACCENT, BORDER_HAIRLINE, MUTED, TEXT, style_button
 
 log = logging.getLogger(__name__)
 
@@ -247,11 +247,6 @@ class SetupPage(QWidget):
         if not offen:
             return False
         return all(s.key != "ollama" for s in offen)
-
-    def is_ready(self) -> bool:
-        return bool(getattr(self, "_steps", [])) and all(
-            s.state == "done" for s in self._steps
-        )
 
     # -- Ausfuehrung --------------------------------------------------------------
 

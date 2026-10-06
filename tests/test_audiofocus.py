@@ -165,7 +165,7 @@ def test_soft_duck_and_hard_focus_duck():
 
 def test_clean_device_records_silently():
     c = make_controller(FocusMode.SOFT_DUCK)
-    assert c.may_record(math_mode=True) == (True, "")
+    assert c.may_record() == (True, "")
 
 
 def test_status_line_reports_mode_and_mic():

@@ -112,11 +112,11 @@ def test_die_akzentfarbe_ist_nicht_waehlbar():
 
     Dieser Test existiert, weil ich die Farbe beim ersten Entwurf genau so in die
     Palette geschrieben hatte."""
-    from fleech.profiles import ACCENT_RESERVIERT
+    from fleech.ui.theme import ACCENT
 
-    assert ACCENT_RESERVIERT not in {f for f, _ in PROFIL_FARBEN}
+    assert ACCENT.upper() not in {f.upper() for f, _ in PROFIL_FARBEN}
     for name in ("Coding", "Privat", "Notizen", "Uni", "Journal", "Chat", "x", ""):
-        assert profile_color({"name": name}) != ACCENT_RESERVIERT
+        assert profile_color({"name": name}).upper() != ACCENT.upper()
 
 
 def test_farbe_ueberlebt_das_speichern(tmp_path, monkeypatch):

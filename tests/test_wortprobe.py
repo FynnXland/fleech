@@ -23,7 +23,6 @@ def audio(sekunden: float = 1.0):
 def test_exakter_treffer():
     p = bewerte("Ich nutze PySide6 dafür", "PySide6")
     assert p.ergebnis == Ergebnis.TREFFER
-    assert p.geglueckt
 
 
 def test_wort_allein_gesprochen():
@@ -44,13 +43,11 @@ def test_aehnlich_ist_nicht_dasselbe_wie_treffer():
     „exakt" heißt fertig. Beides als Erfolg zu zeigen wäre eine Lüge."""
     p = bewerte("Kimunno", "Kimono")
     assert p.ergebnis == Ergebnis.AEHNLICH
-    assert not p.geglueckt
 
 
 def test_etwas_ganz_anderes():
     p = bewerte("Pi Seite sechs", "PySide6")
     assert p.ergebnis == Ergebnis.DANEBEN
-    assert not p.geglueckt
 
 
 def test_nichts_gehoert():
@@ -215,12 +212,11 @@ def test_startwort_zaehlt_aehnlich_als_erfolg():
 
     probe = bewerte("Kimu", "Kimono", zweck="startwort")
     assert probe.ergebnis == Ergebnis.AEHNLICH
-    assert probe.geglueckt is True
     assert "würde starten" in probe.als_text()
 
     # Fürs Wörterbuch bleibt dasselbe Ergebnis eine Aufforderung zum Üben.
     woerterbuch = bewerte("Kimu", "Kimono")
-    assert woerterbuch.geglueckt is False
+    assert woerterbuch.ergebnis == Ergebnis.AEHNLICH
     assert "Fast" in woerterbuch.als_text()
 
 
@@ -230,7 +226,6 @@ def test_startwort_daneben_nennt_die_konsequenz():
 
     probe = bewerte("Vielen Dank.", "Kimono", zweck="startwort")
     assert probe.ergebnis == Ergebnis.DANEBEN
-    assert probe.geglueckt is False
     text = probe.als_text()
     assert "NICHT" in text and "kein gutes Startwort" in text
 

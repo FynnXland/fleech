@@ -7,8 +7,8 @@ robocopy an der laufenden Fleech.exe. Der bequeme Weg war bisher `Stop-Process
 -Force` — ein hartes Kill. Fleech speichert seine Einstellungen an ueber einem
 Dutzend Stellen (Fensterposition, Profilwechsel, Hotkeys …); trifft das Kill
 ausgerechnet einen laufenden Schreibvorgang, blieb frueher eine leere
-settings.json zurueck und beim naechsten Start standen alle Werte auf Vorgabe —
-Lizenzschluessel eingeschlossen. Genau das ist mehrfach passiert.
+settings.json zurueck und beim naechsten Start standen alle Werte auf Vorgabe.
+Genau das ist mehrfach passiert.
 
 Seit dem atomaren Schreiben (`UserSettings.save`) ueberlebt die Datei auch ein
 hartes Kill. Dieses Skript ist die zweite Sicherung: Es bittet die laufende

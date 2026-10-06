@@ -16,6 +16,7 @@ datas = [
     (str(ROOT / "prompts"), "prompts"),
     (str(ASSETS), "assets"),
     (str(ROOT / "config.yaml"), "."),
+    (str(ROOT / "LICENSE"), "."),
 ]
 binaries = []
 hiddenimports = ["fleech", "fleech.ui.desktop"]

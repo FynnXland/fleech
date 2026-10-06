@@ -6,7 +6,6 @@ schlimmer als ein ungeglaettetes.
 """
 
 
-from fleech.pipeline import Pipeline
 from pipelinehelpers import (
     AUDIO,
     CLEAN_NONTRIVIAL,

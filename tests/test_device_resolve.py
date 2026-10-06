@@ -7,8 +7,6 @@ wirft dann "Multiple input devices found" und die Aufnahme startet nie.
 import sys
 import types
 
-import pytest
-
 
 def _install_fake_sounddevice(monkeypatch, devices, default_hostapi=0):
     fake = types.SimpleNamespace()

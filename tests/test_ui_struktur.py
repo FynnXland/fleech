@@ -38,7 +38,7 @@ def test_die_teile_existieren():
                  "textersetzung.py", "advanced.py", "common.py"):
         assert (UI / "settings" / name).exists(), f"settings/{name} fehlt"
     for name in ("profil.py", "freihand.py", "modelle.py", "nachbereitung.py",
-                 "lizenz.py", "lebenszyklus.py"):
+                 "updatepruefung.py", "lebenszyklus.py"):
         assert (UI / "desktopapp" / name).exists(), f"desktopapp/{name} fehlt"
     for name in ("konstanten.py", "bausteine.py", "geometrie.py", "einblendungen.py",
                  "zustand.py"):
@@ -91,7 +91,7 @@ def test_theme_haengt_an_nichts_aus_der_app():
 
 
 @pytest.mark.parametrize("modul", [
-    "licensedialog.py", "onboarding.py", "profilepicker.py", "setuppage.py",
+    "onboarding.py", "profilepicker.py", "setuppage.py",
     "updatedialog.py", "settings_window.py",
 ])
 def test_kein_dialog_haengt_mehr_am_hauptfenster(modul):

@@ -5,7 +5,7 @@ from __future__ import annotations
 import logging
 
 from PySide6.QtCore import Qt
-from PySide6.QtGui import QAction, QBrush, QColor, QIcon, QPainter, QPen, QPixmap
+from PySide6.QtGui import QAction, QBrush, QColor, QIcon, QPainter, QPixmap
 from PySide6.QtWidgets import QMenu, QSystemTrayIcon
 
 from .state import AppState
@@ -61,16 +61,6 @@ class TrayController:
         self._icons = {state: _make_icon(color) for state, color in _STATE_COLOR.items()}
         self.tray = QSystemTrayIcon(self._icons[AppState.IDLE])
         self.tray.setToolTip(_STATE_TOOLTIP[AppState.IDLE])
-        # Brand-Tile als Kontextmenue-/Fallback-Icon (Tray selbst zeigt Status-Farbe).
-        try:
-            from ..resources import app_icon_path
-
-            brand = QIcon(str(app_icon_path()))
-            if not brand.isNull():
-                self._brand_icon = brand
-        except Exception:
-            pass
-
         menu = QMenu()
         # Update-Eintrag: erst sichtbar, wenn wirklich eine neue Version bereitliegt.
         # Er ist der Weg, der auch dann funktioniert, wenn der Nutzer alle Toasts

@@ -8,7 +8,6 @@ Prozessnamen faellt sonst nie auf, weil das Profil einfach stumm nie greift.
 from __future__ import annotations
 
 import logging
-import time as _time
 
 from PySide6.QtCore import Qt
 from PySide6.QtWidgets import (

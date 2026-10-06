@@ -8,8 +8,6 @@ Konstellation, aus der in diesem Projekt die wandernden Abstuerze kamen
 
 from __future__ import annotations
 
-from PySide6.QtCore import Signal
-
 from ..state import AppState
 from .bausteine import _glyph_icon
 from .konstanten import (

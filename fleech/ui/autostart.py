@@ -168,14 +168,6 @@ def blocked_by_system() -> bool:
     return is_autostart_enabled() and _blocked_by_windows()
 
 
-def refresh_autostart_if_stale() -> None:
-    """App verschoben/neu installiert → veralteten Autostart-Pfad korrigieren."""
-    existing = current_autostart_command()
-    if existing is not None and existing != _command():
-        log.info("Autostart-Pfad veraltet — aktualisiere auf aktuelle App.")
-        set_autostart(True)
-
-
 def reconcile_autostart(desired: bool) -> None:
     """Autostart-Eintrag mit dem gespeicherten Nutzerwunsch abgleichen.
 

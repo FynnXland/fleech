@@ -5,9 +5,9 @@ wurde (`app_quick` fuer claude.exe), ist zweimal spurlos verschwunden. Profile u
 Zuordnungen leben nur in der `settings.json`, und es gab keinen Weg, sie einzeln
 zu sichern.
 
-BEWUSST NUR Profile und Schnellwechsel. Ein Gesamt-Backup schleppt den
-Lizenzschluessel und den Mikrofonpfad mit — beides will man nicht weitergeben, und
-die Weitergabe eines eingerichteten Setups ist der zweite Zweck dieser Datei.
+BEWUSST NUR Profile und Schnellwechsel. Ein Gesamt-Backup schleppt Mikrofonpfad,
+Anzeigename und Woerterbuch mit — das will man nicht weitergeben, und die
+Weitergabe eines eingerichteten Setups ist der zweite Zweck dieser Datei.
 
 Der Import ist ADDITIV: gleichnamige Profile werden nur nach Rueckfrage ersetzt,
 unbekannte ergaenzt, nichts geloescht. Ein Import darf nie mehr wegnehmen, als der

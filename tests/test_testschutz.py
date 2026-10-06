@@ -3,7 +3,7 @@
 Diese Datei prueft nicht die App, sondern die Testumgebung — und sie steht hier,
 weil genau das einmal schiefgegangen ist: Am 2026-08-20 hat ein Lauf der
 Testsuite `%APPDATA%\\Fleech\\settings.json` mit den Vorgabewerten ueberschrieben.
-Weg waren Hotkeys, App-Zuordnungen, Woerterbuch und der Lizenzschluessel.
+Weg waren Hotkeys, App-Zuordnungen und Woerterbuch.
 
 Der Ablauf war unspektakulaer: Eine Testdatei baute ein `SettingsPanel` mit einem
 frischen `UserSettings()`, ohne den Pfad umzubiegen. Ein Klick auf ein Auswahlfeld,
@@ -44,7 +44,7 @@ def _liegt_im_echten_ordner(pfad) -> bool:
 def test_einstellungen_zeigen_waehrend_der_tests_ins_wegwerf_verzeichnis():
     assert not _liegt_im_echten_ordner(us.SETTINGS_PATH), (
         f"SETTINGS_PATH zeigt auf {us.SETTINGS_PATH} — ein Test kann damit die "
-        f"echten Einstellungen samt Lizenzschluessel ueberschreiben."
+        f"echten Einstellungen ueberschreiben."
     )
     assert not _liegt_im_echten_ordner(us.SETTINGS_DIR)
 

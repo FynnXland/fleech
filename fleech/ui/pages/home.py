@@ -18,7 +18,6 @@ from PySide6.QtWidgets import (
 )
 
 from ...history import HistoryStore, treffer_als_markdown
-from ...profiles import PROFILE_FORMATS
 from ...usersettings import UserSettings
 from ..dialogs import TranscriptDetailDialog
 from .verlauffilter import VerlaufFilter
@@ -347,7 +346,7 @@ class HomePage(QWidget):
         """
         from PySide6.QtWidgets import QMenu
 
-        from ...profiles import PROFILE_FORMATS, profile_mode
+        from ...profiles import PROFILE_FORMATS
 
         menu = QMenu(self)
         menu.setStyleSheet(

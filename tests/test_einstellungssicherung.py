@@ -107,7 +107,7 @@ def test_versionswechsel_sichert_vor_dem_ersten_speichern(tmp_path, monkeypatch)
     pfad = tmp_path / "settings.json"
     alt = UserSettings()
     alt.recording.hotkey = "f23"
-    alt.general.license_key = "SCHLUESSEL-ALT"
+    alt.output.dictionary = ["Fleech"]
     alt.general.last_version = "5.11.0"
     alt.save(pfad)
 
@@ -118,7 +118,7 @@ def test_versionswechsel_sichert_vor_dem_ersten_speichern(tmp_path, monkeypatch)
     assert len(kopien) == 1 and kopien[0].name.endswith("-update.json")
     inhalt = json.loads(kopien[0].read_text(encoding="utf-8"))
     assert inhalt["recording"]["hotkey"] == "f23"
-    assert inhalt["general"]["license_key"] == "SCHLUESSEL-ALT"
+    assert inhalt["output"]["dictionary"] == ["Fleech"]
     # Die geladene Fassung merkt sich ab jetzt die neue Version.
     assert geladen.general.last_version == "5.99.0"
 
@@ -158,57 +158,11 @@ def test_grund_wird_auf_saubere_dateinamen_reduziert(tmp_path, grund, erwartet):
     assert ziel.name.endswith(f"-{erwartet}.json")
 
 
-# -- Der Lizenzschluessel ueberlebt getrennt -------------------------------------------
-
-
-def test_schluessel_wird_gespiegelt_und_zurueckgeholt(tmp_path):
-    """Der Fall aus dem Alltag: Die Einstellungen verlieren ihren Inhalt, und
-    Fleech steht als nicht freigeschaltet da. Alles andere klickt man neu — den
-    Schluessel muss man suchen."""
-    from fleech.usersettings import UserSettings
-
-    pfad = tmp_path / "settings.json"
-    s = UserSettings()
-    s.general.license_key = "FLEECH-1.abc.def"
-    s.save(pfad)
-    assert sicherung.gemerkter_schluessel(pfad) == "FLEECH-1.abc.def"
-
-    # Jetzt verliert die Datei ihren Schluessel (fremder Schreibvorgang).
-    roh = json.loads(pfad.read_text(encoding="utf-8"))
-    roh["general"]["license_key"] = ""
-    pfad.write_text(json.dumps(roh), encoding="utf-8")
-
-    geladen = UserSettings.load(pfad)
-    assert geladen.general.license_key == "FLEECH-1.abc.def"
-
-
-def test_leerer_schluessel_loescht_die_spiegelung_nicht(tmp_path):
-    """Genau der Zustand „keine Lizenz mehr in den Einstellungen" ist der Schaden.
-    Naehme er die Sicherung mit, waere sie wertlos."""
-    pfad = tmp_path / "settings.json"
-    pfad.write_text("{}", encoding="utf-8")
-    sicherung.merke_schluessel(pfad, "FLEECH-1.xyz")
-    sicherung.merke_schluessel(pfad, "")
-    assert sicherung.gemerkter_schluessel(pfad) == "FLEECH-1.xyz"
-
-    sicherung.vergiss_schluessel(pfad)          # der bewusste Weg
-    assert sicherung.gemerkter_schluessel(pfad) == ""
-
-
-def test_vorhandener_schluessel_wird_nicht_ueberschrieben(tmp_path):
-    """Der Spiegel ist die Rueckfallebene, nicht die Wahrheit."""
-    pfad = tmp_path / "settings.json"
-    pfad.write_text("{}", encoding="utf-8")
-    sicherung.merke_schluessel(pfad, "ALT")
-    assert sicherung.hole_schluessel_zurueck(pfad, "NEU") == "NEU"
-
-
 # -- Ein schrumpfender Schreibvorgang wird gemeldet ------------------------------------
 
 
 def _umfang(**kw):
-    basis = {"profile": 8, "zuordnungen": 4, "schnellwechsel": 2, "woerter": 4,
-             "lizenz": 1}
+    basis = {"profile": 8, "zuordnungen": 4, "schnellwechsel": 2, "woerter": 4}
     basis.update(kw)
     return basis
 
@@ -238,10 +192,10 @@ def test_verlust_wird_als_warnung_gemeldet(tmp_path, caplog):
     sicherung._LETZTER_UMFANG.clear()
     sicherung.melde_schreibvorgang(pfad, _umfang())
     with caplog.at_level("INFO"):
-        sicherung.melde_schreibvorgang(pfad, _umfang(zuordnungen=0, lizenz=0))
+        sicherung.melde_schreibvorgang(pfad, _umfang(zuordnungen=0, woerter=1))
     assert "WENIGER" in caplog.text
     assert "zuordnungen 4->0" in caplog.text
-    assert "lizenz 1->0" in caplog.text
+    assert "woerter 4->1" in caplog.text
     assert any(r.levelname == "WARNING" for r in caplog.records)
 
 

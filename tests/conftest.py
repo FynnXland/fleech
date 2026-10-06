@@ -32,8 +32,8 @@ def _keine_echten_einstellungen(tmp_path, monkeypatch):
     """Kein Test fasst die echten Einstellungen des Nutzers an.
 
     Am 2026-08-20 hat ein Testlauf `%APPDATA%\\Fleech\\settings.json` mit den
-    Vorgabewerten ueberschrieben — Hotkeys, App-Zuordnungen, Woerterbuch und der
-    **Lizenzschluessel** waren weg. Der Weg dorthin ist kurz und unauffaellig: Ein
+    Vorgabewerten ueberschrieben — Hotkeys, App-Zuordnungen und Woerterbuch
+    waren weg. Der Weg dorthin ist kurz und unauffaellig: Ein
     Test baut ein `SettingsPanel` mit einem frischen `UserSettings()`, tippt auf
     ein Auswahlfeld, das Panel speichert brav — und speichert eben dorthin, wo
     ohne Pfadangabe gespeichert wird.

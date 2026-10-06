@@ -2,7 +2,6 @@
 
 import sys
 import threading
-import time
 import uuid
 
 import pytest
@@ -21,9 +20,9 @@ def test_second_acquire_fails_while_first_holds():
     first, second = SingleInstanceLock(name), SingleInstanceLock(name)
     try:
         assert first.acquire(retries=0)
-        assert first.held
+        assert first._handle is not None
         assert not second.acquire(retries=0)
-        assert not second.held
+        assert second._handle is None
     finally:
         first.release()
         second.release()

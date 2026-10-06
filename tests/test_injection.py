@@ -58,8 +58,6 @@ def test_inject_no_restorer_is_safe():
 
 
 def test_focusrestore_fallbacks_never_crash():
-    import sys
-
     from fleech.ui import focusrestore
 
     # Plattformunabhaengig: None-Ziele sind immer False, nie ein Crash.

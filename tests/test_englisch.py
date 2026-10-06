@@ -11,7 +11,6 @@ import types
 
 import pytest
 
-from fleech.pipeline import Pipeline
 from fleech.textfilter import _gibberish_signale, strip_gibberish_tail
 
 EN = ("This is a normal English dictation about the new feature. I want to explain "

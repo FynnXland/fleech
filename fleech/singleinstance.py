@@ -105,7 +105,3 @@ class SingleInstanceLock:
             except Exception:
                 pass
         self._handle = None
-
-    @property
-    def held(self) -> bool:
-        return self._handle is not None

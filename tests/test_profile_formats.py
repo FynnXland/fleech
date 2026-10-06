@@ -5,8 +5,6 @@ Modell antwortet leer, Netz weg), darf das Diktat NICHT verschlucken — es fael
 normales Cleanup zurueck.
 """
 
-import types
-
 import pytest
 
 from fleech.profiles import (

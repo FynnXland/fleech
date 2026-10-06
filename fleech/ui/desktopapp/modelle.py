@@ -20,7 +20,7 @@ import time
 from ...app import DictationApp
 from ...audio import Recorder
 from ...pipeline_factory import build_pipeline
-from ..state import AppState, StateBus
+from ..state import AppState
 
 log = logging.getLogger(__name__)
 
@@ -31,6 +31,8 @@ log = logging.getLogger(__name__)
 SPIELPAUSE_S = 300
 
 class ModelleMixin:
+    _preview_gen = 0  # Generationszaehler gegen Start/Stop-Races (Load dauert Sekunden)
+
     def _build_engine(self) -> None:
         cfg = self.config
         s = self.settings

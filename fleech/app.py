@@ -106,7 +106,7 @@ class DictationApp:
             self._finish()
 
     def _begin(self, mode: str) -> None:
-        allowed, message = self.focus.may_record(math_mode=False)
+        allowed, message = self.focus.may_record()
         if not allowed:
             log.error(message)
             self._flash_overlay(f"⛔ {message}")

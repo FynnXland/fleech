@@ -143,7 +143,6 @@ def test_willkommenstext_nennt_keine_schrittzahl(qapp):
 def test_fehlgeschlagenes_schreiben_loescht_den_wunsch_nicht(qapp, monkeypatch):
     """Der reale Fehler: Scheiterte das Schreiben einmal, setzte Fleech den Wunsch
     auf False — und der naechste Start LOESCHTE den Eintrag dann aktiv."""
-    from fleech.ui import autostart as autostart_mod
     from fleech.ui import settings_window
     from fleech.usersettings import UserSettings
 
@@ -205,7 +204,7 @@ def test_setup_page_zeigt_drei_zeilen_und_haken(qapp, monkeypatch):
     _fake_setup_lage(monkeypatch)
     page = _setup_page()
     assert list(page._rows) == ["ollama", "llm:gemma3:4b", "stt"]
-    assert page.is_ready() is True
+    assert all(s.state == "done" for s in page._steps)
     assert not page._btn.isEnabled()               # nichts zu tun
     assert page._btn.text() == "Alles bereit"
     page.deleteLater()
@@ -213,7 +212,7 @@ def test_setup_page_zeigt_drei_zeilen_und_haken(qapp, monkeypatch):
 def test_setup_page_frischer_rechner_bietet_einrichtung(qapp, monkeypatch):
     _fake_setup_lage(monkeypatch, lage="missing", modelle=(), whisper=False)
     page = _setup_page()
-    assert page.is_ready() is False
+    assert not all(s.state == "done" for s in page._steps)
     assert page._btn.isEnabled()
     assert "Hintergrund" in page._status.text()
     page.deleteLater()

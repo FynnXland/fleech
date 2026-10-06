@@ -18,8 +18,6 @@ import logging
 import threading
 import time
 
-from PySide6.QtWidgets import QApplication
-
 log = logging.getLogger(__name__)
 
 class NachbereitungMixin:

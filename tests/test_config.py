@@ -1,5 +1,3 @@
-from pathlib import Path
-
 from fleech.config import load_config
 
 
@@ -106,15 +104,6 @@ def test_overlay_config(tmp_path):
     cfg = load_config(p)
     assert cfg.overlay.enabled is False
     assert cfg.overlay.model_size == "base"
-
-
-def test_api_key_from_env(monkeypatch, tmp_path):
-    cfg = load_config(tmp_path / "leer.yaml")
-    cfg.llm_cleanup.api_key_env = "MY_TEST_KEY"
-    monkeypatch.setenv("MY_TEST_KEY", "sk-123")
-    assert cfg.llm_cleanup.api_key == "sk-123"
-    monkeypatch.delenv("MY_TEST_KEY")
-    assert cfg.llm_cleanup.api_key == "not-needed"
 
 
 def test_startpfad_baut_den_fokus_controller(tmp_path, monkeypatch):

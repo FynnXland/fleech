@@ -488,7 +488,7 @@ def test_autosend_standardmaessig_aus():
 def test_hotkey_pfade_fassen_keine_widgets_an():
     """Alles, was der pynput-Thread ausloest, laeuft ueber den StateBus.
 
-    Grund ist ein echter Aufhaenger: der Lizenz-Dialog wurde direkt im
+    Grund ist ein echter Aufhaenger: ein Dialog wurde direkt im
     Listener-Thread gebaut und die App stand. Derselbe Fehler steckte leiser im
     Pause-Hotkey (`overlay.set_paused` direkt). Beide Wege sind jetzt Signale —
     dieser Test haelt das fest, indem er das Overlay ganz weglaesst."""
@@ -765,7 +765,6 @@ def test_mikrofon_fehlstart_erzeugt_kein_geister_diktat(qapp):
         raise OSError("Geraet belegt")
 
     fake = types.SimpleNamespace(
-        _license_ok=lambda: True,
         focus=types.SimpleNamespace(may_record=lambda math_mode=False: (True, "")),
         _freihand=None,
         recorder=types.SimpleNamespace(start=start_geht_nicht),

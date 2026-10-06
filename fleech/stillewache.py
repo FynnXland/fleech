@@ -90,12 +90,6 @@ class Stillewache:
             return False
         return jetzt - self._letzte_sprache >= self.stille_s
 
-    def stille_seit(self, jetzt: float) -> float:
-        """Wie lange es schon still ist — fuer die Anzeige in der Pille."""
-        if not self._laeuft:
-            return 0.0
-        return max(0.0, jetzt - self._letzte_sprache)
-
     # -- innen ------------------------------------------------------------------------
 
     def _fenster(self, audio) -> np.ndarray:

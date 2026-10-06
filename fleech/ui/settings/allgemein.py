@@ -6,7 +6,7 @@ Baut die Seite in das uebergebene SettingsPanel; die Widget-Bauer
 
 from __future__ import annotations
 
-from PySide6.QtWidgets import QHBoxLayout, QLabel, QLineEdit, QPushButton, QWidget
+from PySide6.QtWidgets import QLineEdit, QPushButton
 
 from .. import autostart
 from ..theme import style_button
@@ -62,21 +62,6 @@ def build(panel) -> None:
         "Einführung", "Der Erststart-Rundgang: Mikrofon, Bedienung, Modi.")
     form.addRow(label_w, onboarding_btn)
 
-    lizenz_zeile = QWidget()
-    lrow = QHBoxLayout(lizenz_zeile)
-    lrow.setContentsMargins(0, 0, 0, 0)
-    lizenz_btn = style_button(QPushButton("Schlüssel eintragen …"))
-    lizenz_btn.clicked.connect(panel._open_license)
-    panel._license_label = QLabel("")
-    panel._license_label.setStyleSheet("color: #808088; font-size: 8pt;")
-    panel._license_label.setWordWrap(True)
-    lrow.addWidget(lizenz_btn)
-    lrow.addWidget(panel._license_label, 1)
-    label_w, _ = panel._row_label(
-        "Lizenz", "Fleech diktiert nur mit gültigem Schlüssel. Er gilt persönlich "
-                  "und wird ohne Internet geprüft.")
-    form.addRow(label_w, lizenz_zeile)
-    panel.refresh_license()
     cards_btn = style_button(QPushButton("Alle Karten wieder einblenden"))
     cards_btn.clicked.connect(panel._restore_cards)
     label_w, _ = panel._row_label(

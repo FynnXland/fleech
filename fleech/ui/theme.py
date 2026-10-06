@@ -2,8 +2,8 @@
 
 Bewusst ein eigenes Modul und bewusst OHNE Abhaengigkeiten in die App hinein: Bis
 5.4.0 standen diese Werte in `main_window.py`, und sechs andere Module zogen sie
-von dort (`licensedialog`, `onboarding`, `profilepicker`, `settings_window`,
-`setuppage`, `updatedialog`). Damit hing halb die Oberflaeche am Hauptfenster,
+von dort (`onboarding`, `profilepicker`, `settings_window`, `setuppage`,
+`updatedialog` und ein inzwischen entfallener Dialog). Damit hing halb die Oberflaeche am Hauptfenster,
 obwohl sie nur eine Farbe brauchte — eine verdrehte Richtung, die jeden Umbau am
 Hauptfenster unnoetig gefaehrlich machte.
 

@@ -9,7 +9,6 @@ def test_defaults_match_product_decisions():
     assert s.audio_focus.mode == "soft_duck"
     assert s.sounds.enabled is True            # dezente Sounds an
     assert s.output.intervention == "standard"
-    assert s.math.priority == "mixed"
 
 
 def test_save_load_roundtrip(tmp_path):
@@ -169,11 +168,9 @@ def test_apply_math_level_setzt_alle_felder():
 
 
 def test_math_level_ist_rundreise_stabil():
-    from fleech.usersettings import (MATH_LEVELS, MathSettings, apply_math_level,
-                                     math_level)
+    from fleech.usersettings import MathSettings, apply_math_level, math_level
 
-    assert MATH_LEVELS == ("off", "auto")      # Umschalt-Stufen sind entfallen
-    for level in MATH_LEVELS:
+    for level in ("off", "auto"):              # Umschalt-Stufen sind entfallen
         m = MathSettings()
         apply_math_level(m, level)
         assert math_level(m) == level, level

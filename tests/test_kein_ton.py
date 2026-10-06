@@ -107,7 +107,7 @@ def test_neue_aufnahme_beginnt_mit_leerem_pegelverlauf(monkeypatch):
                         lambda d, on_fallback=None: None)
     r.start()
     assert r.rohpegel_max(5.0) == 0.0
-    assert r.status_zaehler == 0
+    assert r._status_zaehler == 0
 
 
 # -- Recorder: PortAudio-Statuscodes (Befund B-6) --------------------------------------
@@ -123,7 +123,7 @@ def test_portaudio_status_meldet_sich_einmal_und_zaehlt_dann(caplog):
             r._callback(_block(0.5), 160, None, "input overflow")
     zeilen = [s for s in caplog.messages if "Audio-Status" in s]
     assert len(zeilen) == 1, zeilen
-    assert r.status_zaehler == 5
+    assert r._status_zaehler == 5
 
 
 def test_stop_meldet_die_summe_der_statuscodes(caplog):

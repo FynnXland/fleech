@@ -6,8 +6,6 @@ noch einmal durch dieselbe Pipeline geschickt — inklusive aller Guards.
 
 import types
 
-import pytest
-
 from fleech.pipeline import Pipeline
 
 

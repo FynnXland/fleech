@@ -3,8 +3,7 @@
 Realer Schaden, aus dem diese Tests entstanden sind: Beim Update wurde Fleech mit
 einem harten Kill beendet. Traf das einen laufenden `save()`, blieb eine leere
 settings.json zurueck; der naechste Start fiel still auf Vorgaben und der erste
-`save()` zementierte sie. Weg waren Hotkeys, Profile — und der Lizenzschluessel,
-ohne den nicht einmal mehr diktiert werden kann.
+`save()` zementierte sie. Weg waren Hotkeys, Profile und Woerterbuch.
 """
 
 import json
@@ -26,9 +25,10 @@ def pfad(tmp_path):
 
 def _mit_inhalt(pfad) -> UserSettings:
     s = UserSettings()
-    s.general.license_key = "FLEECH-1.echt"
+    s.general.display_name = "Name-echt"
     s.recording.hotkey = "f23"
     s.recording.prompt_toggle_hotkey = ""        # bewusst geloescht
+    s.output.dictionary = ["Fleech"]
     s.profiles.active = "Stichpunkte"
     s.save(pfad)
     return s
@@ -49,36 +49,36 @@ def _temp_reste(pfad) -> list:
 
 def test_speichern_ist_atomar_und_hinterlaesst_keine_reste(pfad):
     _mit_inhalt(pfad)
-    assert json.loads(pfad.read_text(encoding="utf-8"))["general"]["license_key"]
+    assert json.loads(pfad.read_text(encoding="utf-8"))["general"]["display_name"]
     assert not _temp_reste(pfad)                            # kein Temp-Muell
 
 
 def test_zweites_speichern_legt_eine_sicherung_an(pfad):
     s = _mit_inhalt(pfad)
-    s.general.license_key = "FLEECH-1.neuer"
+    s.general.display_name = "Name-neuer"
     s.save(pfad)
     gesichert = json.loads(_backup_path(pfad).read_text(encoding="utf-8"))
-    assert gesichert["general"]["license_key"] == "FLEECH-1.echt"   # die VORIGE
-    assert json.loads(pfad.read_text(encoding="utf-8"))["general"]["license_key"] \
-        == "FLEECH-1.neuer"
+    assert gesichert["general"]["display_name"] == "Name-echt"   # die VORIGE
+    assert json.loads(pfad.read_text(encoding="utf-8"))["general"]["display_name"] \
+        == "Name-neuer"
 
 
 @pytest.mark.parametrize("kaputt", [
     "",                                   # hartes Kill mitten im Schreiben
     "   \n",
-    '{"general": {"license_key": "FL',    # halb geschrieben
+    '{"general": {"display_name": "Ec',    # halb geschrieben
     "[]",                                 # gueltiges JSON, aber kein Objekt
     "\x00\x00\x00",                       # Nullen (Stromausfall ohne fsync)
 ])
 def test_kaputte_datei_wird_aus_der_sicherung_geheilt(pfad, kaputt):
-    """Der Kern: Nach dem Unfall stehen Schluessel und Hotkeys wieder da."""
+    """Der Kern: Nach dem Unfall stehen Name und Hotkeys wieder da."""
     s = _mit_inhalt(pfad)
     s.profiles.active = "E-Mail"
     s.save(pfad)                                   # legt die Sicherung an
     pfad.write_text(kaputt, encoding="utf-8")
 
     geladen = UserSettings.load(pfad)
-    assert geladen.general.license_key == "FLEECH-1.echt"
+    assert geladen.general.display_name == "Name-echt"
     assert geladen.recording.hotkey == "f23"
     assert geladen.recording.prompt_toggle_hotkey == ""   # Loeschung ueberlebt
 
@@ -87,11 +87,11 @@ def test_ohne_sicherung_wird_die_kaputte_datei_aufgehoben_nicht_ueberschrieben(p
     """Ohne Sicherung bleibt nur der Neustart mit Vorgaben — aber die kaputte
     Fassung wird beiseitegelegt statt ueberschrieben. Sonst waere die einzige
     Spur des Verlorenen beim ersten `save()` endgueltig fort."""
-    pfad.write_text('{"general": {"license_key', encoding="utf-8")
+    pfad.write_text('{"general": {"display_name', encoding="utf-8")
     geladen = UserSettings.load(pfad)
-    assert geladen.general.license_key == ""            # Vorgaben
+    assert geladen.general.display_name == ""            # Vorgaben
     assert pfad.with_name(pfad.name + ".kaputt").is_file()
-    assert "license_key" in pfad.with_name(pfad.name + ".kaputt").read_text(
+    assert "display_name" in pfad.with_name(pfad.name + ".kaputt").read_text(
         encoding="utf-8")
 
 
@@ -104,7 +104,7 @@ def test_gesunde_datei_wird_nie_beiseitegelegt(pfad):
 def test_fehlende_datei_ist_kein_fehlerfall(pfad):
     """Erststart: keine Datei, keine Sicherung, kein Laerm."""
     geladen = UserSettings.load(pfad)
-    assert geladen.general.license_key == ""
+    assert geladen.general.display_name == ""
     assert not pfad.with_name(pfad.name + ".kaputt").exists()
 
 
@@ -119,7 +119,7 @@ def test_schreibfehler_laesst_die_alte_fassung_stehen(pfad, monkeypatch):
 
     monkeypatch.setattr("os.replace", kaputt)
     s = UserSettings.load(pfad)
-    s.general.license_key = "FLEECH-1.ginge-verloren"
+    s.general.display_name = "Name-ginge-verloren"
     s.save(pfad)                                   # darf nicht werfen
     assert pfad.read_text(encoding="utf-8") == vorher
 
@@ -146,7 +146,7 @@ def test_gleichzeitiges_speichern_zerstoert_die_datei_nicht(pfad):
 
     def schreiber(schluessel: str):
         s = UserSettings()
-        s.general.license_key = schluessel
+        s.general.display_name = schluessel
         for _ in range(200):
             s.save(pfad)
 
@@ -166,7 +166,7 @@ def test_gleichzeitiges_speichern_zerstoert_die_datei_nicht(pfad):
     stop = threading.Event()
     beobachter = threading.Thread(target=leser, args=(stop,), daemon=True)
     beobachter.start()
-    threads = [threading.Thread(target=schreiber, args=(f"FLEECH-1.{i}",))
+    threads = [threading.Thread(target=schreiber, args=(f"Name-{i}",))
                for i in range(2)]
     for t in threads:
         t.start()
@@ -176,8 +176,8 @@ def test_gleichzeitiges_speichern_zerstoert_die_datei_nicht(pfad):
     beobachter.join(timeout=5)
 
     assert kaputt == []
-    assert json.loads(pfad.read_text(encoding="utf-8"))["general"]["license_key"] \
-        in {"FLEECH-1.0", "FLEECH-1.1"}
+    assert json.loads(pfad.read_text(encoding="utf-8"))["general"]["display_name"] \
+        in {"Name-0", "Name-1"}
     assert not _temp_reste(pfad)
 
 
@@ -214,11 +214,11 @@ def test_zwei_schreiber_kommen_sich_nie_ins_gehege(pfad, monkeypatch):
 
     def schreiber(schluessel: str):
         s = UserSettings()
-        s.general.license_key = schluessel
+        s.general.display_name = schluessel
         for _ in range(10):
             s.save(pfad)
 
-    threads = [threading.Thread(target=schreiber, args=(f"FLEECH-1.{i}",))
+    threads = [threading.Thread(target=schreiber, args=(f"Name-{i}",))
                for i in range(2)]
     for t in threads:
         t.start()
@@ -239,20 +239,20 @@ def test_kaputte_quelle_wird_nicht_zur_sicherung(pfad):
     s.save(pfad)                                   # gute Sicherung
     vorher = _backup_path(pfad).read_text(encoding="utf-8")
 
-    pfad.write_text('{"general": {"license_key": "FL', encoding="utf-8")
+    pfad.write_text('{"general": {"display_name": "Ec', encoding="utf-8")
     UserSettings().save(pfad)                      # naechster Speichervorgang
 
     assert _backup_path(pfad).read_text(encoding="utf-8") == vorher
-    assert json.loads(vorher)["general"]["license_key"] == "FLEECH-1.echt"
+    assert json.loads(vorher)["general"]["display_name"] == "Name-echt"
     # Damit ist die Rettung noch da — und A-5 holt sie beim naechsten Start:
-    assert UserSettings.load(pfad).general.license_key == "FLEECH-1.echt"
+    assert UserSettings.load(pfad).general.display_name == "Name-echt"
 
 
 # --- A-5: gueltige, aber zurueckgesetzte Datei --------------------------------
 
 def _sicherung_mit_allem() -> UserSettings:
     s = UserSettings()
-    s.general.license_key = "FLEECH-1.echt"
+    s.general.display_name = "Name-echt"
     s.general.onboarding_done = True
     s.recording.hotkey = "f23"
     s.output.dictionary = ["Fleech", "Kimono"]
@@ -260,27 +260,10 @@ def _sicherung_mit_allem() -> UserSettings:
     return s
 
 
-def test_heilung_a_lizenz_weg_in_der_datei_aber_in_der_sicherung_da(pfad):
-    """Befund A-5, Kriterium (a): Ein Lizenzschluessel verschwindet nicht durch
-    Bedienung — dafuer gibt es keinen Knopf. Ist er in der Datei leer und in der
-    Sicherung gesetzt, war es ein Ruecksetzer."""
-    datei = UserSettings()
-    datei.recording.hotkey = "f23"          # sonst noch alles da, nur die Lizenz weg
-    _schreibe(pfad, datei)
-    _schreibe(_backup_path(pfad), _sicherung_mit_allem())
-
-    geladen = UserSettings.load(pfad)
-    assert geladen.general.license_key == "FLEECH-1.echt"
-    assert geladen.output.dictionary == ["Fleech", "Kimono"]
-    assert pfad.with_name(pfad.name + ".zurueckgesetzt").is_file()
-
-
 def test_heilung_b_alles_auf_werk_waehrend_die_sicherung_mehr_hat(pfad):
-    """Befund A-5, Kriterium (b): Ohne Lizenz als Anker zaehlt der Gesamteindruck —
-    die Datei steht auf ALLEN wertvollen Feldern auf Auslieferungszustand und die
+    """Befund A-5: Die Datei steht auf ALLEN wertvollen Feldern auf Auslieferungszustand und die
     Sicherung weicht in mindestens zwei davon ab."""
     sicherung = _sicherung_mit_allem()
-    sicherung.general.license_key = ""      # kein Anker: Hotkey + Woerterbuch + app_quick
     _schreibe(pfad, UserSettings())
     _schreibe(_backup_path(pfad), sicherung)
 
@@ -309,10 +292,10 @@ def test_keine_heilung_bei_einer_einzelnen_abweichung(pfad):
 
 
 def test_keine_heilung_wenn_nur_ein_wertvolles_feld_in_der_sicherung_steht(pfad):
-    """Kriterium (b) verlangt ZWEI Abweichungen. Bei einer einzigen koennte es
+    """Die Erkennung verlangt ZWEI Abweichungen. Bei einer einzigen koennte es
     genauso gut ein bewusster Griff gewesen sein."""
     sicherung = UserSettings()
-    sicherung.recording.hotkey = "f23"      # genau eine Abweichung, keine Lizenz
+    sicherung.recording.hotkey = "f23"      # genau eine Abweichung
     _schreibe(pfad, UserSettings())
     _schreibe(_backup_path(pfad), sicherung)
 
@@ -320,14 +303,14 @@ def test_keine_heilung_wenn_nur_ein_wertvolles_feld_in_der_sicherung_steht(pfad)
     assert not pfad.with_name(pfad.name + ".zurueckgesetzt").exists()
 
 
-@pytest.mark.parametrize("kaputte_sicherung", ["", "   \n", '{"general": {"lic'])
+@pytest.mark.parametrize("kaputte_sicherung", ["", "   \n", '{"general": {"dis'])
 def test_keine_heilung_aus_einer_kaputten_sicherung(pfad, kaputte_sicherung):
     """Eine unlesbare .bak ist kein Rettungsanker — dann bleibt es bei dem, was
     in der Datei steht."""
     _schreibe(pfad, UserSettings())
     _backup_path(pfad).write_text(kaputte_sicherung, encoding="utf-8")
 
-    assert UserSettings.load(pfad).general.license_key == ""
+    assert UserSettings.load(pfad).general.display_name == ""
     assert not pfad.with_name(pfad.name + ".zurueckgesetzt").exists()
     assert pfad.is_file()
 
@@ -338,7 +321,7 @@ def test_keine_heilung_wenn_datei_und_sicherung_gleich_sind(pfad):
     s = _mit_inhalt(pfad)
     s.save(pfad)                            # jetzt sind Datei und .bak identisch
     geladen = UserSettings.load(pfad)
-    assert geladen.general.license_key == "FLEECH-1.echt"
+    assert geladen.general.display_name == "Name-echt"
     assert not pfad.with_name(pfad.name + ".zurueckgesetzt").exists()
 
 
@@ -360,18 +343,18 @@ def test_die_geheilte_fassung_ueberlebt_auch_den_naechsten_start(pfad):
     _schreibe(pfad, UserSettings())
     _schreibe(_backup_path(pfad), _sicherung_mit_allem())
 
-    assert UserSettings.load(pfad).general.license_key == "FLEECH-1.echt"
+    assert UserSettings.load(pfad).general.display_name == "Name-echt"
     assert not pfad.exists()                       # beiseitegelegt
     zweiter_start = UserSettings.load(pfad)        # ohne dass etwas gespeichert wurde
-    assert zweiter_start.general.license_key == "FLEECH-1.echt"
+    assert zweiter_start.general.display_name == "Name-echt"
 
 
-def test_ladezeile_nennt_profile_zuordnungen_und_lizenz(pfad, caplog):
+def test_ladezeile_nennt_profile_und_zuordnungen(pfad, caplog):
     """Befund B10: Die einzige je angelegte Schnellwechsel-Zuordnung war zweimal
     weg, ohne dass es irgendwo auffiel. Diese Zeile macht den Verlust im Log
     sichtbar."""
     s = UserSettings()
-    s.general.license_key = "FLEECH-1.echt"
+    s.general.display_name = "Name-echt"
     s.output.dictionary = ["Fleech", "Kimono", "Wispr"]
     s.profiles.items[1]["apps"] = ["winword.exe", "outlook.exe"]
     s.profiles.app_quick = {"claude.exe": ["KI-Prompt", "Stichpunkte"]}
@@ -385,12 +368,3 @@ def test_ladezeile_nennt_profile_zuordnungen_und_lizenz(pfad, caplog):
     assert "2 App-Zuordnungen" in zeile[0]
     assert "1 Schnellwechsel-Apps (2 Eintraege)" in zeile[0]
     assert "3 Woerterbuchzeilen" in zeile[0]
-    assert "Lizenz vorhanden" in zeile[0]
-
-
-def test_ladezeile_meldet_fehlende_lizenz(pfad, caplog):
-    """Ohne Schluessel diktiert Fleech nicht — das muss im Log stehen, nicht nur
-    in der Oberflaeche."""
-    with caplog.at_level(logging.INFO):
-        UserSettings.load(pfad)              # Datei gibt es gar nicht
-    assert any("Lizenz FEHLT" in r.getMessage() for r in caplog.records)

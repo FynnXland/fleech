@@ -2,8 +2,6 @@
 
 from dataclasses import dataclass
 
-import pytest
-
 from fleech import ollama_setup, provisioning
 
 

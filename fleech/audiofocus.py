@@ -19,7 +19,7 @@ import re
 import sys
 import threading
 import time
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from enum import Enum
 
 log = logging.getLogger(__name__)
@@ -449,7 +449,6 @@ class MicLevelController:
 class FocusState:
     mode: FocusMode
     mic_name: str
-    mic_only: bool = True  # per Architektur immer True; hier fuer die UX-Anzeige
     ducking_active: bool = False
 
 
@@ -464,14 +463,13 @@ class AudioFocusController:
         self.device_check = device_check
         self.mic_level = mic_level
 
-    def may_record(self, math_mode: bool = False) -> tuple[bool, str]:
+    def may_record(self) -> tuple[bool, str]:
         """Loopback-Geraet: warnen, aber nicht blockieren.
 
         Frueher wurde im Formel-Modus hart blockiert, weil dort Audio an einen
         kostenpflichtigen Cloud-Dienst ging. Diesen Pfad gibt es seit v3.0.0 nicht
         mehr — es bleibt die Warnung, damit ein falsch gewaehltes Geraet auffaellt,
-        ohne dass jemand vor einem verschlossenen Mikrofon steht. Der Parameter
-        bleibt aus Kompatibilitaet erhalten."""
+        ohne dass jemand vor einem verschlossenen Mikrofon steht."""
         if self.device_check.ok:
             return True, ""
         return True, (
@@ -494,7 +492,6 @@ class AudioFocusController:
         return FocusState(
             mode=self.mode,
             mic_name=self.device_check.name,
-            mic_only=True,
             ducking_active=bool(self.ducker and self.ducker.ducked),
         )
 

@@ -186,8 +186,7 @@ def sichere_einstellungen() -> None:
     """Die eigenen Einstellungen wegsichern, bevor der Build laeuft.
 
     Anlass: Am 2026-08-20 hat ein Testlauf `settings.json` mit den Vorgabewerten
-    ueberschrieben — Hotkeys, Mikrofon, Woerterbuch und der Lizenzschluessel waren
-    weg, und es gab nichts zum Zurueckholen. Die Ursache ist behoben, aber wer
+    ueberschrieben — Hotkeys, Mikrofon und Woerterbuch waren weg, und es gab nichts zum Zurueckholen. Die Ursache ist behoben, aber wer
     baut, aendert Code, und Code kann wieder etwas anfassen, das ihm nicht gehoert.
     Zwei Zeilen Vorsicht vor einem Vorgang, der ohnehin eine Minute dauert.
     """

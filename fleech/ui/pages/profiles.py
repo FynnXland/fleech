@@ -268,7 +268,7 @@ class ProfilesPage(QWidget):
         export_btn = style_button(QPushButton("Profile exportieren …"), "ghost")
         export_btn.setToolTip(
             "Schreibt Profile und Schnellwechsel in eine JSON-Datei. Bewusst nur "
-            "das — Lizenzschlüssel, Mikrofon und alle anderen Einstellungen "
+            "das — Mikrofon und alle anderen Einstellungen "
             "bleiben draußen, damit man die Datei weitergeben kann.")
         export_btn.clicked.connect(self._profile_exportieren)
         import_btn = style_button(QPushButton("Profile importieren …"), "ghost")

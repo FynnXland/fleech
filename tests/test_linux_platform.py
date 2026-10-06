@@ -92,10 +92,10 @@ def test_singleinstance_flock_blockiert_zweite_instanz(monkeypatch, tmp_path):
     second = SingleInstanceLock("Fleech.Test")
     try:
         assert first.acquire(retries=0)
-        assert first.held
+        assert first._handle is not None
         assert not second.acquire(retries=0)
         first.release()
-        assert not first.held
+        assert first._handle is None
         assert second.acquire(retries=0)
     finally:
         first.release()

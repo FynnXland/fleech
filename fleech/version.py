@@ -7,7 +7,7 @@
 
 from __future__ import annotations
 
-APP_VERSION = "5.16.0"  # 5.16.0: Sammel-Release 5.13.1–5.15.2
+APP_VERSION = "6.0.0"  # 6.0.0: Open Source (GPL-3.0), ohne Lizenzschluessel
 
 
 def _read_build() -> str:

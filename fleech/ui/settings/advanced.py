@@ -57,21 +57,6 @@ def build(panel) -> None:
         "einen JSON-Feed mit „version\", „url\" und „sha256\" zeigen.")
     form.addRow(label_w, feed)
 
-    token = QLineEdit(s.advanced.update_token)
-    token.setEchoMode(QLineEdit.Password)
-    token.setPlaceholderText("(nur bei privatem Repository)")
-    token.editingFinished.connect(
-        lambda: (setattr(s.advanced, "update_token", token.text().strip()),
-                 panel._changed("advanced"))
-    )
-    label_w, _ = panel._row_label(
-        "Zugriffstoken",
-        "Nur nötig, wenn die Update-Quelle ein privates Repository ist: ein "
-        "GitHub-Token mit Leserecht („Contents: Read-only“). Er wird ausschließlich "
-        "an GitHub gesendet und nie ins Log geschrieben. Alternativ die "
-        "Umgebungsvariable FLEECH_UPDATE_TOKEN setzen.")
-    form.addRow(label_w, token)
-
     # Wayland ehrlich benennen, statt Funktionen still ausfallen zu lassen.
     from ...platformpaths import WAYLAND_LIMITS, session_kind
 

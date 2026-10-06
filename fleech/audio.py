@@ -333,11 +333,6 @@ class Recorder:
         """Aktueller Eingangspegel (RMS, ~0–0.5) — billig, fuer die Live-Waveform."""
         return self._level if self._stream is not None else 0.0
 
-    @property
-    def status_zaehler(self) -> int:
-        """Wie oft PortAudio in dieser Aufnahme einen Status gemeldet hat."""
-        return self._status_zaehler
-
     def rohpegel_max(self, sekunden: float = 5.0) -> float:
         """Lautester ROHER RMS der letzten Sekunden (0.0 = es kam nichts).
 

@@ -1,5 +1,3 @@
-from pathlib import Path
-
 import pytest
 
 from fleech.config import PROJECT_ROOT

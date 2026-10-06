@@ -10,14 +10,8 @@ Der Ablauf entspricht dem, was der Update-Client in `fleech/ui/updates.py` erwar
 1. `build.py` (EXE) und `build.py --installer` (Inno Setup) laufen lassen.
 2. SHA-256 des Installers bilden — sie landet als Zeile `SHA256: <hex>` in den
    Release-Notizen. Der Client verweigert die Installation, wenn sie nicht passt.
-3. Release `v<APP_VERSION>` im OEFFENTLICHEN Releases-Repository anlegen und die
-   Setup-Datei als Asset hochladen (`gh`).
-
-Zwei Repositories, mit Absicht: der Quellcode (`FynnXland/fleech`) bleibt privat,
-die Installationsdateien liegen in `FynnXland/fleech-releases`. Nur so kommt die
-Update-Pruefung ohne Zugriffstoken aus — und ein Token in einer ausgelieferten EXE
-waere ohnehin auslesbar. Wer Fleech benutzen darf, entscheidet stattdessen der
-Lizenzschluessel (`fleech/licensing.py`, ausgestellt mit `packaging/issue_key.py`).
+3. Release `v<APP_VERSION>` im Projekt-Repository (`GITHUB_REPO` in
+   `fleech/ui/updates.py`) anlegen und die Setup-Datei als Asset hochladen (`gh`).
 
 Voraussetzungen: Inno Setup 6 (`winget install JRSoftware.InnoSetup`) und ein
 angemeldetes `gh` (`gh auth status`). Beides wird vorab geprueft, damit der Fehler
@@ -162,9 +156,6 @@ def main() -> int:
         return 0
 
     tag = f"v{APP_VERSION}"
-    # Veroeffentlicht wird ins RELEASES-Repository, nicht ins Quellcode-Repository:
-    # dort liegen nur die Setup-Dateien, deshalb darf es oeffentlich sein und die
-    # Update-Pruefung braucht keinen Zugriffstoken.
     cmd = ["gh", "release", "create", tag, str(setup),
            "--repo", RELEASE_REPO,
            "--title", f"Fleech {APP_VERSION}",

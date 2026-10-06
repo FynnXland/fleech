@@ -1,12 +1,12 @@
 # Fleech — Gesamtkonzept, Funktionen und technische Umsetzung
 
-> Stand: Version 5.11.0 · Diese Datei ist die Gesamtdarstellung des Projekts: Idee,
-> Bedienung, jede Funktion, jede Einstellung und die technische Umsetzung dahinter.
-> Die themenspezifischen Vertiefungen liegen daneben in `docs/`
+> Stand: Version 5.11.0, Lizenz und Updates auf 6.0.0 nachgezogen · Diese Datei ist
+> die Gesamtdarstellung des Projekts: Idee, Bedienung, jede Funktion, jede Einstellung
+> und die technische Umsetzung dahinter. Was sich seither geändert hat, steht im
+> [CHANGELOG](../CHANGELOG.md); bei Verhaltensfragen ist der Quellcode maßgeblich.
+> Vertiefungen zu einzelnen Themen liegen daneben in `docs/`
 > ([Audio-Architektur](audio-architektur.md), [Focus & Notifications](focus-notifications.md),
-> [Packaging](packaging.md), [STT-Vergleich](stt-vergleich.md),
-> [Desktop-App](desktop-app.md)). Die knappe, bebilderte Fassung für Mitlesende steht
-> in [TECHNIK.md](TECHNIK.md); die Weitergabe erklärt [WEITERGABE.md](WEITERGABE.md).
+> [STT-Vergleich](stt-vergleich.md)).
 
 ---
 
@@ -36,7 +36,7 @@
 21. [Freihand — diktieren ohne Taste](#21-freihand--diktieren-ohne-taste-seit-530)
 22. [Sprachen](#22-sprachen-seit-540)
 23. [Nachbearbeiten und offene Prompts](#23-nachbearbeiten-und-offene-prompts-seit-520)
-24. [Lizenz und Weitergabe](#24-lizenz-und-weitergabe-seit-500)
+24. [Lizenz und Updates](#24-lizenz-und-updates-seit-600)
 25. [Grenzen und bewusste Kompromisse](#25-grenzen-und-bewusste-kompromisse)
 
 ---
@@ -823,7 +823,7 @@ wie im Overlay).
 
 **Profile sichern und zurückholen.** Zwei Knöpfe unter der Profilliste schreiben
 Profile und Schnellwechsel-Zuordnungen in eine JSON-Datei und lesen sie wieder ein.
-Bewusst NUR das — kein Lizenzschlüssel, kein Mikrofonpfad —, damit sich die Datei auch
+Bewusst NUR das — kein Mikrofonpfad, kein Anzeigename —, damit sich die Datei auch
 weitergeben lässt. Import ist additiv: Unbekannte Profile kommen dazu, gleichnamige nur
 nach Rückfrage, gelöscht wird nie etwas.
 
@@ -1146,7 +1146,7 @@ Inhalt auf einer abgesetzten Fläche mit abgerundeter oberer Ecke.
 
 #### Home
 
-![Home](bilder/ui-home.png)
+![Home](bilder/hauptfenster.png)
 
 Begrüßung, darunter der **Verlauf** als flache Zeitleiste, gruppiert nach Tag (HEUTE /
 GESTERN / Datum). Jede Zeile zeigt Uhrzeit und Text; beim Überfahren erscheint der
@@ -1156,7 +1156,7 @@ ist. Rechts die Kurz-Statistik.
 
 #### Insights
 
-![Insights](bilder/ui-insights.png)
+![Insights](bilder/insights.png)
 
 Karten-Raster in drei Reihen: oben die drei Kennzahlen (Sprechtempo als Halbkreis-Tacho,
 Korrekturen, Wörter gesamt), in der Mitte App-Nutzung und Aktivitäts-Kalender, unten
@@ -1165,7 +1165,7 @@ ausblenden**; das Layout rückt dann zusammen.
 
 #### Profile
 
-![Profile](bilder/ui-profiles.png)
+![Profile](bilder/profile.png)
 
 Drei Spalten: links die laufenden und häufig genutzten Apps (Doppelklick weist zu), in
 der Mitte die Profilliste (farbiger Punkt = Modus-Slot) mit Export-/Import-Knöpfen für
@@ -1185,7 +1185,7 @@ Titel-Bedingung.
 
 #### Einstellungen
 
-![Einstellungen](bilder/ui-einstellungen-allgemein.png)
+![Einstellungen](bilder/einstellungen-aufnahme.png)
 
 Elf Sektionen links, das Formular rechts. Das Bedienmuster ist überall gleich:
 **Beschriftung links, Steuerelement rechts, dahinter ein „?"-Badge**, dessen Erklärung
@@ -1194,8 +1194,6 @@ beim Überfahren als Blase *unterhalb* erscheint. Bei Auswahllisten erklärt das
 erst einschalten, um zu erfahren, was er überhaupt tut. Unten ein Trenner, der Hinweis
 „Änderungen werden sofort übernommen" und ein Speichern-Knopf, der offene Eingabefelder
 verbindlich übernimmt und kurz „Gespeichert ✓" zurückmeldet.
-
-![Overlay-Einstellungen](bilder/ui-einstellungen-overlay.png)
 
 ### 10.4 Dialoge
 
@@ -1383,8 +1381,6 @@ Drei Blöcke auf einer Seite:
   behalten oder das gesamte gelernte Vokabular zu verlieren.
 
 ### Advanced
-
-![Advanced](bilder/ui-einstellungen-advanced.png)
 
 | Einstellung | Bedeutung | Standard |
 |---|---|---|
@@ -1794,7 +1790,6 @@ fleech/
 ├── overlay.py           Live-Vorschau (Streaming)
 ├── milestones.py        „das 2,3-Fache von Goethes Faust"
 │
-├── licensing.py         Ed25519-Signatur, offline geprüft
 ├── provisioning.py      Kaltstart-Einrichtung
 ├── ollama_setup.py      Ollama erkennen und auf Wunsch installieren
 ├── selftest.py          Audio-Selbsttest
@@ -1816,7 +1811,7 @@ fleech/
     │   ├── keinton.py        Kein-Ton-Wache: Pegel im Waveform-Takt pruefen, warnen
     │   ├── modelle.py        Warmhaltung, Entladen bei Spielstart
     │   ├── nachbereitung.py  neu bereinigen, Rohtext, Vorschläge, letzte Aufnahme
-    │   ├── lizenz.py         Freischaltung und Update-Prüfung
+    │   ├── updatepruefung.py Update-Prüfung im Hintergrund, Update-Dialog
     │   └── lebenszyklus.py   Start, IPC, Beenden
     ├── theme.py         Design-Token, Seitenmaße, Button-Stile — unterste Schicht
     ├── widgets.py       wiederverwendbare Bausteine (Karten, Suchfeld, Gauge)
@@ -1848,7 +1843,6 @@ fleech/
     ├── notifications.py Banner-/Ton-/Overlay-Politik
     ├── onboarding.py    Einführung beim Erststart
     ├── setuppage.py     Einrichtungs-Seite der Einführung
-    ├── licensedialog.py Schlüssel eintragen
     ├── updatedialog.py  Update-Dialog
     ├── updates.py       Feed prüfen, laden, Prüfsumme, installieren
     ├── profilepicker.py Profil-Auswahl am Mauszeiger
@@ -1966,15 +1960,14 @@ die sich als JSON lesen lässt — sonst hätte der nächste Speichervorgang ein
 Datei zur „letzten guten Fassung" gemacht und die Rettung wäre mit ihr weg gewesen.
 
 `load()` erkennt zusätzlich einen **Rücksetzer, der wie eine gültige Datei aussieht**:
-Steht die `settings.json` auf allen „wertvollen" Feldern (Lizenz, Onboarding,
-Wörterbuch, Schnellwechsel, Profilliste, Hotkeys) auf Werkszustand, während
-die `.bak` in mindestens zweien davon abweicht — oder steht der Lizenzschlüssel leer,
-während er in der `.bak` gesetzt ist —, gilt die Datei als zurückgesetzt. Sie wird dann
+Steht die `settings.json` auf allen „wertvollen" Feldern (Onboarding, Wörterbuch,
+Schnellwechsel, Profilliste, Hotkeys) auf Werkszustand, während die `.bak` in
+mindestens zweien davon abweicht, gilt die Datei als zurückgesetzt. Sie wird dann
 nicht geladen, sondern als `settings.json.zurueckgesetzt` beiseitegelegt, und Fleech
 lädt stattdessen die `.bak`. Die Kriterien sind bewusst eng: Einzelne Werte darf man
 zurücksetzen, erst wenn *alles auf einmal* auf Werk steht, war es kein Mensch. Beim
 Start steht außerdem eine Zeile im Protokoll, wie viele Profile, App-Zuordnungen,
-Schnellwechsel-Einträge und Wörterbuchzeilen geladen wurden und ob eine Lizenz da ist —
+Schnellwechsel-Einträge und Wörterbuchzeilen geladen wurden —
 ein Verlust fällt damit beim nächsten Blick ins Log auf, statt erst am fehlenden
 Hotkey.
 
@@ -1991,7 +1984,6 @@ einigen Megabyte nur noch über Zeilennummern durchsuchbar.
 | Formel-Modus | **nichts** (deterministischer Parser, seit 3.0.0) |
 | Freihand-Lauscher | **nichts** — beide Stufen laufen lokal |
 | Projekt-Gedächtnis | **nichts** — `kontext.db` bleibt auf dem Rechner |
-| Lizenzprüfung | **nichts** — die Signatur wird offline geprüft |
 | Update-Prüfung | nur die Feed-URL, nur auf Klick |
 
 Im Auslieferungszustand gibt es damit **keine** Funktion mit Netzverkehr außer der
@@ -2085,7 +2077,7 @@ neutrale Werte — die App läuft weiter, nur die jeweilige Zusatzfunktion entf�
 **Windows:**
 
 ```powershell
-.venv\Scripts\python -m pytest -q          # Testsuite (392 Tests)
+.venv\Scripts\python -m pytest -q          # Testsuite (rund 1500 Tests)
 .venv\Scripts\python packaging\build.py    # → dist\Fleech\Fleech.exe
 .venv\Scripts\python packaging\build.py --gpu --installer   # + CUDA + Setup
 ```
@@ -2110,8 +2102,9 @@ Die Installation legt zusätzlich einen Menüeintrag und ein Symbol an.
 Build-Stempel wird beim Bauen erzeugt und ins Paket gelegt. Die Oberfläche zeigt beides
 unter *Advanced*.
 
-Eine Update-Prüfung gegen einen JSON-Feed ist vorbereitet, ein automatischer Updater
-bewusst noch nicht — Updates laufen über ein neues Setup.
+Veröffentlicht wird mit `packaging/release.py`: Es baut EXE und Setup, bildet die
+SHA-256 und legt ein GitHub-Release mit den Notizen aus dem CHANGELOG an. Wie die App
+davon erfährt, steht in [Abschnitt 24](#24-lizenz-und-updates-seit-600).
 
 ---
 
@@ -2387,7 +2380,7 @@ Text in das gerade fokussierte Fenster. Bei einem Lautsprecher ist ein Fehlalarm
 Blinken; hier ist es Text im Code.
 
 Dazu kommt: openWakeWord kann kein Deutsch (nur englische Modelle), die fertigen Modelle
-stehen unter CC-BY-NC-SA — bei einer Anwendung mit Lizenzschlüssel ein echtes Thema —
+stehen unter CC-BY-NC-SA — mit der GPL von Fleech nicht vereinbar —
 und jedes neue Startwort hieße rund eine Stunde Training. Porcupine ist kostenlos nur
 zur Evaluation.
 
@@ -2495,37 +2488,29 @@ ergänzt Fleech notfalls selbst; sie lässt sich nicht wegkürzen.
 
 ---
 
-## 24. Lizenz und Weitergabe (seit 5.0.0)
+## 24. Lizenz und Updates (seit 6.0.0)
 
-Fleech wird an einzelne Leute weitergegeben, nicht veröffentlicht. Dafür gibt es einen
-Schlüssel je Person.
+Fleech ist **freie Software unter der GNU General Public License v3** (Datei
+[LICENSE](../LICENSE)). Jeder darf es benutzen, untersuchen, verändern und
+weitergeben — Veränderungen nur unter derselben Lizenz und mit Quellcode.
 
-**Wie er funktioniert.** Der Schlüssel ist eine **Ed25519-Signatur** über den Namen des
-Empfängers. Fleech trägt nur den öffentlichen Teil; geprüft wird **offline**, es geht
-kein Byte ins Netz und es gibt keinen Lizenzserver. Erzeugen kann Schlüssel nur, wer den
-privaten Teil hat — der liegt außerhalb des Repositorys, und ein Test wacht darüber,
-dass er nicht versehentlich hineingerät.
+Bis 5.16 wurde Fleech persönlich weitergegeben und brauchte einen signierten
+Lizenzschlüssel; Quellcode und Installer lagen in getrennten Repositorys. Mit 6.0.0
+ist beides entfallen: Es gibt nur noch das eine, öffentliche Repository
+`FynnXland/fleech`, und keine Freischaltung mehr.
 
-**Zwei Repositorys, bewusst getrennt:**
-
-| Repository | Sichtbarkeit | Inhalt |
-|---|---|---|
-| `FynnXland/fleech` | **privat** | der gesamte Quellcode |
-| `FynnXland/fleech-releases` | öffentlich | nur die fertigen Installer |
-
-Der öffentliche Teil muss öffentlich sein, weil die Update-Prüfung sonst einen
-Zugangsschlüssel im ausgelieferten Programm bräuchte — und ein mitgeliefertes Geheimnis
-ist keines. Er enthält **keinen Quellcode**.
+**Updates** kommen aus den GitHub-Releases genau dieses Repositorys. Fleech fragt beim
+Start und danach täglich nach (abschaltbar), lädt im Hintergrund und **installiert nur
+auf Klick**. Die SHA-256 aus den Release-Notizen muss zur Datei passen, geladen wird nur
+über HTTPS von GitHub-Hosts — auch nach Weiterleitungen. Zugangsdaten braucht die
+Prüfung keine; ein eigener JSON-Feed lässt sich unter *Advanced* eintragen.
 
 **Nutzerdaten bleiben grundsätzlich draußen.** Verlauf, Transkripte, `settings.json`,
-`kontext.db` und Logs sind nicht versioniert. Ein Wächter-Test prüft bei jedem Lauf, dass
-weder Schlüssel noch Nutzerdaten im Repository liegen.
-
-**Einen Schlüssel ausstellen** geht über `Schluessel erstellen.bat` im Projektordner:
-Namen eintippen, fertig. Darunter läuft `packaging/issue_key.py`.
+`kontext.db` und Logs sind nicht versioniert. Ein Wächter-Test prüft bei jedem Lauf,
+dass keine Zugangsdaten und keine Schlüsseldateien im Repository liegen.
 
 > **Wie ein Update Einstellungen zerstörte — und was daraus folgte.** Mehrfach standen
-> nach einem Update Hotkeys, Profile und der Lizenzschlüssel auf Vorgabe. Ursache war
+> nach einem Update Hotkeys, Profile und Wörterbuch auf Vorgabe. Ursache war
 > eine Kette: `write_text` kürzt die Datei erst auf 0 und schreibt dann neu; wird der
 > Prozess in genau diesem Moment hart beendet, bleibt eine leere Datei zurück — und das
 > Laden zementierte die Vorgaben stillschweigend. Ausgelöst wurde es durch das harte

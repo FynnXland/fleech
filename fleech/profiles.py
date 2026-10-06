@@ -345,9 +345,6 @@ PROFIL_FARBEN = [
     ("#9AA6B2", "Grau"),
 ]
 
-# Reserviert und deshalb nicht waehlbar — siehe Kommentar oben.
-ACCENT_RESERVIERT = "#35C0D8"
-
 # Welche Farbe ein Format MITBRINGT, solange nichts eigenes gewaehlt wurde. Damit
 # sehen bestehende Installationen nach dem Update genau aus wie vorher.
 #

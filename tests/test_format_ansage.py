@@ -84,8 +84,6 @@ def test_befehl_hat_vorrang_vor_der_format_ansage():
     """Bei einem Safe-Word-Befehl ist die ganze Äußerung eine Anweisung — und
     „mach das als Stichpunkte" ist genau so eine. Sie gehört dem Befehlsweg,
     nicht dem Format-Umschalter; sonst würde der Befehl zerschnitten."""
-    import types
-
     from fleech.pipeline import Pipeline
     from fleech.routing import Mode, detect_mode
 

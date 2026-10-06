@@ -14,7 +14,6 @@ import sys
 import threading
 import time
 
-from PySide6.QtCore import QTimer
 from PySide6.QtWidgets import QApplication
 
 from ..app import DictationApp
@@ -35,8 +34,8 @@ from .state import AppState, StateBus
 from .settings_window import SettingsPanel
 from .tray import TrayController
 from .desktopapp import (
-    AnstupsenMixin, FreihandMixin, KeinTonMixin, LebenszyklusMixin, LizenzUpdateMixin,
-    ModelleMixin, NachbereitungMixin, ProfilMixin, VorerkennungMixin, WachhundMixin,
+    AnstupsenMixin, FreihandMixin, KeinTonMixin, LebenszyklusMixin, ModelleMixin,
+    NachbereitungMixin, ProfilMixin, UpdateMixin, VorerkennungMixin, WachhundMixin,
 )
 from .desktopapp.vorerkennung import (
     abschnitte_ergebnis, uebergib_abschnitte, verwirf_abschnitte,
@@ -52,7 +51,7 @@ log = logging.getLogger(__name__)
 
 class DesktopApp(
     ProfilMixin, FreihandMixin, KeinTonMixin, AnstupsenMixin, ModelleMixin,
-    NachbereitungMixin, LizenzUpdateMixin, LebenszyklusMixin, WachhundMixin,
+    NachbereitungMixin, UpdateMixin, LebenszyklusMixin, WachhundMixin,
     VorerkennungMixin,
 ):
     """Verdrahtung der App: Aufbau, Aufnahme-Lebenszyklus, Hotkeys, Fenster.
@@ -96,7 +95,6 @@ class DesktopApp(
                 ),
                 "sound": lambda: self.notifier.sound("commit"),
                 "open_update": self.show_update_dialog,
-                "open_license": self.show_license_dialog,
             },
             wortprobe_fn=self.wortprobe,
             # Globale Hotkeys waehrend der Recorder-Erfassung pausieren (lazy —
@@ -256,7 +254,6 @@ class DesktopApp(
         self.bus.dictionary_suggestion.connect(self._on_dictionary_suggestion)
         self.bus.update_ready.connect(self._on_update_ready)
         self.bus.profile_key.connect(self._on_profile_key)
-        self.bus.license_needed.connect(self.show_license_dialog)
         self.bus.paused_changed.connect(self.overlay.set_paused)
         self.bus.prompt_latch_changed.connect(self.overlay.set_prompt_latched)
         self.bus.profil_zuruecksetzen.connect(self._on_profil_zuruecksetzen)
@@ -266,60 +263,14 @@ class DesktopApp(
         # fasst weder Pille noch Overlay an.
         self.window.profiles.profil_aktiv_gewaehlt.connect(self._set_profile)
 
-    # ------------------------------------------------------------------- Engine --
-
-        # Kein Preview-Streamer mehr: die Overlay-Pille zeigt den Audiopegel statt
-        # Live-Text (Nutzer-Entscheid) — spart das separate Whisper-Preview-Modell
-        # (~0,5 GB VRAM + Warmup). Streaming-Vorschau gibt es weiter im --cli-Modus.
-
-
-    # -- Live-Vorschau (Opt-in) ---------------------------------------------------------
-
-
-    _preview_gen = 0  # Generationszaehler gegen Start/Stop-Races (Load dauert Sekunden)
-
-
-
-
-
-
-
-    # Smart-Modus: solange nach dem letzten Diktat aktiv warmhalten. Laeuft das
-    # (einstellbare) Idle-Fenster ab ODER laeuft ein Spiel (Gaming-Erkennung), werden
-    # die Modelle AKTIV entladen (keep_alive=0) — statt bis zu 30 min keep_alive
-    # nachlaufen zu lassen. Beim Zocken zaehlt jedes GB: Ollama haelt sonst ~9 GB im
-    # Speicher, obwohl waehrenddessen nicht diktiert wird.
-
-
-
-
-
-
-
-
-
-
     # ------------------------------------------------------------------ Aufnahme --
 
     def _on_record_start(self, kind: str) -> None:
-        # Lizenz zuerst: ohne gueltigen Schluessel wird nicht aufgenommen. Bewusst
-        # HIER und nicht tiefer in der Pipeline — es soll gar nichts erst ins
-        # Mikrofon gehen, und der Nutzer bekommt sofort den Dialog statt einer
-        # Fehlermeldung nach dem Sprechen.
-        if not self._license_ok():
-            # `cancel()` statt `stop_if_active()` (Befund D-10): Letzteres laeuft in
-            # den vollen Stopp-Weg — Stoppton, Zustand PROCESSING und ein Worker mit
-            # 0 Samples, der eine Zehntelsekunde spaeter „nichts erkannt" in die
-            # Pille schreibt und damit die Meldung ueberdeckt, die weiterhelfen wuerde.
-            self.controller.cancel()
-            # NICHT direkt aufrufen: diese Methode laeuft im pynput-Listener-Thread.
-            self.bus.license_needed.emit()
-            return
         # `may_record` blockiert seit v3.0.0 nichts mehr (der Cloud-Formel-Weg ist
         # weg) — es bleibt die Warnung bei einem Loopback-/Mix-Geraet. Der frueher
         # hier stehende Abbruchzweig war damit tot (Befund D-10); die Nahtstelle
         # bleibt, die Warnung auch.
-        _, message = self.focus.may_record(math_mode=False)
+        _, message = self.focus.may_record()
         if message:
             log.warning(message)
         strom = getattr(self, "_freihand", None)
@@ -432,22 +383,6 @@ class DesktopApp(
         self.recorder.stop()  # Audio bewusst verwerfen
         self.bus.set_state(AppState.IDLE, "verworfen")
         log.info("Aufnahme verworfen (%s).", kind)
-
-
-    # -- Profil-Umschaltung (Punkt in der Pille) --------------------------------------
-
-
-
-
-
-
-
-    # -- Profil-Hotkey: tippen = weiterschalten, halten = Auswahlliste --------------
-
-
-
-
-
 
     def _process(self, audio, force_command: bool = False,
                  prompt_oneshot: bool = False, abschnitte=None) -> None:
@@ -703,12 +638,6 @@ class DesktopApp(
     # gearbeitet hat, will nicht, dass ein Tastendruck irgendwo im Text herumloescht.
     _UNDO_MAX_AGE_S = 120
 
-
-
-    # -- Nachbearbeitung aus dem Verlauf (F3) ------------------------------------------
-
-
-
     def _flash_status(self, text: str) -> None:
         """Kurze Rueckmeldung ueber die Pille — thread-sicher ueber den StateBus."""
         try:
@@ -810,7 +739,6 @@ class DesktopApp(
         # Overlay-Tooltip (Bedienmodus/Fokus/Mathe/Eingriff) aktuell halten.
         self._update_mode_line()
 
-
     def _apply_trigger_word(self) -> None:
         """Safe-Word live umstecken: Routing + Command-Prompt (⟨TRIGGER⟩) neu setzen.
         Deaktiviert (command_enabled=False) → leeres Trigger-Wort = Routing erkennt
@@ -861,8 +789,6 @@ class DesktopApp(
         self.overlay.apply_preset(preset)
         self.settings.save()
 
-
-
     def _poll_focus(self) -> None:
         """Alle 3 s: Fokus-Kontext aktualisieren und Overlay-Verhalten anpassen.
         Reagiert auch SOFORT auf Spielstart/-ende (statt auf den 4-min-Warmhalte-Tick
@@ -891,11 +817,6 @@ class DesktopApp(
                     # naechste Diktat laedt ohnehin beim Aufnahmestart vor, und der
                     # Warmhalte-Takt holt das Modell erst nach laengerer Spielpause.
                     self._spiel_ende = time.monotonic()
-
-
-
-
-
 
     # -- Pause -----------------------------------------------------------------------
 
@@ -961,30 +882,6 @@ class DesktopApp(
             log.info("Freihand-Diktat per Pille beendet.")
             return
         self.controller.stop_if_active()
-
-
-    # -- Freihand-Modus (F1) -----------------------------------------------------------
-
-
-
-
-
-
-
-
-    # -- Lizenz ----------------------------------------------------------------------
-
-
-
-
-    # -- Updates ---------------------------------------------------------------------
-
-
-
-
-
-
-
 
 
 def _wake_running_instance() -> bool:

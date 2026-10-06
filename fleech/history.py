@@ -621,7 +621,7 @@ class HistoryStore:
             log.exception("Historie: Rohtext zu Eintrag %s nicht lesbar.", entry_id)
             return ""
 
-    def stats(self, calendar_days: int = 98, since: float | None = None) -> Stats:
+    def stats(self, since: float | None = None) -> Stats:
         """Kennzahlen, wahlweise auf einen Zeitraum begrenzt.
 
         `since` = Unix-Zeit; None = gesamte Historie. Der Zeitraum ist kein

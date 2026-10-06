@@ -26,9 +26,9 @@ def _settings(items=None, quick=None) -> UserSettings:
 
 
 def test_export_traegt_nur_profile_und_schnellwechsel(tmp_path):
-    """Ein Gesamt-Backup schleppt Lizenz und Mikrofonpfad mit — genau das nicht."""
+    """Ein Gesamt-Backup schleppt Name und Mikrofonpfad mit — genau das nicht."""
     s = _settings()
-    s.general.license_key = "GEHEIM-1234"
+    s.general.display_name = "GEHEIM-1234"
     s.recording.microphone = "Mikrofon B"
     s.profiles.app_quick = {"claude.exe": ["KI-Prompt"]}
 

@@ -60,12 +60,6 @@ class Probe:
     # weil das Prüfmodell Wörter zerreisst), im Wörterbuch heisst es „noch üben".
     zweck: str = "woerterbuch"
 
-    @property
-    def geglueckt(self) -> bool:
-        if self.zweck == "startwort":
-            return self.ergebnis in (Ergebnis.TREFFER, Ergebnis.AEHNLICH)
-        return self.ergebnis == Ergebnis.TREFFER
-
     def als_text(self) -> str:
         """Eine Zeile für die Oberfläche — sagt, was zu tun ist, nicht nur was war."""
         if self.zweck == "startwort":

@@ -1,7 +1,5 @@
 """Policy-Simulationen: DND an/aus, Gaming an/aus, Toast/Sound erlaubt vs. unterdrueckt."""
 
-import pytest
-
 from fleech.ui.notifications import NotificationPolicy, Notifier, TOAST_KINDS
 from fleech.ui.windowsfocus import FocusContext
 from fleech.usersettings import FocusSettings

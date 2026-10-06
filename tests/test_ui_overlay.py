@@ -56,7 +56,7 @@ def test_overlay_visibility_modes_and_position_persistence(qapp):
     o.close()
 
 def test_overlay_presets_and_reset(qapp):
-    from fleech.ui.overlay_qt import PILL_WIDTH, OverlayWindow, preset_position
+    from fleech.ui.overlay_qt import OverlayWindow, preset_position
 
     saved = []
     s = UserSettings().overlay

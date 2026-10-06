@@ -34,9 +34,6 @@ docs/fleech-briefing.html
 # enthalten lokale Pfade — kein Nutzen fuer andere.
 docs/_briefing_*.py
 
-# Signierschluessel (Lizenzen) — gehoert NIE ins Repository.
+# Schluesseldateien jeder Art — gehoeren NIE ins Repository.
 *.pem
-
-# Quellcode-Export fuer externe Gutachten (packaging/export_quellcode.py) —
-# wird bei Bedarf neu erzeugt und gehoert nicht in die Historie.
-export/
+*.key

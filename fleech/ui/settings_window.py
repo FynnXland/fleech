@@ -15,7 +15,7 @@ import logging
 
 from PySide6.QtCore import Qt, QTimer
 from PySide6.QtWidgets import (
-    QCheckBox, QComboBox, QDoubleSpinBox, QFormLayout, QFrame,
+    QCheckBox, QComboBox, QFormLayout, QFrame,
     QHBoxLayout, QLabel, QLineEdit, QListWidget, QPlainTextEdit, QPushButton,
     QScrollArea, QSlider, QStackedWidget, QVBoxLayout, QWidget,
 )
@@ -359,20 +359,6 @@ class SettingsPanel(WortprobeMixin, QWidget):
         )
         self._on_changed("interface")
 
-    def _open_license(self) -> None:
-        hook = (self._test_hooks or {}).get("open_license")
-        if hook is not None:
-            hook()
-
-    def refresh_license(self) -> None:
-        """Lizenzzeile nachziehen (nach dem Eintragen eines Schluessels)."""
-        label = getattr(self, "_license_label", None)
-        if label is None:
-            return
-        from .licensedialog import license_summary
-
-        label.setText(license_summary(self.settings))
-
     def _show_onboarding(self) -> None:
         """„Einfuehrung erneut zeigen": ueber die on_changed-Nahtstelle an die
         DesktopApp — das Panel selbst kennt den Wizard bewusst nicht."""
@@ -501,30 +487,6 @@ class SettingsPanel(WortprobeMixin, QWidget):
         label_w, _ = self._row_label(label, hint_text)
         form.addRow(label_w, edit)
         return edit
-
-    def _text_field(self, form, label, current, section, setter, hint_text=""):
-        """Einzeiliges Textfeld. Speichert debounced wie die Listen-Editoren —
-        bei jedem Tastendruck zu schreiben waere unnoetiger Plattenzugriff."""
-        feld = QLineEdit(str(current or ""))
-        feld.setStyleSheet(
-            f"QLineEdit {{ background: {CARD}; color: {TEXT};"
-            f"  border: 1px solid {BORDER_HAIRLINE}; border-radius: 8px;"
-            f"  padding: 6px 10px; font-size: 9.5pt; }}"
-            f"QLineEdit:focus {{ border-color: {ACCENT}; }}")
-        timer = QTimer(self)
-        timer.setSingleShot(True)
-        timer.setInterval(800)
-
-        def schreiben():
-            setter(feld.text().strip())
-            self._changed(section)
-
-        timer.timeout.connect(schreiben)
-        feld.textChanged.connect(lambda _t: timer.start())
-        feld.editingFinished.connect(lambda: (timer.stop(), schreiben()))
-        label_w, _ = self._row_label(label, hint_text)
-        form.addRow(label_w, feld)
-        return feld
 
     def _spin(self, form, label, current, lo, hi, section, setter, hint_text=""):
         """Kommazahl mit Grenzen (Sekunden). Die Grenzen sind hart: Was ausserhalb
@@ -667,10 +629,7 @@ class SettingsPanel(WortprobeMixin, QWidget):
         from .updates import check_for_updates
 
         self._update_status.setText("Suche …")
-        from .updates import update_token
-
-        result = check_for_updates(self.settings.advanced.update_feed_url or None,
-                                   token=update_token(self.settings))
+        result = check_for_updates(self.settings.advanced.update_feed_url or None)
         status = result["status"]
         if status == "update_available":
             self._update_status.setText(f"Update {result['latest']} verfügbar.")
@@ -681,7 +640,5 @@ class SettingsPanel(WortprobeMixin, QWidget):
             self._update_status.setText("Aktuell.")
         elif status == "no_release":
             self._update_status.setText("Noch keine Veröffentlichung vorhanden.")
-        elif status == "auth_required":
-            self._update_status.setText("Kein Zugriff — Token fehlt oder gilt nicht.")
         else:
             self._update_status.setText(f"Fehlgeschlagen: {result.get('message', '')[:60]}")

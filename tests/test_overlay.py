@@ -247,8 +247,6 @@ def test_stoppen_wartet_nicht_auf_einen_laufenden_lauf():
 def test_alter_lauf_ueberlebt_keinen_neustart():
     """Jeder Lauf liest SEIN Stopp-Signal. Laese er das Attribut, saehe ein alter
     Lauf nach dem naechsten start() das neue, ungesetzte Signal und liefe weiter."""
-    import threading
-
     s = make_streamer(lambda: seconds(3), lambda w: [], [], interval=0.01)
     s.start()
     alter = s._thread

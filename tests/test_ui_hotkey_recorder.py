@@ -104,8 +104,6 @@ def test_hotkey_recorder_hat_sichtbaren_abbrechen_knopf(qapp):
     ausser 'Taste druecken' — ein Klick auf 'Abbrechen' muss schliessen, OHNE die
     bestehende Bindung zu loeschen (das bleibt Esc vorbehalten, dokumentiertes
     Verhalten)."""
-    from PySide6.QtWidgets import QDialog
-
     from fleech.ui.hotkey_recorder import HotkeyRecorderDialog
 
     d = HotkeyRecorderDialog()
@@ -203,8 +201,6 @@ def test_hotkey_field_pauses_global_hotkeys_during_capture(qapp):
     assert calls == ["stop", "start"]
 
 def test_hotkey_field_records_and_emits(qapp):
-    from PySide6.QtCore import Qt
-
     from fleech.hotkey import HotkeySpec
     from fleech.ui.hotkey_recorder import HotkeyField, HotkeyRecorderDialog
 

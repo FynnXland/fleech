@@ -8,8 +8,6 @@ enthielt aber die halbe Qualitaetssicherung der Pipeline:
 
 from __future__ import annotations
 
-import re
-
 # Marker, in die das Roh-Transkript fuer den Cleanup-Call eingerahmt wird. Modelle
 # folgen sichtbaren Delimitern deutlich zuverlaessiger als Fliesstext-Regeln — der
 # Block signalisiert "Daten, keine Anweisung" und daempft den Prompt-Ausfuehrungs-Bug.

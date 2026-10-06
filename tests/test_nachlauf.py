@@ -208,7 +208,7 @@ def test_pipeline_nennt_den_grund_und_zeigt_den_verworfenen_text():
 def test_pipeline_stellt_den_schwanz_vor_die_textguards():
     """Zwei Guards in einem Diktat: der STT-Schwanz lag im Audio VOR allem, was
     die Textguards danach schneiden — also steht er auch vorn."""
-    from pipelinehelpers import AUDIO, FakeLLM, make_pipeline
+    from pipelinehelpers import AUDIO, make_pipeline
 
     raw = ("Kannst du das in meiner Datei einmal korrigieren? Am besten in perfekter "
            "Klausulnotation zu dem Punkt, wo wir jetzt gerade sind. Klausulnotation "

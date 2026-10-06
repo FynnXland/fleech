@@ -77,10 +77,6 @@ class GeneralSettings:
     # auch fuer sie. Gewollt: die Einfuehrung ist neu, einmal zeigen schadet nicht,
     # und jeder Weg hinaus (auch X) setzt das Flag dauerhaft.
     onboarding_done: bool = False
-    # Signierter Lizenzschluessel dieser Installation (siehe fleech/licensing.py).
-    # Leer = Fleech diktiert nicht; alles andere bleibt bedienbar, damit man den
-    # Schluessel ueberhaupt eintragen kann.
-    license_key: str = ""
     # Welche Fleech-Version zuletzt in diese Datei geschrieben hat. Einziger Zweck:
     # Der Start erkennt einen Versionswechsel und legt VOR dem ersten Schreiben
     # eine datierte Sicherung an (fleech/einstellungssicherung.py). Leer =
@@ -168,23 +164,21 @@ class AudioFocusSettings:
 @dataclass
 class MathSettings:
     enabled: bool = True        # Mathe-Funktion global (F10 + gesprochene Delimiter)
-    priority: str = "mixed"     # math | natural | mixed
-    math_focus: bool = False
     # Automatische Formel-Erkennung: beim Cleanup werden gesprochene mathematische
     # Ausdruecke inline als LaTeX ($…$) geschrieben — ohne Umschalten. Opt-in.
     auto_latex: bool = False
 
 
-# Die drei Felder oben sind die technische Wahrheit, aber als BEDIENELEMENTE waren
-# sie eine Zumutung: Wer Formeln automatisch erkannt haben wollte, musste dreimal
-# richtig raten (Prioritaet + Haertung + Automatik). Nach aussen gibt es deshalb
-# nur noch eine Stufe; die Felder werden daraus gesetzt. Kein neues Settings-Feld
-# und damit keine Migration — bestehende settings.json bleiben gueltig.
-MATH_LEVELS = ("off", "auto")
+# Die Felder oben sind die technische Wahrheit, aber als BEDIENELEMENTE waren
+# sie eine Zumutung: Wer Formeln automatisch erkannt haben wollte, musste frueher
+# dreimal richtig raten (Prioritaet + Haertung + Automatik). Nach aussen gibt es
+# deshalb nur eine Stufe („off" | „auto"); die Felder werden daraus gesetzt. Kein
+# neues Settings-Feld und damit keine Migration — bestehende settings.json bleiben
+# gueltig.
 
 
 def math_level(m: MathSettings) -> str:
-    """Aktuelle Stufe aus den drei technischen Feldern ableiten.
+    """Aktuelle Stufe aus den technischen Feldern ableiten.
 
     Befund A-1: Hier zaehlte lange nur `enabled`. Wirksam ist aber `auto_latex`
     (`pipeline_factory`: `enabled and auto_latex`) — und dessen Vorgabe ist False.
@@ -196,7 +190,7 @@ def math_level(m: MathSettings) -> str:
 
 
 def apply_math_level(m: MathSettings, level: str) -> None:
-    """Stufe → die drei technischen Felder.
+    """Stufe → die technischen Felder.
 
     Seit v3.0.0 gibt es nur noch „an" oder „aus": Der Umschalt-Weg ueber ein
     Cloud-Modell ist entfallen, Formeln entstehen immer im lokalen Parser.
@@ -207,7 +201,7 @@ def apply_math_level(m: MathSettings, level: str) -> None:
         m.auto_latex = False
         return
     m.enabled = True
-    m.priority, m.auto_latex, m.math_focus = "mixed", True, True
+    m.auto_latex = True
 
 
 @dataclass
@@ -441,11 +435,6 @@ class AdvancedSettings:
     # Gefundene Updates gleich im Hintergrund laden (Installation bleibt ein Klick —
     # die App muss dafuer neu starten, das entscheidet niemand ausser dem Nutzer).
     auto_update_download: bool = True
-    # Zugriffstoken, wenn die Update-Quelle ein PRIVATES Repository ist. Nur lesend
-    # noetig (fein granuliert: "Contents: Read-only" fuer genau dieses Repository).
-    # Wird ausschliesslich an GitHub gesendet und nie ins Log geschrieben.
-    # Alternative ohne Eintrag in der Datei: Umgebungsvariable FLEECH_UPDATE_TOKEN.
-    update_token: str = ""
     # True (Default) = stt.device "auto" (nutzt GPU, faellt automatisch auf CPU
     # zurueck). False = "cpu" erzwingen (z. B. um GPU/VRAM fuer Spiele freizuhalten).
     # Persistiert in settings.json — uebersteht Neustart und Autostart, kein
@@ -514,7 +503,7 @@ class UserSettings:
         Frueher: `path.write_text(...)`. Das kuerzt die Datei auf 0 und schreibt neu
         — wird der Prozess in genau diesem Moment beendet (hartes Kill beim Update,
         Absturz, Stromausfall), bleibt eine leere oder halbe Datei zurueck. Beim
-        naechsten Start hiess das: alles auf Vorgaben, Lizenzschluessel weg. Genau
+        naechsten Start hiess das: alles auf Vorgaben. Genau
         das ist mehrfach passiert, weil `settings.save()` an ueber einem Dutzend
         Stellen laeuft (Fensterposition, Profilwechsel, Hotkeys …) — die Chance,
         ausgerechnet dabei getroffen zu werden, ist ueber den Tag nicht klein.
@@ -563,8 +552,7 @@ class UserSettings:
                     f.flush()
                     os.fsync(f.fileno())
                 os.replace(tmp, path)
-                einstellungssicherung.melde_schreibvorgang(
-                    path, umfang(self), self.general.license_key)
+                einstellungssicherung.melde_schreibvorgang(path, umfang(self))
             except Exception:
                 log.exception("Einstellungen konnten nicht gespeichert werden: %s", path)
             finally:
@@ -642,15 +630,13 @@ class UserSettings:
             settings.freihand.modell = "diktat"
             log.info("Freihand-Pruefmodell von 'base' auf 'diktat' umgestellt "
                      "(alte Vorgabe, siehe FreihandSettings).")
-        # Zwei Netze gegen Datenverlust, beide in `einstellungssicherung`: eine
-        # datierte Kopie beim Versionswechsel und der gespiegelte Lizenzschluessel.
+        # Netz gegen Datenverlust (`einstellungssicherung`): eine datierte Kopie
+        # beim Versionswechsel, angelegt VOR dem ersten Schreiben.
         from .version import APP_VERSION
 
         if einstellungssicherung.sichere_bei_versionswechsel(
                 path, settings.general.last_version, APP_VERSION):
             settings.general.last_version = APP_VERSION
-        settings.general.license_key = einstellungssicherung.hole_schluessel_zurueck(
-            path, settings.general.license_key)
         protokolliere_umfang(settings)
         return settings
 

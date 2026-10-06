@@ -8,7 +8,6 @@ laufenden Video, und jeder Fehlstart tippt Text ins gerade fokussierte Fenster.
 """
 
 import numpy as np
-import pytest
 
 from fleech.stillewache import MIN_LAUFZEIT_S, Stillewache
 

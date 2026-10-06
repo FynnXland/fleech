@@ -16,8 +16,7 @@ from __future__ import annotations
 import logging
 import threading
 
-from ...audio import Recorder
-from ..state import AppState, StateBus
+from ..state import AppState
 
 log = logging.getLogger(__name__)
 
@@ -48,8 +47,7 @@ class FreihandMixin:
         def bauen():
             try:
                 from ...freihand import (
-                    Einstellungen, FreihandStream, Lauscher, baue_erkenner,
-                    baue_erkenner_aus_engine, baue_vad,
+                    Einstellungen, FreihandStream, Lauscher, baue_vad,
                 )
 
                 s = self.settings.freihand

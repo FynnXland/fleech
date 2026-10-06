@@ -15,8 +15,6 @@ Fassung ohne Tokenizer liefe das Modell bei Freunden still falsch.
 STANDARD = "large-v3-turbo"
 DEUTSCH = "jimmymeister/whisper-large-v3-turbo-german-ct2"
 
-WAHLEN = ("standard", "deutsch")
-
 
 def modell_fuer(wahl: str, bisher: str) -> str:
     """Modellname für die Einstellung `wahl`.

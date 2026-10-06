@@ -15,7 +15,6 @@ Abbrechen drücken, manchmal auch nicht auf Absenden, manchmal stuckt das dann".
 """
 
 import numpy as np
-import pytest
 
 from fleech.freihand import (
     MAX_DIKTAT_S, Einstellungen, Ereignis, Lauscher, Zustand,

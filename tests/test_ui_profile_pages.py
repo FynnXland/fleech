@@ -520,7 +520,6 @@ def test_profile_can_disable_spoken_safeword():
     import types
 
     from fleech.ui.desktop import DesktopApp
-    from fleech.profiles import ProfileOverrides
 
     profiles = types.SimpleNamespace(enabled=True, items=[
         {"name": "Standard", "default": True, "intervention": "", "tags": [], "apps": []},
@@ -865,7 +864,6 @@ def test_aufnahmestart_haelt_den_frischen_vordergrund_fest(qapp, monkeypatch):
     monkeypatch.setattr("fleech.ui.windowsfocus.foreground_now",
                         lambda: ("claude.exe", "Claude — neuer Chat"))
     fake = types.SimpleNamespace(
-        _license_state=types.SimpleNamespace(ok=True),
         controller=types.SimpleNamespace(stop_if_active=lambda: None),
         focus=types.SimpleNamespace(
             may_record=lambda math_mode=False: (True, ""),
@@ -880,7 +878,6 @@ def test_aufnahmestart_haelt_den_frischen_vordergrund_fest(qapp, monkeypatch):
         bus=types.SimpleNamespace(set_state=lambda *a: None),
         sounds=types.SimpleNamespace(play=lambda n: None),
     )
-    fake._license_ok = lambda: True
     try:
         DesktopApp._on_record_start(fake, "dictate")
     except Exception:

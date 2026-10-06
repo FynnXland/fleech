@@ -1,7 +1,6 @@
 """Persistierte GPU/CPU-Build-Praeferenz (packaging/build.py) — kein Env-Var-Gefrickel."""
 
 import importlib.util
-import sys
 from pathlib import Path
 
 PACKAGING = Path(__file__).resolve().parent.parent / "packaging"

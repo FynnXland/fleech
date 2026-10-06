@@ -4,7 +4,7 @@ Fremde Felder koennen wir nicht lesen — dieser Tracker ist die einzige Quelle 
 den KONTEXT von Prompt 2 und fuer die Aufloesung der Ersetzungs-Scopes. Er modelliert
 exakt die Zeichen, die wir selbst eingefuegt haben.
 
-Session-Kontext (Konzept: docs/konzept-session-kontext.md): Pro Fenster bleibt der
+Session-Kontext: Pro Fenster bleibt der
 Diktat-Verlauf erhalten — wer kurz in den Browser schaut und zurueckkehrt, hat den
 Kontext wieder (Befehle mit Bezug funktionieren). Aber: **Kontext lesen und Text
 ersetzen sind nicht gleich gefaehrlich.** Ersetzungen laufen ueber blinde Backspaces

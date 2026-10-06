@@ -250,22 +250,9 @@ def strip_reasoning(text: str, extra_patterns=None) -> str:
 
 
 class ChatClient:
-    def __init__(self, endpoint, on_retry=None):
+    def __init__(self, endpoint):
         self.cfg = endpoint
-        # Historischer Hook (Rate-Limit-Backoff eines Cloud-Providers). Ollama kennt
-        # keine 429 — bleibt als Nahtstelle, damit die UI-Verdrahtung nicht bricht.
-        self.on_retry = on_retry
         self.last_truncated = False
-
-    def _notify_retry(self, attempt: int, total: int, wait: float) -> None:
-        """Backoff melden — ein Fehler im UI-Hook darf den Retry nie reissen."""
-        hook = getattr(self, "on_retry", None)  # defensiv wie die cfg-Zugriffe unten
-        if hook is None:
-            return
-        try:
-            hook(attempt, total, wait)
-        except Exception:
-            log.debug("Retry-Hook fehlgeschlagen.", exc_info=True)
 
     def _create(self, system_prompt: str, user_text: str) -> str:
         """Ein Chat-Aufruf gegen Ollama.

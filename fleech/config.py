@@ -72,9 +72,6 @@ class LLMEndpointConfig:
     # ab — sonst denkt das Modell sekundenlang pro Diktat. Leer = Parameter nicht senden.
     # gemma3 denkt nicht → leer.
     reasoning_effort: str = ""
-    # Backoff bei Rate-Limits (HTTP 429) — greift bei entfernten Anbietern.
-    retry_max: int = 3
-    retry_base_seconds: float = 2.0
     # Zusaetzliche Regex-Muster fuer Denkbloecke dieses Providers (die gaengigen
     # <think>/<reasoning>-Varianten kennt der Client bereits). Noetig, falls ein
     # neues Modell ein unbekanntes Format nutzt — sonst landet das Reasoning
@@ -88,16 +85,6 @@ class LLMEndpointConfig:
     # Gemessen: bei normalen Diktaten kostet das keine Zeit (die Rechenzeit haengt an
     # den tatsaechlichen Token, nicht am reservierten Fenster).
     num_ctx: int = 8192
-
-    @property
-    def api_key(self) -> str:
-        if self.api_key_env:
-            key = os.environ.get(self.api_key_env, "").strip()
-            if key:
-                return key
-        # Ollama & Co. ignorieren den Key, aber das OpenAI-SDK verlangt einen.
-        return "not-needed"
-
 
 @dataclass
 class CommandConfig:
@@ -227,7 +214,6 @@ def load_config(path: Path | str | None = None) -> AppConfig:
         llm_command_overrides = llm.get("command")
         llm_fast_overrides = llm.get("cleanup_fast")
         _apply(cfg.command, raw.get("command"))
-        focus_raw = dict(raw.get("audio_focus") or {})
         _apply(cfg.overlay, raw.get("overlay"))
         _apply(cfg.injection, raw.get("injection"))
         if raw.get("prompts_dir"):

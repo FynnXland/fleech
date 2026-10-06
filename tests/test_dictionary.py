@@ -1,7 +1,5 @@
 """Persoenliches Woerterbuch: Parsen, Priming, Ersetzung, Fehlschreib-Vorschlaege."""
 
-from fleech.dictionary import parse_dictionary
-
 
 def test_parse_dictionary_terms_and_rules():
     from fleech.dictionary import parse_dictionary

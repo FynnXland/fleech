@@ -50,9 +50,7 @@ def test_combo_badge_traegt_alle_optionen_und_wandert_mit(qapp):
     Hilfsfunktion — und er zieht beim Umschalten nach (die neue Aktive wird fett)."""
     from PySide6.QtWidgets import QFormLayout, QWidget
 
-    from fleech.ui.settings_window import SettingsPanel
     from fleech.ui.widgets import HelpBadge
-    from fleech.usersettings import UserSettings
 
     panel, settings = _panel()
     holder = QWidget()

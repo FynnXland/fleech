@@ -19,7 +19,7 @@ import ctypes
 import ctypes.wintypes as wt
 import logging
 import sys
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 
 log = logging.getLogger(__name__)
 

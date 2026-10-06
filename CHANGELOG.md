@@ -11,6 +11,32 @@ GitHub-Release-Notizen (`packaging/release.py`).
 
 ---
 
+## 6.0.0 — 2026-10-06
+
+**Fleech ist jetzt Open Source.** Der Quellcode steht öffentlich unter der
+GNU General Public License v3.0 (GPL-3.0). Du darfst Fleech benutzen,
+untersuchen, verändern und weitergeben — Veränderungen ebenfalls unter der
+GPL und mit Quellcode.
+
+**Kein Lizenzschlüssel mehr.** Fleech diktiert ab sofort ohne Freischaltung.
+Das Feld „Lizenz" in den Einstellungen und der Dialog zum Eintragen sind weg;
+ein bereits eingetragener Schlüssel stört nicht, er wird einfach nicht mehr
+gebraucht.
+
+**Updates kommen aus dem Hauptprojekt.** Neue Versionen erscheinen unter
+[github.com/FynnXland/fleech/releases](https://github.com/FynnXland/fleech/releases).
+Das bisherige Download-Repository entfällt. Wer noch Version 5.x installiert
+hat, bekommt dort keinen Update-Hinweis mehr und lädt 6.0.0 einmal von Hand —
+danach meldet Fleech Updates wieder selbst. Das Feld „Zugriffstoken" unter
+*Advanced* ist entfallen, weil die Update-Prüfung keine Zugangsdaten mehr
+braucht.
+
+**Aufgeräumt.** Veraltete Anleitungen und Arbeitspapiere sind aus dem Projekt
+verschwunden, ungenutzter Code ist entfernt, die README erklärt Installation
+und Selbstbauen an einer Stelle.
+
+---
+
 ## 5.16.0 — 2026-10-05
 
 Alles, was seit Version 5.13.0 dazugekommen ist.

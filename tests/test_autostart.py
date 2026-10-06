@@ -42,7 +42,7 @@ def test_refresh_updates_stale_path(monkeypatch):
         winreg.SetValueEx(key, autostart._VALUE_NAME, 0, winreg.REG_SZ,
                           '"C:\\Alt\\Pfad\\Fleech.exe" --gui')
     try:
-        autostart.refresh_autostart_if_stale()
+        autostart.reconcile_autostart(True)
         assert autostart.current_autostart_command() == autostart._command()
     finally:
         autostart.set_autostart(False)

@@ -56,11 +56,6 @@ class StateBus(QObject):
     # Ausblenden der Profil-Kapsel liefen, die Kapsel blieb ewig stehen. Ueber dieses
     # Signal landet beides im UI-Thread, wo Timer funktionieren.
     profile_key = Signal(bool)
-    # Freischalt-Dialog anfordern. Die Lizenzpruefung sitzt am Aufnahmestart, und
-    # der laeuft im pynput-Thread — ein QDialog dort ZU BAUEN haengt die ganze App
-    # auf (Qt-Widgets gehoeren dem GUI-Thread, keine Ausnahme). Ueber dieses Signal
-    # entsteht der Dialog dort, wo er hingehoert.
-    license_needed = Signal()
     # Pause an/aus. Der Pause-Hotkey kommt ebenfalls aus dem pynput-Thread; die
     # Pille direkt von dort umzufaerben ist derselbe Thread-Fehler wie oben, nur
     # leiser — er crasht sporadisch statt sofort.

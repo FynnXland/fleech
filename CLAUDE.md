@@ -10,6 +10,13 @@ läuft als **Tray-App** (Fenster schließen = in den Tray, nicht beenden). Alles
 lokal: Mikrofon → Erkennung → KI-Bereinigung → Text landet im gerade fokussierten Feld
 (Zwischenablage + simuliertes Strg+V). Kommunikation mit dem Nutzer **auf Deutsch**.
 
+**Open Source seit 6.0.0** (GPL-3.0, `LICENSE`): ein öffentliches Repository
+`FynnXland/fleech` für Quellcode UND Releases, keine Freischaltung, kein
+Lizenzschlüssel. Alles, was committet wird, ist öffentlich und bleibt für immer in
+der Historie — keine Zugangsdaten, keine echten Diktate, keine lokalen Pfade mit
+Nutzernamen, keine Screenshots mit echten Daten (`tests/test_keine_geheimnisse.py`
+wacht über die gröbsten Fälle).
+
 ## Pipeline (der Kern)
 
 `Audio → STT → Modus-Routing → LLM → Injection` (`fleech/pipeline.py`, `process()`):
@@ -77,7 +84,7 @@ Provider/Modelle/Prompts sind in `config.yaml` + `prompts/` konfigurierbar
 - `fleech/ui/settings/` — die neun Einstellungsseiten, je Seite ein `build(panel)`.
 - `fleech/ui/desktopapp/` — die Teilgebiete von `DesktopApp` als **Mixins**: `profil`,
   `freihand`, `anstupsen` (Stille-Wache des Nudge-Modus), `keinton` (Wache: Mikrofon
-  liefert nichts), `modelle`, `nachbereitung`, `lizenz`, `lebenszyklus`.
+  liefert nichts), `modelle`, `nachbereitung`, `updatepruefung`, `lebenszyklus`.
 - `fleech/ui/overlaypille/` — die Teile der Pille: `konstanten` (Maße/Farben/Zeiten),
   `bausteine` (Waveform, Status-Punkt, Textblase — echte Widgets), und als **Mixins**
   `geometrie` (Position, Ziehen, Presets), `einblendungen` (Transkript, Formeln,
@@ -119,8 +126,8 @@ entscheidet die Plattform, auf der du gerade arbeitest:
    Das Skript bittet die laufende Instanz über den IPC-Kanal, sich selbst zu beenden
    (Exit 0 = weg; Exit 1 = hängt, dann ist ein hartes Kill die Notbremse). Grund: Ein
    hartes Kill kann einen laufenden `settings.save()` treffen. Das hat real mehrfach
-   die `settings.json` geleert — beim nächsten Start standen Hotkeys, Profile und der
-   **Lizenzschlüssel** auf Vorgabe. Seit v4.9.1 schreibt `UserSettings.save()` atomar
+   die `settings.json` geleert — beim nächsten Start standen Hotkeys, Profile und
+   Wörterbuch auf Vorgabe. Seit v4.9.1 schreibt `UserSettings.save()` atomar
    (Temp + `fsync` + `os.replace`) und legt eine `settings.json.bak` an, aus der
    `load()` bei einer kaputten Datei heilt — der ordentliche Weg bleibt trotzdem Pflicht.
 
@@ -133,7 +140,7 @@ dauert zusätzlich rund zehn Minuten — oft länger als die Änderung selbst. D
   1–3, damit die laufende Installation aktuell ist. `packaging/release.py` weigert
   sich bei Patch-Versionen von sich aus (`--force` überstimmt).
 - **Minor/Major** (`4.4.0`, `5.0.0`) = genug zusammengekommen → `packaging/release.py`.
-  Dann bekommt auch die Weitergabe die neuen Sachen auf einmal.
+  Dann bekommen auch alle anderen Installationen die neuen Sachen auf einmal.
 
 Faustregel für die Nummer: Fehlerbehebung oder Feinschliff → dritte Stelle. Neue
 Funktion, geänderte Bedienung oder etwas, das der Empfänger merken soll → zweite.
