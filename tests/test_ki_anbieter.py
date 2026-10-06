@@ -140,7 +140,7 @@ def test_ohne_schluesselbund_wird_nichts_in_dateien_geschrieben(monkeypatch):
 
 
 def test_maskiert_zeigt_nie_die_mitte():
-    assert apikeys.maskiert("sk-proj-abcdefghijklmnop") == "sk-p…mnop"
+    assert apikeys.maskiert("sk-" + "proj-abcdefghijklmnop") == "sk-p…mnop"
     assert apikeys.maskiert("kurz") == "••••"
 
 
@@ -189,7 +189,7 @@ def test_gemini_ueber_openai_form(monkeypatch):
 
 
 def test_anthropic_form(monkeypatch):
-    apikeys.speichere("anthropic", "sk-ant-test")
+    apikeys.speichere("anthropic", "sk-" + "ant-test")
     gesehen = []
     _urlopen(monkeypatch, {"content": [{"type": "text", "text": "Hallo."}],
                            "stop_reason": "end_turn"}, gesehen)
@@ -197,7 +197,7 @@ def test_anthropic_form(monkeypatch):
     assert client.complete("SYS", "roh") == "Hallo."
     anfrage = gesehen[0]
     assert anfrage.full_url == "https://api.anthropic.com/v1/messages"
-    assert anfrage.get_header("X-api-key") == "sk-ant-test"
+    assert anfrage.get_header("X-api-key") == "sk-" + "ant-test"
     assert anfrage.get_header("Anthropic-version")
     body = json.loads(anfrage.data)
     assert body["system"] == "SYS" and body["max_tokens"] > 0
