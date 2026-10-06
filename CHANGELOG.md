@@ -35,10 +35,8 @@ genau das — statt „Ollama hat nicht geantwortet".
 
 ## 6.0.0 — 2026-10-06
 
-**Fleech ist jetzt Open Source.** Der Quellcode steht öffentlich unter der
-GNU General Public License v3.0 (GPL-3.0). Du darfst Fleech benutzen,
-untersuchen, verändern und weitergeben — Veränderungen ebenfalls unter der
-GPL und mit Quellcode.
+**Fleech ist jetzt Open Source.** Der Quellcode steht öffentlich auf GitHub;
+du darfst Fleech benutzen, untersuchen, verändern und weitergeben.
 
 **Kein Lizenzschlüssel mehr.** Fleech diktiert ab sofort ohne Freischaltung.
 Das Feld „Lizenz" in den Einstellungen und der Dialog zum Eintragen sind weg;

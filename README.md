@@ -280,8 +280,12 @@ new behaviour needs tests. Bug reports are most useful with the relevant lines f
 
 ## License
 
-Fleech is free software under the [GNU General Public License v3.0](LICENSE). You may
-use, study, modify and share it — modified versions and redistributions must also be
-licensed under the GPL-3.0 and come with their source code.
+Fleech is licensed under the [MIT License](LICENSE). You may use, modify and
+redistribute it — also in closed-source and commercial projects — as long as you keep
+the copyright and license notice. Bundled third-party libraries keep their own
+licenses, see [THIRD-PARTY-NOTICES.md](THIRD-PARTY-NOTICES.md).
+
+Unless you explicitly state otherwise, any contribution you submit for inclusion in
+Fleech is licensed under the MIT License as well.
 
 Copyright © 2026 FynnXland

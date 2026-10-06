@@ -279,8 +279,12 @@ Get-FileHash .\FleechSetup-<version>.exe -Algorithm SHA256   # von Hand nachrech
 
 ## Lizenz
 
-Fleech ist freie Software unter der [GNU General Public License v3.0](LICENSE).
-Du darfst es benutzen, untersuchen, verändern und weitergeben — Veränderungen
-und Weitergaben ebenfalls unter der GPL-3.0 und mit Quellcode.
+Fleech steht unter der [MIT-Lizenz](LICENSE). Du darfst es benutzen, verändern
+und weitergeben — auch in geschlossenen und kommerziellen Projekten —, solange
+Copyright- und Lizenzhinweis erhalten bleiben. Mitgelieferte Fremdbibliotheken
+behalten ihre eigenen Lizenzen, siehe [THIRD-PARTY-NOTICES.md](THIRD-PARTY-NOTICES.md).
+
+Beiträge, die du zur Aufnahme in Fleech einreichst, stehen — sofern du nichts
+anderes ausdrücklich angibst — ebenfalls unter der MIT-Lizenz.
 
 Copyright © 2026 FynnXland

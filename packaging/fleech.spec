@@ -17,6 +17,7 @@ datas = [
     (str(ASSETS), "assets"),
     (str(ROOT / "config.yaml"), "."),
     (str(ROOT / "LICENSE"), "."),
+    (str(ROOT / "THIRD-PARTY-NOTICES.md"), "."),
 ]
 binaries = []
 hiddenimports = ["fleech", "fleech.ui.desktop"]

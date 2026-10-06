@@ -10,7 +10,8 @@ läuft als **Tray-App** (Fenster schließen = in den Tray, nicht beenden). Alles
 lokal: Mikrofon → Erkennung → KI-Bereinigung → Text landet im gerade fokussierten Feld
 (Zwischenablage + simuliertes Strg+V). Kommunikation mit dem Nutzer **auf Deutsch**.
 
-**Open Source seit 6.0.0** (GPL-3.0, `LICENSE`): ein öffentliches Repository
+**Open Source seit 6.0.0**, lizenziert unter MIT (`LICENSE`; Fremdbibliotheken in `THIRD-PARTY-NOTICES.md` —
+neue Abhängigkeit = dort eintragen; keine, deren Lizenz Fleechs eigene einschränkt): ein öffentliches Repository
 `FynnXland/fleech` für Quellcode UND Releases, keine Freischaltung, kein
 Lizenzschlüssel. Alles, was committet wird, ist öffentlich und bleibt für immer in
 der Historie — keine Zugangsdaten, keine echten Diktate, keine lokalen Pfade mit

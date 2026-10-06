@@ -2385,7 +2385,8 @@ Text in das gerade fokussierte Fenster. Bei einem Lautsprecher ist ein Fehlalarm
 Blinken; hier ist es Text im Code.
 
 Dazu kommt: openWakeWord kann kein Deutsch (nur englische Modelle), die fertigen Modelle
-stehen unter CC-BY-NC-SA — mit der GPL von Fleech nicht vereinbar —
+stehen unter CC-BY-NC-SA — nur nicht-kommerziell, mit der freien Lizenz von Fleech
+nicht vereinbar —
 und jedes neue Startwort hieße rund eine Stunde Training. Porcupine ist kostenlos nur
 zur Evaluation.
 
@@ -2495,9 +2496,12 @@ ergänzt Fleech notfalls selbst; sie lässt sich nicht wegkürzen.
 
 ## 24. Lizenz und Updates (seit 6.0.0)
 
-Fleech ist **freie Software unter der GNU General Public License v3** (Datei
-[LICENSE](../LICENSE)). Jeder darf es benutzen, untersuchen, verändern und
-weitergeben — Veränderungen nur unter derselben Lizenz und mit Quellcode.
+Fleech steht **unter der MIT-Lizenz** ([LICENSE](../LICENSE)). Jeder darf es
+benutzen, verändern und weitergeben, auch in geschlossenen und kommerziellen
+Projekten — solange Copyright- und Lizenzhinweis erhalten bleiben. Die im Installer
+mitgelieferten Bibliotheken behalten ihre eigenen Lizenzen
+([THIRD-PARTY-NOTICES.md](../THIRD-PARTY-NOTICES.md)); keine davon verlangt, dass
+Fleech selbst unter ihrer Lizenz steht.
 
 Bis 5.16 wurde Fleech persönlich weitergegeben und brauchte einen signierten
 Lizenzschlüssel; Quellcode und Installer lagen in getrennten Repositorys. Mit 6.0.0
