@@ -55,6 +55,39 @@ def _keine_echten_einstellungen(tmp_path, monkeypatch):
     monkeypatch.setattr(history, "DB_PATH", heim / "history.db")
 
 
+class SchluesselbundImSpeicher:
+    """Ersatz fuer `keyring`: dieselben drei Aufrufe, nur ein Dict."""
+
+    def __init__(self):
+        self.daten = {}
+
+    def get_password(self, dienst, konto):
+        return self.daten.get((dienst, konto))
+
+    def set_password(self, dienst, konto, wert):
+        self.daten[(dienst, konto)] = wert
+
+    def delete_password(self, dienst, konto):
+        del self.daten[(dienst, konto)]
+
+
+@pytest.fixture(autouse=True)
+def schluesselbund(monkeypatch):
+    """Kein Test liest oder schreibt den echten Schluesselbund des Systems — dort
+    liegen echte API-Schluessel. Umgebungsvariablen der Anbieter werden ebenfalls
+    ausgeblendet, damit ein lokal gesetzter OPENAI_API_KEY kein Ergebnis faerbt."""
+    import fleech.llm.apikeys as apikeys
+    from fleech.llm.providers import ANBIETER
+
+    bund = SchluesselbundImSpeicher()
+    monkeypatch.setattr(apikeys, "_bund", lambda: bund)
+    for eintrag in ANBIETER:
+        if eintrag.umgebung:
+            monkeypatch.delenv(eintrag.umgebung, raising=False)
+        monkeypatch.delenv(f"FLEECH_{eintrag.id.upper()}_API_KEY", raising=False)
+    return bund
+
+
 @pytest.fixture
 def qapp():
     """Eine QApplication für alle Qt-Tests.

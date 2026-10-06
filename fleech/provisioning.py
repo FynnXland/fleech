@@ -134,11 +134,16 @@ def build_steps(endpoints, stt_model: str, base_url: str) -> list:
     Erledigte Schritte bleiben in der Liste (als "done") — wer sieht, dass zwei
     von drei Haken schon stehen, versteht die Lage schneller als bei einer leeren
     Seite.
+
+    Leere `base_url` = keine lokale KI (Cloud-Anbieter oder „Ohne KI"): Dann gibt
+    es weder Ollama noch Sprachmodelle einzurichten, nur die Spracherkennung.
     """
     from . import ollama_setup
     from .llm.client import ollama_installed_models
 
     schritte = []
+    if not base_url:
+        return schritte + [_stt_schritt(stt_model)]
 
     lage = ollama_setup.status(base_url)
     ollama_schritt = SetupStep(
@@ -174,6 +179,11 @@ def build_steps(endpoints, stt_model: str, base_url: str) -> list:
             schritt.note = "wird geladen (rund 3 GB)"
         schritte.append(schritt)
 
+    schritte.append(_stt_schritt(stt_model))
+    return schritte
+
+
+def _stt_schritt(stt_model: str) -> SetupStep:
     stt = SetupStep(
         key="stt", title=f"Erkennungsmodell {stt_model}",
         detail="wandelt deine Stimme in Text — läuft auf der Grafikkarte.",
@@ -185,8 +195,7 @@ def build_steps(endpoints, stt_model: str, base_url: str) -> list:
         gb = STT_GROESSEN_GB.get(stt_model)
         stt.note = (f"wird geladen (etwa {gb:.1f} GB)".replace(".", ",") if gb
                     else "wird geladen")
-    schritte.append(stt)
-    return schritte
+    return stt
 
 
 @dataclass
@@ -264,6 +273,8 @@ class SetupRunner:
         from .llm.client import ollama_installed_models, ollama_pull
 
         alles_gut = True
+        if not self.base_url:              # keine lokale KI gewaehlt
+            return self._schritt_stt()
 
         if self._schritt_ollama():
             self._melde("ollama", "done", "läuft")

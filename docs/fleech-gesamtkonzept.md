@@ -1662,11 +1662,16 @@ sondern lässt sich pro Profil festlegen; siehe [22](#22-sprachen).
 
 ### 13.2 Der LLM-Zugang
 
-Fleech spricht mit jedem **OpenAI-kompatiblen** Endpunkt. Standard ist ein lokales
-Ollama; DeepSeek, Groq oder Gemini funktionieren, indem man in der Konfiguration
-Basis-URL, Modellname und den *Namen* der Umgebungsvariable für den Schlüssel umstellt.
-**API-Schlüssel stehen nie in der Konfigurationsdatei** — dort steht nur, wie die
-Umgebungsvariable heißt.
+Standard ist ein **lokales Ollama** — kein Konto, keine Kosten, kein Text verlässt den
+Rechner. Seit 6.1.0 lässt sich unter *Einstellungen → KI* stattdessen ein
+Cloud-Anbieter mit **eigenem API-Schlüssel** wählen (OpenAI, Anthropic, Google Gemini,
+Mistral, Groq, OpenRouter oder ein eigener OpenAI-kompatibler Server) — oder „Ohne
+KI", dann wird nur erkannt und nicht bereinigt. Ein Abo (ChatGPT Plus, Claude Pro)
+lässt sich dafür nicht verwenden: Die Anbieter trennen Abo und Programmierschnittstelle.
+Der Schlüssel liegt im **Schlüsselbund des Systems** (Windows: Anmeldeinformations-
+verwaltung), nie in `settings.json`; die Modellliste holt Fleech beim Anbieter selbst.
+Bei einem Cloud-Anbieter geht der diktierte **Text** (nicht der Ton) dorthin — die
+Einstellungsseite sagt das in einem Satz.
 
 **Ein Modell für alles: `gemma3:4b` (seit 3.5.0).** An 15 echten Diktaten gemessen
 ist es **34 % schneller** als das frühere `qwen3.5:9b`, halb so groß (3,3 GB) und dabei
@@ -1683,9 +1688,9 @@ seine Denkblöcke trotzdem in die Antwort, entfernt Fleech sie im Code.
 **`num_ctx` ist Pflicht, nicht Feinschliff.** Ollama lädt Modelle immer mit 4096 Token
 Kontext, egal was das Modell könnte — und der OpenAI-Aufsatz ignoriert jede Option
 dagegen (gemessen). Allein `prompts/cleanup.md` belegt ~3000 Token; lange Diktate
-brachen dadurch mitten im Satz ab. Deshalb spricht der Client bei localhost-Endpunkten
-Ollamas eigene `/api/chat` mit `options.num_ctx` (8192) an; jeder andere Anbieter läuft
-weiter über den OpenAI-Weg. Bricht eine Antwort doch am Fenster ab, meldet der Client
+brachen dadurch mitten im Satz ab. Deshalb spricht der Client lokal Ollamas eigene
+`/api/chat` mit `options.num_ctx` (8192) an; Cloud-Anbieter laufen über
+`/chat/completions` bzw. Anthropics `/messages`. Bricht eine Antwort doch am Fenster ab, meldet der Client
 das, und die Pipeline fügt den **Rohtext** ein statt eines halben Satzes.
 
 **Keine versteckten Wiederholungen.** Die SDK-internen Wiederholungsversuche sind

@@ -62,6 +62,14 @@ def build_pipeline(config: AppConfig, settings: UserSettings, injector=None,
         log.debug("prompts/cleanup-en.md fehlt — englische Diktate laufen ueber "
                   "den deutschen Prompt.")
     pipeline.sprache = settings.general.language or "de"
+    # „Ohne KI": Transkript ohne Modell. Befehle und Ausgabeformate brauchen eines —
+    # sie ruhen dann, statt bei jedem Diktat als Fehler aufzufallen.
+    from .llm.providers import AUS, anbieter
+
+    pipeline.ki_aus = anbieter(settings.ki.anbieter).id == AUS
+    if pipeline.ki_aus:
+        pipeline.trigger_word = ""
+        pipeline.format_prompts = {}
     pipeline.status_callback = status
     # Projekt-Gedaechtnis (fleech/kontext.py). Die Erstbefuellung aus dem Verlauf
     # laeuft im HINTERGRUND: An 1189 Diktaten gemessen 3,7 s — im Start waere das

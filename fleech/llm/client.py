@@ -1,17 +1,20 @@
-"""LLM-Zugriff ueber Ollamas eigene HTTP-API (`/api/chat`, `/api/generate`).
+"""LLM-Zugriff: lokales Ollama (Standard) oder ein Cloud-Anbieter mit eigenem Schluessel.
 
-Fleech sprach frueher jeden OpenAI-kompatiblen Endpoint an. Das ist mit v3.6.0
-entfallen: Der OpenAI-Aufsatz von Ollama ignoriert `num_ctx` (gemessen), womit
-lange Diktate mitten im Satz abbrachen — der Direktweg war ohnehin schon der
-Hauptpfad. Mit dem Aufsatz faellt auch das `openai`-Paket weg.
+Lokal laeuft ueber Ollamas eigene HTTP-API (`/api/chat`, `/api/generate`), NICHT
+ueber dessen OpenAI-Aufsatz: Der ignoriert `num_ctx` (gemessen), womit lange
+Diktate mitten im Satz abbrachen. Cloud-Anbieter sprechen die OpenAI-Form
+(`/chat/completions`) oder — Anthropic — ihre eigene Messages-API. Welcher Weg,
+entscheidet `endpoint.provider` (Liste in `providers.py`).
 
-Nur die Standardbibliothek, keine Cloud, kein API-Key.
+Nur die Standardbibliothek; Schluessel kommen aus `apikeys.py`.
 """
 
 from __future__ import annotations
 
 import logging
 import re
+
+from .providers import ANTHROPIC_VERSION, anbieter, ist_lokales_ollama
 
 log = logging.getLogger(__name__)
 
@@ -61,7 +64,7 @@ def _ollama_generate_keepalive(endpoint, keep_alive) -> bool:
     KOMPLETT NEU — jedes Mal. Real gemessen: `ollama ps` zeigte CONTEXT 4096
     trotz konfigurierter 8192, und die Cleanup-Zeit lag bei 5 s statt 1,3 s.
     """
-    if "localhost" not in endpoint.base_url and "127.0.0.1" not in endpoint.base_url:
+    if not ist_lokales_ollama(endpoint):
         return False
     import json
     import urllib.request
@@ -91,7 +94,7 @@ def ollama_auf_cpu(endpoint) -> bool | None:
     dadurch 13–27 s statt ~0,5 s, und das Modell belegte 2,8 GB Arbeitsspeicher.
     Fleech merkte nichts — der Nutzer sah nur „dauert ewig".
     """
-    if "localhost" not in endpoint.base_url and "127.0.0.1" not in endpoint.base_url:
+    if not ist_lokales_ollama(endpoint):
         return None
     import json
     import urllib.request
@@ -218,7 +221,7 @@ def ensure_ollama_models(endpoints, on_progress=None) -> list:
     lokal, geholt = None, []
     for endpoint in endpoints:
         base = getattr(endpoint, "base_url", "")
-        if "localhost" not in base and "127.0.0.1" not in base:
+        if not ist_lokales_ollama(endpoint):
             continue                      # entfernte Server verwalten wir nicht
         if lokal is None:
             lokal = ollama_installed_models(base)
@@ -255,6 +258,78 @@ class ChatClient:
         self.last_truncated = False
 
     def _create(self, system_prompt: str, user_text: str) -> str:
+        """Ein Chat-Aufruf — der Weg haengt am gewaehlten Anbieter."""
+        api = anbieter(getattr(self.cfg, "provider", "")).api
+        if api == "openai":
+            return self._openai(system_prompt, user_text)
+        if api == "anthropic":
+            return self._anthropic(system_prompt, user_text)
+        return self._ollama(system_prompt, user_text)
+
+    def _schluessel(self) -> str:
+        from .apikeys import lies
+
+        return lies(getattr(self.cfg, "provider", ""))
+
+    def _post(self, url: str, body: dict, kopf: dict) -> dict:
+        import json
+        import urllib.request
+
+        request = urllib.request.Request(
+            url, data=json.dumps(body).encode("utf-8"),
+            headers={"Content-Type": "application/json", **kopf},
+        )
+        with urllib.request.urlopen(request, timeout=self.cfg.timeout) as response:
+            return json.loads(response.read())
+
+    def _openai(self, system_prompt: str, user_text: str) -> str:
+        """OpenAI-Form (`/chat/completions`): OpenAI, Gemini, Groq, Mistral,
+        OpenRouter, eigene Server.
+
+        `temperature` faellt bei den Denk-Modellen von OpenAI weg (o-Reihe,
+        gpt-5): Die nehmen nur ihren Vorgabewert an und lehnen jeden anderen mit
+        HTTP 400 ab. `finish_reason == "length"` ist dasselbe wie Ollamas volles
+        Kontextfenster — der Aufrufer nimmt dann den Rohtext.
+        """
+        self.last_truncated = False
+        body = {
+            "model": self.cfg.model,
+            "messages": [
+                {"role": "system", "content": system_prompt},
+                {"role": "user", "content": user_text},
+            ],
+        }
+        if not str(self.cfg.model).lower().startswith(("o1", "o3", "o4", "gpt-5")):
+            body["temperature"] = self.cfg.temperature
+        schluessel = self._schluessel()
+        kopf = {"Authorization": f"Bearer {schluessel}"} if schluessel else {}
+        data = self._post(f"{self.cfg.base_url.rstrip('/')}/chat/completions", body, kopf)
+        wahl = (data.get("choices") or [{}])[0]
+        self.last_truncated = wahl.get("finish_reason") == "length"
+        return strip_reasoning(
+            (wahl.get("message") or {}).get("content") or "",
+            getattr(self.cfg, "reasoning_patterns", None),
+        )
+
+    def _anthropic(self, system_prompt: str, user_text: str) -> str:
+        """Anthropics eigene Messages-API: System-Prompt als eigenes Feld,
+        `max_tokens` ist Pflicht, die Antwort kommt als Liste von Bloecken."""
+        self.last_truncated = False
+        body = {
+            "model": self.cfg.model,
+            "max_tokens": 8192,
+            "temperature": self.cfg.temperature,
+            "system": system_prompt,
+            "messages": [{"role": "user", "content": user_text}],
+        }
+        kopf = {"x-api-key": self._schluessel(), "anthropic-version": ANTHROPIC_VERSION}
+        data = self._post(f"{self.cfg.base_url.rstrip('/')}/messages", body, kopf)
+        self.last_truncated = data.get("stop_reason") == "max_tokens"
+        text = "".join(b.get("text", "") for b in data.get("content") or []
+                       if b.get("type") == "text")
+        return strip_reasoning(text, getattr(self.cfg, "reasoning_patterns", None))
+
+    def _ollama(self, system_prompt: str, user_text: str) -> str:
         """Ein Chat-Aufruf gegen Ollama.
 
         `num_ctx` ist der Grund, warum hier Ollamas eigene API steht und nicht mehr

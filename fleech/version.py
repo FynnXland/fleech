@@ -7,7 +7,7 @@
 
 from __future__ import annotations
 
-APP_VERSION = "6.0.0"  # 6.0.0: Open Source (GPL-3.0), ohne Lizenzschluessel
+APP_VERSION = "6.1.0"  # 6.1.0: KI-Anbieter waehlbar (lokal, Cloud-Schluessel, ohne KI)
 
 
 def _read_build() -> str:

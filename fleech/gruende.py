@@ -20,6 +20,11 @@ TRENNER = " · "
 
 # -- KI-Weg: der bereinigte Text kam nicht zustande ----------------------------------
 OLLAMA = "Ollama hat nicht geantwortet"
+# Cloud-Anbieter (6.1.0): getrennt von Ollama, weil die Abhilfe eine andere ist —
+# Schluessel pruefen oder Kontingent aufstocken statt einen Dienst zu starten.
+KI_DIENST = "KI-Dienst hat nicht geantwortet"
+KI_SCHLUESSEL = "KI-Dienst hat den API-Schlüssel abgelehnt"
+KI_KONTINGENT = "KI-Dienst meldet: Kontingent erschöpft"
 KONTEXT_VOLL = "Kontextfenster voll — Antwort brach mitten im Satz ab"
 LEERE_ANTWORT = "KI-Antwort war leer"
 AUSGEFUEHRT = "KI hat das Diktat ausgeführt statt bereinigt"
@@ -54,6 +59,9 @@ IN_ABLAGE = "Nicht eingefügt — lag nur in der Zwischenablage (spät fertig, a
 # Der volle Satz gehoert in den Einzelfall, nicht in eine Aufzaehlung.
 KURZFORM = {
     OLLAMA: "Ollama",
+    KI_DIENST: "KI-Dienst",
+    KI_SCHLUESSEL: "API-Schlüssel",
+    KI_KONTINGENT: "Kontingent",
     KONTEXT_VOLL: "Kontextfenster",
     LEERE_ANTWORT: "leere Antwort",
     AUSGEFUEHRT: "Prompt ausgeführt",

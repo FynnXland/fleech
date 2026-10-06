@@ -6,7 +6,7 @@ import os
 import sys
 from pathlib import Path
 
-from PyInstaller.utils.hooks import collect_all, collect_submodules
+from PyInstaller.utils.hooks import collect_all, collect_submodules, copy_metadata
 
 ROOT = Path(SPECPATH).parent  # packaging/ -> Projekt-Root
 ASSETS = ROOT / "assets"
@@ -50,8 +50,14 @@ if not IS_WIN:
     else:
         print("[spec] WARNUNG: libportaudio nicht gefunden — Audio wird im Bundle fehlen.")
 
-# openai entfaellt seit v3.6.0 — Ollama wird ueber seine eigene HTTP-API
-# angesprochen (nur urllib aus der Standardbibliothek).
+# Cloud-Anbieter (6.1.0) laufen ueber urllib — kein SDK. Die API-Schluessel liegen
+# im Schluesselbund des Systems: `keyring` findet seine Backends ueber
+# Paket-Metadaten (entry points). Ohne die Metadaten im Bundle meldet es „kein
+# Backend" und Fleech koennte keinen Schluessel speichern.
+hiddenimports += collect_submodules("keyring")
+datas += copy_metadata("keyring")
+if IS_WIN:
+    hiddenimports += collect_submodules("win32ctypes")
 
 # Build-Stamp (vom Build-Skript geschrieben) mitbundeln, falls vorhanden.
 build_stamp = ROOT / "build.txt"

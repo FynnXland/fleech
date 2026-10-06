@@ -466,6 +466,17 @@ class AdvancedSettings:
 
 
 @dataclass
+class KiSettings:
+    """Wer bereinigt den Text? Kennungen in `fleech/llm/providers.py`.
+
+    Der API-Schluessel steht bewusst NICHT hier, sondern im Schluesselbund des
+    Systems (`fleech/llm/apikeys.py`) — diese Datei wird gesichert und kopiert."""
+    anbieter: str = "ollama"     # ollama | openai | anthropic | gemini | … | aus
+    modell: str = ""             # leer = Startmodell des Anbieters bzw. config.yaml
+    adresse: str = ""            # nur „custom": eigener OpenAI-kompatibler Server
+
+
+@dataclass
 class WindowSettings:
     x: int | None = None
     y: int | None = None
@@ -492,6 +503,7 @@ class UserSettings:
     output: OutputSettings = field(default_factory=OutputSettings)
     profiles: ProfilesSettings = field(default_factory=ProfilesSettings)
     advanced: AdvancedSettings = field(default_factory=AdvancedSettings)
+    ki: KiSettings = field(default_factory=KiSettings)
     window: WindowSettings = field(default_factory=WindowSettings)
 
     # -- Persistenz ---------------------------------------------------------------
@@ -644,6 +656,9 @@ class UserSettings:
 
     def apply_to(self, config) -> None:
         """Legt die UI-Einstellungen auf die geladene AppConfig."""
+        from .llm.providers import wende_an
+
+        wende_an(self.ki, config)
         config.hotkey.dictate = self.recording.hotkey
         if self.recording.microphone is not None:
             config.audio.device = self.recording.microphone

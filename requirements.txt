@@ -8,13 +8,16 @@ numpy>=1.26
 pynput>=1.7.7; sys_platform != "linux"
 python-xlib>=0.33; sys_platform == "linux"
 pyperclip>=1.9.0
-# openai entfaellt seit v3.6.0: Fleech spricht Ollama ueber dessen eigene HTTP-API
-# an (nur urllib) — der OpenAI-Aufsatz ignorierte num_ctx, und ein Cloud-Weg ist
-# ohnehin nicht mehr vorgesehen.
+# Kein SDK fuer Ollama oder Cloud-Anbieter: alles laeuft ueber urllib
+# (fleech/llm/client.py) — der OpenAI-Aufsatz von Ollama ignorierte num_ctx.
 PyYAML>=6.0
 # Prozessnamen (Gaming-Erkennung, App-Profile). Unter Windows bisher transitiv
 # ueber pycaw — explizit, damit es auch unter Linux da ist.
 psutil>=5.9
+
+# API-Schluessel fuer Cloud-Anbieter im Schluesselbund des Systems ablegen
+# (Windows: Anmeldeinformationsverwaltung, Linux: Secret Service).
+keyring>=25
 
 # Desktop-App (Tray, Overlay, Settings-Fenster)
 PySide6-Essentials>=6.6

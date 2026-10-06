@@ -100,7 +100,7 @@ class SettingsPanel(WortprobeMixin, QWidget):
     # „Oberfläche" ist entfallen: Die zwölf Sichtbarkeits-Checkboxen sind an die
     # Karten selbst gewandert (Rechtsklick → Ausblenden). Zurueckholen sammelt der
     # Knopf auf der Seite „Allgemein".
-    PAGES = ["Allgemein", "Aufnahme", "Audio-Fokus", "Overlay",
+    PAGES = ["Allgemein", "KI", "Aufnahme", "Audio-Fokus", "Overlay",
              "Sounds", "Benachrichtigungen", "Ausgabe", "Textersetzung",
              "Advanced"]
 
@@ -598,7 +598,7 @@ class SettingsPanel(WortprobeMixin, QWidget):
     # ---------------------------------------------------------------------- Seiten --
 
     def _build_pages(self) -> None:
-        """Die neun Seiten aufbauen — je Seite ein Modul in `ui/settings/`.
+        """Die zehn Seiten aufbauen — je Seite ein Modul in `ui/settings/`.
 
         Stand 5.4.0 war das EINE Funktion mit 674 Zeilen, danach neun Methoden in
         dieser Datei. Beides liess sich sauber trennen, weil jede Seite mit

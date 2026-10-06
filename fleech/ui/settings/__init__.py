@@ -1,4 +1,4 @@
-"""Die neun Seiten des Einstellungs-Panels — je Seite ein Modul.
+"""Die zehn Seiten des Einstellungs-Panels — je Seite ein Modul.
 
 Stand 5.4.0 war das EINE Methode mit 674 Zeilen, danach neun Methoden in einer
 1379-Zeilen-Datei. Beides liess sich sauber trennen, weil jede Seite mit
@@ -14,13 +14,13 @@ muss zu `SettingsPanel.PAGES` passen.
 from __future__ import annotations
 
 from . import (
-    advanced, allgemein, audiofokus, aufnahme, ausgabe, benachrichtigungen, overlay,
-    sounds, textersetzung,
+    advanced, allgemein, audiofokus, aufnahme, ausgabe, benachrichtigungen, ki,
+    overlay, sounds, textersetzung,
 )
 
 # Reihenfolge = Reihenfolge der Eintraege in SettingsPanel.PAGES.
 SEITEN = (
-    allgemein, aufnahme, audiofokus, overlay, sounds, benachrichtigungen, ausgabe,
+    allgemein, ki, aufnahme, audiofokus, overlay, sounds, benachrichtigungen, ausgabe,
     textersetzung, advanced,
 )
 

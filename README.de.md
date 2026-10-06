@@ -39,10 +39,16 @@ Anders als die eingebaute Spracherkennung des Betriebssystems räumt danach eine
 gesagt hast, bleibt dabei so stehen, wie du es gesagt hast. Fleech glättet, es
 formuliert nicht um.
 
-**Alles passiert lokal.** Spracherkennung ([faster-whisper](https://github.com/SYSTRAN/faster-whisper))
+**Standardmäßig lokal.** Spracherkennung ([faster-whisper](https://github.com/SYSTRAN/faster-whisper))
 und Textbereinigung ([Ollama](https://ollama.com)) laufen auf deinem Rechner. Kein
 Cloud-Dienst, kein Konto, keine Aufnahme verlässt das Gerät. Ins Netz geht Fleech nur
 für die Einrichtung und die Update-Prüfung (abschaltbar).
+
+**Oder deine eigene KI.** Lieber ein Cloud-Modell? Unter *Einstellungen → KI* stehen
+**OpenAI, Anthropic Claude, Google Gemini, Mistral, Groq, OpenRouter** und jeder
+OpenAI-kompatible Server zur Wahl — mit deinem eigenen API-Schlüssel, abgelegt im
+Schlüsselbund des Systems statt in einer Datei. Gesendet wird nur der diktierte Text,
+nie der Ton. Oder die KI ganz aus: dann kommt das reine Transkript.
 
 ## Was Fleech kann
 

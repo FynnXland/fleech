@@ -144,9 +144,17 @@ class ModelleMixin:
     def _idle_unload_window_s(self) -> float:
         return max(0, int(self.settings.advanced.llm_idle_unload_minutes)) * 60
 
+    def _ki_lokal(self) -> bool:
+        """Bereinigt das eigene Ollama? (Nicht bei Cloud-Anbieter oder „Ohne KI".)"""
+        from ...llm.providers import ki_lokal
+
+        return ki_lokal(self.settings)
+
     def _keep_warm_tick(self) -> None:
+        from ...llm.providers import ki_lokal
+
         mode = self.settings.advanced.llm_keep_warm
-        if mode == "off":
+        if mode == "off" or not ki_lokal(self.settings):
             return
         gaming = False
         try:
@@ -281,6 +289,42 @@ class ModelleMixin:
                 log.debug("LLM-Entladen fehlgeschlagen.", exc_info=True)
 
         threading.Thread(target=work, daemon=True).start()
+
+    def _wechsle_ki(self) -> None:
+        """KI-Anbieter umstellen (Einstellungen → KI) — ohne Neustart.
+
+        Die Endpunkte werden aus einer FRISCHEN config.yaml neu aufgebaut: Wer von
+        einem Cloud-Anbieter zurueck auf lokal wechselt, braucht wieder Adresse und
+        `num_ctx` aus der Datei, nicht die Reste des Cloud-Endpunkts.
+        """
+        from ...config import load_config
+        from ...llm import ChatClient
+        from ...llm.providers import AUS, anbieter
+        from ...pipeline_factory import _load_format_prompts
+
+        alte = self._llm_endpoints()           # vor dem Umstecken: das lokale Modell
+        frisch = load_config()
+        self.settings.apply_to(frisch)
+        for name in ("llm_cleanup", "llm_cleanup_fast", "llm_command"):
+            setattr(self.config, name, getattr(frisch, name))
+        p = self.pipeline
+        p.cleanup_llm = ChatClient(self.config.llm_cleanup)
+        p.fast_llm = ChatClient(self.config.llm_cleanup_fast)
+        p.command_llm = ChatClient(self.config.llm_command)
+        p.ki_aus = anbieter(self.settings.ki.anbieter).id == AUS
+        p.format_prompts = {} if p.ki_aus else _load_format_prompts(self.config)
+        self._ki_offline_gemeldet = False
+        self._apply_trigger_word()
+        log.info("KI-Anbieter: %s (%s).", self.settings.ki.anbieter,
+                 "ohne Modell" if p.ki_aus else self.config.llm_cleanup.model)
+        if self._ki_lokal():
+            self._keep_warm_tick()
+            return
+        # Das lokale Modell wird nicht mehr gebraucht — Grafikspeicher freigeben.
+        from ...llm.client import ollama_unload
+
+        threading.Thread(target=lambda: [ollama_unload(e) for e in alte],
+                         daemon=True).start()
 
     def _wechsle_stt_modell(self) -> None:
         """Erkennungsmodell umstellen (Einstellung „Spracherkennung") — ohne Neustart.

@@ -25,7 +25,10 @@ wacht über die gröbsten Fälle).
    `initial_prompt` primet Vokabular + Signalwort. Kein Cloud-Fallback mehr.
 2. **Routing** (`fleech/routing.py`, `detect_mode`): `cleanup` (Default) | `command`
    (Safe-Word erkannt) | `math` (Hotkey/Latch/gesprochene Delimiter).
-3. **LLM** — Cleanup: Ollama `gemma3:4b` (ein Modell für alles). Formeln entstehen
+3. **LLM** — Cleanup: standardmäßig lokal Ollama `gemma3:4b` (ein Modell für alles).
+   Seit 6.1.0 wählbar (Einstellungen → KI, `fleech/llm/providers.py`): Cloud-Anbieter
+   mit eigenem API-Schlüssel (OpenAI-Form oder Anthropic nativ, Schlüssel im
+   Schlüsselbund via `fleech/llm/apikeys.py`) oder „Ohne KI" (`Pipeline.ki_aus`). Formeln entstehen
    im deterministischen Parser, ohne Modell.
 4. **Injection** (`fleech/injection.py`) — Clipboard + Strg+V, global serialisiert.
 
@@ -43,8 +46,8 @@ bleibt das Feld leer.
 Kontext, egal was das Modell könnte — und der OpenAI-Aufsatz ignoriert jede Option
 dagegen (gemessen). Allein `prompts/cleanup.md` belegt ~3000 Token; lange Diktate
 brachen dadurch mitten im Satz ab. Deshalb spricht `ChatClient` bei localhost-Endpoints
-Ollamas eigene `/api/chat` mit `options.num_ctx` (8192) an; jeder andere Provider läuft
-weiter über den OpenAI-Weg. Zusätzlich meldet der Client `last_truncated` — bricht eine
+Ollamas eigene `/api/chat` mit `options.num_ctx` (8192) an; Cloud-Anbieter laufen über
+`/chat/completions` bzw. Anthropics `/messages`. Zusätzlich meldet der Client `last_truncated` — bricht eine
 Antwort doch am Fenster ab, fügt die Pipeline den **Rohtext** ein statt eines halben Satzes.
 
 Provider/Modelle/Prompts sind in `config.yaml` + `prompts/` konfigurierbar
@@ -81,7 +84,7 @@ Provider/Modelle/Prompts sind in `config.yaml` + `prompts/` konfigurierbar
 - `fleech/varianten.py` — Schreibvarianten desselben Begriffs (Cloud-Code/Claude Code)
   für die Vorschlagskarte; `fleech/profilexport.py` — Profile als JSON sichern/einlesen;
   `fleech/settingsheilung.py`, `fleech/gruende.py` s. o.
-- `fleech/ui/settings/` — die neun Einstellungsseiten, je Seite ein `build(panel)`.
+- `fleech/ui/settings/` — die zehn Einstellungsseiten (inkl. `ki`: Anbieter, Schlüssel, Modell), je Seite ein `build(panel)`.
 - `fleech/ui/desktopapp/` — die Teilgebiete von `DesktopApp` als **Mixins**: `profil`,
   `freihand`, `anstupsen` (Stille-Wache des Nudge-Modus), `keinton` (Wache: Mikrofon
   liefert nichts), `modelle`, `nachbereitung`, `updatepruefung`, `lebenszyklus`.

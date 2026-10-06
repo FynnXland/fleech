@@ -19,7 +19,9 @@ stt:
   abschnitte: true            # schon beim Sprechen erkennen (an Pausen) — kuerzere Wartezeit
 
 llm:
-  cleanup:                    # Prompt 1/2 — jeder OpenAI-kompatible Endpoint
+  cleanup:                    # Prompt 1/2 — lokales Ollama. Cloud-Anbieter (OpenAI,
+                              # Anthropic, Gemini …) waehlt man in den Einstellungen
+                              # (Seite „KI"); die Wahl dort sticht diese Werte.
     base_url: http://127.0.0.1:11434
                               # BEWUSST die IP statt "localhost": Der Name kostet
                               # unter Windows 2,05 s PRO ANFRAGE — Windows fragt erst
@@ -33,7 +35,6 @@ llm:
                               # 6,6 GB) — und ergaenzt sogar WENIGER eigene Woerter
                               # (0,014 statt 0,021) bei praktisch gleicher Wortgetreue
                               # (0,977 statt 0,982). Beherrscht auch die Befehls-JSONs.
-    api_key_env: ""           # z. B. DEEPSEEK_API_KEY bei base_url https://api.deepseek.com/v1
     temperature: 0.0          # deterministisch — gleicher Input, gleiche Bereinigung
     timeout: 60
     reasoning_effort: ""      # gemma3 ist KEIN Thinking-Modell → Parameter weglassen.

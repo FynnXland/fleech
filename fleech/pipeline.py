@@ -142,8 +142,9 @@ def _lokaler_endpunkt_nicht_erreichbar(llm, exc: Exception) -> bool:
     """
     import urllib.error
 
-    base = str(getattr(getattr(llm, "cfg", None), "base_url", "") or "")
-    if "localhost" not in base and "127.0.0.1" not in base:
+    from .llm.providers import ist_lokales_ollama
+
+    if not ist_lokales_ollama(getattr(llm, "cfg", None)):
         return False
     if isinstance(exc, urllib.error.HTTPError):
         return False                     # der Dienst laeuft, er mag nur die Anfrage nicht
@@ -230,7 +231,10 @@ class Pipeline:
         # Erkennung, den sprachgebundenen Teil der Guards und die Zielsprache der
         # umformulierenden Formate.
         self.sprache = "de"
-        # "" | "quota" | "provider" | "llm_offline" (lokaler Ollama nicht erreichbar)
+        # „Ohne KI" (Einstellungen → KI): Transkript ohne Modell, aber nicht als
+        # Rueckfall — der Nutzer hat es so gewaehlt.
+        self.ki_aus = False
+        # "" | "quota" | "key" | "llm_offline" (lokaler Ollama nicht erreichbar)
         self.last_error_kind = ""
         # Warum lief das letzte Diktat nicht glatt? Kurzer deutscher Grund, leer =
         # alles glatt. Bis 5.10.3 stand das NUR im Protokoll — der Verlauf konnte
@@ -565,7 +569,9 @@ class Pipeline:
                             dauer.append(self.last_llm_ms))[0],
             beispielsaetze(prompts), content_words, has_self_correction,
             self._merke_grund, pruefe_abdeckung=not self.auto_latex and eingriff != "strong",
-            abbrechen=lambda: gruende.OLLAMA in self.last_reason)
+            abbrechen=lambda: any(g in self.last_reason for g in (
+                gruende.OLLAMA, gruende.KI_DIENST, gruende.KI_SCHLUESSEL,
+                gruende.KI_KONTINGENT)))
         self.last_llm_ms = sum(dauer)
         return ergebnis
 
@@ -595,7 +601,7 @@ class Pipeline:
         force_big: adaptives Routing ueberspringen (Platzhalter im Text — die
         ueberfordern das kleine Modell nachweislich)."""
         intervention = self._eingriff(intervention_override)
-        if intervention == "minimal":
+        if intervention == "minimal" or self.ki_aus:
             # Fast-Rohtranskript: kein LLM, keine Latenz — bewusste Nutzerwahl.
             return raw, False
 
@@ -637,7 +643,6 @@ class Pipeline:
                     tier = "complex"
                 except Exception as exc2:
                     log.warning("Cleanup fehlgeschlagen (%s) — Roh-Transkript.", exc2)
-                    self._merke_grund(gruende.OLLAMA)
                     self._merke_llm_ausfall(self.cleanup_llm, exc2)
                     return raw, True
             else:
@@ -646,7 +651,6 @@ class Pipeline:
                     "Laeuft Ollama bzw. stimmt die LLM-Config?",
                     exc,
                 )
-                self._merke_grund(gruende.OLLAMA)
                 self._merke_llm_ausfall(llm, exc)
                 return raw, True
         self.last_llm_ms = int((time.perf_counter() - t0) * 1000)
@@ -710,8 +714,22 @@ class Pipeline:
         """Grund des Rueckfalls festhalten, damit die Oberflaeche ihn benennen kann.
 
         "llm_offline" heisst: der lokale Ollama-Dienst laeuft nicht (Befund E-13) —
-        das ist etwas anderes als ein Modell, das schlecht antwortet.
+        das ist etwas anderes als ein Modell, das schlecht antwortet. Bei einem
+        Cloud-Anbieter zaehlt der HTTP-Status: 401/403 = Schluessel, 429 = Kontingent.
         """
+        from .llm.providers import OLLAMA
+
+        code = getattr(exc, "code", None)
+        if (getattr(getattr(llm, "cfg", None), "provider", OLLAMA) or OLLAMA) == OLLAMA:
+            self._merke_grund(gruende.OLLAMA)
+        elif code in (401, 403):
+            self._merke_grund(gruende.KI_SCHLUESSEL)
+            self.last_error_kind = "key"
+        elif code == 429:
+            self._merke_grund(gruende.KI_KONTINGENT)
+            self.last_error_kind = "quota"
+        else:
+            self._merke_grund(gruende.KI_DIENST)
         if _lokaler_endpunkt_nicht_erreichbar(llm, exc):
             self.last_error_kind = "llm_offline"
 

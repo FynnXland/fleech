@@ -553,11 +553,14 @@ class DesktopApp(
             self.bus.set_state(AppState.IDLE, "eingefügt (Fallback — Log prüfen)")
             if self.pipeline.last_error_kind == "llm_offline":
                 self._melde_ki_offline()
-            if self.pipeline.last_error_kind == "quota":
+            if self.pipeline.last_error_kind in ("quota", "key"):
                 self.notifier.toast(
                     "provider_quota", "Fleech",
-                    "Formel-Provider meldet Rate-Limit (429) — Text kam als "
-                    "Cleanup-Fallback an.",
+                    "Der KI-Dienst hat den API-Schlüssel abgelehnt — bitte unter "
+                    "Einstellungen → KI prüfen. Der Text kam unbereinigt an."
+                    if self.pipeline.last_error_kind == "key" else
+                    "Der KI-Dienst meldet ein erschöpftes Kontingent (429). Der "
+                    "Text kam unbereinigt an.",
                 )
         elif result in ("empty", "too_short"):
             self.bus.set_state(AppState.IDLE, "nichts erkannt")
@@ -731,6 +734,8 @@ class DesktopApp(
             self._recheck_input_device()
         elif section == "stt_modell":
             self._wechsle_stt_modell()
+        elif section == "ki":
+            self._wechsle_ki()
         elif section == "stt_device":
             self.controller.stop_if_active()
             self.config.stt.device = "auto" if self.settings.advanced.prefer_gpu else "cpu"
@@ -747,7 +752,7 @@ class DesktopApp(
 
         effective = (self.settings.output.trigger_word.strip()
                      or self._base_trigger_word)
-        if not self.settings.output.command_enabled:
+        if not self.settings.output.command_enabled or self.pipeline.ki_aus:
             effective = ""
         if effective == self.pipeline.trigger_word:
             return

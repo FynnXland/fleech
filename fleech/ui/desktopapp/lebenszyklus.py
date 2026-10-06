@@ -40,7 +40,9 @@ class LebenszyklusMixin:
             existing.raise_()
             existing.activateWindow()
             return
-        endpoints = self._llm_endpoints()
+        # Cloud-Anbieter oder „Ohne KI": nichts Lokales einzurichten — leere
+        # Adresse heisst fuer die Einrichtung „nur die Spracherkennung".
+        endpoints = self._llm_endpoints() if self._ki_lokal() else []
         self._onboarding = OnboardingDialog(
             self.settings, list_input_devices, on_changed=self._on_setting_changed,
             endpoints=endpoints, stt_model=getattr(self.config.stt, "model_size", ""),

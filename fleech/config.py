@@ -1,8 +1,8 @@
 """Konfiguration: config.yaml + ENV-Overrides (FLEECH_*).
 
 Prioritaet: ENV-Variable > config.yaml > eingebaute Defaults.
-API-Keys stehen nie in der YAML-Datei — dort steht nur der Name der ENV-Variable,
-aus der der Key gelesen wird (api_key_env).
+API-Schluessel stehen nie hier — sie liegen im Schluesselbund des Systems
+(fleech/llm/apikeys.py). Den KI-Anbieter waehlt man in den Einstellungen (Seite „KI").
 """
 
 from __future__ import annotations
@@ -55,7 +55,15 @@ class STTConfig:
 
 @dataclass
 class LLMEndpointConfig:
-    """Ein OpenAI-kompatibler Chat-Endpoint (Ollama, DeepSeek, Groq, ...)."""
+    """Ein Chat-Endpunkt: lokales Ollama oder ein Cloud-Anbieter (llm/providers.py).
+
+    Gewaehlt wird in den Einstellungen (Seite „KI"); `UserSettings.apply_to`
+    ueberschreibt dann Anbieter, Adresse und Modell. Der Schluessel steht nie hier,
+    sondern im Schluesselbund des Systems (llm/apikeys.py).
+    """
+
+    # Kennung aus `llm/providers.ANBIETER` — bestimmt die Schnittstellen-Art.
+    provider: str = "ollama"
 
     # BEWUSST die IP, nicht "localhost": Der Name kostet unter Windows 2,05 s pro
     # Anfrage (fehlschlagende IPv6-Aufloesung, gemessen). `ollama_root()` korrigiert
@@ -65,7 +73,6 @@ class LLMEndpointConfig:
     # getestete kleine Modell (siehe config.yaml). Halbe Groesse = haelt sich eher im
     # VRAM, was in der Praxis mehr Zeit spart als die reine Rechenzeit.
     model: str = "gemma3:4b"
-    api_key_env: str = ""
     temperature: float = 0.0
     timeout: float = 60.0
     # Fuer Thinking-Modelle (z. B. qwen3.5 auf Ollama): "none" schaltet das Reasoning
@@ -231,7 +238,7 @@ def load_config(path: Path | str | None = None) -> AppConfig:
     cfg.llm_command = copy.deepcopy(cfg.llm_cleanup)
     _apply(cfg.llm_command, llm_command_overrides)
 
-    # Schnelles Cleanup-Modell erbt die Verbindung (base_url/api_key/timeout) vom
+    # Schnelles Cleanup-Modell erbt die Verbindung (Anbieter/base_url/timeout) vom
     # Cleanup-Endpoint, behaelt aber sein kleines Modell + leeres reasoning_effort.
     fast = copy.deepcopy(cfg.llm_cleanup)
     fast.model = fast_model_default

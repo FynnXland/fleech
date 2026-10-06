@@ -11,6 +11,28 @@ GitHub-Release-Notizen (`packaging/release.py`).
 
 ---
 
+## 6.1.0 — 2026-10-06
+
+**Wähle, wer deinen Text bereinigt.** Neue Einstellungsseite *KI*:
+
+- **Lokal (Ollama)** bleibt der Standard und die Empfehlung — kein Konto, keine
+  Kosten, nichts verlässt deinen Rechner.
+- **Eigener API-Schlüssel:** OpenAI, Anthropic (Claude), Google Gemini, Mistral,
+  Groq, OpenRouter oder ein eigener OpenAI-kompatibler Server (LM Studio, vLLM …).
+  Schlüssel einfügen, „Liste laden" zeigt die Modelle, die dein Schlüssel nutzen
+  darf, „Verbindung testen" prüft alles mit einem Klick. Der Schlüssel liegt in
+  der Windows-Anmeldeinformationsverwaltung, nicht in einer Datei. Ein Abo wie
+  ChatGPT Plus oder Claude Pro lässt sich dafür nicht verwenden — die Anbieter
+  trennen Abo und Programmierschnittstelle.
+- **Ohne KI:** nur Spracherkennung. Füllwörter wie „äh" entfernt Fleech trotzdem;
+  Befehle und Formate wie E-Mail ruhen. Kein Download des Sprachmodells nötig.
+
+Die Seite sagt bei jeder Wahl in einem Satz, wohin dein Text geht. Lehnt ein
+Cloud-Dienst den Schlüssel ab oder ist das Kontingent erschöpft, sagt Fleech
+genau das — statt „Ollama hat nicht geantwortet".
+
+---
+
 ## 6.0.0 — 2026-10-06
 
 **Fleech ist jetzt Open Source.** Der Quellcode steht öffentlich unter der

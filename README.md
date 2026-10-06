@@ -42,11 +42,16 @@ Unlike built-in OS dictation, an AI cleans up afterwards: "um"s, slips of the to
 and false starts disappear, punctuation is added. What you said stays the way you
 said it — Fleech smooths, it does not rephrase.
 
-**Everything runs locally.** Speech recognition uses
+**Local by default.** Speech recognition uses
 [faster-whisper](https://github.com/SYSTRAN/faster-whisper) (OpenAI Whisper
 `large-v3-turbo`), and text cleanup uses a local LLM via [Ollama](https://ollama.com)
 (`gemma3:4b`). No cloud service, no account, no audio ever leaves your machine. Fleech
 only goes online for the initial setup and the update check (which can be turned off).
+
+**Or bring your own AI.** Prefer a cloud model? Pick **OpenAI, Anthropic Claude, Google
+Gemini, Mistral, Groq, OpenRouter** or any OpenAI-compatible server and paste your own
+API key — it's stored in your system keychain, never in a file. Only the dictated
+*text* is sent, never audio. Or switch AI off entirely and get the plain transcript.
 
 ## Features
 
