@@ -1,0 +1,51 @@
+name: Feature request
+description: Suggest an idea or an improvement for Fleech.
+labels: ["enhancement"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for the idea. You can write in English or German (*Deutsch ist genauso willkommen*).
+        Please describe the problem first: a good description of what gets in your way is often more useful than a finished solution.
+
+  - type: textarea
+    id: problem
+    attributes:
+      label: Problem
+      description: What are you trying to do, and what makes it hard today?
+      placeholder: "When I dictate into …, I always have to …"
+    validations:
+      required: true
+
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Proposed solution
+      description: How could Fleech help? Settings, hotkeys or voice commands you have in mind.
+    validations:
+      required: true
+
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternatives and workarounds
+      description: What have you tried, or how do other tools solve it?
+
+  - type: dropdown
+    id: platform
+    attributes:
+      label: Platform
+      description: Where would you use it?
+      multiple: true
+      options:
+        - Windows
+        - Linux (X11)
+        - Linux (Wayland)
+
+  - type: checkboxes
+    id: privacy
+    attributes:
+      label: Privacy check
+      options:
+        - label: My examples contain no real dictations, names or other personal data. Issues are public.
+          required: true

@@ -1,0 +1,134 @@
+name: Bug report
+description: Something in Fleech doesn't work as expected.
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for reporting a bug. You can write in English or German (*Deutsch ist genauso willkommen*).
+
+        **Issues are public and stay public.** Don't paste dictated text, names, API keys or your user name.
+        Security problems belong in a [private report](https://github.com/FynnXland/fleech/security/advisories/new), not here.
+
+  - type: input
+    id: version
+    attributes:
+      label: Fleech version
+      description: >-
+        Shown in the title bar of the main window and under
+        *Einstellungen → Advanced → Version* (Settings → Advanced).
+      placeholder: "6.1.0"
+    validations:
+      required: true
+
+  - type: dropdown
+    id: install
+    attributes:
+      label: How do you run Fleech?
+      options:
+        - Installer (FleechSetup-<version>.exe)
+        - From source (python -m fleech)
+        - Own build (packaging/build.py)
+    validations:
+      required: true
+
+  - type: dropdown
+    id: os
+    attributes:
+      label: Operating system
+      options:
+        - Windows 11
+        - Windows 10
+        - Linux (X11)
+        - Linux (Wayland)
+        - Other
+    validations:
+      required: true
+
+  - type: input
+    id: gpu
+    attributes:
+      label: GPU
+      description: Speech recognition runs on an NVIDIA GPU if there is one, otherwise on the CPU.
+      placeholder: "e.g. NVIDIA RTX 3060, or none (CPU only)"
+
+  - type: dropdown
+    id: ai-mode
+    attributes:
+      label: AI mode
+      description: "*Einstellungen → KI* (Settings → AI)"
+      options:
+        - Local (Ollama)
+        - Cloud provider with my own API key
+        - Own server (OpenAI-compatible)
+        - No AI (speech recognition only)
+        - Not sure
+    validations:
+      required: true
+
+  - type: input
+    id: model
+    attributes:
+      label: Model / provider
+      description: The Ollama model, or the cloud provider and model. Never paste an API key.
+      placeholder: "e.g. gemma3:4b, or Mistral + model name"
+
+  - type: textarea
+    id: steps
+    attributes:
+      label: Steps to reproduce
+      placeholder: |
+        1. Open Notepad
+        2. Hold F9 and say a short sentence
+        3. Release the key
+    validations:
+      required: true
+
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected behaviour
+    validations:
+      required: true
+
+  - type: textarea
+    id: actual
+    attributes:
+      label: Actual behaviour
+      description: What happened instead? Screenshots help if they show no personal data.
+    validations:
+      required: true
+
+  - type: textarea
+    id: log
+    attributes:
+      label: Log excerpt
+      description: |
+        Windows: `%APPDATA%\Fleech\fleech.log` · Linux: `~/.config/Fleech/fleech.log`
+        Copy from the last `Fleech <version> bereit` line before the problem down to the error.
+
+        **The log contains your dictated text.** Lines such as `STT (…): …`, `Eingefuegt: …`,
+        `In der Zwischenablage statt eingefuegt: …`, `Cleanup uebersprungen (trivial): …`,
+        `Freihand hoerte: …`, `Formel GERATEN (…): …` and warnings ending in
+        `Aeusserung: …`, `replacement=…` or `Ausgabe war: …` quote what you said. This list
+        is not complete: treat any line that shows text after a colon or `=` as possibly
+        quoting your dictation or a window title. Replace all of that with `[redacted]`,
+        and check file paths for your user name.
+      render: text
+
+  - type: checkboxes
+    id: privacy
+    attributes:
+      label: Privacy check
+      options:
+        - label: >-
+            I understand that the log contains my dictated text and window titles, and I
+            removed or redacted them, my user name in paths, and any other personal data
+            from this report.
+          required: true
+
+  - type: textarea
+    id: extra
+    attributes:
+      label: Anything else?
+      description: Microphone or headset, other apps involved, when it started happening …

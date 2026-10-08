@@ -1,0 +1,8 @@
+# Hält nur die Versionen der GitHub Actions aktuell. Für pip lohnt es sich nicht:
+# requirements.txt setzt nur Untergrenzen, ohne Lockfile gäbe es fast keine PRs.
+version: 2
+updates:
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: monthly

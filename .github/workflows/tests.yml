@@ -1,0 +1,41 @@
+name: Tests
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+# Ein neuer Push auf denselben Branch bricht den noch laufenden Durchgang ab.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  windows:
+    name: Windows
+    runs-on: windows-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-python@v7
+        with:
+          python-version: "3.11"
+          cache: pip
+          cache-dependency-path: requirements*.txt
+
+      # Die CUDA-Pakete (nvidia-cublas/-cudnn, zusammen über 1 GB) braucht nur die
+      # Spracherkennung auf der Grafikkarte. Die Tests ersetzen Whisper durch
+      # Attrappen; der echte Lauf ist Opt-in (FLEECH_STT_TEST=1).
+      - name: Install dependencies (without the CUDA packages)
+        run: |
+          $req = Join-Path $env:RUNNER_TEMP "requirements-ci.txt"
+          Get-Content requirements.txt | Where-Object { $_ -notmatch '^\s*nvidia-' } | Set-Content $req
+          python -m pip install -r $req "pytest>=8.0"
+
+      - name: Run tests
+        run: python -m pytest -q
