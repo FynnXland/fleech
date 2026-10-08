@@ -280,14 +280,12 @@ ins Netz:
   Whisper-Modell von Hugging Face.
 - **Update-Prüfung:** fragt GitHub nach dem neuesten Release. Abschaltbar, ebenso der
   Download im Hintergrund, unter Einstellungen → *Advanced*.
-- **Prüfung des Erkennungsmodells:** Jedes Mal, wenn Fleech das Whisper-Modell lädt (bei
-  jedem Start), fragt faster-whisper bei Hugging Face nach, ob es eine neue Fassung des
-  Modells gibt, und lädt sie gegebenenfalls herunter. Dabei geht weder Ton noch Text hinaus.
 - **Modell-Check:** Einmal pro Woche sieht Fleech nach, ob es für deine
   Wahl ein neueres Modell gibt, in seiner Modellliste auf GitHub und in der Ollama-Bibliothek
   oder in der Modellliste deines Cloud-Anbieters. Fleech schlägt nur vor und stellt nie selbst
   um; abschaltbar unter Einstellungen → *KI*.
-- **Deutsch-optimierte Spracherkennung:** wird nur von Hugging Face geladen, wenn du sie wählst.
+- **Deutsch-optimierte Spracherkennung:** wird nur von Hugging Face geladen, wenn du sie
+  wählst; ebenso das kleine Modell der experimentellen Live-Vorschau, wenn du sie einschaltest.
 - **Dein Cloud-Anbieter**, nur wenn du einen auswählst.
 
 Alle Daten liegen in einem Ordner: `%APPDATA%\Fleech` unter Windows, `~/.config/Fleech`

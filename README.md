@@ -275,14 +275,12 @@ on the [mode you choose](#choose-how-it-runs). Besides that, Fleech only goes on
   Whisper model from Hugging Face.
 - **Update check:** asks GitHub for the latest release. You can turn the check off, or just
   the background download, under Settings → *Advanced*.
-- **Speech model check:** each time Fleech loads the Whisper model (at every start),
-  faster-whisper asks Hugging Face whether the model has changed and downloads the update
-  if it has. No audio or text is sent.
 - **Model check:** once a week Fleech looks for a newer model for your
   choice, in its model list on GitHub and the Ollama library, or in your cloud provider's
   model list. It only suggests, never switches by itself; turn it off under Settings →
   *KI* (AI).
-- **German speech model:** downloaded from Hugging Face only if you choose it.
+- **German speech model:** downloaded from Hugging Face only if you choose it; the same
+  goes for the small model of the experimental live preview when you turn it on.
 - **Your cloud provider**, only if you select one.
 
 All data lives in one folder: `%APPDATA%\Fleech` on Windows, `~/.config/Fleech` on Linux.
