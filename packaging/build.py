@@ -10,7 +10,9 @@ Aufruf:
 Die GPU/CPU-Wahl wird in packaging/build.local.json gespeichert — kein
 "$env:FLEECH_GPU jedes Mal neu setzen" noetig; einmal --gpu reicht, jeder
 spaetere Build (auch ohne Flag) bleibt dabei. FLEECH_GPU als Env-Var wird
-weiterhin als zusaetzlicher Override unterstuetzt (z. B. fuer CI).
+weiterhin als zusaetzlicher Override unterstuetzt (z. B. fuer CI). In einem
+git-Worktree ohne eigene Datei gilt die des Haupt-Checkouts; fehlt auch die,
+warnt der Build laut, bevor er einen CPU-Build baut.
 
 Ergebnis: dist/Fleech/Fleech.exe (onedir, kein Konsolenfenster).
 
@@ -38,13 +40,47 @@ from fleech.version import APP_VERSION  # noqa: E402
 BUILD_LOCAL_CONFIG = ROOT / "packaging" / "build.local.json"
 
 
+def haupt_checkout_config() -> Path | None:
+    """build.local.json des Haupt-Checkouts, wenn wir in einem git-Worktree bauen.
+
+    Die Datei ist gitignoriert und liegt nur dort, wo einmal `--gpu` lief — in
+    einem Claude-Worktree (`.claude/worktrees/…`) fehlt sie. Am 2026-10-08 baute
+    `build.py` dort deshalb still einen CPU-Build ohne `_internal/nvidia`.
+    `--git-common-dir` zeigt aus jedem Worktree auf das `.git` des Haupt-Checkouts
+    (dort selbst relativ: „.git"); dessen Elternordner ist der Haupt-Checkout.
+    """
+    try:
+        common = subprocess.check_output(
+            ["git", "rev-parse", "--git-common-dir"], cwd=ROOT, text=True,
+            stderr=subprocess.DEVNULL,
+        ).strip()
+    except Exception:
+        return None
+    if not common:
+        return None
+    kandidat = (ROOT / common).resolve().parent / "packaging" / "build.local.json"
+    if kandidat == BUILD_LOCAL_CONFIG.resolve() or not kandidat.is_file():
+        return None
+    return kandidat
+
+
 def read_gpu_preference() -> bool:
-    if BUILD_LOCAL_CONFIG.is_file():
-        try:
-            return bool(json.loads(BUILD_LOCAL_CONFIG.read_text(encoding="utf-8")).get("gpu", False))
-        except Exception:
-            pass
-    return False
+    quelle = BUILD_LOCAL_CONFIG
+    if not quelle.is_file():
+        quelle = haupt_checkout_config()
+        if quelle is None:
+            print("[build] " + "!" * 66)
+            print("[build] ACHTUNG: Keine GPU/CPU-Wahl gefunden (packaging/build.local.json")
+            print("[build] fehlt hier und im Haupt-Checkout) — gebaut wird ein CPU-Build")
+            print("[build] OHNE CUDA. GPU-Build: build.py --gpu")
+            print("[build] " + "!" * 66)
+            return False
+        print(f"[build] GPU/CPU-Wahl aus dem Haupt-Checkout: {quelle}")
+    try:
+        return bool(json.loads(quelle.read_text(encoding="utf-8")).get("gpu", False))
+    except Exception as exc:
+        print(f"[build] ACHTUNG: {quelle} unlesbar ({exc}) — baue CPU-Build.")
+        return False
 
 
 def write_gpu_preference(value: bool) -> None:
