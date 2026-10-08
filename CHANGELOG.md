@@ -11,6 +11,48 @@ GitHub-Release-Notizen (`packaging/release.py`).
 
 ---
 
+## 6.2.0 — 2026-10-08
+
+**Neue Lizenz: MIT.** Fleech darf damit auch in geschlossenen und kommerziellen
+Projekten verwendet und verändert werden — es muss nur der Copyright- und
+Lizenzhinweis erhalten bleiben. Welche
+Fremdbibliotheken im Installer stecken und unter welchen Lizenzen, steht in
+`THIRD-PARTY-NOTICES.md`.
+
+**Neue Einführung beim ersten Start.** Sie fragt jetzt alles, was das erste
+Diktat braucht — und lädt nebenbei:
+
+- **Sprache zuerst:** Deutsch, Englisch oder automatisch.
+- **KI als eigener Schritt:** lokal, Cloud-Anbieter mit eigenem Schlüssel oder
+  ohne KI — mit **Modellwahl**. Lokal zeigt Fleech empfohlene Modelle mit
+  Größe und was schon installiert ist; bei einem Cloud-Anbieter lädt Fleech
+  nach dem Einfügen des Schlüssels die Modelle, die er nutzen darf.
+- **Downloads mit Restzeit:** Sobald die KI gewählt ist, lädt Fleech im
+  Hintergrund — mit Prozent, Tempo und „noch ca. 2 Min.". Du stellst derweil
+  Mikrofon und Taste ein; eine Zeile unten zeigt den Stand.
+- **Taste frei wählbar:** F9 ist nur die Vorgabe — jede Taste, Kombination
+  oder Maus-Daumentaste geht.
+- **Probediktat im Fenster:** Ein Textfeld direkt in der Einführung; kommt
+  dort Text an, funktioniert die ganze Kette.
+- „Überspringen" beendet die Einführung für immer, das **X heißt „später"**:
+  Wer mitten in der Einrichtung schließt, sieht sie beim nächsten Start wieder.
+
+**Hinweis auf neuere Modelle.** Einmal pro Woche sieht Fleech nach, ob es für
+deine Wahl etwas Neueres gibt: beim Cloud-Anbieter in dessen Modellliste
+(gleiche Klasse, höhere Version — oder dein Modell wurde abgeschaltet), lokal
+in der Ollama-Registry und in Fleechs Modellkatalog. Gefunden? Eine
+Benachrichtigung, und unter *Einstellungen → KI* steht der Vorschlag mit
+„Übernehmen" oder „Nicht mehr zeigen". Umgestellt wird nie von selbst — neuer
+heißt nicht immer schneller (gemma4 ist doppelt so groß wie gemma3). Abschaltbar
+und per „Jetzt prüfen" auch sofort auslösbar.
+
+**Denkende Modelle denken nicht mehr mit.** Modelle wie gemma4 oder qwen3.5
+„überlegen" von sich aus vor jeder Antwort — beim Bereinigen kostet das nur
+Zeit (gemessen: 3,5 statt 0,2 Sekunden je Diktat). Fleech schaltet das jetzt
+für jedes lokale Modell ab.
+
+---
+
 ## 6.1.1 — 2026-10-08 · nicht einzeln veröffentlicht
 
 **Die Testsuite löscht deinen Autostart nicht mehr.** Betrifft nur, wer Fleech aus

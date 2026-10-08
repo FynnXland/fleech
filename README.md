@@ -65,9 +65,8 @@ afterwards. Details: [docs/architecture.md](docs/architecture.md).
 | **Your own API key** ¹ | local | OpenAI, Anthropic, Google Gemini, Mistral, Groq, OpenRouter or any OpenAI-compatible server | the dictated *text*, to the provider you chose; never audio |
 | **No AI** ¹ | local | none: plain transcript, fillers removed, dictionary applied | nothing |
 
-<sub>¹ Not in a release yet: already on `main` (6.1.0) and coming with the next release. The
-current installer runs locally only. API keys are stored in the system keychain, never in
-Fleech's settings or log.</sub>
+<sub>¹ Comes with the next release (6.2); the current installer (6.0.0) runs locally only.
+API keys are stored in the system keychain, never in Fleech's settings or log.</sub>
 
 ## Features
 
@@ -222,7 +221,10 @@ With an NVIDIA GPU, add `--gpu` to the last command: it bundles the CUDA librari
 
 ### First run
 
-Fleech checks what is missing and fetches it, with a progress display and no terminal:
+A short introduction asks for your language, how the AI should run (and which model),
+your microphone and your hotkey: F9 by default, but any key, combination or mouse button
+works. Meanwhile Fleech downloads what your choice needs in the background, showing
+progress and the time remaining, no terminal involved. For the local default that is:
 
 | Component | Purpose | Size |
 |---|---|---|
@@ -231,7 +233,8 @@ Fleech checks what is missing and fetches it, with a progress display and no ter
 | **Whisper `large-v3-turbo`** | turns speech into text | ~1.6 GB |
 
 Ollama is installed only when you click: on Windows via `winget`; on Linux, Fleech shows
-the official install command instead. A short tour then sets up your microphone and hotkey.
+the official install command instead. The introduction ends with a test dictation right in
+its window: if text arrives there, the whole chain works.
 
 **First dictation:** click into any text field, hold <kbd>F9</kbd>, speak, release. The
 first dictation after a start takes a few seconds longer while the models load.
@@ -276,6 +279,10 @@ on the [mode you choose](#choose-how-it-runs). Besides that, Fleech only goes on
 - **Speech model check:** each time Fleech loads the Whisper model (at every start),
   faster-whisper asks Hugging Face whether the model has changed and downloads the update
   if it has. No audio or text is sent.
+- **Model check** (next release): once a week Fleech looks for a newer model for your
+  choice, in its model list on GitHub and the Ollama library, or in your cloud provider's
+  model list. It only suggests, never switches by itself; turn it off under Settings →
+  *KI* (AI).
 - **German speech model:** downloaded from Hugging Face only if you choose it.
 - **Your cloud provider** (next release), only if you select one.
 

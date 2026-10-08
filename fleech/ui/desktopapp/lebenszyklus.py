@@ -36,22 +36,51 @@ class LebenszyklusMixin:
         from ..onboarding import OnboardingDialog
 
         existing = getattr(self, "_onboarding", None)
-        if existing is not None and existing.isVisible():
+        if existing is not None and (existing.isVisible()
+                                     or existing.einrichtung_laeuft()):
+            # Laeuft noch ein Download aus der letzten Einfuehrung, waere eine
+            # zweite Einrichtung ein zweiter, paralleler Download desselben Modells.
+            if not existing.isVisible():
+                existing.zeige_einrichtung()
+                existing.show()
             existing.raise_()
             existing.activateWindow()
             return
-        # Cloud-Anbieter oder „Ohne KI": nichts Lokales einzurichten — leere
-        # Adresse heisst fuer die Einrichtung „nur die Spracherkennung".
-        endpoints = self._llm_endpoints() if self._ki_lokal() else []
         self._onboarding = OnboardingDialog(
             self.settings, list_input_devices, on_changed=self._on_setting_changed,
-            endpoints=endpoints, stt_model=getattr(self.config.stt, "model_size", ""),
-            llm_base_url=getattr(endpoints[0], "base_url", "") if endpoints else "",
+            einrichtung=self._einrichtungsplan,
+            # Fuer die Liste installierter Modelle: das eigene Ollama, auch wenn
+            # gerade ein Cloud-Anbieter gewaehlt ist.
+            llm_base_url=(self.config.llm_cleanup.base_url if self._ki_lokal()
+                          else "http://127.0.0.1:11434"),
             on_ready=self._warm_up_after_setup,
+            hotkey_capture_guard=(lambda: self.hotkeys.stop(),
+                                  lambda: self.hotkeys.start()),
         )
         self._onboarding.show()
         self._onboarding.raise_()
         self._onboarding.activateWindow()
+
+    def _einrichtungsplan(self) -> tuple:
+        """Was die Einfuehrung laden muss — gefragt NACH der KI-Wahl.
+
+        Cloud-Anbieter oder „Ohne KI": nichts Lokales einzurichten — leere
+        Adresse heisst fuer die Einrichtung „nur die Spracherkennung"."""
+        endpoints = self._llm_endpoints() if self._ki_lokal() else []
+        base_url = getattr(endpoints[0], "base_url", "") if endpoints else ""
+        return endpoints, getattr(self.config.stt, "model_size", ""), base_url
+
+    def _einfuehrung_offen(self) -> bool:
+        """Ist die Einfuehrung zu sehen oder laedt sie noch? Dann haelt sich das
+        Warmhalten mit eigenen Downloads zurueck — sonst laedt Fleech das
+        Vorgabemodell, bevor der Nutzer ueberhaupt gewaehlt hat."""
+        dlg = getattr(self, "_onboarding", None)
+        if dlg is None:
+            return False
+        try:
+            return dlg.isVisible() or dlg.einrichtung_laeuft()
+        except RuntimeError:                   # Qt-Objekt schon geloescht
+            return False
 
     def _recheck_input_device(self) -> None:
         """Loopback-Pruefung nach einem Geraetewechsel erneuern.

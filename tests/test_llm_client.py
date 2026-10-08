@@ -87,7 +87,8 @@ def test_chat_sendet_num_ctx_an_ollama(monkeypatch):
     assert calls[0]["url"] == "http://127.0.0.1:11434/api/chat"
     assert calls[0]["body"]["options"]["num_ctx"] == 8192
     assert calls[0]["body"]["stream"] is False
-    assert "think" not in calls[0]["body"]        # gemma3 denkt nicht
+    # Ausdruecklich nicht denken — auch ohne reasoning_effort (seit 6.2.0).
+    assert calls[0]["body"]["think"] is False
     assert not client.last_truncated
 
 
@@ -98,6 +99,19 @@ def test_thinking_modell_bekommt_think_false(monkeypatch):
     _fake_urlopen(monkeypatch, {"message": {"content": "x"}}, calls)
     ChatClient(LLMEndpointConfig(reasoning_effort="none")).complete("SYS", "text")
     assert calls[0]["body"]["think"] is False
+
+
+def test_gewaehltes_thinking_modell_denkt_trotzdem_nicht(monkeypatch):
+    """6.2.0: Ein in der Modellwahl gewaehltes Thinking-Modell (gemma4:e4b) bekommt
+    kein reasoning_effort aus config.yaml — und dachte deshalb bei jedem Diktat.
+    Nur eine ausdrueckliche Stufe laesst das Modell denken."""
+    calls = []
+    _fake_urlopen(monkeypatch, {"message": {"content": "x"}}, calls)
+    ChatClient(LLMEndpointConfig(model="gemma4:e4b", reasoning_effort="")).complete(
+        "SYS", "text")
+    ChatClient(LLMEndpointConfig(reasoning_effort="high")).complete("SYS", "text")
+    assert calls[0]["body"]["think"] is False
+    assert "think" not in calls[1]["body"]
 
 
 def test_abgeschnittene_antwort_wird_gemeldet(monkeypatch):

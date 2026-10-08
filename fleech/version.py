@@ -7,7 +7,7 @@
 
 from __future__ import annotations
 
-APP_VERSION = "6.1.1"  # 6.1.1: Testsuite loescht den echten Autostart-Eintrag nicht mehr
+APP_VERSION = "6.2.0"  # 6.2.0: neue Einfuehrung, Modellwahl, Hinweis auf neuere Modelle
 
 
 def _read_build() -> str:

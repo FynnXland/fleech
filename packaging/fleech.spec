@@ -18,6 +18,9 @@ datas = [
     (str(ROOT / "config.yaml"), "."),
     (str(ROOT / "LICENSE"), "."),
     (str(ROOT / "THIRD-PARTY-NOTICES.md"), "."),
+    # Modellkatalog (6.2.0): Rueckfall, wenn GitHub nicht erreichbar ist. Liegt
+    # neben modellberater.py, das ihn ueber __file__ findet.
+    (str(ROOT / "fleech" / "llm" / "modelle.json"), "fleech/llm"),
 ]
 binaries = []
 hiddenimports = ["fleech", "fleech.ui.desktop"]

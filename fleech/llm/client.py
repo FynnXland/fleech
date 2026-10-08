@@ -168,13 +168,16 @@ def ollama_installed_models(base_url: str, timeout: float = 10.0) -> set:
     return namen
 
 
-def ollama_pull(base_url: str, model: str, on_progress=None, timeout: float = 3600.0) -> bool:
+def ollama_pull(base_url: str, model: str, on_progress=None, timeout: float = 3600.0,
+                on_bytes=None) -> bool:
     """Ein fehlendes Modell herunterladen (`/api/pull`, gestreamt).
 
     Damit ist eine frische Installation ohne Handgriffe startklar: Fleech holt sich
     beim ersten Start selbst, was es braucht. `on_progress(text)` bekommt kurze
     Statuszeilen ("Lade gemma3:4b … 42 %") fuer Log und Pille — ein mehrere Gigabyte
     grosser Download darf nicht als eingefrorene App erscheinen.
+    `on_bytes(fertig, gesamt)` bekommt jeden Stand — daraus rechnet die
+    Einrichtung Tempo und Restzeit (`provisioning.Restzeit`).
     """
     import json
     import urllib.request
@@ -199,6 +202,8 @@ def ollama_pull(base_url: str, model: str, on_progress=None, timeout: float = 36
                     return False
                 gesamt = schritt.get("total") or 0
                 fertig = schritt.get("completed") or 0
+                if gesamt and on_bytes:
+                    on_bytes(int(fertig), int(gesamt))
                 if gesamt and on_progress:
                     prozent = int(fertig * 100 / gesamt)
                     if prozent >= zuletzt + 5:     # nicht bei jedem Chunk melden
@@ -366,9 +371,14 @@ class ChatClient:
             # Diktat selbst das Modell warm.
             "keep_alive": OLLAMA_KEEP_ALIVE,
         }
-        # Thinking-Modelle: "none" heisst hier schlicht nicht denken. gemma3 denkt
-        # ohnehin nicht — dort bleibt reasoning_effort leer und das Feld entfaellt.
-        if str(getattr(self.cfg, "reasoning_effort", "")).lower() == "none":
+        # Bereinigen braucht kein Nachdenken: Fleech sagt das jedem lokalen Modell
+        # ausdruecklich, ausser reasoning_effort verlangt eine Stufe (low/medium/
+        # high). Frueher kam `think: false` nur bei "none" — wer in der Modellwahl
+        # ein Thinking-Modell nahm (gemma4:e4b), wartete mit dem echten Prompt
+        # 3,5 s statt 0,2 s, bei langen Diktaten 10–40 s. gemma3 nimmt das Feld
+        # ohne Unterschied an (live gemessen, Ollama 0.35.1).
+        aufwand = str(getattr(self.cfg, "reasoning_effort", "") or "").lower()
+        if aufwand in ("", "none"):
             body["think"] = False
         request = urllib.request.Request(
             f"{ollama_root(self.cfg.base_url)}/api/chat",

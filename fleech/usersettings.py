@@ -72,10 +72,9 @@ class GeneralSettings:
     save_history: bool = True
     # Anzeigename fuer die Begruessung; leer = Windows-Benutzername.
     display_name: str = ""
-    # Einfuehrung (Onboarding) schon gezeigt? Bestands-Installationen laden das
-    # Feld nicht aus ihrer settings.json → Default False → der Wizard kaeme einmal
-    # auch fuer sie. Gewollt: die Einfuehrung ist neu, einmal zeigen schadet nicht,
-    # und jeder Weg hinaus (auch X) setzt das Flag dauerhaft.
+    # Einfuehrung (Onboarding) abgeschlossen? Gesetzt von „Los geht's" und
+    # „Überspringen" — nicht vom X: Wer mitten in der Einrichtung schliesst, sieht
+    # sie beim naechsten Start wieder (seit 6.2.0).
     onboarding_done: bool = False
     # Welche Fleech-Version zuletzt in diese Datei geschrieben hat. Einziger Zweck:
     # Der Start erkennt einen Versionswechsel und legt VOR dem ersten Schreiben
@@ -474,6 +473,14 @@ class KiSettings:
     anbieter: str = "ollama"     # ollama | openai | anthropic | gemini | … | aus
     modell: str = ""             # leer = Startmodell des Anbieters bzw. config.yaml
     adresse: str = ""            # nur „custom": eigener OpenAI-kompatibler Server
+    # Modellberater (`fleech/llm/modellberater.py`): einmal pro Woche nachsehen,
+    # ob es fuer die aktuelle Wahl ein neueres Modell gibt. Vorgeschlagen, nie
+    # selbst umgestellt.
+    modelle_pruefen: bool = True
+    geprueft_am: str = ""        # ISO-Datum der letzten Pruefung
+    hinweis_modell: str = ""     # offener Vorschlag (leer = keiner)
+    hinweis_text: str = ""       # ein Satz, warum
+    ignoriert: list = field(default_factory=list)   # „nicht mehr zeigen"
 
 
 @dataclass

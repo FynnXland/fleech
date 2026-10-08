@@ -17,7 +17,9 @@ import threading
 import time
 
 from PySide6.QtCore import QObject, Qt, Signal
-from PySide6.QtWidgets import QComboBox, QHBoxLayout, QLabel, QLineEdit, QPushButton, QWidget
+from PySide6.QtWidgets import (
+    QCheckBox, QComboBox, QHBoxLayout, QLabel, QLineEdit, QPushButton, QVBoxLayout, QWidget,
+)
 
 from ...llm import apikeys
 from ...llm.providers import ANBIETER, AUS, EIGENER, OLLAMA, anbieter, modell_vorschlag, modelle_abrufen
@@ -37,6 +39,7 @@ class _Bruecke(QObject):
 
     modelle = Signal(list, str)        # (Namen, Fehlertext)
     test = Signal(bool, str)           # (ok, Meldung)
+    neuheit = Signal(object)           # Befund des Modellberaters oder None
 
 
 def datenschutz_satz(ident: str) -> tuple[str, str]:
@@ -114,6 +117,13 @@ def build(panel) -> None:
     test_w, test_status = _test_zeile(panel, bruecke)
     form.addRow("", test_w)
 
+    neu_w, neu_zeigen = _neuheiten_zeile(panel, bruecke)
+    form.addRow(panel._row_label(
+        "Neuere Modelle", "Einmal pro Woche fragt Fleech nach: beim Cloud-Anbieter "
+                          "die Modellliste, für lokal die Ollama-Registry und den "
+                          "Modellkatalog auf GitHub. Vorgeschlagen wird nur — "
+                          "umgestellt wird nie von selbst.")[0], neu_w)
+
     def aktuell():
         return anbieter(box.currentData())
 
@@ -137,10 +147,13 @@ def build(panel) -> None:
         modell_box.blockSignals(False)
         modell_status.setText("")
         test_status.setText("")
+        form.setRowVisible(neu_w, eintrag.id not in (AUS, EIGENER))
+        neu_zeigen()
 
     def anbieter_gewechselt(_index):
         s.ki.anbieter = aktuell().id
         s.ki.modell = ""                      # Modellnamen gelten je Anbieter
+        s.ki.hinweis_modell = s.ki.hinweis_text = ""   # galt dem alten Anbieter
         anzeigen()
         panel._changed("ki")
 
@@ -188,6 +201,15 @@ def build(panel) -> None:
         modell_status.setText(f"{len(namen)} Modelle verfügbar.")
         modell_status.setStyleSheet(_GRUEN)
         modell_gesetzt()
+
+    def modell_uebernommen():
+        modell_box.blockSignals(True)
+        if modell_box.findText(s.ki.modell) < 0:
+            modell_box.addItem(s.ki.modell)
+        modell_box.setEditText(s.ki.modell)
+        modell_box.blockSignals(False)
+
+    panel._ki_modell_uebernommen = modell_uebernommen
 
     def test_da(ok, meldung):
         test_status.setText(meldung)
@@ -307,3 +329,113 @@ def _test_zeile(panel, bruecke):
 
     knopf.clicked.connect(testen)
     return w, status
+
+
+def _neuheiten_zeile(panel, bruecke):
+    """Offener Vorschlag des Modellberaters — plus Schalter und „Jetzt prüfen".
+
+    Gefangen wird nur das Settings-Dataclass und die Bruecke, nie das Panel
+    (Referenzzyklus-Falle); das Panel wird ueber `panel._changed` erreicht, das
+    ohnehin eine gebundene Methode ist."""
+    ki = panel.settings.ki
+    w = QWidget()
+    spalte = QVBoxLayout(w)
+    spalte.setContentsMargins(0, 0, 0, 0)
+    spalte.setSpacing(4)
+    vorschlag = QLabel("")
+    vorschlag.setWordWrap(True)
+    vorschlag.setStyleSheet(_GELB)
+    knoepfe = QHBoxLayout()
+    uebernehmen = QPushButton("Übernehmen")
+    ausblenden = QPushButton("Nicht mehr zeigen")
+    knoepfe.addWidget(uebernehmen)
+    knoepfe.addWidget(ausblenden)
+    knoepfe.addStretch(1)
+    spalte.addWidget(vorschlag)
+    spalte.addLayout(knoepfe)
+    reihe = QHBoxLayout()
+    schalter = QCheckBox("Wöchentlich nachsehen")
+    schalter.setChecked(bool(ki.modelle_pruefen))
+    jetzt = QPushButton("Jetzt prüfen")
+    status = QLabel("")
+    status.setStyleSheet(_GRAU)
+    status.setWordWrap(True)
+    reihe.addWidget(schalter)
+    reihe.addWidget(jetzt)
+    reihe.addWidget(status, 1)
+    spalte.addLayout(reihe)
+    changed = panel._changed
+
+    def zeigen():
+        offen = bool(ki.hinweis_modell)
+        vorschlag.setText(ki.hinweis_text or f"Neueres Modell: {ki.hinweis_modell}")
+        for teil in (vorschlag, uebernehmen, ausblenden):
+            teil.setVisible(offen)
+
+    def uebernimm():
+        ki.modell = ki.hinweis_modell
+        ki.hinweis_modell = ki.hinweis_text = ""
+        zeigen()
+        status.setText(f"Umgestellt auf {ki.modell}.")
+        status.setStyleSheet(_GRUEN)
+        rueckruf = getattr(panel, "_ki_modell_uebernommen", None)
+        if rueckruf is not None:
+            rueckruf()
+        changed("ki")
+
+    def blende_aus():
+        if ki.hinweis_modell and ki.hinweis_modell not in ki.ignoriert:
+            ki.ignoriert.append(ki.hinweis_modell)
+        ki.hinweis_modell = ki.hinweis_text = ""
+        zeigen()
+        changed("general")
+
+    def schalten(an):
+        ki.modelle_pruefen = bool(an)
+        changed("general")
+
+    def pruefen():
+        status.setText("Frage nach …")
+        status.setStyleSheet(_GRAU)
+        from ...config import load_config
+
+        konfig = load_config()
+        panel.settings.apply_to(konfig)
+        anbieter_id, modell, adresse = ki.anbieter, konfig.llm_cleanup.model, ki.adresse
+
+        def arbeite():
+            befund = None
+            try:
+                from ...llm import modellberater as berater
+                from ...platformpaths import user_data_dir
+
+                daten = berater.katalog(user_data_dir(), netz=True)
+                befund = berater.pruefe(anbieter_id, modell, apikeys.lies(anbieter_id),
+                                        adresse, daten)
+            except Exception:
+                log.info("Modellpruefung von Hand fehlgeschlagen.", exc_info=True)
+            bruecke.neuheit.emit(befund)
+
+        threading.Thread(target=arbeite, daemon=True, name="fleech-ki-neuheit").start()
+
+    def befund_da(befund):
+        import datetime
+
+        ki.geprueft_am = datetime.date.today().isoformat()
+        if befund is None:
+            ki.hinweis_modell = ki.hinweis_text = ""
+            status.setText("Nichts Neueres gefunden — deine Wahl ist aktuell.")
+            status.setStyleSheet(_GRUEN)
+        else:
+            ki.hinweis_modell, ki.hinweis_text = befund.neuer, befund.grund
+            status.setText("")
+        zeigen()
+        changed("general")
+
+    uebernehmen.clicked.connect(uebernimm)
+    ausblenden.clicked.connect(blende_aus)
+    schalter.toggled.connect(schalten)
+    jetzt.clicked.connect(pruefen)
+    bruecke.neuheit.connect(befund_da)
+    zeigen()
+    return w, zeigen

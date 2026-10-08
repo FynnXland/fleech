@@ -80,6 +80,11 @@ class ModelleMixin:
         das langsamste — Whisper und Ollama laden erst beim Zugriff."""
         threading.Thread(target=self._warm_up, daemon=True).start()
         self._keep_warm_tick()
+        dlg = getattr(self, "_onboarding", None)
+        if dlg is not None and not dlg.isVisible():
+            # Die Einfuehrung ist schon zu, der Download lief weiter — sagen,
+            # dass es jetzt losgehen kann.
+            self.tray.notify("Fleech", "Einrichtung fertig — du kannst diktieren.")
 
     def _ensure_preview_model(self):
         from ...overlay import PreviewModel
@@ -192,7 +197,11 @@ class ModelleMixin:
             # holt Fleech es selbst — sonst scheitert das erste Diktat mit einer
             # Fehlermeldung, die nur weiterhilft, wenn man Ollama kennt.
             endpoints = self._llm_endpoints()
-            ensure_ollama_models(endpoints, on_progress=self._report_model_download)
+            # Nicht vor oder waehrend der Einfuehrung: Dort wird erst gewaehlt,
+            # welches Modell es sein soll, und die Einrichtungsseite laedt es.
+            if (self.settings.general.onboarding_done
+                    and not self._einfuehrung_offen()):
+                ensure_ollama_models(endpoints, on_progress=self._report_model_download)
             for endpoint in endpoints:
                 ollama_preload(endpoint)
             self._llms_unloaded = False  # wieder warm → naechstes Entladen erlaubt
@@ -318,7 +327,10 @@ class ModelleMixin:
         log.info("KI-Anbieter: %s (%s).", self.settings.ki.anbieter,
                  "ohne Modell" if p.ki_aus else self.config.llm_cleanup.model)
         if self._ki_lokal():
-            self._keep_warm_tick()
+            # Waehrend der Einfuehrung laedt deren Einrichtungsseite — sie ruft
+            # danach selbst `_warm_up_after_setup`.
+            if not self._einfuehrung_offen():
+                self._keep_warm_tick()
             return
         # Das lokale Modell wird nicht mehr gebraucht — Grafikspeicher freigeben.
         from ...llm.client import ollama_unload

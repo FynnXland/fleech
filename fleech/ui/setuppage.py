@@ -132,10 +132,16 @@ class _StepRow(QFrame):
 class SetupPage(QWidget):
     """Seite „Einrichtung" — erhebt den Stand und arbeitet ihn auf Klick ab.
 
+    Signale fuer die Einfuehrung, die den Download auf den folgenden Seiten in
+    einer Zeile weiter anzeigt: `stand(text)` je Fortschritt, `fertig(ok)` am Ende.
+
     endpoints: LLM-Endpoints (fuer die Modellnamen), stt_model: Whisper-Groesse.
     on_ready: Callable() — wird gerufen, wenn am Ende alles bereit ist (damit die
     App Modelle vorladen kann, ohne auf den ersten Diktat-Fehlschlag zu warten).
     """
+
+    stand = Signal(str)
+    fertig = Signal(bool)
 
     def __init__(self, endpoints, stt_model: str,
                  base_url: str = "http://127.0.0.1:11434",
@@ -162,8 +168,9 @@ class SetupPage(QWidget):
         titel.setStyleSheet(f"color: {TEXT}; font-size: 14pt; font-weight: 600;")
         lay.addWidget(titel)
         self._intro = QLabel(
-            "Fleech arbeitet ohne Internet — dafür müssen die Modelle einmal auf "
-            "diesen Rechner. Das übernimmt Fleech selbst; du kannst zusehen."
+            "Damit die Erkennung ohne Internet läuft, müssen die Modelle einmal auf "
+            "diesen Rechner. Das übernimmt Fleech selbst — du kannst schon "
+            "weiterklicken, der Download läuft im Hintergrund weiter."
         )
         self._intro.setWordWrap(True)
         self._intro.setStyleSheet(f"color: {TEXT}; font-size: 10pt;")
@@ -195,6 +202,31 @@ class SetupPage(QWidget):
         # (fremde Software installiert man nicht als Nebenwirkung eines Starts).
         if autostart and self._only_downloads_missing():
             self.start()
+
+    # -- Plan aendern (Einfuehrung: erst nach der KI-Wahl steht er fest) -----------
+
+    def neu_planen(self, endpoints, stt_model: str, base_url: str) -> None:
+        """Neuen Plan uebernehmen. Laeuft gerade ein Download fuer den alten, wird
+        er nach dem laufenden Schritt angehalten und danach der neue erhoben."""
+        self._endpoints = list(endpoints or [])
+        self._stt_model = stt_model
+        self._base_url = base_url
+        if self.laeuft():
+            self._neu_nach_lauf = True
+            self.stop()
+            return
+        self.refresh()
+
+    def starte_wenn_moeglich(self) -> None:
+        """Downloads ohne Klick anwerfen — nie aber die Ollama-Installation."""
+        if not self.laeuft() and self._only_downloads_missing():
+            self.start()
+
+    def laeuft(self) -> bool:
+        return self._thread is not None and self._thread.is_alive()
+
+    def alles_bereit(self) -> bool:
+        return all(s.state == "done" for s in getattr(self, "_steps", []))
 
     # -- Stand erheben ------------------------------------------------------------
 
@@ -309,9 +341,22 @@ class SetupPage(QWidget):
         row = self._rows.get(key)
         if row is not None:
             row.set_progress(text, percent)
+        titel = next((s.title for s in getattr(self, "_steps", []) if s.key == key), "")
+        self.stand.emit(f"{titel}: {text}" if titel else text)
 
     def _on_done(self, ok: bool) -> None:
         self._thread = None
+        if getattr(self, "_neu_nach_lauf", False):
+            # Die KI-Wahl hat sich waehrend des Downloads geaendert: den neuen
+            # Plan erheben und — wenn nur Downloads fehlen — gleich weitermachen.
+            self._neu_nach_lauf = False
+            self._runner = None
+            self.refresh()
+            self.starte_wenn_moeglich()
+            return
+        self.fertig.emit(bool(ok))
+        self.stand.emit("Alles geladen — Fleech ist einsatzbereit." if ok
+                        else "Ein Download ist offen geblieben — siehe Einrichtung.")
         self._btn.setText("Alles bereit" if ok else "Erneut versuchen")
         self._btn.setEnabled(not ok)
         if ok:

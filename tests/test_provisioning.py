@@ -168,8 +168,10 @@ def test_runner_installiert_ollama_und_laedt_alles(monkeypatch):
 
     monkeypatch.setattr(client, "ollama_installed_models", lambda *a, **k: set())
 
-    def fake_pull(base, modell, on_progress=None, **k):
-        on_progress(f"Lade Sprachmodell {modell} … 40 %")
+    def fake_pull(base, modell, on_progress=None, on_bytes=None, **k):
+        gesamt = 3_000_000_000
+        on_bytes(1_000_000, 7_000)               # kleine Schicht: zaehlt nicht
+        on_bytes(1_200_000_000, gesamt)
         return True
 
     monkeypatch.setattr(client, "ollama_pull", fake_pull)
@@ -182,8 +184,58 @@ def test_runner_installiert_ollama_und_laedt_alles(monkeypatch):
     assert ("ollama", "running") in zustaende and ("ollama", "done") in zustaende
     assert ("llm:gemma3:4b", "done") in zustaende
     assert ("stt", "done") in zustaende
-    # Prozent aus der Textmeldung ist fuer den Balken herausgeloest.
+    # Prozent kommt aus den Bytes der grossen Schicht, nicht aus der Vorlage.
     assert any(k == "llm:gemma3:4b" and p == 40 for k, _t, p in fortschritte)
+    assert not any(k == "llm:gemma3:4b" and p > 90 for k, _t, p in fortschritte)
+
+
+def test_restzeit_rechnet_tempo_und_rest():
+    uhr = [0.0]
+    r = provisioning.Restzeit(uhr=lambda: uhr[0])
+    mb = 1024 * 1024
+    assert r.melde(0, 600 * mb) == ""                 # erster Wert: noch kein Tempo
+    uhr[0] = 1.0
+    text = r.melde(10 * mb, 600 * mb)                 # 10 MB/s, 590 MB offen
+    assert text.startswith("10 MB/s") and "noch ca. 1 Min." in text
+    uhr[0] = 1.2                                       # unter dem Takt: alter Text
+    assert r.melde(12 * mb, 600 * mb) == text
+    uhr[0] = 2.0
+    assert r.melde(1, 50 * mb) == ""                  # neue Schicht: neu messen
+
+
+def test_dauer_text():
+    assert provisioning.dauer_text(None) == ""
+    assert provisioning.dauer_text(12) == "noch ca. 10 s"
+    assert provisioning.dauer_text(2) == "noch ca. 5 s"
+    assert provisioning.dauer_text(170) == "noch ca. 3 Min."
+    assert provisioning.dauer_text(3900) == "noch ca. 1 Std. 5 Min."
+    assert provisioning.dauer_text(7200) == "noch ca. 2 Std."
+
+
+def test_whisper_meldet_prozent_und_restzeit(monkeypatch):
+    """Die Einrichtungsseite bekommt fuer das Erkennungsmodell jetzt einen echten
+    Balken statt eines laufenden Bands — gemessen an der Cache-Groesse."""
+    import sys
+    import types
+
+    monkeypatch.setattr(provisioning, "whisper_present", lambda _m: False)
+    stand = {"bytes": 0}
+    monkeypatch.setattr(provisioning, "whisper_cache_bytes", lambda _m: stand["bytes"])
+    import time as _time
+
+    def laden(_size):
+        for anteil in (0.25, 0.5):
+            stand["bytes"] = int(anteil * 1.6 * 1024 ** 3)
+            _time.sleep(0.06)
+
+    fake = types.ModuleType("faster_whisper.utils")
+    fake.download_model = laden
+    monkeypatch.setitem(sys.modules, "faster_whisper.utils", fake)
+    gemeldet = []
+    assert provisioning.ensure_whisper("large-v3-turbo", poll=0.02,
+                                       on_stand=lambda t, p: gemeldet.append(p))
+    assert gemeldet[0] == -1                     # Start: noch unbestimmt
+    assert any(0 < p < 100 for p in gemeldet)
 
 
 def test_runner_ohne_dienst_ueberspringt_modelle_aber_nicht_whisper(monkeypatch):

@@ -1,0 +1,37 @@
+{
+  "stand": "2026-10-06",
+  "hinweis": "Modellkatalog von Fleech. Jede Installation liest diese Datei wöchentlich von GitHub (main) - eine neue Empfehlung erreicht alle ohne Update. 'gemessen' nur setzen, wenn das Modell an echten Diktaten geprüft ist. 'ersetzt' nennt Modelle, deren Nutzer auf dieses hingewiesen werden sollen. Thinking-Modelle sind erlaubt: Fleech schickt lokal immer think:false.",
+  "ollama": [
+    {
+      "modell": "gemma3:4b",
+      "groesse_gb": 3.3,
+      "empfohlen": true,
+      "gemessen": true,
+      "notiz": "An echten Diktaten gemessen: schnell und wortgetreu. Braucht rund 5 GB Grafikspeicher."
+    },
+    {
+      "modell": "gemma3:12b",
+      "groesse_gb": 8.1,
+      "notiz": "Gründlicher, aber deutlich langsamer. Erst ab etwa 12 GB Grafikspeicher sinnvoll."
+    },
+    {
+      "modell": "gemma3:1b",
+      "groesse_gb": 0.8,
+      "notiz": "Für schwache Rechner ohne Grafikkarte. Glättet merklich ungenauer."
+    },
+    {
+      "modell": "gemma4:e4b",
+      "groesse_gb": 6.6,
+      "notiz": "An 40 echten Diktaten gemessen: etwa doppelt so schnell wie gemma3:4b und streicht Füllwörter gründlicher — lässt aber öfter kleine Satzteile weg. Braucht rund 5 GB Grafikspeicher.",
+      "gemessen": true
+    }
+  ],
+  "cloud": {
+    "openai": "gpt-4o-mini",
+    "anthropic": "claude-haiku-4-5",
+    "gemini": "gemini-2.5-flash",
+    "mistral": "mistral-small-latest",
+    "groq": "llama-3.3-70b-versatile",
+    "openrouter": "openai/gpt-4o-mini"
+  }
+}

@@ -38,10 +38,10 @@ Diktaten gemessen 34 % schneller als das frühere `qwen3.5:9b`, halb so groß (3
 und dabei sogar wortgetreuer (ergänzt 0,014 statt 0,021 eigene Wörter). Das zweite,
 kleine Modell ist entfallen: Es brachte 0,1 s und kostete Treue, während zwei Modelle
 dauerhaft 8,5 GB VRAM belegten — der Hauptgrund für die ständigen Entladungen.
-Wer auf ein **Thinking-Modell** zurückwechselt (`qwen3.5:9b` & Co.), muss in
-`config.yaml` zwingend `reasoning_effort: none` setzen, sonst denkt es 30–50 s pro
-Diktat und liefert teils leeren Content (auch `low` ist unbrauchbar); für `gemma3`
-bleibt das Feld leer.
+**Thinking-Modelle** (`qwen3.5`, `gemma4` & Co.): Seit 6.2.0 schickt `ChatClient`
+dem lokalen Ollama bei leerem oder `none`-`reasoning_effort` immer `think: false`
+— sonst denkt so ein Modell 10–50 s pro Diktat (auch `low` ist unbrauchbar). Nur
+eine ausdrückliche Stufe (low/medium/high) lässt es denken; gemma3 ist das Feld egal.
 
 **`num_ctx` ist Pflicht, nicht Feinschliff:** Ollama lädt Modelle immer mit 4096 Token
 Kontext, egal was das Modell könnte — und der OpenAI-Aufsatz ignoriert jede Option
@@ -85,10 +85,16 @@ Provider/Modelle/Prompts sind in `config.yaml` + `prompts/` konfigurierbar
 - `fleech/varianten.py` — Schreibvarianten desselben Begriffs (Cloud-Code/Claude Code)
   für die Vorschlagskarte; `fleech/profilexport.py` — Profile als JSON sichern/einlesen;
   `fleech/settingsheilung.py`, `fleech/gruende.py` s. o.
+- `fleech/llm/modellberater.py` — gibt es ein neueres Modell? (Cloud: `/models` des
+  Anbieters; Ollama: Registry + Katalog `fleech/llm/modelle.json`, wird wöchentlich
+  von GitHub `main` gelesen — **Empfehlungen dort pflegen**, erreicht alle ohne Update).
+- `fleech/ui/onboarding.py` (Rahmen, Navigation, Mikrofon) + `fleech/ui/onboardingseiten/`
+  (je Seite ein Modul: willkommen/Sprache, ki, taste, modi, verlauf, probediktat).
 - `fleech/ui/settings/` — die zehn Einstellungsseiten (inkl. `ki`: Anbieter, Schlüssel, Modell), je Seite ein `build(panel)`.
 - `fleech/ui/desktopapp/` — die Teilgebiete von `DesktopApp` als **Mixins**: `profil`,
   `freihand`, `anstupsen` (Stille-Wache des Nudge-Modus), `keinton` (Wache: Mikrofon
-  liefert nichts), `modelle`, `nachbereitung`, `updatepruefung`, `lebenszyklus`.
+  liefert nichts), `modelle`, `modellpruefung` (Wochen-Check auf neuere Modelle), `nachbereitung`,
+  `updatepruefung`, `lebenszyklus`.
 - `fleech/ui/overlaypille/` — die Teile der Pille: `konstanten` (Maße/Farben/Zeiten),
   `bausteine` (Waveform, Status-Punkt, Textblase — echte Widgets), und als **Mixins**
   `geometrie` (Position, Ziehen, Presets), `einblendungen` (Transkript, Formeln,

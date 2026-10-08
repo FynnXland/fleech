@@ -108,7 +108,8 @@ def test_einstellungen_tragen_den_abschnitt_und_alte_dateien_laden(tmp_path):
     s.ki.modell = "gpt-4o-mini"
     s.save(pfad)
     roh = json.loads(pfad.read_text(encoding="utf-8"))
-    assert roh["ki"] == {"anbieter": "openai", "modell": "gpt-4o-mini", "adresse": ""}
+    assert {k: roh["ki"][k] for k in ("anbieter", "modell", "adresse")} == {
+        "anbieter": "openai", "modell": "gpt-4o-mini", "adresse": ""}
     assert "sk-" not in pfad.read_text(encoding="utf-8")
     alt = tmp_path / "alt.json"
     alt.write_text('{"general": {"display_name": "X"}}', encoding="utf-8")

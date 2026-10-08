@@ -51,6 +51,9 @@ class StateBus(QObject):
     # ueber dieses Signal erreichen. dict = Ergebnis von check_for_updates(),
     # str = Pfad der geladenen Datei ("" = noch nicht geladen).
     update_ready = Signal(object, str)
+    # Modellberater (Worker-Thread): Befund oder None — ob es fuer die gewaehlte
+    # KI ein neueres Modell gibt.
+    modell_hinweis = Signal(object)
     # Profil-Taste (gedrueckt/losgelassen). Der Hotkey kommt aus dem pynput-Thread —
     # dort ist QTimer WIRKUNGSLOS: weder die Halte-Erkennung noch das automatische
     # Ausblenden der Profil-Kapsel liefen, die Kapsel blieb ewig stehen. Ueber dieses

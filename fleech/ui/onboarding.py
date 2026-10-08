@@ -1,9 +1,18 @@
-"""Einführung beim Erststart (W3-14): fünf Schritte, jederzeit abbrechbar.
+"""Einfuehrung beim Erststart: Sprache, KI, Einrichtung, Mikrofon, Taste, Probediktat.
 
-Zweck: Die drei Dinge klaeren, ohne die das erste Diktat scheitert (Mikrofon,
-Bedienmodus/Hotkey, was die Modi bedeuten) — mehr nicht. Alles hier ist auch
-spaeter in den Einstellungen aenderbar; der Wizard ist eine Abkuerzung, kein
-zweiter Einstellungs-Dialog. Aus den Einstellungen (Allgemein) erneut aufrufbar.
+Zweck: alles klaeren, ohne das das erste Diktat scheitert — und dabei laden, was
+Fleech braucht. Die Downloads beginnen, sobald die KI gewaehlt ist, und laufen
+im Hintergrund weiter, waehrend man Mikrofon und Taste einstellt; eine Zeile am
+unteren Rand zeigt Stand und Restzeit. Alles hier ist auch spaeter in den
+Einstellungen aenderbar; aus Einstellungen → Allgemein erneut aufrufbar.
+
+Die Seiten liegen in `ui/onboardingseiten/` (je Seite ein Modul); hier stehen der
+Rahmen, die Navigation, das Mikrofon mit seinem Pegel-Stream und die Reaktionen.
+
+Wann gilt die Einfuehrung als erledigt? Bei „Los geht's" und bei „Überspringen" —
+beides ist eine Entscheidung. Das X (oder Esc) heisst „spaeter": Wer mitten in
+der Einrichtung schliesst, bekommt sie beim naechsten Start wieder, statt mit
+einem halb eingerichteten Fleech allein zu bleiben.
 
 Qt-Fallen beachtet: keine Lambdas mit `self`-Fang in Kind-Widgets (Referenzzyklus →
 Access Violations), Mikrofon-Pegel-Stream defensiv gekapselt und beim Seitenwechsel/
@@ -17,62 +26,42 @@ import logging
 import numpy as np
 from PySide6.QtCore import Qt, QTimer
 from PySide6.QtWidgets import (
-    QCheckBox, QComboBox, QDialog, QHBoxLayout, QLabel, QProgressBar,
-    QPushButton, QRadioButton, QStackedWidget, QVBoxLayout, QWidget,
+    QDialog, QHBoxLayout, QLabel, QProgressBar, QPushButton, QStackedWidget,
+    QVBoxLayout, QWidget,
 )
 
-from .chevron import apply_chevrons
-from .theme import (
-    ACCENT, BORDER_HAIRLINE, CARD, MUTED, TEXT, style_button,
-)
+from .onboardingseiten import modi, probediktat, taste, verlauf, willkommen
+from .onboardingseiten.bausteine import NOTIZ_STIL, auswahl, notiz, text, titel
+from .theme import ACCENT, BORDER_HAIRLINE, CARD, MUTED, TEXT, style_button
 
 log = logging.getLogger(__name__)
 
-_TITLE_STYLE = f"color: {TEXT}; font-size: 14pt; font-weight: 600;"
-_BODY_STYLE = f"color: {TEXT}; font-size: 10pt;"
-_MUTED_STYLE = f"color: {MUTED}; font-size: 9pt;"
-
-
-def _title(text: str) -> QLabel:
-    label = QLabel(text)
-    label.setStyleSheet(_TITLE_STYLE)
-    label.setWordWrap(True)
-    return label
-
-
-def _body(text: str) -> QLabel:
-    label = QLabel(text)
-    label.setStyleSheet(_BODY_STYLE)
-    label.setWordWrap(True)
-    return label
-
-
-def _muted(text: str) -> QLabel:
-    label = QLabel(text)
-    label.setStyleSheet(_MUTED_STYLE)
-    label.setWordWrap(True)
-    return label
-
 
 class OnboardingDialog(QDialog):
-    """Fuenf Seiten: Willkommen → Mikrofon → Bedienung → Modi & Safe-Word → Probediktat.
-
-    settings: UserSettings (live — Aenderungen greifen sofort ueber on_changed).
+    """settings: UserSettings (live — Aenderungen greifen sofort ueber on_changed).
     list_microphones: Callable() -> list[str].
     on_changed: Callable(section) — dieselbe Nahtstelle wie im Settings-Panel
-    ("microphone", "recording"), damit Recorder/Hotkeys sofort nachziehen.
-    audio: False = kein Pegel-Stream (Tests/Render).
+        ("microphone", "recording", "hotkeys", "general", "ki").
+    einrichtung: Callable() -> (endpoints, stt_model, base_url) — der Plan fuer die
+        Downloads, erst NACH der KI-Wahl gefragt. Alternativ fest ueber
+        endpoints/stt_model/llm_base_url (Tests).
+    audio: False = kein Pegel-Stream; netz: False = keine Abrufe (Tests/Render).
     """
 
     def __init__(self, settings, list_microphones, on_changed=None, parent=None,
                  audio: bool = True, endpoints=None, stt_model: str = "",
-                 llm_base_url: str = "http://127.0.0.1:11434", on_ready=None):
+                 llm_base_url: str = "http://127.0.0.1:11434", on_ready=None,
+                 einrichtung=None, hotkey_capture_guard=None, netz: bool | None = None,
+                 cache_ordner=None):
         super().__init__(parent)
         self.setWindowTitle("Willkommen bei Fleech")
-        self.setMinimumSize(560, 460)
+        self.setMinimumSize(600, 560)
         self.setStyleSheet(
             f"QDialog {{ background: {CARD}; }}"
             f"QComboBox {{ background: {CARD}; color: {TEXT};"
+            f"  border: 1px solid {BORDER_HAIRLINE}; border-radius: 8px;"
+            f"  padding: 6px 10px; }}"
+            f"QLineEdit {{ background: rgba(255,255,255,0.04); color: {TEXT};"
             f"  border: 1px solid {BORDER_HAIRLINE}; border-radius: 8px;"
             f"  padding: 6px 10px; }}"
             f"QRadioButton {{ color: {TEXT}; font-size: 10pt; spacing: 8px; }}"
@@ -80,38 +69,49 @@ class OnboardingDialog(QDialog):
         self.settings = settings
         self._on_changed = on_changed
         self._audio_allowed = audio
+        self._netz = audio if netz is None else netz
         self._level_stream = None
         self._level = 0.0
+        if einrichtung is None and (endpoints or stt_model):
+            plan = (list(endpoints or []), stt_model, llm_base_url)
+            einrichtung = lambda: plan          # noqa: E731 — faengt nur Daten
+        self._einrichtung = einrichtung
+        self._setup_page = None
 
         outer = QVBoxLayout(self)
         outer.setContentsMargins(28, 24, 28, 18)
         outer.setSpacing(14)
 
         self._steps = QLabel("")
-        self._steps.setStyleSheet(_MUTED_STYLE)
+        self._steps.setStyleSheet(NOTIZ_STIL)
         outer.addWidget(self._steps)
 
         self._stack = QStackedWidget()
         outer.addWidget(self._stack, 1)
-        # Seiten-Index nach Namen, damit das Einschieben einer Seite nicht die
-        # Pegel-Logik verschiebt (die haengt an "microphone").
+        # Seiten-Index nach Namen: Einschieben oder Ueberspringen einer Seite darf
+        # die Logik nicht verschieben (der Pegel haengt an "microphone").
         self._pages = {}
-        self._add_page("welcome", self._page_welcome())
-        setup = self._page_setup(endpoints, stt_model, llm_base_url, on_ready)
-        if setup is not None:
-            self._add_page("setup", setup)
+        self._add_page("welcome", willkommen.build(self))
+        self._add_ki_page(cache_ordner, llm_base_url)
+        self._add_setup_page(on_ready)
         self._add_page("microphone", self._page_microphone(list_microphones))
-        self._add_page("controls", self._page_controls())
-        self._add_page("modes", self._page_modes())
-        # Direkt hinter den Modi und VOR dem Probediktat: Wer gleich etwas
-        # diktiert, soll vorher entschieden haben, ob es aufgehoben wird.
-        self._add_page("verlauf", self._page_verlauf())
-        self._add_page("finish", self._page_finish())
+        self._add_page("controls", taste.build(self, hotkey_capture_guard))
+        self._add_page("modes", modi.build(self))
+        self._add_page("verlauf", verlauf.build(self))
+        self._add_page("finish", probediktat.build(self))
+
+        # Download-Stand auf allen Seiten nach der Einrichtung.
+        self._download_zeile = notiz("")
+        self._download_zeile.hide()
+        outer.addWidget(self._download_zeile)
 
         nav = QHBoxLayout()
         self._back_btn = style_button(QPushButton("Zurück"))
         self._next_btn = style_button(QPushButton("Weiter"), "primary")
         self._skip_btn = QPushButton("Überspringen")
+        self._skip_btn.setToolTip("Einführung beenden — sie kommt nicht wieder von "
+                                  "selbst. Erneut aufrufbar unter Einstellungen → "
+                                  "Allgemein.")
         self._skip_btn.setStyleSheet(
             f"QPushButton {{ color: {MUTED}; background: transparent; border: none;"
             f"  font-size: 9pt; }} QPushButton:hover {{ color: {TEXT}; }}"
@@ -136,33 +136,51 @@ class OnboardingDialog(QDialog):
 
     # -- Seiten -------------------------------------------------------------------
 
-    def _page_welcome(self) -> QWidget:
-        page = QWidget()
-        lay = QVBoxLayout(page)
-        lay.setSpacing(12)
-        lay.addWidget(_title("Willkommen bei Fleech"))
-        lay.addWidget(_body(
-            "Fleech schreibt, was du sprichst — in das Feld, in dem dein Cursor "
-            "steht. Alles läuft auf diesem Rechner: Mikrofon, Erkennung und "
-            "KI-Bereinigung verlassen ihn nicht."
-        ))
-        lay.addWidget(_body(
-            "Diese Einführung klärt in wenigen kurzen Schritten das Mikrofon, die "
-            "Bedienung und die Modi. Alles davon findest du später auch in den "
-            "Einstellungen wieder."
-        ))
-        lay.addWidget(_muted("Dauer: etwa eine Minute."))
-        lay.addStretch(1)
-        return page
+    def _add_page(self, name: str, widget: QWidget) -> None:
+        self._pages[name] = self._stack.count()
+        self._stack.addWidget(widget)
+
+    def _add_ki_page(self, cache_ordner, base_url) -> None:
+        from .onboardingseiten.ki import KiSeite
+
+        if cache_ordner is None and self._netz:
+            from ..platformpaths import user_data_dir
+
+            cache_ordner = user_data_dir()
+        self._ki_seite = KiSeite(self.settings, parent=self, netz=self._netz,
+                                 cache_ordner=cache_ordner,
+                                 ollama_adresse=base_url or "http://127.0.0.1:11434")
+        self._add_page("ki", self._ki_seite)
+
+    def _add_setup_page(self, on_ready) -> None:
+        """Einrichtungs-Seite — nur mit Modell-Kontext (nicht in Tests/Render).
+
+        Sie startet NICHT von selbst: Was zu laden ist, steht erst nach der
+        KI-Wahl fest (`_plane_einrichtung`). Ist dann alles da, wird sie
+        uebersprungen — niemand soll eine Seite mit drei Haken durchklicken.
+        """
+        if self._einrichtung is None:
+            return
+        try:
+            from .setuppage import SetupPage
+
+            endpoints, stt_model, base_url = self._einrichtung()
+            self._setup_page = SetupPage(endpoints, stt_model, base_url,
+                                         on_ready=on_ready, parent=self,
+                                         autostart=False)
+            self._setup_page.stand.connect(self._on_download_stand)
+            self._add_page("setup", self._setup_page)
+        except Exception:
+            log.exception("Einrichtungs-Seite konnte nicht aufgebaut werden.")
+            self._setup_page = None
 
     def _page_microphone(self, list_microphones) -> QWidget:
         page = QWidget()
         lay = QVBoxLayout(page)
         lay.setSpacing(12)
-        lay.addWidget(_title("Mikrofon"))
-        lay.addWidget(_body("Welches Mikrofon soll Fleech verwenden?"))
-        combo = QComboBox()
-        combo.setStyleSheet(apply_chevrons(combo.styleSheet() or ""))
+        lay.addWidget(titel("Mikrofon"))
+        lay.addWidget(text("Welches Mikrofon soll Fleech verwenden?"))
+        combo = auswahl()
         combo.addItem("Systemstandard", None)
         try:
             names = list_microphones() or []
@@ -180,8 +198,8 @@ class OnboardingDialog(QDialog):
         lay.addWidget(combo)
 
         lay.addSpacing(6)
-        lay.addWidget(_muted("Sprich einen Satz — der Balken soll sich deutlich "
-                             "bewegen, ohne dauerhaft am Anschlag zu sein."))
+        lay.addWidget(notiz("Sprich einen Satz — der Balken soll sich deutlich "
+                            "bewegen, ohne dauerhaft am Anschlag zu sein."))
         bar = QProgressBar()
         bar.setRange(0, 100)
         bar.setValue(0)
@@ -194,179 +212,164 @@ class OnboardingDialog(QDialog):
         )
         self._level_bar = bar
         lay.addWidget(bar)
-        self._level_hint = _muted("")
+        self._level_hint = notiz("")
         lay.addWidget(self._level_hint)
         lay.addStretch(1)
         return page
 
-    def _page_controls(self) -> QWidget:
-        page = QWidget()
-        lay = QVBoxLayout(page)
-        lay.setSpacing(12)
-        lay.addWidget(_title("Bedienung"))
-        hotkey = (self.settings.recording.hotkey or "F9").upper()
-        lay.addWidget(_body(
-            f"Aufgenommen wird über die Taste {hotkey} — auf drei Arten:"
-        ))
-        self._hold_radio = QRadioButton(
-            f"Halten:  {hotkey} gedrückt halten = aufnehmen, loslassen = fertig"
-        )
-        self._toggle_radio = QRadioButton(
-            f"Umschalten:  {hotkey} einmal drücken = Start, nochmal = fertig"
-        )
-        self._nudge_radio = QRadioButton(
-            f"Anstupsen:  {hotkey} einmal drücken, reden — endet von selbst, "
-            f"sobald du aufhörst"
-        )
-        mode = self.settings.recording.mode
-        if mode == "toggle":
-            self._toggle_radio.setChecked(True)
-        elif mode == "nudge":
-            self._nudge_radio.setChecked(True)
+    # -- Navigation ------------------------------------------------------------------
+
+    def _uebersprungen(self, index: int) -> bool:
+        """Die Einrichtung entfaellt, wenn nichts zu laden ist und nichts laeuft."""
+        if index == self._pages.get("setup") and self._setup_page is not None:
+            return self._setup_page.alles_bereit() and not self._setup_page.laeuft()
+        return False
+
+    def _nachbar(self, index: int, richtung: int) -> int:
+        i = index + richtung
+        while 0 <= i < self._stack.count() and self._uebersprungen(i):
+            i += richtung
+        return i
+
+    def _go_next(self) -> None:
+        index = self._stack.currentIndex()
+        if index == self._pages.get("ki"):
+            fehler = self._ki_seite.fehler()
+            if fehler:
+                self._ki_seite.zeige_fehler(fehler)
+                return
+            if self._ki_seite.commit():
+                self.settings.save()
+                if self._on_changed is not None:
+                    self._on_changed("ki")
+            self._plane_einrichtung()
+        ziel = self._nachbar(index, +1)
+        if ziel >= self._stack.count():
+            self._finish()
+            return
+        self._stack.setCurrentIndex(ziel)
+
+    def _go_back(self) -> None:
+        self._stack.setCurrentIndex(max(0, self._nachbar(self._stack.currentIndex(), -1)))
+
+    def _plane_einrichtung(self) -> None:
+        """Nach der KI-Wahl: Plan neu erheben und die Downloads anwerfen."""
+        if self._setup_page is None or self._einrichtung is None:
+            return
+        try:
+            self._setup_page.neu_planen(*self._einrichtung())
+            self._setup_page.starte_wenn_moeglich()
+        except Exception:
+            log.exception("Einrichtung liess sich nicht planen.")
+
+    def _on_page_changed(self, index: int) -> None:
+        sichtbar = [i for i in range(self._stack.count()) if not self._uebersprungen(i)]
+        nummer = sichtbar.index(index) + 1 if index in sichtbar else index + 1
+        letzte = self._nachbar(index, +1) >= self._stack.count()
+        self._steps.setText(f"Schritt {nummer} von {len(sichtbar)}")
+        self._back_btn.setEnabled(index > 0)
+        self._next_btn.setText("Los geht's" if letzte else "Weiter")
+        self._skip_btn.setVisible(not letzte)
+        self._download_zeile.setVisible(
+            bool(self._download_zeile.text()) and index != self._pages.get("setup"))
+        if index == self._pages.get("microphone"):
+            self._start_level_stream()
         else:
-            self._hold_radio.setChecked(True)
-        # Nur EIN Signal je Radio, aber jedes reagiert nur auf sein eigenes
-        # "checked=True" — die transiente "wird gerade abgewaehlt"-Meldung des
-        # vorherigen Radios (checked=False) wird ignoriert, sonst schriebe der
-        # Klick auf "Anstupsen" kurzzeitig den falschen Modus.
-        self._hold_radio.toggled.connect(self._on_mode_toggled)
-        self._toggle_radio.toggled.connect(self._on_mode_toggled)
-        self._nudge_radio.toggled.connect(self._on_mode_toggled)
-        lay.addWidget(self._hold_radio)
-        lay.addWidget(self._toggle_radio)
-        lay.addWidget(self._nudge_radio)
-        lay.addSpacing(6)
-        lay.addWidget(_muted(
-            "Während der Aufnahme erscheint eine kleine Pille am Bildschirmrand: "
-            "x bricht ab, der Haken fügt ein. Taste und weitere Hotkeys lassen sich "
-            "unter Einstellungen → Aufnahme ändern."
-        ))
-        lay.addStretch(1)
-        return page
+            self._stop_level_stream()
+        if index == self._pages.get("controls"):
+            taste.beschrifte(self)
+        if index == self._pages.get("finish"):
+            probediktat.aktualisiere(self, self.einrichtung_laeuft())
 
-    def _page_modes(self) -> QWidget:
-        page = QWidget()
-        lay = QVBoxLayout(page)
-        lay.setSpacing(10)
-        lay.addWidget(_title("Die vier Modi"))
-        rows = [
-            ("Diktat", "einfach sprechen — Füllwörter und Versprecher räumt die "
-                       "lokale KI weg, deine Worte bleiben deine Worte."),
-            ("Befehle", None),  # Text unten dynamisch mit Safe-Word
-            ("Formeln", "Werden automatisch im Fließtext erkannt und als LaTeX "
-                        "geschrieben — abschaltbar unter Einstellungen → "
-                        "Ausgabe."),
-            ("KI-Prompting", "Strg+Alt+P: dein Diktat wird zu einem strukturierten "
-                             "Prompt für eine KI ausformuliert."),
-        ]
-        trigger = self._trigger_word()
-        for name, text in rows:
-            if text is None:
-                text = (f"sprich „{trigger}“ mitten im Diktat, dann die Anweisung — "
-                        f"z. B. „{trigger}, mach den letzten Satz formeller.“")
-            row = QLabel(f"<b style='color:{ACCENT};'>{name}</b>"
-                         f"<span style='color:{TEXT};'> — {text}</span>")
-            row.setWordWrap(True)
-            row.setTextFormat(Qt.RichText)
-            row.setStyleSheet("font-size: 10pt;")
-            lay.addWidget(row)
-        lay.addSpacing(6)
-        lay.addWidget(_muted(
-            "Für einzelne Apps lässt sich das Verhalten über Profile anpassen "
-            "(Tab „Profile“) — z. B. weniger Eingriff im Code-Editor."
-        ))
-        lay.addStretch(1)
-        return page
+    # -- Abschluss -------------------------------------------------------------------
 
-    def _page_verlauf(self) -> QWidget:
-        """Wird der Wortlaut aufgehoben? — eine bewusste Entscheidung, kein Schalter.
+    def einrichtung_laeuft(self) -> bool:
+        return self._setup_page is not None and self._setup_page.laeuft()
 
-        Der Verlauf war immer schon abschaltbar, aber standardmaessig AN und nur
-        unter Einstellungen → Allgemein zu finden. Ein externes Gutachten hat das
-        als Opt-out bei sensiblen Inhalten benannt, und der Punkt traegt: Der
-        vollstaendige Wortlaut jedes Diktats landet unverschluesselt in einer
-        SQLite-Datei. Wer Gesundheitliches, Finanzielles oder versehentlich ein
-        Passwort diktiert, sollte das entschieden haben und nicht entdecken.
+    def zeige_einrichtung(self) -> None:
+        """Erneut geoeffnet, waehrend noch geladen wird: gleich den Stand zeigen."""
+        if "setup" in self._pages:
+            self._stack.setCurrentIndex(self._pages["setup"])
 
-        Der Standardwert bleibt AN — Home und Insights leben davon, und ihn
-        umzudrehen wuerde Fleech fuer alle verschlechtern, um einen Fall zu
-        adressieren, der eine Frage loest. Also: die Frage.
+    def _finish(self) -> None:
+        # „Los geht's" und „Überspringen": nie wieder automatisch zeigen. Laufende
+        # Downloads laufen weiter — die App waermt danach selbst auf (on_ready).
+        self.settings.general.onboarding_done = True
+        self.settings.save()
+        self.accept()
+
+    def _stop_setup(self) -> None:
+        """Laufende Einrichtung nach dem aktuellen Schritt anhalten.
+
+        Der Download selbst wird beim naechsten Start fortgesetzt — Ollama und
+        HuggingFace nehmen angefangene Teile wieder auf.
         """
-        page = QWidget()
-        lay = QVBoxLayout(page)
-        lay.setSpacing(12)
-        lay.addWidget(_title("Was Fleech sich merkt"))
-        lay.addWidget(_body(
-            "Fleech kann jedes Diktat aufheben — den gesprochenen Rohtext und den "
-            "fertigen Text. Daraus entstehen die Startseite, die Auswertungen und "
-            "die Wörterbuch-Vorschläge."
-        ))
-        lay.addWidget(_body(
-            "Gespeichert wird lokal in einer Datei auf diesem Rechner, unverschlüsselt. "
-            "Nichts davon wird gesendet — aber es steht danach dort."
-        ))
-        self._verlauf_cb = QCheckBox("Diktate im Verlauf aufheben")
-        self._verlauf_cb.setChecked(bool(self.settings.general.save_history))
-        self._verlauf_cb.setStyleSheet(f"color: {TEXT}; font-size: 10pt;")
-        self._verlauf_cb.toggled.connect(self._on_verlauf_toggled)
-        lay.addWidget(self._verlauf_cb)
-        lay.addSpacing(4)
-        lay.addWidget(_muted(
-            "Ohne Verlauf funktioniert das Diktieren genau gleich — nur Startseite "
-            "und Auswertungen bleiben leer. Jederzeit änderbar unter Einstellungen → "
-            "Allgemein, samt Knopf zum Löschen des bisherigen Verlaufs."
-        ))
-        lay.addStretch(1)
-        return page
+        if self._setup_page is not None:
+            try:
+                self._setup_page.stop()
+            except Exception:
+                log.debug("Einrichtung liess sich nicht stoppen.", exc_info=True)
+
+    def closeEvent(self, event) -> None:
+        # X = „spaeter": Flag bleibt, wie es war — beim Erststart kommt die
+        # Einfuehrung beim naechsten Start wieder.
+        self._stop_level_stream()
+        self._stop_setup()
+        super().closeEvent(event)
+
+    def reject(self) -> None:
+        self._stop_level_stream()
+        self._stop_setup()
+        super().reject()
+
+    def accept(self) -> None:
+        self._stop_level_stream()
+        super().accept()
+
+    # -- Reaktionen --------------------------------------------------------------------
+
+    def _trigger_word(self) -> str:
+        word = (self.settings.output.trigger_word or "").strip()
+        return word or "Kimono"
+
+    def _melde(self, section: str) -> None:
+        self.settings.save()
+        if self._on_changed is not None:
+            self._on_changed(section)
+
+    def _on_sprache_gewaehlt(self, _index: int) -> None:
+        self.settings.general.language = str(self._sprache_box.currentData() or "de")
+        self._melde("general")
+
+    def _on_taste_gewaehlt(self, spec) -> None:
+        if spec is None:
+            # Ohne Diktat-Taste ginge nichts — Loeschen heisst hier: alte behalten.
+            from ..hotkey import HotkeySpec
+
+            self._taste_feld._spec = HotkeySpec.parse(self.settings.recording.hotkey
+                                                      or "f9")
+            self._taste_feld._refresh()
+            return
+        self.settings.recording.hotkey = spec.serialize()
+        taste.beschrifte(self)
+        self._melde("hotkeys")
 
     def _on_verlauf_toggled(self, an: bool) -> None:
         self.settings.general.save_history = bool(an)
         if self._on_changed is not None:
             self._on_changed("general")
 
-    def _page_finish(self) -> QWidget:
-        page = QWidget()
-        lay = QVBoxLayout(page)
-        lay.setSpacing(12)
-        lay.addWidget(_title("Probediktat"))
-        hotkey = (self.settings.recording.hotkey or "F9").upper()
-        if self.settings.recording.mode == "toggle":
-            mode_hint = "drücke sie einmal, sprich, und drücke sie erneut"
-        elif self.settings.recording.mode == "nudge":
-            mode_hint = "drücke sie einmal und sprich — hörst du auf zu reden, endet die Aufnahme von selbst"
-        else:
-            mode_hint = "halte sie gedrückt, während du sprichst"
-        lay.addWidget(_body(
-            f"Klicke nach dem Abschluss in ein beliebiges Textfeld, drücke "
-            f"{hotkey} — {mode_hint}. Zum Beispiel:"
-        ))
-        sample = QLabel("„Das ist mein erstes Diktat mit Fleech, äh, mal sehen "
-                        "was die Bereinigung daraus macht.“")
-        sample.setWordWrap(True)
-        sample.setStyleSheet(
-            f"color: {TEXT}; font-size: 10.5pt; font-style: italic;"
-            f" background: rgba(255,255,255,0.05); border-radius: 8px; padding: 10px;"
-        )
-        lay.addWidget(sample)
-        lay.addWidget(_muted(
-            "Das „äh“ sollte im Ergebnis fehlen — der Rest bleibt wortgetreu. "
-            "Diese Einführung findest du jederzeit wieder unter "
-            "Einstellungen → Allgemein."
-        ))
-        lay.addStretch(1)
-        return page
+    def _on_probe_text(self) -> None:
+        probediktat.angekommen(self)
 
-    # -- Interaktion ---------------------------------------------------------------
-
-    def _trigger_word(self) -> str:
-        word = (self.settings.output.trigger_word or "").strip()
-        return word or "Kimono"
+    def _on_download_stand(self, stand: str) -> None:
+        self._download_zeile.setText(f"Im Hintergrund — {stand}")
+        self._download_zeile.setVisible(
+            self._stack.currentIndex() != self._pages.get("setup"))
 
     def _on_microphone_selected(self, _index: int) -> None:
         self.settings.recording.microphone = self._mic_combo.currentData()
-        self.settings.save()
-        if self._on_changed is not None:
-            self._on_changed("microphone")
+        self._melde("microphone")
         # Pegel-Stream auf das neue Geraet umziehen.
         self._stop_level_stream()
         self._start_level_stream()
@@ -381,70 +384,7 @@ class OnboardingDialog(QDialog):
         else:
             mode = "hold"
         self.settings.recording.mode = mode
-        self.settings.save()
-        if self._on_changed is not None:
-            self._on_changed("recording")
-
-    def _go_next(self) -> None:
-        index = self._stack.currentIndex()
-        if index >= self._stack.count() - 1:
-            self._finish()
-            return
-        self._stack.setCurrentIndex(index + 1)
-
-    def _go_back(self) -> None:
-        self._stack.setCurrentIndex(max(0, self._stack.currentIndex() - 1))
-
-    def _on_page_changed(self, index: int) -> None:
-        total = self._stack.count()
-        self._steps.setText(f"Schritt {index + 1} von {total}")
-        self._back_btn.setEnabled(index > 0)
-        self._next_btn.setText("Los geht's" if index == total - 1 else "Weiter")
-        self._skip_btn.setVisible(index < total - 1)
-        if index == self._pages.get("microphone"):
-            self._start_level_stream()
-        else:
-            self._stop_level_stream()
-
-    def _finish(self) -> None:
-        # Egal ob durchlaufen oder uebersprungen: nie wieder automatisch zeigen.
-        self.settings.general.onboarding_done = True
-        self.settings.save()
-        self.accept()
-
-    def _stop_setup(self) -> None:
-        """Laufende Einrichtung nach dem aktuellen Schritt anhalten.
-
-        Der Download selbst laeuft weiter bzw. wird beim naechsten Start
-        fortgesetzt — nur die Meldungen an ein geschlossenes Fenster hoeren auf.
-        """
-        page = getattr(self, "_setup_page", None)
-        if page is not None:
-            try:
-                page.stop()
-            except Exception:
-                log.debug("Einrichtung liess sich nicht stoppen.", exc_info=True)
-
-    def closeEvent(self, event) -> None:
-        self._stop_level_stream()
-        self._stop_setup()
-        # X = Ueberspringen: wer die Einfuehrung wegklickt, will sie beim naechsten
-        # Start nicht schon wieder sehen.
-        self.settings.general.onboarding_done = True
-        self.settings.save()
-        super().closeEvent(event)
-
-    def reject(self) -> None:
-        self._stop_level_stream()
-        self._stop_setup()
-        self.settings.general.onboarding_done = True
-        self.settings.save()
-        super().reject()
-
-    def accept(self) -> None:
-        self._stop_level_stream()
-        self._stop_setup()
-        super().accept()
+        self._melde("recording")
 
     # -- Mikrofon-Pegel ----------------------------------------------------------------
 
@@ -495,33 +435,3 @@ class OnboardingDialog(QDialog):
     def _update_level_bar(self) -> None:
         # RMS von Sprache liegt grob bei 0.02–0.2 — auf 0–100 spreizen.
         self._level_bar.setValue(int(min(1.0, self._level * 6.0) * 100))
-
-    # -- Seiten-Verwaltung ------------------------------------------------------------
-
-    def _add_page(self, name: str, widget: QWidget) -> None:
-        self._pages[name] = self._stack.count()
-        self._stack.addWidget(widget)
-
-    def _page_setup(self, endpoints, stt_model, base_url, on_ready):
-        """Einrichtungs-Seite — nur, wenn wirklich etwas zu tun ist.
-
-        Wer die Einfuehrung aus den Einstellungen erneut oeffnet und ein fertig
-        eingerichtetes Fleech hat, soll keine Seite mit drei Haken durchklicken.
-        """
-        if not endpoints and not stt_model:
-            return None            # Aufrufer ohne Modell-Kontext (Tests/Render)
-        try:
-            from ..provisioning import build_steps
-
-            from .setuppage import SetupPage
-
-            if all(s.state == "done"
-                   for s in build_steps(endpoints, stt_model, base_url)):
-                return None
-            self._setup_page = SetupPage(
-                endpoints, stt_model, base_url, on_ready=on_ready, parent=self,
-            )
-            return self._setup_page
-        except Exception:
-            log.exception("Einrichtungs-Seite konnte nicht aufgebaut werden.")
-            return None

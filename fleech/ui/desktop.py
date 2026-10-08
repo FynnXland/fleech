@@ -35,7 +35,8 @@ from .settings_window import SettingsPanel
 from .tray import TrayController
 from .desktopapp import (
     AnstupsenMixin, FreihandMixin, KeinTonMixin, LebenszyklusMixin, ModelleMixin,
-    NachbereitungMixin, ProfilMixin, UpdateMixin, VorerkennungMixin, WachhundMixin,
+    ModellpruefungMixin, NachbereitungMixin, ProfilMixin, UpdateMixin, VorerkennungMixin,
+    WachhundMixin,
 )
 from .desktopapp.vorerkennung import (
     abschnitte_ergebnis, uebergib_abschnitte, verwirf_abschnitte,
@@ -51,8 +52,8 @@ log = logging.getLogger(__name__)
 
 class DesktopApp(
     ProfilMixin, FreihandMixin, KeinTonMixin, AnstupsenMixin, ModelleMixin,
-    NachbereitungMixin, UpdateMixin, LebenszyklusMixin, WachhundMixin,
-    VorerkennungMixin,
+    NachbereitungMixin, UpdateMixin, ModellpruefungMixin, LebenszyklusMixin,
+    WachhundMixin, VorerkennungMixin,
 ):
     """Verdrahtung der App: Aufbau, Aufnahme-Lebenszyklus, Hotkeys, Fenster.
 
@@ -199,6 +200,10 @@ class DesktopApp(
         self._update_timer.timeout.connect(self._check_updates_async)
         self._update_timer.start()
         QTimer.singleShot(45_000, self._check_updates_async)
+        # Modellpruefung haengt am selben Tagestakt; sie selbst entscheidet, ob
+        # eine Woche um ist.
+        self._update_timer.timeout.connect(self._pruefe_modelle_async)
+        QTimer.singleShot(90_000, self._pruefe_modelle_async)
         # Initialzustand (inkl. berechneter Overlay-Default-Position) sofort persistieren.
         self.settings.save()
         # Autostart mit dem gespeicherten Nutzerwunsch abgleichen: ein Update entfernt
@@ -253,6 +258,7 @@ class DesktopApp(
         self.bus.preview_text.connect(self._on_preview_text)
         self.bus.dictionary_suggestion.connect(self._on_dictionary_suggestion)
         self.bus.update_ready.connect(self._on_update_ready)
+        self.bus.modell_hinweis.connect(self._on_modell_hinweis)
         self.bus.profile_key.connect(self._on_profile_key)
         self.bus.paused_changed.connect(self.overlay.set_paused)
         self.bus.prompt_latch_changed.connect(self.overlay.set_prompt_latched)

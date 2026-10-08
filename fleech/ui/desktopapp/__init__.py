@@ -23,6 +23,7 @@ from .freihand import FreihandMixin
 from .keinton import KeinTonMixin
 from .lebenszyklus import LebenszyklusMixin
 from .modelle import ModelleMixin
+from .modellpruefung import ModellpruefungMixin
 from .nachbereitung import NachbereitungMixin
 from .profil import ProfilMixin
 from .updatepruefung import UpdateMixin
@@ -31,6 +32,6 @@ from .wachhund import WachhundMixin
 
 __all__ = [
     "AnstupsenMixin", "FreihandMixin", "KeinTonMixin", "LebenszyklusMixin",
-    "ModelleMixin", "NachbereitungMixin", "ProfilMixin", "UpdateMixin", "VorerkennungMixin",
+    "ModelleMixin", "ModellpruefungMixin", "NachbereitungMixin", "ProfilMixin", "UpdateMixin", "VorerkennungMixin",
     "WachhundMixin",
 ]

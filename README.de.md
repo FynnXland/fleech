@@ -67,9 +67,8 @@ Zwischenablage-Text kommt danach zurück. Mehr dazu (englisch):
 | **Eigener API-Schlüssel** ¹ | lokal | OpenAI, Anthropic, Google Gemini, Mistral, Groq, OpenRouter oder jeder OpenAI-kompatible Server | der diktierte *Text*, an den gewählten Anbieter; nie der Ton |
 | **Ohne KI** ¹ | lokal | keine: reines Transkript, Füllwörter entfernt, Wörterbuch angewandt | nichts |
 
-<sub>¹ Noch in keinem Release: schon auf `main` (6.1.0), kommt mit dem nächsten Release. Der
-aktuelle Installer arbeitet nur lokal. API-Schlüssel liegen im Schlüsselbund des Systems,
-nie in den Einstellungen oder im Protokoll.</sub>
+<sub>¹ Kommt mit dem nächsten Release (6.2); der aktuelle Installer (6.0.0) arbeitet nur lokal.
+API-Schlüssel liegen im Schlüsselbund des Systems, nie in den Einstellungen oder im Protokoll.</sub>
 
 ## Funktionen
 
@@ -225,7 +224,10 @@ Prozessor.
 
 ### Erster Start
 
-Fleech prüft, was fehlt, und holt es nach, mit Fortschrittsanzeige und ohne Terminal:
+Eine kurze Einführung fragt nach Sprache, wie die KI laufen soll (und mit welchem Modell),
+Mikrofon und Taste: F9 ist nur die Vorgabe, jede Taste, Kombination oder Maustaste geht.
+Derweil lädt Fleech im Hintergrund, was deine Wahl braucht, mit Fortschritt und Restzeit,
+ganz ohne Terminal. Für die lokale Standardwahl ist das:
 
 | Baustein | Wofür | Größe |
 |---|---|---|
@@ -234,8 +236,8 @@ Fleech prüft, was fehlt, und holt es nach, mit Fortschrittsanzeige und ohne Ter
 | **Whisper `large-v3-turbo`** | macht aus Sprache Text | ~1,6 GB |
 
 Ollama wird nur auf deinen Klick installiert: unter Windows per `winget`, unter Linux zeigt
-Fleech den offiziellen Installationsbefehl. Danach richtet eine kurze Einführung Mikrofon
-und Hotkey ein.
+Fleech den offiziellen Installationsbefehl. Am Ende der Einführung steht ein Probediktat
+direkt im Fenster: Kommt dort Text an, funktioniert die ganze Kette.
 
 **Erstes Diktat:** in ein beliebiges Textfeld klicken, <kbd>F9</kbd> halten, sprechen,
 loslassen. Das erste Diktat nach dem Start dauert ein paar Sekunden länger, weil die
@@ -282,6 +284,10 @@ ins Netz:
 - **Prüfung des Erkennungsmodells:** Jedes Mal, wenn Fleech das Whisper-Modell lädt (bei
   jedem Start), fragt faster-whisper bei Hugging Face nach, ob es eine neue Fassung des
   Modells gibt, und lädt sie gegebenenfalls herunter. Dabei geht weder Ton noch Text hinaus.
+- **Modell-Check** (nächstes Release): Einmal pro Woche sieht Fleech nach, ob es für deine
+  Wahl ein neueres Modell gibt, in seiner Modellliste auf GitHub und in der Ollama-Bibliothek
+  oder in der Modellliste deines Cloud-Anbieters. Fleech schlägt nur vor und stellt nie selbst
+  um; abschaltbar unter Einstellungen → *KI*.
 - **Deutsch-optimierte Spracherkennung:** wird nur von Hugging Face geladen, wenn du sie wählst.
 - **Dein Cloud-Anbieter** (nächstes Release), nur wenn du einen auswählst.
 

@@ -38,7 +38,7 @@ def test_die_teile_existieren():
                  "textersetzung.py", "advanced.py", "common.py"):
         assert (UI / "settings" / name).exists(), f"settings/{name} fehlt"
     for name in ("profil.py", "freihand.py", "modelle.py", "nachbereitung.py",
-                 "updatepruefung.py", "lebenszyklus.py"):
+                 "updatepruefung.py", "lebenszyklus.py", "modellpruefung.py"):
         assert (UI / "desktopapp" / name).exists(), f"desktopapp/{name} fehlt"
     for name in ("konstanten.py", "bausteine.py", "geometrie.py", "einblendungen.py",
                  "zustand.py"):
@@ -117,6 +117,8 @@ def test_seiten_kennen_das_hauptfenster_nicht():
      "die Mixins definieren Methoden AUF DesktopApp, kennen die Klasse aber nicht"),
     ("overlaypille", "overlay_qt",
      "Masse und Farben liegen in overlaypille/konstanten.py, nicht im Fenster"),
+    ("onboardingseiten", "onboarding",
+     "die Seiten bekommen den Dialog uebergeben, sie importieren ihn nicht"),
 ])
 def test_die_teile_kennen_ihr_ganzes_nicht(ordner, verboten, hinweis):
     """Dieselbe Regel wie bei den Seiten, eine Ebene tiefer: Ein Teil, das sein

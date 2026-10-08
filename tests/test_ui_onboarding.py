@@ -26,26 +26,32 @@ def test_onboarding_navigation_und_abschluss(qapp, monkeypatch):
     monkeypatch.setattr(UserSettings, "save", lambda self, path=None: None)
     dlg, settings = _onboarding()
     assert not settings.general.onboarding_done
-    assert dlg._stack.count() == 6   # + Verlauf-Seite (5.10.1)
+    # Willkommen, KI, Mikrofon, Taste, Modi, Verlauf, Probediktat (ohne Modell-
+    # Kontext keine Einrichtungsseite).
+    assert list(dlg._pages) == ["welcome", "ki", "microphone", "controls", "modes",
+                                "verlauf", "finish"]
     assert not dlg._back_btn.isEnabled()          # Seite 1: kein Zurueck
 
-    for _ in range(5):        # eine Seite mehr seit der Verlauf-Frage (5.10.1)
+    for _ in range(6):
         dlg._go_next()
-    assert dlg._stack.currentIndex() == 5
+    assert dlg._stack.currentIndex() == dlg._pages["finish"]
     assert dlg._next_btn.text() == "Los geht's"
     assert dlg._skip_btn.isHidden() or not dlg._skip_btn.isVisible()
 
     dlg._go_next()                                # letzter Klick = Abschluss
     assert settings.general.onboarding_done is True
 
-def test_onboarding_x_und_ueberspringen_setzen_das_flag(qapp, monkeypatch):
-    """Jeder Weg hinaus setzt das Flag — der Wizard darf nie zum Wiedergaenger werden."""
+def test_ueberspringen_beendet_x_heisst_spaeter(qapp, monkeypatch):
+    """6.2.0: „Überspringen" ist eine Entscheidung und setzt das Flag. Das X (Esc)
+    heisst „spaeter" — wer mitten in der Einrichtung schliesst, bekommt sie beim
+    naechsten Start wieder, statt mit einem halb eingerichteten Fleech allein
+    zu bleiben."""
     from fleech.usersettings import UserSettings
 
     monkeypatch.setattr(UserSettings, "save", lambda self, path=None: None)
     dlg, settings = _onboarding()
     dlg.reject()                                  # Esc/X
-    assert settings.general.onboarding_done is True
+    assert settings.general.onboarding_done is False
 
     dlg2, settings2 = _onboarding()
     dlg2._skip_btn.click()                        # "Ueberspringen"
@@ -259,51 +265,130 @@ def test_setup_page_autostart_wenn_nur_downloads_fehlen(qapp, monkeypatch):
     SetupPage([_FakeEndpoint()], "large-v3-turbo", autostart=True)
     assert gestartet == [True]
 
-def test_onboarding_zeigt_einrichtung_nur_wenn_noetig(qapp, monkeypatch):
+def _mit_einrichtung(monkeypatch, settings=None, **kw):
     from fleech.ui.onboarding import OnboardingDialog
     from fleech.usersettings import UserSettings
 
     monkeypatch.setattr(UserSettings, "save", lambda self, path=None: None)
+    return OnboardingDialog(
+        settings or UserSettings(), lambda: ["Mikrofon (USB)"], audio=False,
+        endpoints=[_FakeEndpoint()], stt_model="large-v3-turbo", **kw,
+    )
 
-    def bauen():
-        return OnboardingDialog(
-            UserSettings(), lambda: ["Mikrofon (USB)"], audio=False,
-            endpoints=[_FakeEndpoint()], stt_model="large-v3-turbo",
-        )
 
-    _fake_setup_lage(monkeypatch, lage="missing", modelle=(), whisper=False)
-    dlg = bauen()
-    assert dlg._stack.count() == 7   # 6 + Einrichtungsseite
-    assert dlg._pages["setup"] == 1               # direkt nach dem Willkommen
-    assert dlg._pages["microphone"] == 2
+def test_einrichtung_kommt_nach_der_ki_wahl_und_startet_erst_dann(qapp, monkeypatch):
+    """Was geladen wird, haengt an der KI-Wahl — vorher darf nichts laden."""
+    from fleech.ui.setuppage import SetupPage
+
+    _fake_setup_lage(monkeypatch, lage="ready", modelle=(), whisper=False)
+    gestartet = []
+    monkeypatch.setattr(SetupPage, "start", lambda self: gestartet.append(True))
+    dlg = _mit_einrichtung(monkeypatch)
+    assert dlg._pages["ki"] < dlg._pages["setup"] < dlg._pages["microphone"]
+    assert gestartet == []                        # beim Oeffnen: nichts
+    dlg._go_next()                                # → KI
+    assert gestartet == []
+    dlg._go_next()                                # KI gewaehlt → Downloads los
+    assert gestartet == [True]
+    assert dlg._stack.currentIndex() == dlg._pages["setup"]
     dlg.reject()
 
-    # Fertig eingerichtet: keine Seite mit drei Haken zum Durchklicken.
-    _fake_setup_lage(monkeypatch)
-    dlg2 = bauen()
-    assert dlg2._stack.count() == 6
-    assert "setup" not in dlg2._pages
-    dlg2.reject()
+
+def test_einrichtung_wird_uebersprungen_wenn_alles_da_ist(qapp, monkeypatch):
+    _fake_setup_lage(monkeypatch)                 # alles vorhanden
+    dlg = _mit_einrichtung(monkeypatch)
+    assert "setup" in dlg._pages
+    dlg._go_next()                                # → KI
+    dlg._go_next()                                # → direkt Mikrofon
+    assert dlg._stack.currentIndex() == dlg._pages["microphone"]
+    assert dlg._steps.text() == "Schritt 3 von 7"
+    dlg._go_back()                                # zurueck ueberspringt sie auch
+    assert dlg._stack.currentIndex() == dlg._pages["ki"]
+    dlg.reject()
+
+
+def test_einrichtung_fragt_den_plan_nach_der_ki_wahl(qapp, monkeypatch):
+    """Cloud gewaehlt → der Plan kommt ohne Sprachmodell zurueck (nur Erkennung)."""
+    _fake_setup_lage(monkeypatch, lage="ready", modelle=(), whisper=False)
+    from fleech.llm import apikeys
+    from fleech.ui.onboarding import OnboardingDialog
+    from fleech.ui.setuppage import SetupPage
+    from fleech.usersettings import UserSettings
+
+    monkeypatch.setattr(UserSettings, "save", lambda self, path=None: None)
+    monkeypatch.setattr(SetupPage, "start", lambda self: None)
+    settings = UserSettings()
+    gefragt, gemeldet = [], []
+
+    def plan():
+        gefragt.append(settings.ki.anbieter)
+        if settings.ki.anbieter == "ollama":
+            return [_FakeEndpoint()], "large-v3-turbo", "http://127.0.0.1:11434"
+        return [], "large-v3-turbo", ""
+
+    dlg = OnboardingDialog(settings, lambda: [], audio=False, einrichtung=plan,
+                           on_changed=gemeldet.append)
+    dlg._go_next()                                # → KI
+    apikeys.speichere("openai", "test-schluessel")
+    dlg._ki_seite._cloud.setChecked(True)
+    dlg._go_next()
+    assert settings.ki.anbieter == "openai"
+    assert "ki" in gemeldet
+    assert gefragt[-1] == "openai"
+    assert list(dlg._setup_page._rows) == ["stt"]
+    dlg.reject()
+
 
 def test_onboarding_pegel_haengt_am_namen_nicht_am_index(qapp, monkeypatch):
     """Die eingeschobene Einrichtungs-Seite darf den Mikrofon-Pegel nicht verschieben."""
     from fleech.ui.onboarding import OnboardingDialog
-    from fleech.usersettings import UserSettings
+    from fleech.ui.setuppage import SetupPage
 
-    monkeypatch.setattr(UserSettings, "save", lambda self, path=None: None)
     _fake_setup_lage(monkeypatch, lage="missing", modelle=(), whisper=False)
+    monkeypatch.setattr(SetupPage, "start", lambda self: None)
     gestartet = []
     monkeypatch.setattr(OnboardingDialog, "_start_level_stream",
                         lambda self: gestartet.append(self._stack.currentIndex()))
-    dlg = OnboardingDialog(
-        UserSettings(), lambda: ["Mikrofon (USB)"], audio=False,
-        endpoints=[_FakeEndpoint()], stt_model="large-v3-turbo",
-    )
-    dlg._go_next()                                # → Einrichtung
+    dlg = _mit_einrichtung(monkeypatch)
+    dlg._go_next()                                # → KI
+    dlg._go_next()                                # → Einrichtung (Ollama fehlt)
+    assert dlg._stack.currentIndex() == dlg._pages["setup"]
     assert gestartet == []
     dlg._go_next()                                # → Mikrofon
-    assert gestartet == [2]
+    assert gestartet == [dlg._pages["microphone"]]
     dlg.reject()
+
+
+def test_download_zeile_zeigt_den_stand_auf_den_folgeseiten(qapp, monkeypatch):
+    from fleech.ui.setuppage import SetupPage
+
+    _fake_setup_lage(monkeypatch, lage="ready", modelle=(), whisper=False)
+    monkeypatch.setattr(SetupPage, "start", lambda self: None)
+    dlg = _mit_einrichtung(monkeypatch)
+    dlg._setup_page._on_progress("llm:gemma3:4b", "42 % · noch ca. 2 Min.", 42)
+    assert "42 %" in dlg._download_zeile.text()
+    assert "Sprachmodell gemma3:4b" in dlg._download_zeile.text()
+    dlg._stack.setCurrentIndex(dlg._pages["microphone"])
+    assert not dlg._download_zeile.isHidden()
+    dlg._stack.setCurrentIndex(dlg._pages["setup"])
+    assert dlg._download_zeile.isHidden()         # dort steht es ausfuehrlich
+    dlg.reject()
+
+
+def test_abschluss_bricht_laufende_downloads_nicht_ab(qapp, monkeypatch):
+    """„Los geht's" waehrend des Downloads: Fleech laedt weiter und meldet sich
+    danach (on_ready). Nur das X haelt nach dem laufenden Schritt an."""
+    from fleech.ui.setuppage import SetupPage
+
+    _fake_setup_lage(monkeypatch, lage="ready", modelle=(), whisper=False)
+    gestoppt = []
+    monkeypatch.setattr(SetupPage, "stop", lambda self: gestoppt.append(True))
+    dlg = _mit_einrichtung(monkeypatch)
+    dlg._finish()
+    assert gestoppt == []
+    dlg2 = _mit_einrichtung(monkeypatch)
+    dlg2.reject()
+    assert gestoppt == [True]
 
 
 # -- Verlauf-Frage (5.10.1) --------------------------------------------------------------
@@ -352,3 +437,134 @@ def test_verlauf_abwahl_meldet_sich_beim_aufrufer(qapp, monkeypatch):
     dlg, _ = _onboarding(changed=gemeldet)
     dlg._verlauf_cb.setChecked(False)
     assert "general" in gemeldet
+
+
+# -- 6.2.0: Sprache, KI-Schritt, Taste, Probediktat ------------------------------------
+
+
+def test_sprache_steht_vorn_und_wirkt_sofort(qapp, monkeypatch):
+    from fleech.usersettings import UserSettings
+
+    monkeypatch.setattr(UserSettings, "save", lambda self, path=None: None)
+    gemeldet: list = []
+    dlg, settings = _onboarding(changed=gemeldet)
+    assert dlg._pages["welcome"] == 0
+    dlg._sprache_box.setCurrentIndex(dlg._sprache_box.findData("en"))
+    assert settings.general.language == "en"
+    assert "general" in gemeldet
+    from fleech.ui.onboardingseiten import probediktat
+
+    probediktat.aktualisiere(dlg)
+    assert "first dictation" in dlg._probe_beispiel.text()
+
+
+def test_ki_schritt_vorbelegt_und_lokal_mit_katalog(qapp):
+    dlg, _settings = _onboarding()
+    seite = dlg._ki_seite
+    assert seite._lokal.isChecked()               # Vorgabe: lokal
+    assert seite._lokal_modell.currentData() == "gemma3:4b"
+    assert "empfohlen" in seite._lokal_modell.currentText()
+    assert "Diktaten" in seite._lokal_notiz.text()
+    assert not seite._cloud_box.isVisibleTo(seite)
+
+
+def test_ki_schritt_cloud_ohne_schluessel_haelt_an(qapp, monkeypatch):
+    from fleech.usersettings import UserSettings
+
+    monkeypatch.setattr(UserSettings, "save", lambda self, path=None: None)
+    dlg, settings = _onboarding()
+    dlg._go_next()                                # → KI
+    dlg._ki_seite._cloud.setChecked(True)
+    dlg._go_next()
+    assert dlg._stack.currentIndex() == dlg._pages["ki"]     # bleibt stehen
+    assert "Schlüssel" in dlg._ki_seite._fehler.text()
+    assert settings.ki.anbieter == "ollama"                  # nichts geschrieben
+    dlg._ki_seite._lokal.setChecked(True)
+    dlg._go_next()
+    assert dlg._stack.currentIndex() == dlg._pages["microphone"]
+
+
+def test_ki_schritt_ohne_ki(qapp, monkeypatch):
+    from fleech.usersettings import UserSettings
+
+    monkeypatch.setattr(UserSettings, "save", lambda self, path=None: None)
+    gemeldet: list = []
+    dlg, settings = _onboarding(changed=gemeldet)
+    dlg._go_next()
+    dlg._ki_seite._aus.setChecked(True)
+    dlg._go_next()
+    assert settings.ki.anbieter == "aus"
+    assert gemeldet.count("ki") == 1
+
+
+def test_ki_schritt_empfehlung_wird_nicht_festgeschrieben(qapp, monkeypatch):
+    """Leer heisst „was Fleech empfiehlt" — so greift ein neuer Katalog ohne Zutun.
+    Ein ausdruecklich anderes Modell wird gespeichert."""
+    from fleech.usersettings import UserSettings
+
+    monkeypatch.setattr(UserSettings, "save", lambda self, path=None: None)
+    dlg, settings = _onboarding()
+    seite = dlg._ki_seite
+    assert seite.commit() is False and settings.ki.modell == ""
+    seite._lokal_modell.setCurrentIndex(seite._lokal_modell.findData("gemma3:12b"))
+    assert seite.commit() is True and settings.ki.modell == "gemma3:12b"
+
+
+def test_ki_schritt_cloud_liste_markiert_neueres(qapp):
+    from fleech.llm import apikeys
+
+    apikeys.speichere("openai", "test-schluessel")
+    dlg, settings = _onboarding()
+    seite = dlg._ki_seite
+    seite._cloud.setChecked(True)
+    seite._cloud_liste_da("openai", ["gpt-4o-mini", "gpt-5-mini", "gpt-5-nano"], "")
+    eintraege = [seite._cloud_modell.itemData(i)
+                 for i in range(seite._cloud_modell.count())]
+    assert eintraege[:2] == ["gpt-4o-mini", "gpt-5-mini"]
+    assert seite._cloud_modell.currentData() == "gpt-4o-mini"   # Wahl bleibt beim Nutzer
+    assert "gpt-5-mini" in seite._cloud_status.text()
+    seite._cloud_modell.setCurrentIndex(1)
+    seite.commit()
+    assert (settings.ki.anbieter, settings.ki.modell) == ("openai", "gpt-5-mini")
+
+
+def test_taste_frei_waehlbar(qapp, monkeypatch):
+    from fleech.hotkey import HotkeySpec
+    from fleech.usersettings import UserSettings
+
+    monkeypatch.setattr(UserSettings, "save", lambda self, path=None: None)
+    gemeldet: list = []
+    dlg, settings = _onboarding(changed=gemeldet)
+    dlg._on_taste_gewaehlt(HotkeySpec.parse("ctrl+alt+d"))
+    assert settings.recording.hotkey == "ctrl+alt+d"
+    assert "hotkeys" in gemeldet
+    assert "F9" not in dlg._hold_radio.text()
+    # Loeschen gibt es hier nicht: ohne Diktat-Taste ginge gar nichts.
+    dlg._on_taste_gewaehlt(None)
+    assert settings.recording.hotkey == "ctrl+alt+d"
+    assert dlg._taste_feld.spec() is not None
+
+
+def test_probediktat_im_dialog(qapp, monkeypatch):
+    from fleech.usersettings import UserSettings
+
+    monkeypatch.setattr(UserSettings, "save", lambda self, path=None: None)
+    dlg, _settings = _onboarding()
+    dlg._stack.setCurrentIndex(dlg._pages["finish"])
+    assert "F9" in dlg._probe_anleitung.text()
+    dlg._probe_feld.setPlainText("Das ist mein erstes Diktat.")
+    assert "Angekommen" in dlg._probe_status.text()
+
+
+def test_setup_page_plant_neu_und_meldet_den_stand(qapp, monkeypatch):
+    _fake_setup_lage(monkeypatch, lage="ready", modelle=(), whisper=False)
+    page = _setup_page()
+    assert list(page._rows) == ["ollama", "llm:gemma3:4b", "stt"]
+    page.neu_planen([], "large-v3-turbo", "")          # Cloud: nur Erkennung
+    assert list(page._rows) == ["stt"]
+    staende = []
+    page.stand.connect(staende.append)
+    page._on_progress("stt", "800 MB von etwa 1,6 GB · noch ca. 1 Min.", 50)
+    assert staende == ["Erkennungsmodell large-v3-turbo: 800 MB von etwa 1,6 GB · "
+                       "noch ca. 1 Min."]
+    page.deleteLater()

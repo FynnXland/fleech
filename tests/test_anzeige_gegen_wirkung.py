@@ -93,6 +93,10 @@ def _anderswo_gelesen() -> set:
 # Begruendung — „faellt sonst durch" ist keine.
 NUR_GESPEICHERT = {
     # (Feldname, Grund)
+    ("hinweis_text", "Die Anzeige IST hier die Wirkung: der Satz des Modellberaters, "
+                     "warum ein neueres Modell vorgeschlagen wird. Geschrieben vom "
+                     "Wochen-Check (desktopapp/modellpruefung.py) und von „Jetzt "
+                     "prüfen“, gelesen nur von der KI-Seite, die ihn zeigt."),
 }
 
 

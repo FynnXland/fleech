@@ -37,9 +37,10 @@ llm:
                               # (0,977 statt 0,982). Beherrscht auch die Befehls-JSONs.
     temperature: 0.0          # deterministisch — gleicher Input, gleiche Bereinigung
     timeout: 60
-    reasoning_effort: ""      # gemma3 ist KEIN Thinking-Modell → Parameter weglassen.
-                              # Fuer qwen3.5 & Co. hier zwingend "none" setzen, sonst
-                              # denkt das Modell 30–50 s pro Diktat.
+    reasoning_effort: ""      # Leer oder "none" = nicht denken: Fleech schickt dem
+                              # lokalen Ollama `think: false` (seit 6.2.0 auch bei leer,
+                              # damit Thinking-Modelle wie gemma4/qwen3.5 nicht 10–50 s
+                              # pro Diktat nachdenken). Nur low/medium/high laesst denken.
     num_ctx: 8192             # Kontextfenster bei LOKALEM Ollama (0 = Ollama-Default 4096).
                               # WICHTIG bei langen Diktaten: Ollama laedt Modelle immer mit
                               # 4096 Token, egal was das Modell koennte. Allein dieser
