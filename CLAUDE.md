@@ -24,6 +24,8 @@ wacht über die gröbsten Fälle).
 
 1. **STT** — faster-whisper `large-v3-turbo` auf GPU (RTX 4070, ~0,2 s warm).
    `initial_prompt` primet Vokabular + Signalwort. Kein Cloud-Fallback mehr.
+   Modelle laden **nur von der Platte** (`fleech/stt/lokal.py`, `local_files_only`) —
+   herunterladen darf allein `provisioning.ensure_whisper` (Einrichtung, Deutsch-Modell).
 2. **Routing** (`fleech/routing.py`, `detect_mode`): `cleanup` (Default) | `command`
    (Safe-Word erkannt) | `math` (Hotkey/Latch/gesprochene Delimiter).
 3. **LLM** — Cleanup: standardmäßig lokal Ollama `gemma3:4b` (ein Modell für alles).
@@ -65,6 +67,8 @@ Provider/Modelle/Prompts sind in `config.yaml` + `prompts/` konfigurierbar
 - `fleech/textutils.py` — nur noch der Rahmen um den LLM-Call (Transkript einpacken/auspacken).
 - `fleech/stt/nachlauf.py` — Roh-Guard auf der Audio-Seite: streicht Whisper-Segmente
   am Ende, hinter denen kein Ton liegt („Vielen Dank."-Halluzination).
+- `fleech/stt/lokal.py` — einzige Stelle, die ein `WhisperModel` baut: offline aus dem
+  HF-Cache, fehlt es → `ModellFehlt` (kein stiller Download, keine Nachfrage beim Start).
 - `fleech/formula.py`, `document.py` — Formeln (gesprochene Mathematik → LaTeX), Diktat-Puffer.
 - `fleech/profiles.py` — App-Profile: Regeln (Prozess + Titel), Farben, Schnellwechsel.
 - `fleech/usersettings.py` — `%APPDATA%\Fleech\settings.json` (Dataclasses, additive Migration).

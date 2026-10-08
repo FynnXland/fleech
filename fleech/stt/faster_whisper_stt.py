@@ -11,6 +11,7 @@ from pathlib import Path
 import numpy as np
 
 from .base import STTEngine, resample_to_16k
+from .lokal import ModellFehlt, lade_whisper
 from .nachlauf import KEIN_TON_RMS, lautester_pegel, streiche_tonlosen_schwanz
 
 log = logging.getLogger(__name__)
@@ -120,13 +121,12 @@ class FasterWhisperSTT(STTEngine):
         self._lock = threading.Lock()
 
     def _load_model(self, device: str, compute_type: str):
-        from faster_whisper import WhisperModel
-
         log.info(
             "Lade faster-whisper %s (device=%s, compute_type=%s) …",
             self.cfg.model_size, device, compute_type,
         )
-        return WhisperModel(self.cfg.model_size, device=device, compute_type=compute_type)
+        # Nur von der Platte — ohne Nachfrage bei Hugging Face (siehe lokal.py).
+        return lade_whisper(self.cfg.model_size, device=device, compute_type=compute_type)
 
     def _ensure_model(self) -> None:
         if self._model is not None:
@@ -135,6 +135,11 @@ class FasterWhisperSTT(STTEngine):
         try:
             self._model = self._load_model(
                 self.cfg.device, waehle_rechenart(self.cfg.device, self.cfg.compute_type))
+        except ModellFehlt:
+            # Fehlt das Modell, fehlt es auch fuer den Prozessor. Ein Rueckfall
+            # dorthin wuerde nur eine zweite, irrefuehrende „GPU-Init
+            # fehlgeschlagen"-Zeile ins Log schreiben.
+            raise
         except Exception as exc:
             if self.cfg.device == "cpu":
                 raise

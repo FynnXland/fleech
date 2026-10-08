@@ -762,9 +762,10 @@ def baue_erkenner(modell_groesse: str = "tiny", sprache: str = "de",
     mitgegeben; dort trat in derselben Messung ein Fehltreffer auf („Apfel"
     wurde zu „Abbrechen").
     """
-    from faster_whisper import WhisperModel
+    from .stt.lokal import lade_whisper
 
-    modell = WhisperModel(modell_groesse, device="cpu", compute_type="int8")
+    # Nur von der Platte (siehe stt/lokal.py) — fehlt es, wirft das `ModellFehlt`.
+    modell = lade_whisper(modell_groesse, device="cpu", compute_type="int8")
     # Bei MEHREREN Startwoertern werden alle vorgesagt: Das Priming wirkt je
     # Wort, und ein nicht geprimtes Wort waere genau das, das nie erkannt wird.
     _woerter = zerlege_woerter(startwort)

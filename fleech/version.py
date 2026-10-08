@@ -7,7 +7,7 @@
 
 from __future__ import annotations
 
-APP_VERSION = "6.2.0"  # 6.2.0: neue Einfuehrung, Modellwahl, Hinweis auf neuere Modelle
+APP_VERSION = "6.2.1"  # 6.2.1: Erkennungsmodell nur noch von der Platte, kein Nachfragen beim Start
 
 
 def _read_build() -> str:

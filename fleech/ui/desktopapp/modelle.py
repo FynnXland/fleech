@@ -32,6 +32,7 @@ SPIELPAUSE_S = 300
 
 class ModelleMixin:
     _preview_gen = 0  # Generationszaehler gegen Start/Stop-Races (Load dauert Sekunden)
+    _stt_nachladen = threading.Lock()  # haelt einen zweiten Download desselben Modells ab
 
     def _build_engine(self) -> None:
         cfg = self.config
@@ -57,11 +58,47 @@ class ModelleMixin:
     def _warm_up(self) -> None:
         import numpy as np
 
+        from ...stt.lokal import ModellFehlt
+
         try:
             self.pipeline.stt.transcribe(np.zeros(8000, dtype=np.float32), 16000)
             log.info("STT warm. %s", self.focus.status_line())
+        except ModellFehlt as exc:
+            self._stt_modell_fehlt(exc.modell)
         except Exception:
             log.exception("STT-Warm-up fehlgeschlagen.")
+
+    def _stt_modell_fehlt(self, modell: str) -> None:
+        """Das Erkennungsmodell liegt nicht auf der Platte — die Einrichtung holt es.
+
+        Die Erkennung laedt nur noch lokal (`stt/lokal.py`); bis 6.2.0 holte
+        faster-whisper ein fehlendes Modell beim Laden still und ohne Anzeige
+        nach. Steht die Einfuehrung noch aus, laedt deren Einrichtungsseite es
+        und waermt danach selbst auf (`_warm_up_after_setup`). Sonst —
+        Einfuehrung uebersprungen, Cache geloescht — holt Fleech es hier, ueber
+        denselben Weg wie die Einrichtung und mit Stand in der Pille.
+        """
+        from ... import provisioning
+
+        if not self.settings.general.onboarding_done:
+            log.info("Erkennungsmodell %s fehlt — die Einrichtung laedt es.", modell)
+            return
+        # Start und Einrichtungsende waermen beide auf: Ein Download genuegt.
+        if not self._stt_nachladen.acquire(blocking=False):
+            return
+        try:
+            log.warning("Erkennungsmodell %s fehlt — wird nachgeladen.", modell)
+            self.bus.hinweis.emit("Spracherkennung fehlt — wird geladen …")
+            if (provisioning.ensure_whisper(modell, on_progress=self._report_model_download)
+                    and provisioning.whisper_present(modell)):
+                self._warm_up_stt()
+                self.bus.hinweis.emit("Spracherkennung bereit — du kannst diktieren.")
+            else:
+                self.bus.hinweis.emit(
+                    "Spracherkennung konnte nicht geladen werden — Internetverbindung "
+                    "prüfen. Fleech versucht es beim nächsten Start erneut.")
+        finally:
+            self._stt_nachladen.release()
 
     def _warm_up_stt(self) -> None:
         import numpy as np
@@ -99,11 +136,30 @@ class ModelleMixin:
                 language=self.settings.general.language,
                 samplerate=self.config.audio.samplerate,
             )
+        from ...stt.lokal import ModellFehlt
+
+        try:
+            self._preview_model.load()
+        except ModellFehlt as exc:
+            self._lade_vorschaumodell(exc.modell)
+        except Exception:
+            log.exception("Preview-Modell konnte nicht geladen werden.")
+        return self._preview_model
+
+    def _lade_vorschaumodell(self, modell: str) -> None:
+        """Die Live-Vorschau hat ein eigenes kleines Modell, das die Einrichtung
+        nicht laedt. Wer sie einschaltet, waehlt sie bewusst — dann wird es
+        einmal geholt (ueber die Einrichtung) und liegt danach lokal."""
+        from ... import provisioning
+
+        log.warning("Modell %s fuer die Live-Vorschau fehlt — wird geladen.", modell)
+        if not provisioning.ensure_whisper(modell, on_progress=log.info):
+            log.warning("Modell fuer die Live-Vorschau liess sich nicht laden.")
+            return
         try:
             self._preview_model.load()
         except Exception:
             log.exception("Preview-Modell konnte nicht geladen werden.")
-        return self._preview_model
 
     def _start_preview_async(self) -> None:
         self._preview_gen += 1

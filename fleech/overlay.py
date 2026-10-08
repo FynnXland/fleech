@@ -269,19 +269,20 @@ class PreviewModel:
         with self._lock:
             if self._model is not None:
                 return
-            from faster_whisper import WhisperModel
-
             from .stt.faster_whisper_stt import _register_cuda_dlls, waehle_rechenart
+            from .stt.lokal import ModellFehlt, lade_whisper
 
             _register_cuda_dlls()
             log.info("Lade Preview-Modell %s …", self.model_size)
             try:
                 # Wie das Diktat: int8 auf der Grafikkarte halbiert den Speicher.
-                self._model = WhisperModel(self.model_size, device="auto",
+                self._model = lade_whisper(self.model_size, device="auto",
                                            compute_type=waehle_rechenart("auto", "auto"))
+            except ModellFehlt:
+                raise                        # fehlt auch fuer den Prozessor
             except Exception as exc:
                 log.warning("Preview-Modell GPU-Init fehlgeschlagen (%s) — CPU/int8.", exc)
-                self._model = WhisperModel(self.model_size, device="cpu", compute_type="int8")
+                self._model = lade_whisper(self.model_size, device="cpu", compute_type="int8")
 
     def transcribe_segments(self, audio: np.ndarray) -> list[PreviewSegment]:
         self.load()

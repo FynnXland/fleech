@@ -129,11 +129,15 @@ def whisper_cache_bytes(size: str) -> int:
 
 
 def whisper_present(size: str) -> bool:
-    """Liegt das Erkennungsmodell vollstaendig lokal? (Kein Netz.)"""
-    try:
-        from faster_whisper.utils import download_model
+    """Liegt das Erkennungsmodell vollstaendig lokal? (Kein Netz.)
 
-        download_model(size, local_files_only=True)
+    Dieselbe Pruefung, mit der die Erkennung es laedt (`stt/lokal.py`) — ein
+    halb geladenes Modell zaehlt als fehlend, damit die Einrichtung es fertig
+    laedt, statt „vorhanden" zu melden."""
+    try:
+        from .stt.lokal import modellordner
+
+        modellordner(size)
         return True
     except Exception:
         return False

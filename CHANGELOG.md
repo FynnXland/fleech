@@ -11,6 +11,23 @@ GitHub-Release-Notizen (`packaging/release.py`).
 
 ---
 
+## 6.2.1 — 2026-10-08 · nicht einzeln veröffentlicht
+
+**Beim Start keine Nachfrage bei Hugging Face mehr.** Bisher fragte die
+Spracherkennung bei jedem Start bei Hugging Face nach, ob es eine neue Fassung
+des Erkennungsmodells gibt — Ton oder Text gingen dabei nie hinaus, aber die
+Anfrage selbst passte nicht zu „läuft lokal". Jetzt lädt Fleech ein vorhandenes
+Modell ausschließlich von deiner Festplatte. Ins Netz geht es dafür nur noch,
+wenn ein Modell fehlt: bei der Einrichtung, wenn du die deutsch-optimierte
+Spracherkennung wählst oder die Live-Vorschau einschaltest.
+
+Fehlt das Erkennungsmodell nach der Einführung — etwa weil sie vor dem Download
+übersprungen wurde —, lädt Fleech es jetzt mit Stand in der Pille nach statt
+still im Hintergrund. Ein abgebrochener Download zählt dabei als „fehlt" und
+wird fertig geladen.
+
+---
+
 ## 6.2.0 — 2026-10-08
 
 **Neue Lizenz: MIT.** Fleech darf damit auch in geschlossenen und kommerziellen
