@@ -535,11 +535,20 @@ class DesktopApp(
             self.bus.transcript_ready.emit(self.pipeline.last_injected)
             self._check_dictionary_candidates(self.pipeline.last_injected)
             self._count_dictionary_usage(self.pipeline.last_injected)
-        if result == "ok" and getattr(self.pipeline, "in_ablage_statt_eingefuegt", False):
+        in_ablage_gelandet = result in ("ok", "fallback") and getattr(
+            self.pipeline, "in_ablage_statt_eingefuegt", False)
+        if in_ablage_gelandet:
             # Zu spaet fertig und der Nutzer ist woanders: nicht hineingeklickt, der
             # Text wartet in der Zwischenablage. Das MUSS ankommen — ohne Meldung
-            # saehe es aus, als waere das Diktat verloren.
-            self.bus.set_state(AppState.IDLE, "in der Zwischenablage")
+            # saehe es aus, als waere das Diktat verloren. Auch nach einem Rueckfall:
+            # Am 2026-10-08 stuerzte Ollama ab, das Rohtranskript lag 39 s spaeter
+            # in der Ablage — und die Pille meldete „eingefügt (Fallback …)", weil
+            # dieser Zweig nur „ok" kannte. Blase und Toast blieben aus.
+            unbereinigt = result == "fallback"
+            if unbereinigt:
+                self.notifier.sound("error")
+            self.bus.set_state(AppState.IDLE, "in der Zwischenablage (unbereinigt)"
+                               if unbereinigt else "in der Zwischenablage")
             # Zuerst die Blase an der Pille — sie haengt an keiner Benachrichtigungs-
             # Einstellung. Der Toast bleibt als zusaetzlicher Weg fuer alle, die
             # Benachrichtigungen an haben (am 2026-10-02 war er abgeschaltet).
@@ -547,8 +556,9 @@ class DesktopApp(
             self.notifier.toast(
                 "critical_error", "Fleech",
                 "Das Diktat wurde erst spät fertig — damit du nicht aus deinem "
-                "Fenster gerissen wirst, liegt der Text in der Zwischenablage. "
-                "Strg+V zum Einfügen.", bypass_cooldown=True)
+                "Fenster gerissen wirst, liegt der Text "
+                + ("ohne KI-Bereinigung " if unbereinigt else "")
+                + "in der Zwischenablage. Strg+V zum Einfügen.", bypass_cooldown=True)
         elif result == "ok":
             self.notifier.sound("commit")
             self.bus.set_state(AppState.IDLE, "eingefügt")
@@ -557,6 +567,17 @@ class DesktopApp(
         elif result == "fallback":
             self.notifier.sound("error")
             self.bus.set_state(AppState.IDLE, "eingefügt (Fallback — Log prüfen)")
+        elif result in ("empty", "too_short"):
+            self.bus.set_state(AppState.IDLE, "nichts erkannt")
+        else:
+            self.notifier.sound("error")
+            if self._stt_fehlt_beim_diktat():
+                return
+            self.bus.set_state(AppState.ERROR, "Verarbeitung fehlgeschlagen — Log prüfen")
+            self.notifier.toast("critical_error", "Fleech",
+                                "Verarbeitung fehlgeschlagen — Details im Log.")
+        # Warum die KI ausfiel, gilt unabhaengig davon, wo der Text landete.
+        if result == "fallback":
             if self.pipeline.last_error_kind == "llm_offline":
                 self._melde_ki_offline()
             if self.pipeline.last_error_kind in ("quota", "key"):
@@ -568,15 +589,6 @@ class DesktopApp(
                     "Der KI-Dienst meldet ein erschöpftes Kontingent (429). Der "
                     "Text kam unbereinigt an.",
                 )
-        elif result in ("empty", "too_short"):
-            self.bus.set_state(AppState.IDLE, "nichts erkannt")
-        else:
-            self.notifier.sound("error")
-            if self._stt_fehlt_beim_diktat():
-                return
-            self.bus.set_state(AppState.ERROR, "Verarbeitung fehlgeschlagen — Log prüfen")
-            self.notifier.toast("critical_error", "Fleech",
-                                "Verarbeitung fehlgeschlagen — Details im Log.")
 
     def _tray_aktionen(self) -> dict:
         """Was das Tray-Menue aufrufen kann. Als eigene Methode und nicht als

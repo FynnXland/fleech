@@ -243,6 +243,22 @@ def ensure_ollama_models(endpoints, on_progress=None) -> list:
     return geholt
 
 
+def _ollama_fehlertext(exc) -> str:
+    """Der Fehlersatz aus dem Rumpf einer Ollama-Fehlerantwort (`{"error": …}`),
+    gekuerzt. "" wenn keiner zu lesen ist — der Aufrufer meldet dann wie bisher."""
+    import json
+
+    try:
+        rumpf = exc.read(2048).decode("utf-8", "replace").strip()
+    except Exception:
+        return ""
+    try:
+        rumpf = str(json.loads(rumpf).get("error") or rumpf)
+    except (ValueError, AttributeError):
+        pass
+    return " ".join(rumpf.split())[:300]
+
+
 def strip_reasoning(text: str, extra_patterns=None) -> str:
     """Entfernt Inline-Denkbloecke, die manche Thinking-Modelle in den Content schreiben.
 
@@ -349,6 +365,7 @@ class ChatClient:
         als ein unbereinigter ganzer.
         """
         import json
+        import urllib.error
         import urllib.request
 
         self.last_truncated = False
@@ -385,8 +402,17 @@ class ChatClient:
             data=json.dumps(body).encode("utf-8"),
             headers={"Content-Type": "application/json"},
         )
-        with urllib.request.urlopen(request, timeout=self.cfg.timeout) as response:
-            data = json.loads(response.read())
+        try:
+            with urllib.request.urlopen(request, timeout=self.cfg.timeout) as response:
+                data = json.loads(response.read())
+        except urllib.error.HTTPError as exc:
+            # Ollama sagt im Rumpf, WARUM es scheiterte. Ohne den Satz stand im
+            # Protokoll nur „HTTP Error 500" — die Ursache (am 2026-10-08 ein
+            # CUDA-„out of memory") fand sich erst in Ollamas eigenem Log.
+            grund = _ollama_fehlertext(exc)
+            if grund:
+                exc.msg = f"{exc.msg} — Ollama: {grund}"
+            raise
         self.last_truncated = data.get("done_reason") == "length"
         return strip_reasoning(
             (data.get("message") or {}).get("content") or "",

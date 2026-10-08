@@ -721,7 +721,10 @@ class Pipeline:
 
         code = getattr(exc, "code", None)
         if (getattr(getattr(llm, "cfg", None), "provider", OLLAMA) or OLLAMA) == OLLAMA:
-            self._merke_grund(gruende.OLLAMA)
+            # 5xx: Ollama lief und ist beim Laden/Rechnen gescheitert — kein Ausfall
+            # des Dienstes, sondern etwa Grafikspeicher voll.
+            abbruch = isinstance(code, int) and code >= 500
+            self._merke_grund(gruende.OLLAMA_FEHLER if abbruch else gruende.OLLAMA)
         elif code in (401, 403):
             self._merke_grund(gruende.KI_SCHLUESSEL)
             self.last_error_kind = "key"

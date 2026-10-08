@@ -11,6 +11,22 @@ GitHub-Release-Notizen (`packaging/release.py`).
 
 ---
 
+## 6.2.2 — 2026-10-08 · nicht einzeln veröffentlicht
+
+**Kein falsches „eingefügt" mehr, wenn die KI ausfällt und das Diktat spät
+fertig wird.** Fiel die lokale KI aus (etwa weil ein Spiel im Hintergrund den
+Grafikspeicher brauchte) und warst du bis dahin schon in einem anderen Fenster,
+legte Fleech den Text richtig in die Zwischenablage — meldete aber „eingefügt
+(Fallback)", und der Hinweis auf die Zwischenablage blieb aus. Jetzt steht dort
+„in der Zwischenablage (unbereinigt)", mit Blase an der Pille und dem Hinweis
+„Strg+V zum Einfügen".
+
+Im Verlauf heißt so ein Ausfall jetzt „Ollama ist mit einem Fehler abgebrochen"
+statt „Ollama hat nicht geantwortet" — Ollama lief ja, es ist beim Rechnen
+gescheitert. Die genaue Ursache, die Ollama dazu meldet, steht im Protokoll.
+
+---
+
 ## 6.2.1 — 2026-10-08 · nicht einzeln veröffentlicht
 
 **Beim Start keine Nachfrage bei Hugging Face mehr.** Bisher fragte die

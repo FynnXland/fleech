@@ -20,6 +20,10 @@ TRENNER = " · "
 
 # -- KI-Weg: der bereinigte Text kam nicht zustande ----------------------------------
 OLLAMA = "Ollama hat nicht geantwortet"
+# Ollama lief, scheiterte aber beim Laden oder Rechnen (HTTP 5xx) — am 2026-10-08
+# ein CUDA-„out of memory" neben einem Spiel. „Hat nicht geantwortet" schickte auf
+# die Suche nach einem gestoppten Dienst; die Ursache steht jetzt im Protokoll.
+OLLAMA_FEHLER = "Ollama ist mit einem Fehler abgebrochen"
 # Cloud-Anbieter (6.1.0): getrennt von Ollama, weil die Abhilfe eine andere ist —
 # Schluessel pruefen oder Kontingent aufstocken statt einen Dienst zu starten.
 KI_DIENST = "KI-Dienst hat nicht geantwortet"
@@ -59,6 +63,7 @@ IN_ABLAGE = "Nicht eingefügt — lag nur in der Zwischenablage (spät fertig, a
 # Der volle Satz gehoert in den Einzelfall, nicht in eine Aufzaehlung.
 KURZFORM = {
     OLLAMA: "Ollama",
+    OLLAMA_FEHLER: "Ollama-Fehler",
     KI_DIENST: "KI-Dienst",
     KI_SCHLUESSEL: "API-Schlüssel",
     KI_KONTINGENT: "Kontingent",

@@ -7,7 +7,7 @@
 
 from __future__ import annotations
 
-APP_VERSION = "6.2.1"  # 6.2.1: Erkennungsmodell nur noch von der Platte, kein Nachfragen beim Start
+APP_VERSION = "6.2.2"  # 6.2.2: KI-Ausfall + spaet fertig meldet die Zwischenablage statt „eingefügt"
 
 
 def _read_build() -> str:

@@ -117,6 +117,20 @@ def test_grund_bei_nicht_erreichbarem_modell():
     assert p.last_reason == gruende.OLLAMA
 
 
+def test_absturz_von_ollama_heisst_nicht_keine_antwort():
+    """2026-10-08: Ollama brach beim Rechnen ab (CUDA „out of memory" neben einem
+    Spiel) und antwortete mit HTTP 500. Der Verlauf sagte „Ollama hat nicht
+    geantwortet" — als waere der Dienst aus. Ein 5xx ist ein Abbruch MIT Antwort."""
+    import urllib.error
+
+    fehler = urllib.error.HTTPError("http://127.0.0.1:11434/api/chat", 500,
+                                    "Internal Server Error", {}, None)
+    p, _llm, _inj = make_pipeline(RAW_NONTRIVIAL, llm=FakeLLM(error=fehler))
+    assert p.process(AUDIO, 16000) == "fallback"
+    assert p.last_reason == gruende.OLLAMA_FEHLER
+    assert gruende.kurzform(p.last_reason) == "Ollama-Fehler"
+
+
 def test_grund_bei_leerer_antwort():
     p, _llm, _inj = make_pipeline(RAW_NONTRIVIAL, llm=FakeLLM(reply="   "))
     assert p.process(AUDIO, 16000) == "fallback"
@@ -460,3 +474,80 @@ def test_nur_in_der_ablage_landet_trotzdem_im_verlauf(qapp, tmp_path):
     eintrag = store.recent()[0]
     assert eintrag["cleaned"] == "Mein spätes Diktat."
     assert gruende.IN_ABLAGE in eintrag["reason"]
+
+
+def _app_nach_diktat(tmp_path, ergebnis: str, in_ablage: bool):
+    """DesktopApp-Attrappe, deren Pipeline `ergebnis` liefert — der Text steht
+    danach im Feld oder (`in_ablage`) nur in der Zwischenablage. Gibt die Attrappe
+    und die Listen der Pillen-Zustaende, Blasen und Toasts zurueck."""
+    import types
+
+    from fleech.profiles import ProfileOverrides
+
+    zustaende, blasen, toasts = [], [], []
+    still = types.SimpleNamespace(emit=lambda *a: None)
+    text = "Mein spätes Diktat."
+    fake = types.SimpleNamespace(
+        _app_profile_overrides=lambda: ProfileOverrides(),
+        _setze_sprache=lambda s: None,
+        settings=types.SimpleNamespace(
+            output=types.SimpleNamespace(command_enabled=True),
+            general=types.SimpleNamespace(language="de", save_history=False),
+        ),
+        config=types.SimpleNamespace(audio=types.SimpleNamespace(samplerate=16000)),
+        store=HistoryStore(tmp_path / "history.db"),
+        pipeline=types.SimpleNamespace(
+            process=lambda audio, samplerate, **kw: ergebnis,
+            last_mode="cleanup", last_injected="" if in_ablage else text,
+            last_raw="roh", last_formulas=[], last_dropped_tail="", last_reason="",
+            last_error_kind="", last_tier="", last_stt_ms=0, last_llm_ms=0,
+            in_ablage_statt_eingefuegt=in_ablage,
+            in_ablage_text=text if in_ablage else "",
+            injector=types.SimpleNamespace(send_enter=lambda: None),
+        ),
+        bus=types.SimpleNamespace(
+            injection_fallback=still, formula_preview=still, tail_dropped=still,
+            transcript_ready=still, history_changed=still,
+            set_state=lambda zustand, text="": zustaende.append(text),
+            in_ablage=types.SimpleNamespace(emit=blasen.append),
+        ),
+        notifier=types.SimpleNamespace(sound=lambda k: None,
+                                       toast=lambda *a, **k: toasts.append(a)),
+        _record_app="", _record_title="", _undo_candidate=None,
+        _check_dictionary_candidates=lambda t: None,
+        _count_dictionary_usage=lambda t: None,
+        _flash_status=lambda t: None,
+    )
+    return fake, zustaende, blasen, toasts
+
+
+def test_rueckfall_in_der_ablage_meldet_die_ablage(qapp, tmp_path):
+    """Der Fall vom 2026-10-08: Ollama brach ab, das Rohtranskript war erst 39 s
+    nach dem Sprechen fertig, der Nutzer in einem anderen Fenster → Zwischenablage.
+    Die Pille meldete „eingefügt (Fallback — Log prüfen)", Blase und Toast blieben
+    aus — der Ablage-Zweig galt nur fuer „ok". Gemeldet „eingefügt", angekommen
+    nichts."""
+    from fleech.ui.desktop import DesktopApp
+
+    fake, zustaende, blasen, toasts = _app_nach_diktat(tmp_path, "fallback", True)
+    DesktopApp._process_locked(fake, b"\x00" * 32)
+    assert blasen == ["Mein spätes Diktat."]
+    assert zustaende[-1] == "in der Zwischenablage (unbereinigt)"
+    assert not any("eingefügt" in z for z in zustaende)
+    assert any("ohne KI-Bereinigung" in t[2] for t in toasts)
+
+
+@pytest.mark.parametrize("ergebnis,zustand", [
+    ("ok", "eingefügt"),
+    ("fallback", "eingefügt (Fallback — Log prüfen)"),
+])
+def test_eingefuegtes_diktat_meldet_weiter_eingefuegt(qapp, tmp_path, ergebnis, zustand):
+    """Gegenprobe: Stand der Text im Feld, bleibt alles wie bisher — keine Blase,
+    kein Ablage-Toast, und „ok" landet nicht im Fehlerzweig."""
+    from fleech.ui.desktop import DesktopApp
+
+    fake, zustaende, blasen, toasts = _app_nach_diktat(tmp_path, ergebnis, False)
+    DesktopApp._process_locked(fake, b"\x00" * 32)
+    assert zustaende[-1] == zustand
+    assert blasen == []
+    assert not any("Zwischenablage" in t[2] for t in toasts)

@@ -124,6 +124,34 @@ def test_abgeschnittene_antwort_wird_gemeldet(monkeypatch):
     assert client.last_truncated
 
 
+@pytest.mark.parametrize("rumpf,erwartet", [
+    (b'{"error":"model runner has unexpectedly stopped, this may be due to '
+     b'resource limitations"}', "model runner has unexpectedly stopped"),
+    (b"kein JSON, nur Text", "kein JSON, nur Text"),
+    (b"", None),
+])
+def test_ollamas_fehlersatz_steht_in_der_meldung(monkeypatch, rumpf, erwartet):
+    """2026-10-08: Im Fleech-Protokoll stand nur „HTTP Error 500" — dass Ollama an
+    vollem Grafikspeicher gestorben war, fand sich erst in Ollamas eigenem Log.
+    Der Satz aus dem Antwortrumpf gehoert in die Meldung; der Code bleibt."""
+    import urllib.error
+
+    def urlopen(request, timeout=None):
+        raise urllib.error.HTTPError(request.full_url, 500, "Internal Server Error",
+                                     {}, io.BytesIO(rumpf))
+
+    monkeypatch.setattr("urllib.request.urlopen", urlopen)
+    with pytest.raises(urllib.error.HTTPError) as fehler:
+        ChatClient(LLMEndpointConfig()).complete("SYS", "text")
+    assert fehler.value.code == 500
+    meldung = str(fehler.value)
+    assert meldung.startswith("HTTP Error 500: Internal Server Error")
+    if erwartet:
+        assert f"Ollama: {erwartet}" in meldung
+    else:
+        assert meldung == "HTTP Error 500: Internal Server Error"
+
+
 def test_denkblock_wird_auch_auf_dem_direktweg_entfernt(monkeypatch):
     _fake_urlopen(monkeypatch, {"message": {"content": "<think>hm</think>Der Text."}}, [])
     assert ChatClient(LLMEndpointConfig()).complete("SYS", "text") == "Der Text."
