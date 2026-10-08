@@ -23,8 +23,9 @@ Spracherkennung wählst oder die Live-Vorschau einschaltest.
 
 Fehlt das Erkennungsmodell nach der Einführung — etwa weil sie vor dem Download
 übersprungen wurde —, lädt Fleech es jetzt mit Stand in der Pille nach statt
-still im Hintergrund. Ein abgebrochener Download zählt dabei als „fehlt" und
-wird fertig geladen.
+still im Hintergrund. Ein Diktat in dieser Zeit meldet „Spracherkennung fehlt"
+statt „Verarbeitung fehlgeschlagen". Ein abgebrochener Download zählt als
+„fehlt" und wird fertig geladen.
 
 ---
 

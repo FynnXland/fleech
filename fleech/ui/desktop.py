@@ -572,6 +572,8 @@ class DesktopApp(
             self.bus.set_state(AppState.IDLE, "nichts erkannt")
         else:
             self.notifier.sound("error")
+            if self._stt_fehlt_beim_diktat():
+                return
             self.bus.set_state(AppState.ERROR, "Verarbeitung fehlgeschlagen — Log prüfen")
             self.notifier.toast("critical_error", "Fleech",
                                 "Verarbeitung fehlgeschlagen — Details im Log.")

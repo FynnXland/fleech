@@ -100,6 +100,28 @@ class ModelleMixin:
         finally:
             self._stt_nachladen.release()
 
+    def _stt_fehlt_beim_diktat(self) -> bool:
+        """Scheiterte das Diktat, weil das Erkennungsmodell fehlt? Dann genau das
+        sagen statt „Log prüfen" — und es ueber die Einrichtung holen.
+
+        Der Fall: Einfuehrung uebersprungen, bevor deren Einrichtung lief. Der
+        Warm-up beim Start hatte das Modell da noch der Einrichtung ueberlassen.
+        Steht die Einfuehrung weiter aus, wird nicht ungefragt geladen — dort
+        wird erst gewaehlt, was es sein soll."""
+        from ... import provisioning
+
+        modell = self.config.stt.model_size
+        if provisioning.whisper_present(modell):
+            return False
+        if self.settings.general.onboarding_done:
+            self.bus.set_state(AppState.ERROR, "Spracherkennung fehlt — wird geladen …")
+            threading.Thread(target=self._stt_modell_fehlt, args=(modell,),
+                             name="fleech-sttnachladen", daemon=True).start()
+        else:
+            self.bus.set_state(AppState.ERROR, "Spracherkennung fehlt — Einstellungen → "
+                               "Allgemein → „Einführung erneut zeigen“")
+        return True
+
     def _warm_up_stt(self) -> None:
         import numpy as np
 

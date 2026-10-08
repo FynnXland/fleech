@@ -359,3 +359,56 @@ def test_vorschau_holt_ihr_fehlendes_modell(monkeypatch):
     ModelleMixin._ensure_preview_model(app)
     assert geladen == [AppConfig().overlay.model_size]
     assert versuche == [1, 1]                # vor und nach dem Download
+
+
+def _diktat_app(monkeypatch, vorhanden, onboarding_done=True):
+    import fleech.provisioning as prov
+    import fleech.ui.desktopapp.modelle as modelle
+
+    class SofortThread:
+        def __init__(self, target=None, args=(), name=None, daemon=None):
+            self._lauf = lambda: target(*args)
+
+        def start(self):
+            self._lauf()
+
+    monkeypatch.setattr(modelle.threading, "Thread", SofortThread)
+    monkeypatch.setattr(prov, "whisper_present", lambda m: vorhanden)
+    zustaende, nachgeladen = [], []
+    app = types.SimpleNamespace(
+        config=types.SimpleNamespace(stt=types.SimpleNamespace(model_size="large-v3-turbo")),
+        settings=types.SimpleNamespace(
+            general=types.SimpleNamespace(onboarding_done=onboarding_done)),
+        bus=types.SimpleNamespace(set_state=lambda z, t: zustaende.append(t)),
+        _stt_modell_fehlt=nachgeladen.append,
+    )
+    return app, zustaende, nachgeladen
+
+
+def test_anderer_diktatfehler_bleibt_beim_alten(monkeypatch):
+    from fleech.ui.desktopapp.modelle import ModelleMixin
+
+    app, zustaende, nachgeladen = _diktat_app(monkeypatch, vorhanden=True)
+    assert ModelleMixin._stt_fehlt_beim_diktat(app) is False
+    assert zustaende == [] and nachgeladen == []
+
+
+def test_diktat_ohne_modell_sagt_es_und_laedt_nach(monkeypatch):
+    """Einfuehrung uebersprungen, bevor deren Einrichtung lief: Statt „Log
+    pruefen" sagt die Pille, was los ist, und das Modell kommt."""
+    from fleech.ui.desktopapp.modelle import ModelleMixin
+
+    app, zustaende, nachgeladen = _diktat_app(monkeypatch, vorhanden=False)
+    assert ModelleMixin._stt_fehlt_beim_diktat(app) is True
+    assert zustaende == ["Spracherkennung fehlt — wird geladen …"]
+    assert nachgeladen == ["large-v3-turbo"]
+
+
+def test_diktat_ohne_modell_vor_der_einfuehrung_verweist_auf_sie(monkeypatch):
+    from fleech.ui.desktopapp.modelle import ModelleMixin
+
+    app, zustaende, nachgeladen = _diktat_app(monkeypatch, vorhanden=False,
+                                              onboarding_done=False)
+    assert ModelleMixin._stt_fehlt_beim_diktat(app) is True
+    assert "Einführung erneut zeigen" in zustaende[0]
+    assert nachgeladen == []
