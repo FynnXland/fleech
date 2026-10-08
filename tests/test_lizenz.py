@@ -12,7 +12,7 @@ ROOT = Path(__file__).resolve().parents[1]
 
 # Zusammengesetzt, damit dieser Test sich nicht selbst findet.
 # Apache wird nur als Lizenzdatei von Fleech gesucht — Fremdmodelle unter Apache
-# (Voxtral in docs/stt-vergleich.md) duerfen weiter so beschrieben werden.
+# (Voxtral in docs/stt-comparison.de.md) duerfen weiter so beschrieben werden.
 VERBOTEN = ("General " + "Public License", "GPL-" + "3", "GNU " + "GPL",
             "LICENSE-" + "APACHE", "LICENSE-" + "MIT")
 AUSGENOMMEN = {"THIRD-PARTY-NOTICES.md", "tests/test_lizenz.py"}

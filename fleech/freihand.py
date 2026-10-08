@@ -54,7 +54,7 @@ SAMPLERATE = 16000
 # das hier ist ein Riegel, keine Entfernung: Ein `False` an dieser Stelle macht
 # ihn wieder verfuegbar, ohne dass sonst etwas anzufassen waere.
 #
-# Der Grund steht ausfuehrlich in docs/fleech-gesamtkonzept.md, Abschnitt 21.5:
+# Der Grund steht ausfuehrlich in docs/concept.de.md, Abschnitt 21.5:
 # Ein dauerhaft offenes Mikrofon per Sprache auszuloesen ist in einem Raum mit
 # Nebengeraeuschen nicht zuverlaessig zu bekommen — und jeder Fehlstart tippt
 # Text in das gerade fokussierte Fenster. Der Bedienmodus „Anstupsen" liefert

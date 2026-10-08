@@ -1,12 +1,12 @@
 # Fleech — Gesamtkonzept, Funktionen und technische Umsetzung
 
-> Stand: Version 5.11.0, Lizenz und Updates auf 6.0.0 nachgezogen · Diese Datei ist
-> die Gesamtdarstellung des Projekts: Idee, Bedienung, jede Funktion, jede Einstellung
-> und die technische Umsetzung dahinter. Was sich seither geändert hat, steht im
+> Stand: Version 6.1.0 · Diese Datei ist die Gesamtdarstellung des Projekts: Idee,
+> Bedienung, jede Funktion, jede Einstellung und die technische Umsetzung dahinter.
+> Was sich von Version zu Version geändert hat, steht im
 > [CHANGELOG](../CHANGELOG.md); bei Verhaltensfragen ist der Quellcode maßgeblich.
 > Vertiefungen zu einzelnen Themen liegen daneben in `docs/`
-> ([Audio-Architektur](audio-architektur.md), [Focus & Notifications](focus-notifications.md),
-> [STT-Vergleich](stt-vergleich.md)).
+> ([Audio-Architektur](audio-architecture.de.md), [Benachrichtigungen und Fokus](notifications-and-focus.de.md),
+> [Spracherkennung im Vergleich](stt-comparison.de.md)).
 
 ---
 
@@ -49,7 +49,7 @@ einziger Satz:
 > **Hotkey halten → sprechen → loslassen → der fertig bereinigte Text steht im
 > Textfeld, in dem der Cursor stand.**
 
-Es gibt kein Fenster, das man vorher öffnen muss, kein „Einfügen"-Knopf, keinen
+Es gibt kein Fenster, das man vorher öffnen muss, kein „Einfügen“-Knopf, keinen
 Zwischenschritt. Fleech lebt im System-Tray und wird über eine Taste bedient. Was
 ankommt, ist nicht das rohe Erkennungsergebnis, sondern ein von einem Sprachmodell
 aufgeräumter Text: Füllwörter entfernt, Selbstkorrekturen aufgelöst, Interpunktion und
@@ -59,30 +59,33 @@ Absätze nach Bedeutung gesetzt.
 
 | | Windows-Diktat / Cloud-Dienste | Fleech |
 |---|---|---|
-| Verarbeitung | Cloud | **vollständig lokal**, ohne Ausnahme |
+| Verarbeitung | Cloud | **lokal** im Auslieferungszustand; eine Cloud-KI nur, wenn man selbst einen Anbieter mit eigenem Schlüssel wählt (dann geht Text, nie Ton) |
 | Ergebnis | Wort-für-Wort-Transkript | **redigierter Text** (LLM-Nachbearbeitung) |
 | Anpassung | kaum | Profile pro App, Wörterbuch, Prompts editierbar, Projekt-Gedächtnis |
-| Sonderfälle | — | Formeln als LaTeX, Sprachbefehle, Prompts, Anstupsen (Diktat endet von selbst) |
-| Kosten | Abo | keine (lokale Modelle) |
+| Sonderfälle | — | Formeln als LaTeX (optional), Sprachbefehle, Prompts, E-Mails, Stichpunkte, Anstupsen (Diktat endet von selbst) |
+| Kosten | Abo | keine bei lokaler KI; bei eigenem Cloud-Schlüssel rechnet der Anbieter ab |
 
 ### Die fünf Dinge, die Fleech kann
 
 1. **Diktieren** — der Normalfall: sprechen, sauberer Text erscheint.
 2. **Befehlen** — mitten im Redefluss ein Safe-Word sagen und den gerade diktierten
-   Text umformulieren lassen („… *Kimono*, mach das formeller").
-3. **Formeln** — gesprochene Mathematik landet als LaTeX im Text, auch mitten im Satz.
-4. **Prompts bauen** — ein unstrukturiert hingesprochener Auftrag wird zu einem
-   sauber gegliederten KI-Prompt.
+   Text umformulieren lassen („… *Kimono*, mach das formeller“).
+3. **Formeln** — gesprochene Mathematik landet als LaTeX im Text, auch mitten im Satz
+   (zuschaltbar unter Einstellungen → Ausgabe).
+4. **Umformen** — ein unstrukturiert hingesprochener Auftrag wird zu einem sauber
+   gegliederten KI-Prompt, zu einer E-Mail oder zu Stichpunkten.
 5. **Anstupsen** — einmal drücken, reden, aufhören: das Diktat endet von selbst.
    Der Nachfolger von **Freihand** (5.3.0–5.10.0, Startwort statt Taste), das seit
    5.10.1 stillgelegt ist und dessen **Oberfläche in 5.11.0 entfernt** wurde. Der
    Code bleibt eingefroren im Projekt (Details in Kapitel 21).
 
-Alles läuft auf dem eigenen Rechner: Spracherkennung über
+Im Auslieferungszustand läuft alles auf dem eigenen Rechner: Spracherkennung über
 [faster-whisper](https://github.com/SYSTRAN/faster-whisper), Nachbearbeitung über ein
-lokales Sprachmodell via [Ollama](https://ollama.com). **Nichts verlässt den Rechner** —
-seit 3.0.0 ohne Ausnahme, weil auch der Formel-Modus lokal arbeitet (siehe
-[4.3](#43-formel-modus-mathematik-als-latex)).
+lokales Sprachmodell via [Ollama](https://ollama.com), Formeln über einen Parser ohne
+Modell (siehe [4.3](#43-formel-erkennung-mathematik-als-latex)). **Kein Diktat verlässt
+den Rechner**, solange man das nicht ausdrücklich ändert: Seit 6.1.0 lässt sich unter
+*Einstellungen → KI* stattdessen ein Cloud-Anbieter mit eigenem API-Schlüssel wählen
+(siehe [13.2](#132-der-llm-zugang)) — oder „Ohne KI“, dann wird nur erkannt.
 
 ---
 
@@ -96,7 +99,7 @@ Jeder Spezialmodus fällt bei einem Fehlschlag auf den nächst-einfacheren Pfad 
 Prompt/Befehl/Formel → normale Bereinigung → rohes Transkript. Selbst wenn das
 Sprachmodell nicht erreichbar ist, landen die gesprochenen Worte im Textfeld. Solche
 Läufe werden intern als `fallback` markiert und sind in den Insights als
-„Fallback-Quote" sichtbar.
+„Fallback-Quote“ sichtbar.
 
 **2. Deterministischer Code schlägt Prompt-Hoffnung.**
 Wo man ein Modell bitten *könnte*, etwas zu unterlassen, korrigiert Fleech lieber im
@@ -105,13 +108,16 @@ Wörterbuch-Ersetzungen per Regex. Prompts sind Absicht, Code ist Garantie.
 
 **3. Im Zweifel konservativ.**
 Unsicherheit führt immer zum teureren, aber sichereren Weg: Enthält ein Diktat eine
-Zahl, geht es ausnahmslos ans große Modell. Reicht das Signal für eine Plausibilitäts-
-prüfung nicht, greift der Schutz gar nicht erst. Muster-Aussagen („du bist morgens am
-produktivsten") erscheinen erst ab fünf Diktaten.
+Zahl, läuft es ausnahmslos über das Sprachmodell samt allen Prüfungen, nie über die
+Abkürzung ohne Modell. Reicht das Signal für eine Plausibilitätsprüfung nicht, greift
+der Schutz gar nicht erst. Muster-Aussagen („du bist morgens am produktivsten“)
+erscheinen erst ab fünf Diktaten.
 
 **4. Tempo nur sparen, wo es nichts kostet.**
-Ein Fünf-Wort-Diktat ohne Füllwörter überspringt das Sprachmodell komplett. Kurze,
-einfache Sätze gehen an ein kleines, schnelles Modell. Alles Heikle bekommt das große.
+Ein Fünf-Wort-Diktat ohne Füllwörter überspringt das Sprachmodell komplett. Längere
+Diktate werden schon während des Sprechens erkannt, Abschnitt für Abschnitt. Ein
+eigenes kleines Modell für kurze Sätze gab es bis 3.5.0 — es sparte 0,1 s und kostete
+Wortgetreue, deshalb läuft heute alles über ein Modell (Kapitel 6).
 
 **5. Der Commit-Pfad ist heilig.**
 Live-Vorschau, Overlay-Animation, Verlaufsspeicherung und Statistik sind so gekapselt,
@@ -124,7 +130,7 @@ scheitert → der Text geht an den aktuellen Fokus. Instanz-Sperre nicht setzbar
 ungeschützt starten als fälschlich blockieren.
 
 **7. Kompaktheit in der Oberfläche.**
-Dichte Layouts, kurze Texte hinter „?"-Badges statt Fließtext neben jedem Regler, eine
+Dichte Layouts, kurze Texte hinter „?“-Badges statt Fließtext neben jedem Regler, eine
 kleine Pille statt einer Werkzeugleiste. Die Bedienoberfläche soll beim Arbeiten nicht
 auffallen.
 
@@ -136,16 +142,17 @@ auffallen.
    Hotkey                                                          Textfeld
      │                                                                 ▲
      ▼                                                                 │
- ┌────────┐   ┌─────┐   ┌──────────┐   ┌───────────┐   ┌───────────┐  │
+ ┌────────┐   ┌─────┐   ┌──────────┐   ┌────────────┐  ┌───────────┐  │
  │Aufnahme│──▶│ STT │──▶│  Modus-  │──▶│Sprachmodell│─▶│ Injection │──┘
- │ (Mic)  │   │     │   │ Routing  │   │            │  │(Clipboard)│
- └────────┘   └─────┘   └──────────┘   └───────────┘   └───────────┘
-     │                        │                              ▲
-     │                        ├─ Bereinigung ────────────────┤
-     │                        ├─ Befehl ─────────────────────┤
-     │                        ├─ Formel (LaTeX) ─────────────┤
-     │                        └─ KI-Prompting ───────────────┘
-     │
+ │ (Mic)  │   │     │   │ Routing  │   │  + Guards  │  │(Clipboard)│
+ └────────┘   └─────┘   └──────────┘   └────────────┘  └───────────┘
+     │          ▲             │                              ▲
+     │          │             ├─ Bereinigung ────────────────┤
+     │          │             ├─ Befehl (Safe-Word) ─────────┤
+     │          │             └─ Ausgabeformat ──────────────┘
+     │          │                (Stichpunkte, E-Mail, KI-Prompt)
+     │          │
+     ├──────────┴──▶ Abschnitte: schon beim Sprechen erkannt (an Pausen)
      └──▶ Live-Vorschau (optional, unverbindlich, entkoppelt)
 ```
 
@@ -155,31 +162,41 @@ auffallen.
 das nicht (manche Audio-Interfaces verlangen mindestens 44,1 kHz), nimmt Fleech die
 native Rate des Geräts und rechnet intern zurück — nach außen liefert der Recorder
 immer 16 kHz. Die verstrichene Zeit wird **aus der Anzahl gelieferter Samples**
-berechnet, nicht aus der Uhr; das ist die Voraussetzung dafür, dass Inline-Formel-
-Segmente später samplegenau geschnitten werden können.
+berechnet, nicht aus der Uhr. Längere Diktate werden schon **während** der Aufnahme
+an Sprechpausen in Abschnitte geschnitten und im Hintergrund erkannt (siehe
+[13.1](#131-spracherkennung)).
 
 **2 · Längen-Gate.** Aufnahmen unter **0,3 Sekunden** werden verworfen (Ergebnis
 `too_short`) — kein Erkennungslauf, kein Modell, kein Verlaufseintrag. Das fängt
 versehentliche Tastendrücke ab.
 
 **3 · Spracherkennung.** faster-whisper `large-v3-turbo` auf der GPU (~0,2 s bei warmem
-Modell). Vorher wird ein `initial_prompt` zusammengesetzt, der die Erkennung primt:
-das persönliche Wörterbuch (bis zu 60 Begriffe), das Safe-Word (ein Kunstwort, das
-ohne Priming stimmabhängig unzuverlässig erkannt wird) und im Formel-Modus zusätzlich
-mathematisches Grenzvokabular.
+Modell; nach dem Loslassen fehlt dank der Abschnitte meist nur noch der letzte Satz).
+Vorher wird ein `initial_prompt` zusammengesetzt, der die Erkennung primt: das
+persönliche Wörterbuch (bis zu 60 Begriffe), die gelernten Fachbegriffe des
+Projekt-Gedächtnisses (Kapitel 20) und das Safe-Word (ein Kunstwort, das ohne Priming
+stimmabhängig unzuverlässig erkannt wird). Direkt danach laufen die Roh-Guards:
+tonlose Floskeln am Ende und Wiederholungsschleifen fliegen raus (siehe
+[5.2](#52-halluzinationen-der-spracherkennung)).
 
-**4 · Modus-Routing.** Aus dem Rohtranskript, dem Hotkey-Zustand und den Einstellungen
-wird der Modus bestimmt (Details in [Kapitel 4](#4-die-betriebsmodi)).
+**4 · Modus-Routing.** Aus dem Rohtranskript, dem Hotkey-Zustand, dem aktiven Profil und
+den Einstellungen wird der Weg bestimmt (Details in [Kapitel 4](#4-die-betriebsmodi)).
 
-**5 · Sprachmodell.** Je nach Modus läuft ein anderer System-Prompt gegen ein anderes
-Modell. Das Rohtranskript geht dabei **nie** als nackte Nutzernachricht hinein, sondern
-immer als abgegrenzter Datenblock zwischen `⟦TRANSKRIPT⟧`-Markern.
+**5 · Sprachmodell.** Je nach Weg läuft ein anderer System-Prompt — gegen das lokale
+Ollama oder den gewählten Cloud-Anbieter. Das Rohtranskript geht dabei **nie** als
+nackte Nutzernachricht hinein, sondern immer als abgegrenzter Datenblock zwischen
+`⟦TRANSKRIPT⟧`-Markern. Lange Diktate werden in Blöcken bereinigt, jeder Block für
+sich geprüft (siehe [5.6](#56-lange-diktate-in-blöcken-seit-5152)).
 
-**6 · Nachbearbeitung im Code.** Umschließende Anführungszeichen abstreifen,
-Wörterbuch-Ersetzungen anwenden, Whitespace normalisieren.
+**6 · Nachbearbeitung im Code.** Umschließende Anführungszeichen abstreifen, „äh“/„ähm“
+deterministisch entfernen, Formel-Platzhalter wieder durch LaTeX ersetzen,
+Wörterbuch-Ersetzungen und gesprochene Zeichen („Slash“ → „/“) anwenden.
 
 **7 · Einfügen.** Text in die Zwischenablage, Fokus zum Ausgangsfeld zurückholen,
-simuliertes Strg+V, alte Zwischenablage wiederherstellen.
+simuliertes Strg+V, alte Zwischenablage wiederherstellen. Ist das Diktat erst mehr als
+30 Sekunden nach dem Ende der Aufnahme fertig und man arbeitet inzwischen in einem
+anderen Fenster, bleibt es stattdessen in der Zwischenablage (siehe
+[12.1](#121-text-einfügen)).
 
 **8 · Buchführung.** Verlaufseintrag in die lokale SQLite-Datenbank, Statistiken
 aktualisieren, Text kurz über der Pille einblenden.
@@ -191,21 +208,30 @@ jederzeit bedienbar.
 
 ## 4. Die Betriebsmodi
 
-Fleech kennt vier Verarbeitungsmodi. Drei davon ergeben sich automatisch, einer wird
-per Taste geschaltet.
+Fleech kennt drei Verarbeitungswege: die **Bereinigung** (Standard), **Safe-Word-Befehle**
+und die **umformulierenden Ausgabeformate** (Stichpunkte, E-Mail, KI-Prompt). Welcher
+greift, ergibt sich aus dem gesprochenen Text, dem aktiven Profil oder einer Taste.
+Formeln sind seit 3.0.0 kein eigener Modus mehr, sondern eine zuschaltbare Stufe der
+Bereinigung (4.3).
 
 ### 4.1 Bereinigung (Standard)
 
 Der Normalfall. Das Sprachmodell bekommt das Rohtranskript und gibt einfügefertigen
-Text zurück. Der System-Prompt (`prompts/cleanup.md`) legt fest, was passiert:
+Text zurück. Der System-Prompt (`prompts/cleanup.md`, für englische Diktate
+`prompts/cleanup-en.md`) legt fest, was passiert:
 
 - **Füllwörter entfernen** — äh, ähm, halt, quasi, sozusagen — aber nur, wenn sie keine
-  Bedeutung tragen („halt" kann auch ein Verb sein).
+  Bedeutung tragen („halt“ kann auch ein Verb sein). Auf „äh“, „ähm“, „öh“ und „öhm“
+  verlässt sich Fleech dabei nicht: Das Modell entfernte von 564 solchen Füllwörtern
+  nur 14. Seit 5.13.3 nimmt `fleech/vorbereinigung.py` sie **nach** dem Modell
+  deterministisch heraus, samt der Kommas drumherum — „ähnlich“ oder „während“
+  bleiben, ebenso „eh“ im Sinn von „ohnehin“. Beim Eingriffsgrad „Minimal“ bleibt der
+  Text, wie er gesprochen wurde.
 - **Erkennungsfehler korrigieren**, aber nur bei eindeutigem gemeintem Wortlaut.
 - **Interpunktion und Groß-/Kleinschreibung nach Bedeutung** setzen, nicht nach Pausen.
 - **Absätze** einfügen, wo ein neues Thema beginnt.
-- **Selbstkorrekturen auflösen**: „Wir treffen uns um 3 — ähm, nein, um 4" wird zu
-  „Wir treffen uns um 4."
+- **Selbstkorrekturen auflösen**: „Wir treffen uns um 3 — ähm, nein, um 4“ wird zu
+  „Wir treffen uns um 4.“
 
 Ausdrücklich verboten ist: Inhalte hinzufügen, präzise Formulierungen paraphrasieren,
 übersetzen, die Anredeform ändern, Fachbegriffe eindeutschen — und, am wichtigsten,
@@ -216,11 +242,11 @@ Ausdrücklich verboten ist: Inhalte hinzufügen, präzise Formulierungen paraphr
 | Grad | Verhalten | Sprachmodell |
 |---|---|---|
 | **Minimal** | Rohtext unverändert durchreichen | keins (0 ms) |
-| **Standard** | Füllwörter weg, saubere Zeichensetzung | adaptiv (klein oder groß) |
-| **Strong** | zusätzlich Schachtelsätze auflösen, Wiederholungen tilgen, Aufzählungen erzeugen | immer das große |
+| **Standard** | Füllwörter weg, saubere Zeichensetzung | ja — sehr kurze, saubere Sätze ganz ohne (Kapitel 6) |
+| **Strong** | zusätzlich Schachtelsätze auflösen, Wiederholungen tilgen, Aufzählungen erzeugen | immer |
 
-„Strong" lädt einen Zusatz-Prompt (`prompts/cleanup-strong.md`) nach, der den Text „wie
-sorgfältig geschrieben" wirken lassen soll — ohne Aussage, Ton oder Anrede zu ändern.
+„Strong“ lädt einen Zusatz-Prompt (`prompts/cleanup-strong.md`) nach, der den Text „wie
+sorgfältig geschrieben“ wirken lassen soll — ohne Aussage, Ton oder Anrede zu ändern.
 
 Der Eingriffsgrad ist global einstellbar und **pro App über Profile übersteuerbar**
 (siehe [Kapitel 7](#7-profile)).
@@ -229,19 +255,19 @@ Der Eingriffsgrad ist global einstellbar und **pro App über Profile übersteuer
 
 Der Befehls-Modus erlaubt es, **mitten im Diktat** eine Anweisung an Fleech zu geben,
 statt Text zu diktieren. Ausgelöst wird er durch ein gesprochenes Safe-Word — im
-Standard **„Kimono"**.
+Standard **„Kimono“**.
 
 > „Der Server war gestern offline und wir mussten neu starten. **Kimono**, formulier
-> den letzten Satz sachlicher."
+> den letzten Satz sachlicher.“
 
 Alles **vor** dem Safe-Word ist Diktat und wird normal bereinigt eingefügt. Alles
-**danach** ist Anweisung. Optional kann man mit „**Kimono Ende**" die Anweisung
+**danach** ist Anweisung. Optional kann man mit „**Kimono Ende**“ die Anweisung
 abschließen und danach normal weiterdiktieren.
 
-**Warum ausgerechnet „Kimono"?** Die Wortwahl ist empirisch getestet: „Kimono",
-„Ananas" und „Salami" überleben die Erkennung mit large-v3 und large-v3-turbo
-fehlerfrei. Das ursprünglich geplante „Redax" wurde durchgängig als „Idax", „Edax" oder
-„Redux" gehört und ist deshalb raus. Das Safe-Word ist in den Einstellungen frei
+**Warum ausgerechnet „Kimono“?** Die Wortwahl ist empirisch getestet: „Kimono“,
+„Ananas“ und „Salami“ überleben die Erkennung mit large-v3 und large-v3-turbo
+fehlerfrei. Das ursprünglich geplante „Redax“ wurde durchgängig als „Idax“, „Edax“ oder
+„Redux“ gehört und ist deshalb raus. Das Safe-Word ist in den Einstellungen frei
 änderbar (ohne Neustart), weil Erkennungsrobustheit stimmabhängig ist.
 
 **Was das Modell zurückgibt.** Der Befehls-Prompt verlangt eine JSON-Antwort mit genau
@@ -256,12 +282,12 @@ drei Feldern:
 **Was Fleech ersetzen kann — und was nicht.** Fleech kann fremde Textfelder nicht
 lesen. Es führt deshalb intern Buch über *den Text, den es selbst eingefügt hat*
 (`DocumentTracker`). Ersetzungen funktionieren nur am **Ende dieses eigenen Diktats**
-(technisch: n-mal Rücktaste, dann neu einfügen). „Ganzes Dokument" heißt folglich
-„das gesamte selbst diktierte Material", nicht der reale Dateiinhalt.
+(technisch: n-mal Rücktaste, dann neu einfügen). „Ganzes Dokument“ heißt folglich
+„das gesamte selbst diktierte Material“, nicht der reale Dateiinhalt.
 
 **Session-Kontext (seit v1.11.0).** Pro Fenster bleibt der Diktat-Verlauf erhalten —
 wer kurz in den Browser schaut und zurückkehrt, hat den Kontext wieder: Bezüge
-(„mach daraus eine Liste"), Anhängen und die Fortsetzung funktionieren, das
+(„mach daraus eine Liste“), Anhängen und die Fortsetzung funktionieren, das
 Befehls-Modell bekommt den alten KONTEXT-Block. Aber: *Kontext lesen und Text
 ersetzen sind nicht gleich gefährlich.* Ersetzungen laufen über blinde Rücktasten und
 setzen voraus, dass der Cursor exakt hinter dem eigenen Text steht — nach einer
@@ -270,16 +296,17 @@ Ersetzungs-Scopes nach einer Rückkehr gesperrt, bis das nächste eigene Diktat 
 Fenster die Cursor-Annahme wieder herstellt (der Befehl fällt bis dahin sauber auf den
 Cleanup zurück, es geht nie etwas verloren). Der Kontext verfällt nach **15 Minuten**
 ohne Diktat; höchstens 8 Fenster à ~8 kB, alles nur im RAM. Ein kleiner **cyan
-Satellit** am Modus-Punkt der Pille zeigt, dass Fleech sich an Diktate im aktuellen
-Fenster erinnert (Tooltip: wie viele, wie lange her).
+Satellit** am Profil-Punkt der Pille zeigt, dass Fleech sich an Diktate im aktuellen
+Fenster erinnert (Tooltip: wie viele, wie lange her); **hohl** ist er, wenn der
+Kontext nach einem Fensterwechsel nur noch lesbar ist und Ersetzen gesperrt bleibt.
 
 **Zwei Sicherungen gegen Schäden** — beide entstanden aus real aufgetretenen Fehlern:
 
 *Löschguard.* Ein leeres `replacement` bei gesetztem Ziel löscht Text. Auslöser der
 Regel war ein Vorfall, bei dem eine harmlose Umformulierungs-Anweisung ein leeres
 Ergebnis lieferte und **2701 Zeichen** verschwanden. Seitdem gilt: ersatzloses Löschen
-ist nur erlaubt, wenn die gesprochene Anweisung auch danach klingt („lösch", „entfern",
-„streich", „verwirf", „vergiss", „weg damit", „delete"). Andernfalls wird der Befehl
+ist nur erlaubt, wenn die gesprochene Anweisung auch danach klingt („lösch“, „entfern“,
+„streich“, „verwirf“, „vergiss“, „weg damit“, „delete“). Andernfalls wird der Befehl
 verworfen und der Text normal bereinigt eingefügt.
 
 *Plausibilitätsprüfung.* Ein Ersetzungstext, der mit dem Original inhaltlich nichts mehr
@@ -288,7 +315,7 @@ die Schwelle passt sich der Anweisung an:
 
 | Art der Anweisung | Schwelle | Begründung |
 |---|---|---|
-| Übersetzung („übersetz ins Englische") | **aus** | teilt sprachbedingt keine Wörter |
+| Übersetzung („übersetz ins Englische“) | **aus** | teilt sprachbedingt keine Wörter |
 | Kürzen/Zusammenfassen | 10 % | verliert legitim viel Text |
 | alles andere | 30 % | Standardfall |
 
@@ -299,77 +326,71 @@ Bereinigung als ein halluziniertes Ergebnis im Textfeld.
 **Scheitert ein Befehl**, wird garantiert **nur der Diktat-Teil vor dem Safe-Word**
 eingefügt — Safe-Word und Anweisung tauchen niemals im Zieltext auf.
 
-**Ohne Sprechen:** Der »-Knopf in der Pille startet eine reine Befehls-Aufnahme. Dann
-ist die gesamte Äußerung Anweisung, kein Safe-Word nötig.
+**Wann Befehle ruhen.** Das gesprochene Safe-Word lässt sich global (Einstellungen →
+Ausgabe) und je Profil abschalten; in den mitgelieferten Profilen Geschäftlich,
+E-Mail, KI-Prompt und Stichpunkte ist es von Haus aus aus. Bei „Ohne KI“ ruhen
+Befehle ganz, weil sie ein Modell brauchen. Einen Knopf für eine reine
+Befehls-Aufnahme (»-Knopf in der Pille) gab es früher; er wurde nie benutzt und ist
+aus der Pille entfernt — das gesprochene Safe-Word ist der einzige Weg.
 
-### 4.3 Formel-Modus (Mathematik als LaTeX)
+### 4.3 Formel-Erkennung (Mathematik als LaTeX)
 
-Gesprochene Mathematik wird zu LaTeX. „x hoch zwei plus eins, das Ganze durch zwei" wird
-zu `\frac{x^2+1}{2}` — und eben **nicht** zu `x^2+\frac{1}{2}`.
+Gesprochene Mathematik wird zu LaTeX, eingebettet in den normalen Fließtext und ohne
+Umschalten: „die Lösung ist x hoch zwei plus zwei x plus eins“ wird zu „Die Lösung ist
+$x^{2} + 2x + 1$.“
+
+**Zuschaltbar, nicht Standard.** Die Formel-Erkennung steht unter *Einstellungen →
+Ausgabe* und ist im Auslieferungszustand **aus** (`math.auto_latex = False`). Gedacht
+ist sie für gemischte Arbeit — Text und Mathematik im selben Programm. Wer nie Formeln
+diktiert, soll nicht riskieren, dass eine Alltagszahl plötzlich in Dollarzeichen steht.
+Das Vokabular des Parsers ist deutsch.
 
 **Ein Parser, kein Modell.** Bis 2.x ging dafür das **Audio** an ein multimodales
 Cloud-Modell — die Begründung war, dass Betonung und Pausen die Gruppierung auflösen,
-die im Text verlorengeht. Mit 3.0.0 ist dieser Weg **vollständig entfernt**: Die
-Gruppierung kommt jetzt aus gesprochenen Klammergrenzen („in Klammern … Klammer zu",
-„Wurzel aus … Ende Wurzel", „das Ganze durch"), die ein deterministischer Parser
-auswertet (`fleech/formula.py`).
+die im Text verlorengeht. Mit 3.0.0 ist dieser Weg **vollständig entfernt**, samt
+Mathe-Hotkey, gesprochenen „Formel: … Formel Ende“-Markern und eigenem Formel-Modus.
+Heute übersetzt ein deterministischer Parser (`fleech/formula.py`): Variablen und
+Zahlen, Operatoren („plus“, „mal“, „geteilt durch“, „gleich“ …), „hoch“ und „Quadrat“,
+„Wurzel aus“, Brüche mit „durch“, griechische Buchstaben, Funktionen wie Sinus oder
+Logarithmus und gesprochene Klammern („Klammer auf … Klammer zu“).
 
-Das kostet etwas Bequemlichkeit — man muss die Grenzen wirklich sprechen — und bringt
-drei Dinge, die schwerer wiegen: Es verlässt **nichts** mehr den Rechner, das Ergebnis
-ist bei gleicher Eingabe **immer dasselbe**, und niemand wartet auf eine Netzantwort.
-Wo der Parser raten müsste, kennzeichnet er die Stelle als unsicher, statt still eine
-Lesart zu wählen.
+Das kostet etwas Bequemlichkeit — Gruppierung muss man aussprechen — und bringt drei
+Dinge, die schwerer wiegen: Es verlässt **nichts** den Rechner, das Ergebnis ist bei
+gleicher Eingabe **immer dasselbe**, und niemand wartet auf eine Netzantwort.
 
 > Mit dem Cloud-Pfad ist auch seine Sonderabsicherung entfallen — die Sperre bei
-> Loopback-/Mix-Eingabegeräten („Stereo Mix", „What U Hear", Monitor-Quellen unter
+> Loopback-/Mix-Eingabegeräten („Stereo Mix“, „What U Hear“, Monitor-Quellen unter
 > Linux) sollte verhindern, dass Systemaudio an einen fremden Anbieter geht. Die
 > Erkennung solcher Geräte gibt es weiterhin; sie warnt nur noch, statt zu blockieren.
 
-**Drei Wege in den Formel-Modus:**
+**Der Ablauf** (`Pipeline._cleanup_kern`):
 
-1. **Gesprochene Marker** — „**Formel:** x hoch zwei plus eins **Formel Ende**". Beide
-   Marker müssen vorkommen. Die Erkennung toleriert die Schreibvarianten „Formel Ende",
-   „Formel-Ende" und „Formelende".
-2. **Modus-Umschaltung** — über den Punkt in der Pille oder ein Profil läuft das ganze
-   Diktat im Formel-Modus.
-3. **Inline mitten im Satz** — der interessanteste Weg, siehe unten.
-
-**Inline-Formeln mitten im Diktat.** Man diktiert normalen Fließtext, drückt beim
-Erreichen einer Formel den Mathe-Hotkey, spricht die Formel, drückt erneut, und redet
-normal weiter. Technisch passiert dabei Folgendes:
-
-- Beim Drücken wird die **Sample-genaue Position** in der laufenden Aufnahme gemerkt.
-- Beim zweiten Drücken wird das Segment ausgeschnitten und **sofort parallel** an das
-  Formel-Modell geschickt — während die Aufnahme ununterbrochen weiterläuft.
-- Am Ende wird der Fließtext in die Lücken zwischen den Formel-Fenstern zerlegt, jedes
-  Textstück einzeln transkribiert, und an den Formel-Stellen ein Platzhalter (`[[F1]]`,
-  `[[F2]]`, …) eingesetzt.
-- Der zusammengesetzte Text geht **einmal** durch die Bereinigung, mit der ausdrücklichen
-  Auflage, die Platzhalter unverändert zu lassen. Danach werden sie durch die längst
-  fertig berechneten Formeln ersetzt.
+1. **Vor** dem Sprachmodell sucht der Parser im Rohtext nach Formelstellen und ersetzt
+   jede durch einen Platzhalter (`[[M1]]`, `[[M2]]` …). Das Modell bekommt die Formel
+   nie zu sehen und kann sie weder umformulieren noch als „erfundene Wörter“ auffallen
+   lassen.
+2. Die Bereinigung läuft mit der ausdrücklichen Auflage, die Platzhalter unverändert zu
+   lassen. Ein reines Formel-Diktat („Wurzel x Quadrat plus c“) überspringt das Modell
+   ganz — es gibt dort nichts zu bereinigen.
+3. **Nach** allen Prüfungen treten die fertigen LaTeX-Ausdrücke an die Stelle der
+   Platzhalter.
+4. Was der Parser nicht sicher übersetzen kann, bleibt gesprochener Text. Dafür
+   bekommt die Bereinigung einen Zusatz-Prompt, der eindeutige mathematische Ausdrücke
+   inline als `$…$` schreibt — bewusst eng gefasst: Alltagszahlen, Datumsangaben und
+   Aufzählungen bleiben normaler Text.
 
 Verliert die Bereinigung wider Erwarten einen Platzhalter, fällt Fleech auf das
-Rohtext-Gerüst zurück — **eine Formel geht nie verloren**. Die Platzhalter sind bewusst
-reines ASCII (`[[F1]]` statt `⟦F1⟧`), weil Modelle die zuverlässiger unangetastet lassen.
+Rohtext-Gerüst zurück — **eine Formel geht nie verloren** (im Verlauf steht dann der
+Grund „Formel-Platzhalter verloren“). Die Platzhalter sind bewusst reines ASCII
+(`[[M1]]` statt `⟦M1⟧`), weil Modelle die zuverlässiger unangetastet lassen.
 
-**Zwei Halluzinations-Sperren** sichern den Mix ab: Ein Formel-Segment ohne erkannte
-Sprache löst gar keinen Modell-Aufruf aus (sonst erfindet das Modell eine Formel), und
-Textfenster unter 0,4 Sekunden oder mit fast keinem Pegel werden übersprungen — sonst
-erzeugt Whisper auf Fast-Stille „Phantom-Text" am Satzanfang.
-
-**Automatische Formel-Erkennung** (opt-in, Einstellungen → Mathe). Ist sie aktiv,
-bekommt die normale Bereinigung einen Zusatz-Prompt, der erkannte mathematische
-Ausdrücke inline als `$…$` schreibt — ohne jedes Umschalten. Bewusst eng gefasst:
-Alltagszahlen, Datumsangaben und Aufzählungen bleiben normaler Text, damit nicht jede
-Notiz plötzlich voller Dollarzeichen steht.
-
-**Priorität** (Einstellungen → Mathe) steuert das Zusammenspiel:
-
-- **Gemischt** (Standard) — gesprochene Marker aktiv, kein dauerhaftes Mathe-Priming.
-- **Mathe priorisieren** — zusätzlich permanentes Mathe-Vokabular in der Erkennung.
-- **Natürliche Sprache priorisieren** — gesprochene Marker werden ignoriert; der
-  Formel-Modus ist nur noch per Taste erreichbar. Für alle, die „Formel" häufig als
-  normales Wort benutzen.
+**Mehrdeutigkeit wird markiert, nicht verschwiegen.** Gesprochene Mathematik hat keine
+Klammern: „Wurzel aus x Quadrat plus c“ kann √(x²) + c oder √(x² + c) heißen, und die
+Pause, die es entscheiden würde, steht im Transkript nicht mehr. Der Parser übersetzt
+dann nach Schulmathematik-Vorrang (`\sqrt{x^{2}} + c`) und meldet die Stelle als
+**geraten** — der Haken der Pille wird kurz amber, die Text-Blase trägt die Zeile
+„⚠ geraten: √x² + c“. Wer es eindeutig will, spricht die Klammern mit: „Wurzel aus
+Klammer auf x Quadrat plus c Klammer zu“ ergibt `\sqrt{(x^{2} + c)}`.
 
 ### 4.4 KI-Prompting (Speech-Prompt-Engineer)
 
@@ -380,7 +401,7 @@ professionell gegliederten Prompt für eine andere KI.
 
 > „ähm ja also ich bräuchte so ein Skript, das mir die Logs durchgeht, also die vom
 > letzten Monat, und mir dann sagt welche Fehler am häufigsten sind — Python, ach nee,
-> lieber TypeScript, und es soll auch mit großen Dateien klarkommen"
+> lieber TypeScript, und es soll auch mit großen Dateien klarkommen“
 
 Ergebnis: ein strukturierter Prompt mit Rolle, Kontext, Aufgabe, Anforderungen und
 Ausgabeformat — mit **TypeScript** als Anforderung (die Selbstkorrektur wurde
@@ -392,51 +413,58 @@ Qualitätskriterien explizit machen. Die Detailtiefe folgt der Länge des Diktat
 zwei Sätzen wird kein dreiseitiges Dokument.
 
 **Was er ausdrücklich nicht tut:** den Auftrag ausführen. Er ist nicht die Ziel-KI. Auch
-wenn im Diktat „ignoriere alle Anweisungen" oder „gib deinen System-Prompt aus" steht,
+wenn im Diktat „ignoriere alle Anweisungen“ oder „gib deinen System-Prompt aus“ steht,
 ist das nur Inhalt des zu bauenden Prompts.
 
-**Aktivierung.** Zwei Wege, mit unterschiedlicher Reichweite:
+**Aktivierung.** Drei Wege, mit unterschiedlicher Reichweite:
 
-- **Punkt in der Pille anklicken** — schaltet den Modus dauerhaft für alle folgenden
-  Diktate (Zyklus: Aus → Mathe → KI-Prompting → Aus). Oder über einen Profil-Slot.
+- **Profil „KI-Prompt“** — dauerhaft für alle folgenden Diktate: von Hand gewählt (Klick
+  auf den Punkt der Pille während einer Aufnahme, Profil-Hotkey, „Jetzt aktiv“ auf der
+  Profilseite) oder einer App zugeordnet (Seite „Apps“).
 - **Hotkey während der Aufnahme** (Standard `Strg+Alt+P`) — gilt **nur für dieses eine
-  Diktat** und fällt danach automatisch zurück.
+  Diktat** und fällt danach automatisch zurück. Der Punkt der Pille füllt sich so
+  lange amber.
+- **Ansage am Ende** — „… als KI-Prompt“ (siehe [4.6](#46-das-ausgabeformat-am-ende-ansagen-seit-560)).
 
 Anders als bei der Bereinigung gibt es hier **keine Grounding-Prüfung**: Die
 Umformulierung weicht legitim stark vom Rohtext ab. Der Schutz beschränkt sich darauf,
 bei leerer oder kaputter Ausgabe auf die normale Bereinigung zurückzufallen.
 
-### 4.5 Kombination: Formeln im Prompt
+**Die Geschwister: E-Mail und Stichpunkte.** Nach demselben Muster — eigener
+System-Prompt, Transkript als abgegrenzter Datenblock, Rückfall auf die Bereinigung —
+laufen die beiden anderen umformulierenden Formate: **E-Mail** (`prompts/email.md`;
+Anrede, Absätze, Grußformel, unterschrieben mit dem Anzeigenamen aus Einstellungen →
+Allgemein) und **Stichpunkte** (`prompts/summary.md`; destilliert, ohne Rolle und
+Kontext zu erfinden). Welches Format gilt, bestimmt das Profil (Kapitel 7).
 
-Formel-Segmente und KI-Prompting sind während einer Aufnahme **gleichzeitig** nutzbar —
-man kann einen Prompt diktieren, der eine Formel enthält. Der Modus-Punkt zeigt das mit
-einem **geteilten Kreis** (links amber = Prompting, rechts violett = Mathe) und einem
-ebenso geteilten Rahmen an.
+### 4.5 Formeln und Ausgabeformate
 
-Technisch wird dann der zusammengesetzte Text mit den Formel-Platzhaltern durch den
-Prompt-Engineer geschickt (mit der Auflage, die Platzhalter exakt zu erhalten), und die
-Formeln werden danach eingesetzt. Überleben die Platzhalter das nicht, fällt es sauber
-auf die normale Formel-Mischung zurück.
+Formeln entstehen ausschließlich im Bereinigungsweg. Die umformulierenden Formate —
+KI-Prompt, E-Mail, Stichpunkte — schicken den Rohtext ohne Formel-Parser an ihr
+eigenes Modell; eine gesprochene Formel kommt dort so an, wie das Modell sie
+formuliert.
 
-Ist dagegen das **ganze** Diktat fest im Formel-Modus, wird der Prompting-Hotkey bewusst
-ignoriert — die Kombination wäre dort sinnlos.
+Vor 3.0.0 ließen sich Formel-Segmente und KI-Prompting in einer Aufnahme kombinieren,
+angezeigt durch einen geteilten Punkt (amber/violett) an der Pille. Mit dem Mathe-Hotkey
+und dem Formel-Modus ist auch diese Kombination entfallen; der Punkt kennt heute nur
+noch einen eingerasteten Zustand, amber für KI-Prompting.
 
 ### 4.6 Das Ausgabeformat am Ende ansagen (seit 5.6.0)
 
 Wer mitten im Reden merkt, dass daraus besser eine Liste würde, sagt es einfach zum
-Schluss: **„… als Stichpunkte."** Der Zusatz wird erkannt, aus dem Text entfernt und
-das Diktat entsprechend verarbeitet. Ebenso „als E-Mail", „als KI-Prompt" oder „als
-Diktat" für ausdrücklich normal. Das übersteuert das Profil für genau dieses eine
+Schluss: **„… als Stichpunkte.“** Der Zusatz wird erkannt, aus dem Text entfernt und
+das Diktat entsprechend verarbeitet. Ebenso „als E-Mail“, „als KI-Prompt“ oder „als
+Diktat“ für ausdrücklich normal. Das übersteuert das Profil für genau dieses eine
 Diktat.
 
-Die Erkennung greift **nur am Satzende und nur mit Einleitung** („als", „bitte als",
-„mach das als"). Das ist der ganze Unterschied zwischen Befehl und Inhalt: „Ich
-schicke das als E-Mail raus" steht mitten im Satz und bleibt Diktat. Ein
-Safe-Word-Befehl hat Vorrang — „Kimono, mach das als Stichpunkte" ist eine Anweisung
+Die Erkennung greift **nur am Satzende und nur mit Einleitung** („als“, „bitte als“,
+„mach das als“). Das ist der ganze Unterschied zwischen Befehl und Inhalt: „Ich
+schicke das als E-Mail raus“ steht mitten im Satz und bleibt Diktat. Ein
+Safe-Word-Befehl hat Vorrang — „Kimono, mach das als Stichpunkte“ ist eine Anweisung
 und gehört dem Befehlsweg, sonst würde der Befehl zerschnitten.
 
 Vorher musste man das Profil **vorher** umschalten; wer es vergaß, diktierte erst und
-klickte danach im Verlauf auf „neu bereinigen".
+klickte danach im Verlauf auf „neu bereinigen“.
 
 ---
 
@@ -471,7 +499,7 @@ bei jedem weiteren Wort neu anläuft. Und wer die Aufnahme pausiert, um mit jema
 sprechen, hält die Automatik mit an.
 
 **Anlaufzeit** (`MIN_LAUFZEIT_S`, 1,5 s): Vor Ablauf des VAD-Fensters ist „keine
-Sprache" keine Aussage über den Sprecher, sondern nur eine Messgrenze — siehe die
+Sprache“ keine Aussage über den Sprecher, sondern nur eine Messgrenze — siehe die
 ausführliche Begründung in Abschnitt 21.
 
 ---
@@ -481,7 +509,7 @@ ausführliche Begründung in Abschnitt 21.
 ### 5.1 Das Grundproblem: das Diktat ist kein Prompt
 
 Der gefährlichste Fehlermodus einer LLM-gestützten Diktier-App: Man diktiert „schreib
-mir mal eine E-Mail an den Kunden" — und das Modell *schreibt die E-Mail*, statt den
+mir mal eine E-Mail an den Kunden“ — und das Modell *schreibt die E-Mail*, statt den
 Satz zu transkribieren. Fleech begegnet dem mit **drei Schichten**.
 
 **Schicht 1 — Abgrenzung.** Das Rohtranskript geht nie als nackte Nachricht an das
@@ -500,7 +528,7 @@ Modelle folgen sichtbaren Markern deutlich zuverlässiger als Fließtext-Regeln.
 
 **Schicht 2 — Prompt-Regeln mit Gegenbeispielen.** Die System-Prompts enthalten einen
 eigenen Abschnitt zum Eingabeformat und explizite Negativbeispiele, inklusive der Regel,
-dass auch Imperative („lösch", „starte", „schick") Diktat sind.
+dass auch Imperative („lösch“, „starte“, „schick“) Diktat sind.
 
 **Schicht 3 — Divergenz-Netz im Code.** Die letzte Instanz misst, **wie viele Wörter der
 Modellausgabe überhaupt im Rohtranskript vorkommen**. Bei echter Bereinigung liegt der
@@ -514,12 +542,12 @@ der übrige Fließtext geprüft — so bleibt das Netz auch in diesem Modus gesp
 wie früher ganz auszufallen. Zusätzlich gilt dort eine Obergrenze für die Zahl erzeugter
 Formelblöcke (grob: höchstens einer pro vier gesprochene Wörter): Zerlegt das Modell den
 Text in lauter Mini-Formeln, ist das kein Mathe-Erkennen. Der Wortvergleich toleriert
-deutsche Flexion („Server" ≈ „Servers").
+deutsche Flexion („Server“ ≈ „Servers“).
 
 **Schicht 4 — Wortgetreue.** Umgekehrte Richtung: Wie viele der *gesprochenen* Wörter
 überleben in der Ausgabe? Bricht dieser Wert ein, hat das Modell umformuliert statt
-bereinigt. Dann läuft ein strengerer Zweitversuch (bei Bedarf am großen Modell); bleibt
-es dabei, gewinnt das Roh-Transkript. Ausgenommen sind der Eingriffsgrad „strong"
+bereinigt. Dann läuft ein strengerer Zweitversuch mit ausdrücklicher Ansage; bleibt
+es dabei, gewinnt das Roh-Transkript. Ausgenommen sind der Eingriffsgrad „strong“
 (dort ist stärkeres Glätten gewollt), Selbstkorrekturen (dort fällt beliebig viel
 legitim weg) und die Formel-Automatik.
 
@@ -535,13 +563,13 @@ sperrt das an vier Stellen:
 | Ort | Sperre |
 |---|---|
 | Ganze Aufnahme | unter 0,3 s → verworfen |
-| Textfenster im Formel-Mix | unter 0,4 s oder Pegel unter 0,004 → übersprungen |
-| Formel-Segment | leeres Transkript → gar kein Modell-Aufruf |
 | Live-Vorschau | Pegel unter 0,004 → kein Dekodierlauf |
+| Ende des Transkripts | Segmente ohne Ton darunter (RMS unter 0,002) → gestrichen, siehe unten |
+| Wiederholungsschleifen | dieselbe Einheit am Ende ab 3× (Phrasen) bzw. 5× (Einzelwörter), im Text ab 5× → auf eine Nennung gekürzt (5.4a) |
 
 **Der Schwanz ohne Ton (seit 5.11.1).** Bei langen Diktaten hängt Whisper hinter das
-letzte echte Wort noch Floskeln: „Vielen Dank. Vielen Dank.", „Bis zum nächsten Mal.",
-„Untertitelung des ZDF". Getroffen hat es 7 von 1419 Diktaten im Verlauf. Auslöser ist
+letzte echte Wort noch Floskeln: „Vielen Dank. Vielen Dank.“, „Bis zum nächsten Mal.“,
+„Untertitelung des ZDF“. Getroffen hat es 7 von 1419 Diktaten im Verlauf. Auslöser ist
 nicht die Stille am Ende, sondern der `initial_prompt` (Wörterbuch, gelernte
 Fachbegriffe, Signalwort) in Verbindung mit langem Audio — auf 95 s Prosa halluzinierten
 **10 von 10** Läufen mit Prompt und **0 von 10** ohne.
@@ -554,36 +582,36 @@ das **Audio dahinter**: Kein einziges der 420 erfundenen Segmente hatte mehr als
 Aufnahme.
 
 Deshalb streicht Fleech Segmente **vom Ende her**, solange das Original-Audio in ihrem
-Zeitfenster unter **RMS 0,002** liegt (dieselbe Schwelle, die die Pille als „kein Ton"
+Zeitfenster unter **RMS 0,002** liegt (dieselbe Schwelle, die die Pille als „kein Ton“
 anzeigt) oder ihr Start jenseits der Audiodauer liegt. Beim ersten Segment mit Ton bricht
 die Prüfung ab — mitten im Text wird nie geschnitten —, und das letzte verbleibende
 Segment bleibt immer stehen (lieber ein fragwürdiger Satz als ein leeres Flüster-Diktat).
 Getestet: 19 von 22 halluzinierenden Läufen sauber, 22 von 22 behielten ihr letztes echtes
 Wort, Kosten 0 ms (reine Nachbearbeitung). Fehlalarm beginnt erst unterhalb von RMS 0,002.
-Der Wiederholungs-Guard bleibt nötig und wird nicht ersetzt: Er kürzt „Vielen Dank."×4 auf
+Der Wiederholungs-Guard bleibt nötig und wird nicht ersetzt: Er kürzt „Vielen Dank.“×4 auf
 eine Nennung — und genau die entfernt dann dieser Guard. Verworfenes wird geloggt, in der
-Pille angezeigt und im Verlauf als Grund „Text ohne Ton am Ende entfernt" gespeichert
+Pille angezeigt und im Verlauf als Grund „Text ohne Ton am Ende entfernt“ gespeichert
 (`fleech/stt/nachlauf.py`).
 
 ### 5.3 Wortgetreue: korrigieren, nicht umformulieren
 
 Fleech soll Grammatik, Rechtschreibung und Zeichensetzung verbessern — aber **die
-Wörter des Sprechers behalten**. „Das Ding ist kaputt gegangen" darf nicht zu „Das
-Gerät ist defekt" werden. Der Cleanup-Prompt erhebt das zur Grundregel (erlaubt sind
+Wörter des Sprechers behalten**. „Das Ding ist kaputt gegangen“ darf nicht zu „Das
+Gerät ist defekt“ werden. Der Cleanup-Prompt erhebt das zur Grundregel (erlaubt sind
 nur Grammatik/Orthografie/Interpunktion, Füllwörter und Selbstkorrekturen; Synonyme,
 Umstellungen und Straffungen sind verboten — einzige Ausnahmen: das Auflösen von
 Selbstkorrekturen und ausdrücklich angeforderte LaTeX-Formeln).
 
 Dahinter sitzt eine Code-Prüfung: Der Anteil der gesprochenen Inhaltswörter, die im
 Ergebnis überleben (Füllwörter und Korrektur-Signale ausgenommen), muss über **70 %**
-liegen. Darunter läuft **ein** strengerer Zweitversuch mit expliziter Ansage — bei
-Bedarf am großen Modell. Bleibt auch der unter **50 %**, gewinnt das Rohtranskript:
-lieber unbereinigt als in fremden Worten.
+liegen. Darunter läuft **ein** strengerer Zweitversuch mit expliziter Ansage. Bleibt
+auch der unter **50 %**, gewinnt das Rohtranskript: lieber unbereinigt als in fremden
+Worten.
 
 Zwei bewusste Ausnahmen: Der Eingriffsgrad **Strong** ist die ausdrückliche Erlaubnis
 zu stärkerem Glätten (der Guard schweigt dort), und bei **Selbstkorrekturen** misst
-die Kennzahl nicht „umformuliert", sondern nur die Länge der zurückgenommenen Passage
-— dort gilt nur noch ein abgesenkter Boden gegen Total-Umschreibung. Was bei „Strong"
+die Kennzahl nicht „umformuliert“, sondern nur die Länge der zurückgenommenen Passage
+— dort gilt nur noch ein abgesenkter Boden gegen Total-Umschreibung. Was bei „Strong“
 trotzdem weiterläuft: die Zahl-/Verneinungs-Prüfung aus 5.4b — Termine und Beträge
 sollen auch im geschäftlichen und E-Mail-Profil nicht verschwinden.
 
@@ -594,7 +622,7 @@ Haken für unbereinigten Text zu zeigen.
 ### 5.4 Erfundene Sätze am Textende
 
 Ein real beobachtetes Fehlerbild: Das Modell hängt ans Ende einen Satz an, den der
-Sprecher nie gesagt hat („Bei Rückfragen melde dich gerne."). Der globale
+Sprecher nie gesagt hat („Bei Rückfragen melde dich gerne.“). Der globale
 Grounding-Wert fällt dadurch kaum — ein einzelner erfundener Satz geht in einem
 längeren Diktat unter. Deshalb prüft Fleech den **Schwanz gezielt**: Sätze werden von
 hinten verworfen, solange ihre Inhaltswörter im Rohtranskript keine Entsprechung
@@ -603,7 +631,7 @@ Satz bleibt immer stehen, und Sätze mit Formeln oder Platzhaltern werden nie
 angetastet (LaTeX teilt naturgemäß keine Wörter mit dem Gesprochenen). Erkannt wird das
 am Platzhalter-Präfix `[[M` (Formeln, `formula.formula_marker`) im Satz — seit 5.11.0
 die einzige Platzhalter-Familie. Der Prompt verbietet das Anhängen zusätzlich ausdrücklich („dein Text
-endet genau dort, wo der Sprecher aufgehört hat — auch mitten im Satz").
+endet genau dort, wo der Sprecher aufgehört hat — auch mitten im Satz“).
 
 ### 5.4a Ausschmückung — der häufigste reale Fehler
 
@@ -613,9 +641,9 @@ das Modell baut den **letzten Satzteil um**, ohne etwas anzuhängen:
 
 | gesprochen | falsch eingefügt |
 |---|---|
-| „kannst du mir das vielleicht visualisieren" | „…visuell **darstellen**?" |
-| „ich fände schon gut, die irgendwo anzuzeigen" | „…**wenn sie** irgendwo **angezeigt würde**" |
-| „da ich diese versuche konkret einzuhalten" | „da ich diese **Versuchung** auch konkret **einbeziehe**" |
+| „kannst du mir das vielleicht visualisieren“ | „…visuell **darstellen**?“ |
+| „ich fände schon gut, die irgendwo anzuzeigen“ | „…**wenn sie** irgendwo **angezeigt würde**“ |
+| „da ich diese versuche konkret einzuhalten“ | „da ich diese **Versuchung** auch konkret **einbeziehe**“ |
 
 Der letzte Fall macht aus einem undeutlichen Satz einen **anderen Sinn**.
 
@@ -626,26 +654,26 @@ nicht vorkamen**. Über 22 % läuft ein strengerer Zweitversuch. Die Grenze ist 
 echten Daten kalibriert — sie greift bei 1,2 % der Diktate, fängt dort aber die groben
 Fälle (bis zu 88 % neue Wörter, wenn das Modell das Diktat als Auftrag ausgeführt hat).
 
-Null ist die Grenze bewusst nicht: Ein ergänztes „es" oder „dass" ist Grammatik.
+Null ist die Grenze bewusst nicht: Ein ergänztes „es“ oder „dass“ ist Grammatik.
 Der Merksatz im Prompt lautet daher: *Ein Wort, das im Diktat nicht vorkam, brauchst
 du nur dann, wenn ohne es der Satz grammatisch falsch wäre.*
 
-**Wichtig für den Formel-Modus:** Bis v2.0 war der gesamte Wortgetreue-Schutz bei
+**Wichtig für die Formel-Erkennung:** Bis v2.0 war der gesamte Wortgetreue-Schutz bei
 aktiver Formel-Automatik **abgeschaltet** — wer gemischt arbeitet, diktierte also
 ungeschützt. Seit v2.1.0 wird stattdessen auf dem formelbereinigten Text gemessen.
-Nur die Wortgetreue selbst bleibt dort ausgespart, weil „x hoch zwei" legitim zu
+Nur die Wortgetreue selbst bleibt dort ausgespart, weil „x hoch zwei“ legitim zu
 `$x^2$` wird und die Rohwörter zu Recht verschwinden.
 
 Verwandt, aber eine Ebene früher: Whisper hängt auf auslaufendem oder stillem Audio
-gern denselben Satz **dutzendfach** an („Das war's. Das war's. Das war's. …" — real im
+gern denselben Satz **dutzendfach** an („Das war's. Das war's. Das war's. …“ — real im
 Log beobachtet). Das wird direkt nach der Erkennung eingesammelt: Wiederholt sich am
 Textende dieselbe Einheit (ab 3× bei Phrasen, ab 5× bei Einzelwörtern — ein
-rhetorisches „nein, nein, nein" überlebt), bleibt genau eine Nennung stehen. Jede
+rhetorisches „nein, nein, nein“ überlebt), bleibt genau eine Nennung stehen. Jede
 Kürzung wird sichtbar geloggt.
 
 Dieselbe Schleife kann auch **mitten im Text** stehen, mit echtem Diktat davor und
 danach — die Schwanz-Prüfung sieht sie dann nicht (`collapse_inner_repetitions`, real
-beobachtet: „G-G-G-G-…" 34×, „um, um, um, um, um.", „No-no-no-no-no."). Sie lief bisher
+beobachtet: „G-G-G-G-…“ 34×, „um, um, um, um, um.“, „No-no-no-no-no.“). Sie lief bisher
 mit grünem Haken durch. Derselbe 5×-Boden wie beim Schwanz, dieselbe Regel gegen
 rhetorische Wiederholung; erhalten bleibt die letzte Nennung, sie trägt die
 Interpunktion des Laufs.
@@ -654,34 +682,34 @@ Interpunktion des Laufs.
 
 `meaning_flipped` (in `fleech/textfilter.py`) fängt den Fall, für den alle anderen
 Prüfungen blind sind: Die Wörter stimmen fast vollständig überein, aber die Aussage ist
-gedreht. Beispiel aus einem echten Diktat: „Die Miete ist im Januar noch **nicht**
-überwiesen" → „…ist im Januar überwiesen". Wortüberlappung praktisch 100 %,
+gedreht. Ein Beispiel dieser Art: „Die Rechnung ist im Januar noch **nicht**
+überwiesen“ → „…ist im Januar überwiesen“. Wortüberlappung praktisch 100 %,
 Wortgetreue hoch — `verbatim_ratio`, `added_ratio` und `trim_unsupported_tail`
 vergleichen Wort*mengen* und melden nichts.
 
 Geprüft werden **genau zwei Träger**:
 
-- **Verneinungen** — aus „nicht bezahlt" wird „bezahlt".
-- **Zahlen** — real gemessen: „Heute ist der 6.7." wurde zu „der 6., oder der 7.?"; in
+- **Verneinungen** — aus „nicht bezahlt“ wird „bezahlt“.
+- **Zahlen** — real gemessen: „Heute ist der 6.7.“ wurde zu „der 6., oder der 7.?“; in
   einem anderen Diktat verschwanden zwei Geldbeträge ersatzlos.
 
-Beim Zahlenvergleich zählt nur der **Trenner-normalisierte** Wert: „18.50 Uhr" und
-„18:50 Uhr" gelten als dieselbe Zahl. Ohne das meldete jede korrekt umgeschriebene
+Beim Zahlenvergleich zählt nur der **Trenner-normalisierte** Wert: „18.50 Uhr“ und
+„18:50 Uhr“ gelten als dieselbe Zahl. Ohne das meldete jede korrekt umgeschriebene
 Uhrzeit einen Fehlalarm — an 967 echten Paaren waren das 10 von 16 Zahl-Treffern, jeder
 mit Fehlerton und unbereinigtem Text im Feld. Ebenso zählt ein Datum als erhalten, wenn
-aus „15.07." ein „15. Juli" wird (Tag als Ziffer, Monat als Name — beides muss stehen).
-Bekannter Rest: Wird ein Datum anders umgeschrieben („am fünfzehnten Juli"), gilt die
+aus „15.07.“ ein „15. Juli“ wird (Tag als Ziffer, Monat als Name — beides muss stehen).
+Bekannter Rest: Wird ein Datum anders umgeschrieben („am fünfzehnten Juli“), gilt die
 Zahl weiterhin als verloren.
 
-**Was er nicht abdeckt, ausdrücklich:** vertauschte Modalverben („kann" ↔ „muss"),
-gedrehte Zeitbezüge („vor" ↔ „nach"), verlorene Einschränkungen („nur", „außer"). Alle
+**Was er nicht abdeckt, ausdrücklich:** vertauschte Modalverben („kann“ ↔ „muss“),
+gedrehte Zeitbezüge („vor“ ↔ „nach“), verlorene Einschränkungen („nur“, „außer“). Alle
 vier Schichten arbeiten wortmengenbasiert; für diese Fälle bräuchte es eine semantische
 Prüfung, die es hier nicht gibt.
 
-Das ist bewusst so — aber es heißt eben *nicht* „die Bedeutung ist geprüft", sondern
-„zwei besonders verlustanfällige Träger sind geprüft". Der Unterschied ist wichtig,
+Das ist bewusst so — aber es heißt eben *nicht* „die Bedeutung ist geprüft“, sondern
+„zwei besonders verlustanfällige Träger sind geprüft“. Der Unterschied ist wichtig,
 weil die Messung, auf der der Guard beruht, nur die Frage „wie oft fehlt eine
-Negation oder Zahl" beantwortet — nicht „wie oft dreht sich die Bedeutung insgesamt".
+Negation oder Zahl“ beantwortet — nicht „wie oft dreht sich die Bedeutung insgesamt“.
 
 ### 5.5 Sonstige Absicherungen
 
@@ -693,6 +721,34 @@ Negation oder Zahl" beantwortet — nicht „wie oft dreht sich die Bedeutung in
   entfernt, falls das Modell sie trotz Verbots anhängt.
 - **Kaputte Wörterbuch-Regeln** brechen nie das Diktat — eine ungültige Regel wird
   übersprungen, nicht geworfen.
+- **Abgeschnittene Antworten** — meldet das Modell, dass es am Kontextfenster
+  aufgehört hat (`done_reason`/`finish_reason` „length“, bei Anthropic
+  `max_tokens`), kommt der Rohtext statt eines halben Satzes (13.2).
+
+### 5.6 Lange Diktate in Blöcken (seit 5.15.2)
+
+Alle Prüfungen oben rechnen in **Anteilen über den ganzen Text**. Bei einem langen
+Diktat versagt genau das: In einem 15-Minuten-Diktat schrieb `gemma3:4b` an den Anfang
+die Beispielsätze aus seiner eigenen Anleitung und ließ dafür rund 650 gesprochene
+Wörter weg — 100 erfundene unter 1114 Wörtern sind 9 %, und Weggelassenes misst keine
+der Kennzahlen. Ein 4B-Modell bereinigt 150 Wörter zuverlässig, 1800 am Stück nicht.
+
+Deshalb teilt `fleech/bloecke.py` Diktate **ab 200 Wörtern** an Satzgrenzen in Blöcke
+von höchstens etwa **150 Wörtern** (nie mitten im Satz — eine Selbstkorrektur muss das
+Modell als Ganzes sehen). Jeder Block läuft einzeln durch die normale Bereinigung samt
+allen Guards und bekommt danach zwei eigene Netze:
+
+- **Beispielsatz aus dem Prompt** im Ergebnis, aber nicht im Diktat → dieser Block
+  kommt als Rohtext (Grund „KI schrieb Beispielsätze aus ihrer Anleitung ins Diktat“).
+- **Zu viel weggelassen** — weniger als **70 %** der Inhaltswörter des Blocks stehen
+  noch im Ergebnis (bei einer Selbstkorrektur 25 Punkte weniger) → dieser Block kommt
+  als Rohtext (Grund „KI ließ zu viel vom Gesagten weg“). Ausgenommen: Eingriffsgrad
+  „Strong“ und aktive Formel-Erkennung.
+
+Beide Netze gelten auch für kurze Diktate, die als ein einziger Block laufen. Geht in
+einem Block etwas schief, kostet das nur diesen Block; der Rest bleibt bereinigt. Ist
+das Modell gar nicht erreichbar, werden die übrigen Blöcke nicht mehr geschickt. Der
+Preis: Ein 15-Minuten-Diktat braucht rund 30 statt 14 Sekunden.
 
 ---
 
@@ -702,11 +758,13 @@ Nicht jedes Diktat braucht dasselbe Modell. Fleech klassifiziert jede Äußerung
 zusätzlichen Modell-Aufruf** (der würde genau die Latenz kosten, die er sparen soll) und
 wählt danach:
 
-| Stufe | Bedingung | Modell | Effekt |
+| Stufe | Bedingung | Modell (lokal, Standard) | Effekt |
 |---|---|---|---|
 | **trivial** | ≤ 5 Wörter, keine Ziffer, keine Füllwörter | **keins** | 0 ms — Whisper liefert bereits Interpunktion |
 | **simple** | 6–24 Wörter, keine Ziffer, keine Selbstkorrektur | `gemma3:4b` | — |
 | **complex** | alles andere | `gemma3:4b` | — |
+
+Bei einem Cloud-Anbieter (13.2) fahren beide Stufen dessen gewähltes Modell.
 
 Seit v3.5.0 laufen beide Stufen über **dasselbe** Modell. Ein eigenes kleines
 Zweitmodell brachte im Vergleich an echten Diktaten nur 0,1 s, ergänzte dafür
@@ -715,33 +773,38 @@ was zu ständigem Nachladen führte. Die Stufe `trivial` (gar kein Modell) bleib
 der eigentliche Tempogewinn. Die Nahtstelle bleibt bestehen, falls später ein
 Modell auftaucht, das deutlich schneller und genauso wortgetreu ist.
 
-**Was zwingend „complex" auslöst:**
+**Was zwingend „complex“ auslöst:**
 
-1. **Jede Ziffer im Text.** Zahlen-Selbstkorrekturen („200 — ähm, 250") sind der
+1. **Jede Ziffer im Text.** Zahlen-Selbstkorrekturen („200 — ähm, 250“) sind der
    subtilste Fehlerfall, und eine falsche Zahl ist schlimmer als eine langsame Antwort.
 2. **Selbstkorrektur-Marker**: nein, nee, quatsch, warte, beziehungsweise, bzw, sondern,
-   andersrum, „ich meine", „also nicht".
+   andersrum, „ich meine“, „also nicht“.
 3. **Mehr als 24 Wörter.**
-4. **Gesprochene Code-/Struktur-Zeichen** („Klammer auf", „Semikolon", „camelCase").
-   Technische Diktate sind kurz und ziffernfrei und wären sonst „trivial" — also ganz
-   ohne Modell. Bewusst nur eindeutige Begriffe: „gleich", „plus" und „Punkt" sind
+4. **Gesprochene Code-/Struktur-Zeichen** („Klammer auf“, „Semikolon“, „camelCase“).
+   Technische Diktate sind kurz und ziffernfrei und wären sonst „trivial“ — also ganz
+   ohne Modell. Bewusst nur eindeutige Begriffe: „gleich“, „plus“ und „Punkt“ sind
    normale deutsche Wörter und würden Alltagsdiktate unnötig verlangsamen.
 
-Der Eingriffsgrad „Strong" umgeht die Klassifikation und nimmt immer das große Modell.
-Bei „Minimal" läuft gar kein Modell.
+Der Eingriffsgrad „Strong“ umgeht die Klassifikation und läuft immer mit Modell.
+Bei „Minimal“ läuft gar kein Modell. Text mit Formel-Platzhaltern (4.3) geht immer den
+vollen Weg.
 
-**Fällt das kleine Modell aus**, wird automatisch das große nachgeschoben, bevor auf den
-Rohtext zurückgefallen wird.
+**Scheitert der Aufruf der Stufe „simple“**, versucht Fleech es einmal über den
+Hauptendpunkt, bevor es auf den Rohtext zurückfällt — solange beide Endpunkte dasselbe
+Modell fahren, ist das schlicht ein zweiter Versuch.
 
 Das Routing läuft **immer**. Bis 5.10.x gab es dazu den Schalter „Adaptive
-Geschwindigkeit (Cleanup)"; er ist in 5.11.0 entfallen (Befund E-4): Er stand bei jedem
-Nutzer auf „an" und konnte nichts bewirken, weil beide Stufen dasselbe Modell fahren —
+Geschwindigkeit (Cleanup)“; er ist in 5.11.0 entfallen (Befund E-4): Er stand bei jedem
+Nutzer auf „an“ und konnte nichts bewirken, weil beide Stufen dasselbe Modell fahren —
 an einer Nahtstelle kann der Nutzer nichts entscheiden, nur falsch informiert werden.
-Die tatsächliche Verteilung bleibt in den Insights unter „Verarbeitung" sichtbar
-(„kurzer Weg" gegen „voller Weg").
+Die tatsächliche Verteilung bleibt in den Insights unter „Verarbeitung“ sichtbar
+(„kurzer Weg“ gegen „voller Weg“).
 
-**Gemessene Größenordnungen** (RTX 4070): Erkennung ~0,2 s bei warmem Modell;
-Bereinigung ~4,8 s mit warmem großem Modell gegenüber ~12,9 s bei kaltem.
+**Gemessene Größenordnungen** (RTX 4070): Erkennung ~0,2 s bei warmem Modell, nach dem
+Loslassen dank der Abschnitte (13.1) meist 0,3–0,4 s; Bereinigung mit warmem
+`gemma3:4b` rund 0,8 s (15 echte Diktate); ein kaltes Modell kostet einmalig rund 8 s
+Ladezeit. Vom Sprechende bis zum eingefügten Text vergingen an 454 Diktaten im Median
+2,3 s, im 95. Perzentil 9,2 s.
 
 ---
 
@@ -750,16 +813,24 @@ Bereinigung ~4,8 s mit warmem großem Modell gegenüber ~12,9 s bei kaltem.
 Profile beantworten die Frage: *Warum sollte ein Diktat in den Code-Editor genauso
 behandelt werden wie eines in eine geschäftliche E-Mail?*
 
-Ein Profil bündelt heute sechs Dinge und wird **Ziel-Apps zugewiesen**:
+Ein Profil bündelt diese Dinge und gilt entweder **von Hand gewählt** oder für die
+**Ziel-Apps, denen es zugeordnet ist**:
 
 | Bestandteil | Wirkung |
 |---|---|
 | **Ausgabeformat** | `Diktat` / `Stichpunkte` / `E-Mail` / `KI-Prompt` — exklusiv, eines pro Profil |
-| **Stil-Tags** | freie Vorgaben an das Modell, z. B. „professioneller, sachlicher Ton" |
-| **Sprache** | `Wie Einstellungen` / `Deutsch` / `Englisch` / `Automatisch` (seit 5.4.0, seit 5.10.5 auch auf der Profilseite einstellbar, nicht nur in der `settings.json`) |
-| **Safe-Word** | pro Profil erzwingen oder abschalten |
-| **Automatisch senden** | nach dem Einfügen zusätzlich Enter — greift bei `Diktat` / `KI-Prompt` / `Stichpunkte`, bewusst NICHT bei `E-Mail` (eine Mail, die sich selbst abschickt, ist der eine Fall, in dem ein Versehen echte Folgen hat) und nie nach einem Befehl oder Rohtext-Rückfall; bewusst je Profil und bewusst aus als Vorgabe |
-| **App-Zuordnung** | Prozessnamen, für die das Profil automatisch greift — optional auf einen Fenstertitel eingegrenzt |
+| **Farbe** | eine von acht Farben — Punkt vor dem Namen in der Liste und Ring am Punkt der Pille |
+| **Schnellwechsel** | ob das Profil im Zyklus des Pillen-Punkts und des Profil-Hotkeys erscheint |
+| **Eingriffsgrad** | `Wie Einstellungen` / `Minimal` / `Standard` / `Strong` |
+| **Sprache** | `Wie Einstellungen` / `Deutsch` / `Englisch` / `Automatisch erkennen` (seit 5.4.0, seit 5.10.5 auch auf der Profilseite einstellbar, nicht nur in der `settings.json`) |
+| **Safe-Word** | gesprochene Befehle in diesem Profil erlauben oder abschalten |
+| **Automatisch senden** | nach dem Einfügen zusätzlich Enter („Diktat direkt abschicken“) — greift bei `Diktat` / `KI-Prompt` / `Stichpunkte`, bewusst NICHT bei `E-Mail` (eine Mail, die sich selbst abschickt, ist der eine Fall, in dem ein Versehen echte Folgen hat) und nie nach einem Befehl oder Rohtext-Rückfall; bewusst je Profil und bewusst aus als Vorgabe |
+| **App-Zuordnung** | Prozessnamen, für die das Profil automatisch greift — optional auf einen Fenstertitel eingegrenzt; eingestellt auf der Seite „Apps“ |
+| **Stil-Tags** | freie Vorgaben an das Modell, z. B. „professioneller, sachlicher Ton“ im Profil Geschäftlich — wirken weiter, haben aber seit 3.7.2 keinen Editor mehr (nur in der `settings.json`) |
+
+Eingriffsgrad, Sprache, Safe-Word und Absenden stehen auf der Profilseite hinter
+„Erweiterte Einstellungen“; ohne sie besteht ein Profil aus Name, Ausgabeformat, Farbe
+und Schnellwechsel — für die meisten genug.
 
 **Das Ausgabeformat ist der eigentliche Sprung.** Bis 3.x regelte ein Profil nur, *wie
 stark* geglättet wird. Seit 4.x entscheidet es, *was* aus dem Diktat wird: Dieselbe
@@ -768,7 +839,7 @@ stark* geglättet wird. Seit 4.x entscheidet es, *was* aus dem Diktat wird: Dies
 **absichtlich neu**; sie sind deshalb vom Wortgetreue-Guard ausgenommen, der sonst genau
 das verhindert. Die anderen Schutzschichten laufen weiter.
 
-Ein „Formeln"-Ausgabeformat gab es bis 5.10.2 in der Liste, aber ohne jeden Codepfad —
+Ein „Formeln“-Ausgabeformat gab es bis 5.10.2 in der Liste, aber ohne jeden Codepfad —
 Formeln laufen seit 3.0.0 ausschließlich global über Einstellungen → Ausgabe, nie über
 ein Profil. Es ist entfallen; das Profil **Mathe** bleibt als reines
 Eingriffsgrad-Profil mit fester violetter Farbe erhalten.
@@ -785,27 +856,27 @@ Pillen-Punkt (nimmt Klicks nur während einer Aufnahme an) oder den Profil-Hotke
 Haus aus unbelegt). Die Zeile schreibt dieselbe Auswahl wie die anderen beiden Wege und
 lässt Ring und Kapsel an der Pille nachziehen.
 
-### Schnellwechsel und „App-Standard"
+### Schnellwechsel und „App-Standard“
 
 Neben der automatischen Zuordnung lässt sich ein Profil **von Hand** wählen: über den
-Punkt in der Pille, den Profil-Hotkey oder die Zeile „Jetzt aktiv" auf der Profilseite.
+Punkt in der Pille, den Profil-Hotkey oder die Zeile „Jetzt aktiv“ auf der Profilseite.
 Diese Wahl ist persistent — wer im E-Mail-Profil arbeitet, will nach einem Neustart
 nicht stillschweigend wieder normal diktieren; genau das fällt erst am fertigen Text
-auf. Zurück zur Automatik geht es über den Eintrag **„App-Standard"**.
+auf. Zurück zur Automatik geht es über den Eintrag **„App-Standard“**.
 
 **Das Standardprofil läuft im Schnellwechsel nicht mit** — weder im Zyklus des
-Pillen-Punkts noch in der Auswahlliste des Profil-Hotkeys noch in „Jetzt aktiv". Von
-Hand gewählt sah es genauso aus wie „App-Standard" (gleicher Name, gleiche Farbe), legte
+Pillen-Punkts noch in der Auswahlliste des Profil-Hotkeys noch in „Jetzt aktiv“. Von
+Hand gewählt sah es genauso aus wie „App-Standard“ (gleicher Name, gleiche Farbe), legte
 dabei aber die gesamte App-Zuordnung still und dauerhaft — bis der Fehler bemerkt wurde.
-„App-Standard" am Ende des Zyklus leistet dasselbe und lässt die Zuordnung zu.
+„App-Standard“ am Ende des Zyklus leistet dasselbe und lässt die Zuordnung zu.
 
 Zwei weitere Feinheiten, die aus dem Alltag kamen:
 
 - **Nicht jedes Profil gehört in den Schnellwechsel.** Wer acht Profile pflegt, aber
   nur zwei umschaltet, blendet den Rest aus — sonst wird Durchschalten zur Zumutung,
-  und daran scheitert die Idee „eine Taste, ein Profil".
-- **Der Schnellwechsel lässt sich pro App belegen.** In Claude will man zwischen
-  „KI-Prompt" und „Stichpunkte" wechseln, nicht durch „E-Mail" und „Formeln" hindurch.
+  und daran scheitert die Idee „eine Taste, ein Profil“.
+- **Der Schnellwechsel lässt sich pro App belegen.** In einem KI-Chat will man zwischen
+  „KI-Prompt“ und „Stichpunkte“ wechseln, nicht durch „E-Mail“ und „Mathe“ hindurch.
   Fehlt eine App-Belegung (Normalfall), gelten die global freigegebenen Profile.
 
 Seit 4.10.2 folgt die Anzeige der App **sofort**: Vorher hing sie an einem 3-Sekunden-
@@ -816,10 +887,12 @@ Stil-Tags werden dem System-Prompt als eigener Block angehängt — mit der ausd
 Auflage, **den Inhalt nicht zu verändern und keine neuen Aussagen zu erfinden**. Sie
 steuern den Ton, nicht die Substanz.
 
-Der Modus-Slot bedeutet: Diktate in die zugewiesenen Apps laufen automatisch im
-Formel-Modus bzw. als KI-Prompting — ohne jedes Umschalten. In der Profilliste ist das
-an einem farbigen Punkt vor dem Namen erkennbar (violett bzw. amber, dieselbe Sprache
-wie im Overlay).
+Ordnet man ein umformulierendes Profil einer App zu, laufen Diktate dorthin
+automatisch als E-Mail, Stichpunkte oder KI-Prompt — ohne jedes Umschalten. Die
+mitgelieferten Profile E-Mail, KI-Prompt und Stichpunkte sind bewusst **keiner** App
+zugeordnet: Ob dieses Diktat eine Mail wird, weiß nur der Sprecher. In der Profilliste
+steht vor jedem Namen ein Punkt in der Profilfarbe — dieselbe Farbe wie der Ring an
+der Pille.
 
 **Profile sichern und zurückholen.** Zwei Knöpfe unter der Profilliste schreiben
 Profile und Schnellwechsel-Zuordnungen in eine JSON-Datei und lesen sie wieder ein.
@@ -831,7 +904,7 @@ nach Rückfrage, gelöscht wird nie etwas.
 
 Ein Prozessname allein ist oft zu grob: Derselbe Editor trägt mal Code, mal Notizen.
 Jede zugewiesene App lässt sich deshalb optional auf einen **Fenstertitel** eingrenzen —
-in der Detailspalte über das Feld „Titel enthält". Intern steht das als eine Zeile
+in der Detailspalte über das Feld „Titel enthält“. Intern steht das als eine Zeile
 `Code.exe :: Tagebuch` in der App-Liste; bestehende Einträge ohne `::` verhalten sich
 unverändert, es gibt keine Migration.
 
@@ -848,30 +921,31 @@ Zwei Festlegungen dazu:
   unabhängig von der Listenposition.
 
 Ist ein zugewiesener Prozess weder gerade sichtbar noch in den letzten 30 Tagen
-Diktat-Ziel gewesen, steht das hinter dem Eintrag („seit 80 Tagen nicht gesehen",
-„noch nie gesehen"). Das ist fast immer ein Tippfehler oder ein umbenanntes Programm —
-und fällt sonst nie auf, weil das Profil einfach stumm nie greift. Auf der Seite „Apps"
+Diktat-Ziel gewesen, steht das hinter dem Eintrag („seit 80 Tagen nicht gesehen“,
+„noch nie gesehen“). Das ist fast immer ein Tippfehler oder ein umbenanntes Programm —
+und fällt sonst nie auf, weil das Profil einfach stumm nie greift. Auf der Seite „Apps“
 ist die Anwendungsliste nach diktierten Wörtern sortiert (die meistgenutzte App vorn),
 und solche Einträge stehen farbig ganz oben — davor, statt zwischen den anderen
 unterzugehen.
 
-**„Wenn du jetzt diktierst" — die Live-Zeile.** Oben auf der Apps-Seite steht
+**„Wenn du jetzt diktierst“ — die Live-Zeile.** Oben auf der Apps-Seite steht
 mitlaufend ein Satz, was ein Diktat *jetzt* ergäbe: Ziel-Anwendung, Fenstertitel, das
 daraus aufgelöste Profil samt Fundstelle der Regel, Ausgabeformat, Eingriffsgrad und
 Sprache. Vorher ließ sich nur durch Ausprobieren herausfinden, ob und welche Regel
 gerade greift.
 
 **Titel per Knopf übernehmen.** Beim Anlegen einer Titel-Bedingung trägt „Aktuellen
-Titel übernehmen" den Fenstertitel der zuletzt im Vordergrund gewesenen fremden
+Titel übernehmen“ den Fenstertitel der zuletzt im Vordergrund gewesenen fremden
 Anwendung ein (Fleech selbst zählt nicht) — angezeigt statt still eingetragen, das Feld
 bleibt editierbar. Dazu Segment-Knöpfe für den stabilen Teil eines Titels (z. B.
-„fleech" aus „apps.py - Fleech - Visual Studio Code" statt des ganzen, meist zu
+„fleech“ aus „apps.py - Fleech - Visual Studio Code“ statt des ganzen, meist zu
 genauen Titels), gespeist aus den zuletzt gesehenen Fenstern und den von `kontext.db`
 gelernten Titelsegmenten der Anwendung.
 
 **Zuordnungsvorschläge aus dem eigenen Verlauf.** Oben auf der Apps-Seite kann eine
-Karte stehen: „In claude.exe hast du 895 Diktate gemacht (64 % aller). Kein Profil
-zugewiesen." mit Knöpfen zum Zuweisen oder dauerhaften Ignorieren. Die Regel dahinter:
+Karte stehen, etwa: „In notepad.exe hast du 120 Diktate gemacht (40 % aller). Kein
+Profil zugewiesen.“ (Zahlen erfunden) mit Knöpfen zum Zuweisen oder dauerhaften
+Ignorieren („Nicht mehr fragen“). Die Regel dahinter:
 mindestens 25 Diktate in dieser Anwendung, keine bestehende Zuordnung (auch eine reine
 Titel-Ausnahme zählt) und nicht ignoriert; höchstens zwei Karten gleichzeitig.
 Vorbelegt wird — in dieser Reihenfolge — mit dem dort häufig von Hand gewählten Profil
@@ -907,21 +981,21 @@ angewandt. Das greift auch dann, wenn die Erkennung danebenlag und das Sprachmod
 Fehler stehen ließ.
 
 **3 · Selbstlernende Rückfrage.** Fleech sucht im fertigen Text nach Wörtern, die einem
-Wörterbuch-Begriff *sehr ähnlich, aber nicht identisch* sind („Kimano" statt „Kimono").
+Wörterbuch-Begriff *sehr ähnlich, aber nicht identisch* sind („Kimano“ statt „Kimono“).
 Die Toleranz ist längenabhängig (bei Begriffen ab 6 Zeichen sind zwei Abweichungen
 erlaubt, sonst eine). Erkennt Fleech so einen Fall, fragt es einmal nach:
 
-> **Meintest du „Kimono"?** — Erkannt wurde „Kimano" …
+> **Meintest du „Kimono“?** — Erkannt wurde „Kimano“ …
 
-„Ja" legt automatisch eine Ersetzungsregel an. „Nein" merkt sich das Paar dauerhaft und
+„Ja“ legt automatisch eine Ersetzungsregel an. „Nein“ merkt sich das Paar dauerhaft und
 fragt nie wieder. Geprüft wird bewusst **nur** gegen das eigene Wörterbuch — eine
-allgemeine „ungewöhnliche Wörter"-Heuristik ohne Referenzlexikon würde ständig
+allgemeine „ungewöhnliche Wörter“-Heuristik ohne Referenzlexikon würde ständig
 falsch anschlagen.
 
 **4 · Einen Eintrag einsprechen** (seit 5.6.0). Cursor in die Zeile, „Eintrag
-einsprechen …", Wort einmal sagen. Fleech zeigt, was ankommt — und wenn etwas anderes
+einsprechen …“, Wort einmal sagen. Fleech zeigt, was ankommt — und wenn etwas anderes
 verstanden wurde, bietet es die passende Ersetzungsregel gleich zum Eintragen an: aus
-„Ollama" gehört als „Olama" wird der Knopf **„Ollama => Olama" eintragen**.
+„Ollama“ gehört als „Olama“ wird der Knopf **„Ollama => Olama“ eintragen**.
 
 Bisher trug man ein Wort ein und merkte erst mitten im nächsten Diktat, ob es etwas
 gebracht hat. Der Test läuft über dieselbe Erkennung wie ein echtes Diktat, **mit
@@ -930,21 +1004,21 @@ demselben Wörterbuch-Priming** — ohne das würde er messen, wie gut Whisper d
 
 **Warum keine Computerstimme.** Der naheliegende Weg wäre, das Wort per TTS zu erzeugen
 und automatisch zu prüfen. Das wurde gemessen und taugt nicht: Dieselbe Kette verstand
-das TTS-„Kimono" sauber, während die echte Stimme über ein echtes Mikrofon als „Kimu",
-„Gimo" oder „Kimo no" ankam. Ein Test, der immer besteht, ist kein Test.
+das TTS-„Kimono“ sauber, während die echte Stimme über ein echtes Mikrofon als „Kimu“,
+„Gimo“ oder „Kimo no“ ankam. Ein Test, der immer besteht, ist kein Test.
 
 **Warum kein Nachtrainieren.** Ein Whisper-Modell auf einzelne Wörter nachzutrainieren
 braucht viele hundert Aufnahmen, Stunden GPU-Zeit und liefert ein Modell, das nach dem
 nächsten Update neu gebaut werden müsste. Priming erreicht dasselbe zur Laufzeit, kostet
 nichts und gilt sofort.
 
-**Gesprochene Zeichen.** „Slash Hunter" wird zu „/Hunter" — ersetzt werden bewusst nur
+**Gesprochene Zeichen.** „Slash Hunter“ wird zu „/Hunter“ — ersetzt werden bewusst nur
 vier eindeutige Wörter (Slash, Backslash, Hashtag, Klammeraffe), und nur dann, wenn ein
-weiteres Wort folgt: klebt an einem Namen („/Hunter"), steht mit Leerzeichen vor
-gewöhnlichem Text („# oder"). „Raute", „Unterstrich", „Schrägstrich", „Minus" und
-„Plus" bleiben Text — das sind gewöhnliche deutsche Wörter, und an 1399 echten
+weiteres Wort folgt: klebt an einem Namen („/Hunter“), steht mit Leerzeichen vor
+gewöhnlichem Text („# oder“). „Raute“, „Unterstrich“, „Schrägstrich“, „Minus“ und
+„Plus“ bleiben Text — das sind gewöhnliche deutsche Wörter, und an 1399 echten
 Diktaten waren beide gemessenen Fehltreffer genau von dieser Art
-(„zeichne eine Raute darunter" wurde sonst zu „zeichne eine #darunter").
+(„zeichne eine Raute darunter“ wurde sonst zu „zeichne eine #darunter“).
 
 Die Vorschlagskarte in den Insights, die aus wiederholten Korrekturen eine
 Wörterbuch-Regel macht, und das dabei ebenfalls einzeln vergessbare gelernte Vokabular
@@ -955,18 +1029,18 @@ des Projekt-Gedächtnisses sind in [9](#9-verlauf-und-statistiken) bzw.
 
 ## 8a. Text-Bausteine (3.x–5.10) — entfernt in 5.11.0
 
-Ein gesprochenes Kürzel fügte einen festen Textblock ein („Baustein Signatur" am Ende
+Ein gesprochenes Kürzel fügte einen festen Textblock ein („Baustein Signatur“ am Ende
 einer Mail). Die Funktion ist in 5.11.0 **entfernt**: In 1399 gemessenen Diktaten war
 kein einziger Baustein angelegt, und im gesamten Verlauf gibt es keinen wiederkehrenden
 Text, der einer geworden wäre — ein Opt-in, das nie eingelöst wurde. Mit ihr entfallen
-`fleech/snippets.py`, die Baustein-Sektion der Seite „Textersetzung", die
+`fleech/snippets.py`, die Baustein-Sektion der Seite „Textersetzung“, die
 Platzhalter-Familie `[[B…]]` im Cleanup und die Felder `output.snippets` /
 `output.snippet_keyword` (alte `settings.json` laden weiter, die Schlüssel werden
 übergangen).
 
 Die **Wortprobe für Wörterbuch-Einträge** bleibt: Sie ist die Brücke zwischen Erkenner
 und Wörterbuch und hat mit den Bausteinen nichts zu tun. Die Formel-Platzhalter
-(`[[M…]]`, Kapitel 4.5) bleiben ebenfalls — sie sind seither die einzige
+(`[[M…]]`, Kapitel 4.3) bleiben ebenfalls — sie sind seither die einzige
 Platzhalter-Familie.
 
 ---
@@ -982,7 +1056,10 @@ Fenstertitel) und `dropped` (Text, den die Roh-Guards am Ende des Transkripts
 verworfen haben). Ein Diktat mit `reason` trägt in der Home-Zeitleiste einen kleinen
 ambernen Punkt; ein Klick öffnet den Detail-Dialog, der alle vier Felder zeigt — bei
 `dropped` lässt sich ein Fehlgriff der Filter so zurückholen. Ältere Einträge bleiben
-vollständig erhalten, die vier Spalten sind bei ihnen leer.
+vollständig erhalten, die vier Spalten sind bei ihnen leer. Seit 5.13.2 steht auch ein
+Diktat im Verlauf, das nicht eingefügt wurde, sondern nur in der Zwischenablage landete
+(Grund „Nicht eingefügt — lag nur in der Zwischenablage“, siehe 12.1) — genau dort
+sucht man es später.
 
 Daraus berechnet Fleech die Insights:
 
@@ -995,13 +1072,13 @@ Daraus berechnet Fleech die Insights:
 | **Serie** | aufeinanderfolgende Tage mit Diktat; heute noch nichts diktiert bricht die Serie **nicht** sofort |
 | **Häufigste Wörter** | ohne deutsche Füllwörter; Balkenlänge relativ zum häufigsten Wort |
 | **Deine Muster** | produktivste Tageszeit und Wochentag — erst ab **5 Diktaten**; Befehlsarten stehen hier als eigene Zeile |
-| **Verarbeitung** | **Median und p90** der Latenzen (kein Mittelwert — der wird von Kaltstarts verzerrt), Verteilung der Modell-Stufen, Fallback-Quote samt Gründen („Rückfälle: 2× Ollama · 1× Sinnumkehr") |
+| **Verarbeitung** | **Median und p90** der Latenzen (kein Mittelwert — der wird von Kaltstarts verzerrt), Verteilung der Modell-Stufen, Fallback-Quote samt Gründen („Rückfälle: 2× Ollama · 1× Sinnumkehr“) |
 
 Große Zahlen tragen einen Tausenderpunkt. Die Tageszeit-Einteilung ist bewusst grob
 (morgens 5–11, mittags 11–14, nachmittags 14–18, abends 18–23, sonst nachts), damit
 sich schon bei kleiner Historie ein stabiles Muster zeigt.
 
-**Der Buchvergleich** („das 2,3-Fache von Goethes Faust") bezieht sich immer auf
+**Der Buchvergleich** („das 2,3-Fache von Goethes Faust“) bezieht sich immer auf
 **alle** je diktierten Wörter (`Stats.lifetime_words`), nicht auf den gewählten
 Zeitraum, und ist deterministisch — er wechselt nicht mehr bei jedem einzelnen Diktat
 den Titel.
@@ -1013,29 +1090,29 @@ bereinigten Text), Anwendung und Zeitraum; die Treffer lassen sich als Markdown-
 speichern. Der Knopf dafür sagt, dass darin der volle Wortlaut unverschlüsselt steht.
 
 **Die letzte Aufnahme bleibt im Arbeitsspeicher**, bis die nächste beginnt — auch dann,
-wenn gar kein Text herauskam (leeres Transkript, Ollama nicht erreichbar). Über das
+wenn gar kein Text herauskam (leeres Transkript, KI nicht erreichbar). Über das
 Tray-Menü lässt sie sich noch einmal erkennen oder als WAV-Datei sichern. Auf die
 Festplatte kommt sie nur, wenn man sie ausdrücklich sichert.
 
 ### Vorschläge
 
-Die Karte „Vorschläge" macht aus Zahlen eine Handlung — zwei Quellen, in dieser
+Die Karte „Vorschläge“ macht aus Zahlen eine Handlung — zwei Quellen, in dieser
 Reihenfolge:
 
 **1 · Schreibvarianten** (`fleech/varianten.py`, seit 5.10.5). Der Wort-Diff Roh →
 bereinigt findet Grammatik, aber keine Eigennamen: In 1399 echten Diktaten stand
-„Cloud-Code" 18-mal und „Claude Code" 10-mal, derselbe Begriff in zwei Schreibweisen —
+„Cloud-Code“ 18-mal und „Claude Code“ 10-mal, derselbe Begriff in zwei Schreibweisen —
 und keine Diff-Zeile zeigt das, weil beide Wörter für sich genommen korrekt bereinigt
 wurden. Die Karte fragt stattdessen: „Cloud-Code 18× · Claude Code 10× — welche
-Schreibweise stimmt?", mit zwei **gleichwertigen** Knöpfen (die häufigere Form ist
+Schreibweise stimmt?“, mit zwei **gleichwertigen** Knöpfen (die häufigere Form ist
 ausdrücklich kein Vorschlag — oft ist gerade sie die falsche). Die Antwort legt eine
 Wörterbuch-Regel an und lässt Fleech die falsche Form auch im Projekt-Gedächtnis
 vergessen, damit sie sich nicht über den `initial_prompt` selbst weiter primt (siehe
 [20](#20-projekt-gedächtnis-seit-510)).
 
 **2 · Korrektur-Diff.** Wird ein Wort wiederholt zum selben anderen korrigiert
-(„playside" → „PySide", viermal), steht das mit zwei Knöpfen dort. Seit 5.10.4 schlägt
-diese Quelle nur noch **echte Erkennungsfehler** vor — Grammatik („kann" → „können"),
+(„playside“ → „PySide“, viermal), steht das mit zwei Knöpfen dort. Seit 5.10.4 schlägt
+diese Quelle nur noch **echte Erkennungsfehler** vor — Grammatik („kann“ → „können“),
 Formeln und Anführungszeichen sind ausgeschlossen, weil eine übernommene Regel davon
 künftig jedes Diktat verfälscht hätte.
 
@@ -1047,9 +1124,9 @@ taucht der Vorschlag zu Recht erneut auf.
 **Ignorieren** trägt das Paar dauerhaft in die Ignorier-Liste ein — dieselbe Liste, in
 der auch abgelehnte Wörterbuch-Rückfragen landen. Dauerhaft ist vertretbar, *weil* die
 Liste sichtbar ist: Sie steht als Editor unter **Einstellungen → Textersetzung**
-(„Ignoriert"), und eine Zeile dort zu löschen holt den Vorschlag zurück. Ein Fehlklick
+(„Ignoriert“), und eine Zeile dort zu löschen holt den Vorschlag zurück. Ein Fehlklick
 ist damit jederzeit korrigierbar, ohne dass die Vorschläge je von selbst wiederkommen.
-Bei einer Schreibvarianten-Frage gilt „Ignorieren" für **beide** Richtungen — es steht
+Bei einer Schreibvarianten-Frage gilt „Ignorieren“ für **beide** Richtungen — es steht
 ja noch nicht fest, welche Seite die falsche ist.
 
 Angezeigt werden höchstens drei Vorschläge, geprüft aber mehr — sonst bliebe die Karte
@@ -1073,71 +1150,94 @@ Bilddateien) und zeigt den Zustand über die Farbe:
 
 | Zustand | Farbe | Tooltip |
 |---|---|---|
-| bereit | grau | „Fleech — bereit" |
-| Aufnahme | rot | „Fleech — Aufnahme läuft" |
-| Verarbeitung | orange | „Fleech — verarbeite Diktat" |
-| Fehler | dunkelrot | „Fleech — Fehler (Log prüfen)" |
+| bereit | grau | „Fleech — bereit“ |
+| Aufnahme | rot | „Fleech — Aufnahme läuft“ |
+| Verarbeitung | orange | „Fleech — verarbeite Diktat“ |
+| Fehler | dunkelrot | „Fleech — Fehler (Log prüfen)“ |
 
 Linksklick öffnet das Hauptfenster, Rechtsklick das Menü: *Aufnahme starten/stoppen*,
-*Overlay ein/aus*, dahinter — sofern eine Aufnahme im Speicher liegt — *Letzte Aufnahme
-noch einmal erkennen* und *Letzte Aufnahme als WAV sichern …*, dann *Einstellungen …*,
-*Neu laden*, *Beenden*.
+*Overlay ein/aus*, *Letzte Aufnahme noch einmal erkennen* und *Letzte Aufnahme als WAV
+sichern …* (beide immer anklickbar — ob eine Aufnahme im Speicher liegt, meldet die
+Pille beim Klick), dann *Einstellungen …*, *Update installieren …* (nur sichtbar, wenn
+eine neue Version bereitliegt — der Weg, der auch ohne Benachrichtigungen funktioniert),
+*Neu laden* und *Beenden*.
 
 ### 10.2 Die Pille (Overlay)
 
-Die wichtigste Fläche: ein kleines, immer sichtbares Element am Bildschirmrand, das
-während der Aufnahme Rückmeldung gibt und die zentralen Aktionen anbietet.
+Die wichtigste Fläche: ein kleines Element am Bildschirmrand, das während der Aufnahme
+Rückmeldung gibt und die zentralen Aktionen anbietet. Im Auslieferungszustand ist sie
+nur während Aufnahme und Verarbeitung zu sehen; die fertige Text-Blase bleibt danach
+noch kurz stehen.
 
-![Overlay im Ruhezustand](bilder/overlay-inseln-neutral.png)
+![Die Pille in sechs Zuständen: Aufnahme, Verarbeitung, Profilfarbe, Pause, kein Ton, Hinweis zur Zwischenablage](media/pill-states.de.png)
 
-Von links nach rechts:
+*Von links nach rechts bzw. oben nach unten: Aufnahme · Verarbeitung · Profilfarbe am
+Punkt · Pause · kein Ton vom Mikrofon · Hinweis „liegt in der Zwischenablage“.*
+
+Die Pille besteht aus drei Inseln — die mittlere Kapsel ist bewusst symmetrisch:
 
 | Element | Funktion |
 |---|---|
-| **Modus-Punkt** | zeigt den aktiven Modus; Klick schaltet durch (Aus → Mathe → KI-Prompting → Aus). Während einer Aufnahme im Mathe-Modus markiert der Klick ein Formel-Segment |
+| **Profil-Punkt** (linke Insel) | zeigt das Profil, das für das Diktat gilt (Ring in der Profilfarbe, grau ohne Profilfarbe). Ein Klick wechselt reihum zum nächsten Profil des Schnellwechsels — **nur während einer laufenden Aufnahme**; außerhalb nimmt der Punkt keine Klicks an, damit ein beiläufiger Treffer am Bildschirmrand nichts umstellt (vorher wählen: Profil-Hotkey oder „Jetzt aktiv“ auf der Profilseite) |
 | **✕** | Aufnahme verwerfen — keine Verarbeitung, kein Einfügen |
-| **Wellenform** | Live-Pegel; färbt sich cyan, sobald das Safe-Word erkannt wurde |
-| **✓** | Aufnahme beenden und Text einfügen. Kam der Text als **Rohtext** (Modell nicht erreichbar oder Ausgabe verworfen), leuchtet der Haken kurz amber statt cyan — zusammen mit einem amber gerahmten Transkript-Fenster |
-| **»** | Befehls-Aufnahme starten/beenden (Alternative zum gesprochenen Safe-Word) |
+| **Wellenform** | Live-Pegel: Punktreihe bei Stille, Balken beim Sprechen (automatisch an das Mikrofon angepasst, rein optisch), ruhige Sinuswelle während der Verarbeitung |
+| **✓** | Aufnahme beenden und Text einfügen. Kam der Text als **Rohtext** (Modell nicht erreichbar oder Ausgabe verworfen), wird der Haken drei Sekunden lang amber statt cyan — zusammen mit einer amber gerahmten Text-Blase |
+| **⏸ / ▶** (rechte Insel) | Aufnahme anhalten und fortsetzen (auch per Hotkey, Standard `Strg+Alt+Leertaste`). Er sitzt dort, wo früher der »-Knopf für Befehls-Aufnahmen lag; der ist entfallen, weil ihn niemand benutzte (4.2) |
 
-**Der Ring am Modus-Punkt** zeigt das Profil, das in der App gilt, in die gerade
-diktiert wird — nicht mehr nur ein von Hand gewähltes. Wechselt es beim Aufnahmestart,
-erscheint der Name kurz daneben.
+✕, ✓ und ⏸ sind nur während der Aufnahme aktiv.
 
-**Kein-Ton-Wache.** Kommt vier Sekunden lang kein Ton mehr an, füllt sich der
-Modus-Punkt rot und eine Blase sagt „Kein Ton vom Mikrofon — Gerät prüfen" — noch
-während man spricht, statt erst am leeren Ergebnis. Die Warnung stoppt nichts, gewinnt
-optisch gegen jede andere Punkt-Aussage (Profil, Modus) und verschwindet, sobald wieder
-Ton ankommt oder die Aufnahme endet. Die Schwelle (roher RMS-Pegel unter 0,002) ist noch
-**nicht am echten Mikrofon kalibriert** — Details und Grenzen siehe
+**Was der Punkt sonst noch sagt.** Er trägt mehrere, bewusst getrennte Aussagen:
+
+- **Ring in Profilfarbe** — welches Profil greift, und zwar das der App, in die gerade
+  diktiert wird, nicht nur ein von Hand gewähltes. Wechselt das Profil, erscheint sein
+  Name für 1,8 Sekunden in einer Kapsel **unter** der Pille.
+- **Amber gefüllt** — KI-Prompting ist für dieses eine Diktat eingerastet
+  (`Strg+Alt+P`, 4.4); die linke Insel bekommt dazu einen amber Rahmen.
+- **Rot gefüllt** — vom Mikrofon kommt nichts an (siehe unten). Diese Warnung gewinnt
+  gegen jede andere Aussage.
+- **Cyan Satellit** unten rechts — Fleech erinnert sich an Diktate im aktuellen Fenster,
+  Befehle mit Bezug („der letzte Satz“) greifen; **hohl**, wenn der Kontext nach einem
+  Fensterwechsel nur noch lesbar ist (4.2).
+
+**Weitere Zustände der ganzen Pille:**
+
+- **Befehl erkannt** — mit eingeschalteter Live-Transkription färbt sich die Pille
+  dunkel-cyan mit cyan Rahmen und cyan Balken, sobald das Safe-Word in der Vorschau
+  auftaucht: „verstanden, das ist ein Befehl“, noch bevor die Verarbeitung beginnt.
+- **Pause** — matte Pille mit grauem Rahmen, ▶ statt ⏸, ruhende Wellenform und die
+  Blase „Pause — es wird nichts aufgenommen“. Eine Kein-Ton-Warnung ist in der Pause
+  abgeschaltet: Dort kommt absichtlich nichts an.
+
+**Kein-Ton-Wache.** Ab vier Sekunden Aufnahmedauer prüft Fleech den lautesten rohen
+Pegel der letzten fünf Sekunden. Liegt er unter RMS 0,002, füllt sich der Punkt rot
+und eine rot gerahmte Blase sagt „Kein Ton vom Mikrofon — zu leise oder Gerät prüfen“ —
+noch während man spricht, statt erst am leeren Ergebnis. Die Warnung stoppt nichts und
+verschwindet, sobald wieder Ton ankommt oder die Aufnahme endet. Die Schwelle ist an
+einem echten Mikrofon geprüft (normal, leiser, noch leiser, stumm): Sie löste genau dort
+aus, wo auch die Erkennung nichts mehr verstand — Grenzen siehe
 [25](#25-grenzen-und-bewusste-kompromisse).
 
-**Die Zustände auf einen Blick:**
+**Die Blasen.** Sprechblasen ergänzen die Pille, alle exakt auf sie zentriert:
 
-| | |
-|---|---|
-| ![Mathe](bilder/overlay-inseln-mathe.png) | **Mathe-Modus** — violetter Punkt, violett getönte Pille |
-| ![KI-Prompting](bilder/overlay-inseln-prompting.png) | **KI-Prompting** — amberfarbener Punkt und Tönung |
-| ![Beide](bilder/overlay-inseln-beide.png) | **Beide gleichzeitig** — geteilter Punkt *und* geteilter Rahmen: links amber, rechts violett |
-| ![Befehl](bilder/overlay-inseln-befehl.png) | **Befehls-Modus scharf** — cyan getönt, Wellenform und » leuchten cyan |
-
-**Zwei Darstellungsvarianten** (Einstellungssache):
-
-| Getrennte Inseln (Standard) | Durchgehende Pille |
-|---|---|
-| ![Inseln](bilder/overlay-inseln-neutral.png) | ![Durchgehend](bilder/overlay-durchgehend-neutral.png) |
-
-**Die Blasen.** Zwei Sprechblasen ergänzen die Pille, beide exakt auf sie zentriert:
-
-- **oberhalb** — die Live-Transkription während des Sprechens (optional) bzw. der
-  fertige Text nach dem Diktat,
+- **oberhalb** — die Live-Transkription während des Sprechens (optional, eine Zeile mit
+  den zuletzt erkannten Wörtern); während der Verarbeitung der **Rohtext** samt
+  Fortschritt („Bereinige …“, „KI-Modell wird geladen …“); danach der fertige Text
+  (4,2 s, mit Warnzeile 5 s, abschaltbar). Dort erscheinen auch Warnungen, die ankommen
+  müssen und deshalb an keiner Benachrichtigungs-Einstellung hängen: geratene Formeln,
+  verworfene Wörter („⚠ 3 Wörter verworfen: …“), der Hinweis, dass ein spät fertiges
+  Diktat **in der Zwischenablage** liegt (12 Sekunden, mit dem Anfang des Textes und
+  „Strg+V“), und „Dauert länger als üblich … 0:42“ mit laufender Uhr, wenn die
+  Verarbeitung ungewöhnlich lange braucht (ab 12 s plus 0,05 s je Sekunde Aufnahme).
 - **unterhalb** — die Hover-Erklärung eines Bedienelements, gespiegelt im selben
-  Abstand.
+  Abstand, und die Profil-Kapsel.
 
-Die Pille lässt sich frei positionieren (vier Presets oder per Maus ziehen), in der
-Größe skalieren, in der Deckkraft regeln, klick-durchlässig schalten und folgt auf
-Wunsch dem Monitor des Mauszeigers. Sie nimmt **niemals** den Fokus — sonst ginge das
-spätere Einfügen ins Leere.
+Die Pille lässt sich frei positionieren (vier Presets — rechts, links, oben, unten —
+oder per Maus ziehen, mit Einrasten an Bildschirmmitte und Standardrand), in der Größe
+skalieren, in der Deckkraft regeln, klick-durchlässig schalten und folgt auf Wunsch dem
+Monitor des Mauszeigers. Zwei Darstellungsvarianten sind Einstellungssache: getrennte
+Inseln (Standard) oder eine durchgehende Pille, in der KI-Prompting dann die ganze
+Pille amber tönt. Sie nimmt **niemals** den Fokus — sonst ginge das spätere Einfügen
+ins Leere.
 
 ### 10.3 Hauptfenster
 
@@ -1146,38 +1246,43 @@ Inhalt auf einer abgesetzten Fläche mit abgerundeter oberer Ecke.
 
 #### Home
 
-![Home](bilder/hauptfenster.png)
+![Home](media/main-window.png)
 
 Begrüßung, darunter der **Verlauf** als flache Zeitleiste, gruppiert nach Tag (HEUTE /
-GESTERN / Datum). Jede Zeile zeigt Uhrzeit und Text; beim Überfahren erscheint der
-Löschen-Knopf. Ein Klick öffnet den vollen Text mit **bereinigter und roher** Fassung
-nebeneinander — nützlich, um ein Diktat nachzuholen, das im Zielfeld nicht angekommen
-ist. Rechts die Kurz-Statistik.
+GESTERN / Datum), darüber Suche, App-Filter und Zeitraum (Kapitel 9). Jede Zeile zeigt
+Uhrzeit und Text; beim Überfahren erscheint der Löschen-Knopf. Ein Klick öffnet den
+vollen Text mit **bereinigter und roher** Fassung nebeneinander — nützlich, um ein
+Diktat nachzuholen, das im Zielfeld nicht angekommen ist. Rechtsklick bietet „Neu
+bereinigen als …“, „Text kopieren“, „Rohtext kopieren“ und „Eintrag löschen“. Rechts
+die Kurz-Statistik.
 
 #### Insights
 
-![Insights](bilder/insights.png)
+![Insights](media/insights.png)
 
-Karten-Raster in drei Reihen: oben die drei Kennzahlen (Sprechtempo als Halbkreis-Tacho,
-Korrekturen, Wörter gesamt), in der Mitte App-Nutzung und Aktivitäts-Kalender, unten
-häufigste Wörter, „Deine Muster" und „Verarbeitung". **Jede Karte lässt sich einzeln
-ausblenden**; das Layout rückt dann zusammen.
+Kopfzeile mit dem Zeitraum (Heute / 7 Tage / 30 Tage / Alle), darunter ein
+Karten-Raster: oben die drei Kennzahlen (Sprechtempo als Halbkreis-Tacho, Korrekturen,
+Wörter gesamt), dann App-Nutzung und die Serie mit Aktivitäts-Kalender, dann häufigste
+Wörter und „Deine Muster“, darunter über die volle Breite „Vorschläge“ und
+„Verarbeitung“. **Jede Karte lässt sich per Rechtsklick einzeln ausblenden**; das
+Layout rückt dann zusammen.
 
 #### Profile
 
-![Profile](bilder/profile.png)
+![Profile](media/profiles.png)
 
-Drei Spalten: links die laufenden und häufig genutzten Apps (Doppelklick weist zu), in
-der Mitte die Profilliste (farbiger Punkt = Modus-Slot) mit Export-/Import-Knöpfen für
-Profile und Schnellwechsel, rechts das Detail des gewählten Profils — Name,
-Eingriffsgrad, Sprache, Modus-Slot, Stil-Tags, zugewiesene Apps. Oben die Zeile
-„Jetzt aktiv" zum Profilwechsel ohne laufende Aufnahme. Darunter ein abgesetzter Balken
-für globale Funktionen (Mathe an/aus). Der große Schalter oben rechts deaktiviert
-Profile insgesamt.
+Oben die Zeile „Jetzt aktiv“ zum Profilwechsel ohne laufende Aufnahme, darunter zwei
+Spalten: links die Profilliste (Punkt in der Profilfarbe) mit Suche,
+Hinzufügen/Löschen und Export-/Import-Knöpfen für Profile und Schnellwechsel, rechts
+das Detail des gewählten Profils — Name (zum Umbenennen anklicken), Ausgabeformat samt
+„Prompt ansehen …“, Farbe, „Im Schnellwechsel zeigen“ und, hinter „Erweiterte
+Einstellungen“, Eingriffsgrad, Sprache, Safe-Word und „Diktat direkt abschicken“. Der
+große Schalter oben rechts deaktiviert Profile insgesamt. Welche App welches Profil
+bekommt, steht seit 4.7.0 nicht mehr hier, sondern auf der Seite „Apps“.
 
 #### Apps
 
-Eigene Seite neben „Profile": Oben die Live-Zeile „Wenn du jetzt diktierst" (siehe
+Eigene Seite neben „Profile“: Oben die Live-Zeile „Wenn du jetzt diktierst“ (siehe
 [7](#7-profile)), darunter die Anwendungsliste — nach diktierten Wörtern sortiert,
 zugewiesene Programme ohne Nachweis in der eigenen Historie farbig oben, samt
 Zuordnungsvorschlagskarten und dem Titel-Übernehmen-Knopf beim Anlegen einer
@@ -1185,15 +1290,16 @@ Titel-Bedingung.
 
 #### Einstellungen
 
-![Einstellungen](bilder/einstellungen-aufnahme.png)
+![Einstellungen](media/settings-recording.png)
 
-Elf Sektionen links, das Formular rechts. Das Bedienmuster ist überall gleich:
-**Beschriftung links, Steuerelement rechts, dahinter ein „?"-Badge**, dessen Erklärung
+Zehn Seiten links (Allgemein, KI, Aufnahme, Audio-Fokus, Overlay, Sounds,
+Benachrichtigungen, Ausgabe, Textersetzung, Advanced), das Formular rechts. Das Bedienmuster ist überall gleich:
+**Beschriftung links, Steuerelement rechts, dahinter ein „?“-Badge**, dessen Erklärung
 beim Überfahren als Blase *unterhalb* erscheint. Bei Auswahllisten erklärt das Badge
 **alle** Optionen, nicht nur die gerade gewählte — vorher musste man einen Bedienmodus
 erst einschalten, um zu erfahren, was er überhaupt tut. Unten ein Trenner, der Hinweis
-„Änderungen werden sofort übernommen" und ein Speichern-Knopf, der offene Eingabefelder
-verbindlich übernimmt und kurz „Gespeichert ✓" zurückmeldet.
+„Änderungen werden sofort übernommen“ und ein Speichern-Knopf, der offene Eingabefelder
+verbindlich übernimmt und kurz „Gespeichert ✓“ zurückmeldet.
 
 ### 10.4 Dialoge
 
@@ -1203,15 +1309,26 @@ verbindlich übernimmt und kurz „Gespeichert ✓" zurückmeldet.
   verworfene Rohtext-Schwanz (siehe [9](#9-verlauf-und-statistiken)) — leere Felder
   erzeugen keine Zeile.
 - **Alle Wörter** — die vollständige Wort-Rangliste.
-- **Wörterbuch-Rückfrage** — „Meintest du …?" mit hervorgehobenem Fund im Satz.
-- **Verlauf löschen** — verlangt das getippte Wort „Delete" als Bestätigung.
+- **Wörterbuch-Rückfrage** — „Meintest du …?“ mit hervorgehobenem Fund im Satz.
+- **Verlauf löschen** — verlangt das getippte Wort „Delete“ als Bestätigung.
 - **Hotkey aufnehmen** — wartet auf einen Tastendruck; Esc/Entf/Backspace *löschen*
-  die Bindung (das steht auch am Feld selbst), ein sichtbarer „Abbrechen"-Knopf
+  die Bindung (das steht auch am Feld selbst), ein sichtbarer „Abbrechen“-Knopf
   schließt den Dialog dagegen ohne jede Änderung — für den Fall, dass man ihn aus
   Versehen geöffnet hat.
-- **Einführung** (seit v2.0.0) — fünf Schritte beim Erststart: Willkommen, Mikrofon
-  (mit Live-Pegelbalken), Bedienung (Halten/Umschalten, wirkt sofort), die vier Modi
-  samt Safe-Word, Probediktat. Jederzeit abbrechbar; jeder Weg hinaus (auch das X)
+- **Neu bereinigen** (seit 5.12.1) — öffnet sich sofort beim Klick auf „Neu bereinigen
+  als …“: oben ein laufender Balken an der Stelle des Ergebnisses, darunter der
+  Rohtext, aus dem gearbeitet wird; danach der neue Text mit dem Hinweis, dass er schon
+  in der Zwischenablage liegt — oder der Grund, warum es nicht ging (Kapitel 23).
+- **Prompt ansehen** — der System-Prompt hinter einem Ausgabeformat, editierbar, mit
+  Rücksetzen auf den Werkszustand (Kapitel 23).
+- **Update** — Version, Notizen, Download-Fortschritt und „Installieren“ (Kapitel 24).
+- **Einführung** (seit v2.0.0) — beim Erststart: Willkommen, falls nötig die
+  Einrichtung (Ollama und Modelle laden, mit Fortschritt), Mikrofon (mit
+  Live-Pegelbalken), Bedienung (Halten/Umschalten/Anstupsen, wirkt sofort), die Modi
+  samt Safe-Word, „Was Fleech sich merkt“ (Verlauf an oder aus — eine bewusste
+  Entscheidung, weil der Wortlaut unverschlüsselt gespeichert wird) und ein
+  Probediktat. Bei einem Cloud-Anbieter oder „Ohne KI“ richtet sie nur die
+  Spracherkennung ein. Jederzeit abbrechbar; jeder Weg hinaus (auch das X)
   merkt sich das dauerhaft — der Wizard wird nie zum Wiedergänger. Erneut aufrufbar
   unter Einstellungen → Allgemein. Bewusst eine Abkürzung, kein zweiter
   Einstellungs-Dialog: alles darin ist auch regulär änderbar.
@@ -1220,13 +1337,18 @@ verbindlich übernimmt und kurz „Gespeichert ✓" zurückmeldet.
 
 Durchgehend dunkel, keine helle Variante. Drei Flächenstufen (Fenster `#1A1D22` →
 Inhalt `#16181C` → Karte `#22262E`), ein Marken-Akzent in Cyan `#35C0D8`. Die
-**Modus-Farben sind bedeutungstragend und überall gleich**:
+**Signalfarben sind bedeutungstragend und überall gleich**:
 
 | Farbe | Bedeutung |
 |---|---|
-| **Cyan** `#35C0D8` | Befehls-Modus scharf |
-| **Violett** `#AA78F0` | Mathe/Formeln |
-| **Amber** `#E8A13C` | KI-Prompting |
+| **Cyan** `#35C0D8` | Marke; Befehls-Modus scharf; Session-Satellit an der Pille |
+| **Amber** `#E8A13C` | KI-Prompting; Warnungen, die man ansehen sollte (Rohtext-Rückfall, geratene Formel, Zwischenablage) |
+| **Rot** `#E26058` | kein Ton vom Mikrofon |
+
+Dazu kommen acht wählbare **Profilfarben** (Violett `#AA78F0` für Mathe, Amber für
+KI-Prompt, Blau für E-Mail, Grün für Stichpunkte als Vorgaben, außerdem Limette, Rot,
+Pink, Grau) — sie färben nur den Ring am Punkt der Pille und den Punkt in der
+Profilliste, nie eine Fläche.
 
 Icons werden als Strichzeichnungen zur Laufzeit gemalt (keine Icon-Fonts, keine
 Assets), Radien folgen 8 px für Bedienelemente und 10 px für Karten, Animationen sind
@@ -1236,7 +1358,9 @@ kurz und zurückhaltend. Die einzige Dauerbewegung ist die Wellenform.
 
 ## 11. Einstellungs-Referenz
 
-Alle Einstellungen greifen **sofort** und werden unmittelbar gespeichert.
+Alle Einstellungen greifen **sofort** und werden unmittelbar gespeichert. Die wenigen
+Ausnahmen stehen jeweils dabei (Debug-Logging ab dem nächsten Start, ein neues Mikrofon
+ab der nächsten Aufnahme).
 
 ### Allgemein
 
@@ -1244,17 +1368,40 @@ Alle Einstellungen greifen **sofort** und werden unmittelbar gespeichert.
 |---|---|---|
 | Autostart mit Windows | startet Fleech beim Anmelden im Tray | aus |
 | Sprache | Erkennungssprache: Deutsch, Englisch oder automatisch (mehrsprachig) | Deutsch |
-| Anzeigename | Name in der Begrüßung; leer = Systembenutzername | leer |
+| Anzeigename | Name in der Begrüßung auf Home — und die Unterschrift unter Diktaten im Profil „E-Mail“; leer = Systembenutzername in der Begrüßung, Mail ohne Namen | leer |
 | Diktat-Verlauf speichern | lokale Historie für Home und Insights | an |
-| Verlauf löschen | endgültiges Löschen, bestätigt durch getipptes „Delete" | — |
+| Verlauf löschen | endgültiges Löschen, bestätigt durch getipptes „Delete“ | — |
 | Einführung | den Erststart-Rundgang erneut zeigen | — |
+| Karten | „Alle Karten wieder einblenden“ (siehe unten) | — |
 
 ### Karten ein- und ausblenden
 
 Seit v2.2.0 gibt es dafür **keine eigene Seite** mehr. Jede Karte auf Home und
 Insights lässt sich per **Rechtsklick → Ausblenden** entfernen — dort, wo man sie
 gerade sieht, statt in einer Liste mit einem Dutzend Checkboxen. Zurückholen sammelt
-der Knopf „Alle Karten wieder einblenden" unter **Allgemein**.
+der Knopf „Alle Karten wieder einblenden“ unter **Allgemein**.
+
+### KI
+
+Seit 6.1.0: Wer bereinigt den Text? (`fleech/ui/settings/ki.py`, Anbieterliste in
+`fleech/llm/providers.py`, Schlüsselablage in `fleech/llm/apikeys.py`.)
+
+| Einstellung | Bedeutung | Standard |
+|---|---|---|
+| Anbieter | **Lokal (Ollama) — empfohlen** · OpenAI · Anthropic (Claude) · Google Gemini · Mistral · Groq · OpenRouter · Eigener Server (OpenAI-kompatibel) · **Ohne KI — nur Spracherkennung** | Lokal (Ollama) |
+| API-Schlüssel | nur bei Cloud-Anbietern sichtbar: einfügen, Enter — der Schlüssel landet im Schlüsselbund des Systems, angezeigt wird danach nur eine Maske (Anfang und Ende); ohne Schlüssel ein Link „Schlüssel bei … anlegen“ | — |
+| Server-Adresse | nur bei „Eigener Server“: Basis-Adresse eines OpenAI-kompatiblen Servers (LM Studio, vLLM, llama.cpp …), meist mit `/v1` am Ende | leer |
+| Modell | frei eintragbar; leer = Vorschlag des Anbieters. „Liste laden“ fragt den Anbieter, welche Modelle der Schlüssel nutzen darf (bei Ollama: die installierten) | leer |
+| Verbindung testen | ein Testaufruf mit der aktuellen Wahl; meldet Modell und Antwortzeit oder den Grund (Schlüssel abgelehnt, Kontingent erschöpft, nicht gefunden, keine Verbindung) | — |
+
+Unter der Auswahl steht bei jeder Wahl **ein Satz, wohin der Text geht** — eine
+Datenschutz-Entscheidung gehört nicht in einen Tooltip: lokal „Alles bleibt auf diesem
+Rechner“, bei einem Cloud-Anbieter, dass der diktierte Text (nicht die Tonaufnahme)
+dorthin geht und über den eigenen Schlüssel abgerechnet wird, bei „Ohne KI“, dass
+Füllwörter weiterhin entfernt werden, Befehle und Formate aber ruhen. Der Wechsel
+greift ohne Neustart; wer auf einen Cloud-Anbieter umstellt, bekommt den Grafikspeicher
+des lokalen Modells sofort zurück. Netzwerkaufrufe (Modellliste, Test) laufen im
+Hintergrund. Details zum Zugang in [13.2](#132-der-llm-zugang).
 
 ### Aufnahme
 
@@ -1263,22 +1410,25 @@ der Knopf „Alle Karten wieder einblenden" unter **Allgemein**.
 | Bedienmodus | **Hold** (halten) · **Toggle** (drücken/drücken) · **Anstupsen** (drücken, endet von selbst) | Hold |
 | Sprechpause bis Ende | nur bei *Anstupsen* sichtbar: so lange still = fertig (1–4 s) | 2,0 s |
 | Diktat-Hotkey | Taste, Kombination oder Maustaste 4/5/Mitte | F9 |
-| KI-Prompting | **nur während einer Aufnahme**: dieses Diktat wird zum Prompt (dauerhaft: Profil „KI-Prompt" wählen) | Strg+Alt+P |
+| KI-Prompting | **nur während einer Aufnahme**: dieses Diktat wird zum Prompt (dauerhaft: Profil „KI-Prompt“ wählen) | Strg+Alt+P |
+| Rohtext einsetzen | ersetzt die zuletzt eingefügte Fassung durch das wörtliche Transkript — einmal je Ausgabe, nur innerhalb von zwei Minuten und nur, solange das Fenster nicht gewechselt wurde | Strg+Alt+Z |
+| Profil wechseln | kurz drücken = nächstes Profil, gedrückt halten = Auswahlliste am Mauszeiger; gedacht für eine Maus-Zusatztaste | unbelegt |
+| Pause | hält die laufende Aufnahme an und setzt sie fort (auch als Knopf in der Pille) | Strg+Alt+Leertaste |
 | Mikrofon | Gerätewahl; wirkt ab der nächsten Aufnahme | Systemstandard |
 | Gesperrte Geräte | Namensteile, die nie als Mikrofon gelten sollen | leer |
 
 Die Freihand-Zeilen (Ein-Schalter, Startwörter samt Probe-Knopf, Genauigkeit,
-Abbruchwort, Fehlersuche, „Nicht lauschen in") sind in **5.11.0 entfernt**. Bis 5.10.x
+Abbruchwort, Fehlersuche, „Nicht lauschen in“) sind in **5.11.0 entfernt**. Bis 5.10.x
 standen sie ausgegraut da; ein ausgegrautes Feld erklärt aber nichts, und vier davon
 waren zwischenzeitlich sogar bedienbar, ohne etwas zu bewirken. Der Code bleibt
 eingefroren (Abschnitt 21) — was der Nutzer sehen kann, muss wahr sein. Der Regler
-„Sprechpause bis Ende" ist geblieben: Er gehört zum Bedienmodus *Anstupsen* und steht
+„Sprechpause bis Ende“ ist geblieben: Er gehört zum Bedienmodus *Anstupsen* und steht
 deshalb dort oben.
 
-Zu den gesperrten Geräten: Fleech erkennt gängige Loopback-Geräte („Stereomix",
-„CABLE Output", Monitor-Quellen) selbst — sie würden Systemton statt Stimme
+Zu den gesperrten Geräten: Fleech erkennt gängige Loopback-Geräte („Stereomix“,
+„CABLE Output“, Monitor-Quellen) selbst — sie würden Systemton statt Stimme
 transkribieren. Unter Linux ist das eine **strukturelle** Prüfung (`monitor_of_sink`),
-die keine Namensliste braucht. Unter Windows gibt es kein Gegenstück: „Stereomix" ist
+die keine Namensliste braucht. Unter Windows gibt es kein Gegenstück: „Stereomix“ ist
 dort ein ganz regulärer Capture-Endpunkt und für das Betriebssystem nicht von einem
 Mikrofon zu unterscheiden. Dort bleiben Wortliste und diese Sperrliste die einzigen
 Mittel — das ehrlich zu benennen ist besser, als eine Heuristik als Gewissheit
@@ -1302,44 +1452,49 @@ Makro-/G-Tasten relevant.
 | Fokus-Modus | *Aus* / *Leiser stellen* / *Stark absenken* | Leiser stellen |
 | Restlautstärke anderer Apps | 0 % = stumm bis 100 % = unverändert | 25 % |
 
+Der Regler gilt für **beide** Absenk-Modi: Die Oberfläche legt seinen Wert auf
+`duck_level` und `hard_duck_level` zugleich. Die getrennten Werte aus `config.yaml`
+(25 % / 8 %) wirken nur ohne Oberfläche (CLI) — in der Desktop-App unterscheiden sich
+„Leiser stellen“ und „Stark absenken“ derzeit nicht.
+
 ### Overlay
 
 | Einstellung | Bedeutung | Standard |
 |---|---|---|
-| Sichtbarkeit | *Nur bei Aufnahme* / *Immer* / *Automatisch ausblenden* / *Deaktiviert* | Nur bei Aufnahme |
-| Auto-Hide nach | nur bei Sichtbarkeit „Automatisch ausblenden" sichtbar: Wartezeit vor dem Ausblenden (0,5–60 s) | 4 s |
+| Sichtbarkeit | *Nur während Aufnahme/Verarbeitung* / *Immer sichtbar* / *Automatisch ausblenden* / *Deaktiviert* | Nur während Aufnahme/Verarbeitung |
+| Auto-Hide nach | nur bei Sichtbarkeit „Automatisch ausblenden“ sichtbar: Wartezeit vor dem Ausblenden (0,5–60 s) | 4 s |
 | Größe | Kompakt / Standard / Groß | Standard |
 | Pillen-Rand | *Eng* / *Standard* / *Luftig* — Innenabstand des Pillen-Hintergrunds | Standard |
-| Rand-Buttons | getrennte Inseln oder durchgehende Pille | getrennte Inseln |
+| Rand-Buttons | Profil-Punkt und Pause-Knopf als getrennte Inseln oder alles in einer durchgehenden Pille | getrennte Inseln |
 | Transparenz | Deckkraft (20–100 %) | 90 % |
 | Pegel-Empfindlichkeit | wie stark die Wellenform ausschlägt (20–300 %) | 100 % |
-| Click-Through | Mausklicks gehen durch die Pille hindurch — dabei auch durch ihre eigenen Knöpfe (✕, ✓, Pause, Ziehen); Rückweg über „Overlay bearbeiten" | aus |
+| Click-Through | Mausklicks gehen durch die Pille hindurch — dabei auch durch ihre eigenen Knöpfe (✕, ✓, Pause, Ziehen); Rückweg über „Overlay bearbeiten“ | aus |
 | Folgt dem Maus-Bildschirm | Pille erscheint auf dem Monitor des Zeigers | an |
-| Live-Transkription | Echtzeit-Vorschau beim Sprechen (~0,5 GB VRAM extra) | aus |
-| Erkannten Text zeigen | fertigen Text kurz über der Pille einblenden | an |
-| Position | vier Presets, freies Ziehen im Bearbeiten-Modus, Zurücksetzen | rechts |
+| Live-Transkription (experimentell) | Echtzeit-Vorschau beim Sprechen über ein eigenes kleines Whisper-Modell (~0,5 GB VRAM extra); Voraussetzung für die cyan „Befehl erkannt“-Optik | aus |
+| Erkannten Text über Overlay zeigen | fertigen Text kurz über der Pille einblenden | an |
+| Position | vier Presets, freies Ziehen im Bearbeiten-Modus („Overlay bearbeiten“), Zurücksetzen | rechts |
 
 ### Sounds
 
 An/Aus, Lautstärke, Klangstil (**Soft** = weiche Zwei-Ton-Chimes, **Click** = trockene
-Ticks) sowie vier Einzelschalter für Start, Stopp, „Text eingefügt" und Fehler. Alle
+Ticks) sowie vier Einzelschalter für Start, Stopp, „Text eingefügt“ und Fehler. Alle
 Töne werden synthetisiert, es gibt keine Audiodateien.
 
 ### Benachrichtigungen
 
 | Einstellung | Bedeutung | Standard |
 |---|---|---|
-| „Nicht stören" respektieren | keine unwichtigen Banner bei aktivem DND | an |
+| „Nicht stören“ respektieren | keine unwichtigen Banner bei aktivem DND | an |
 | Sounds bei DND stumm | zusätzlich alle Fleech-Töne stumm | aus |
-| Windows-Banner | *Nichts* / *Wichtiges* / *Alles* — „Wichtiges" meldet nur Probleme (kritische Fehler, Anbieter-Quota), „Alles" zusätzlich Statusmeldungen | Alles |
+| Windows-Banner | *Nichts* / *Wichtiges* / *Alles* — „Wichtiges“ meldet nur Probleme (kritische Fehler, Anbieter-Quota), „Alles“ zusätzlich Statusmeldungen | Alles |
 | Akzent-Sound bei kritischen Toasts | eigener Ton | aus |
 | Gaming-/Fullscreen-Erkennung | erkennt Spiele und Vollbild-Apps | an |
 | Overlay im Gaming-Modus | *Nur bei Aufnahme* / *Compact* / *Versteckt* / *Unverändert* | Nur bei Aufnahme |
 | Fleech-Töne im Spiel | Lautstärkefaktor, 0 % = stumm | 50 % |
 | Ausnahmen (Prozesse) | Programme, die nicht als Spiel gelten | leer |
 
-Die Grundhaltung ist „so wenig Banner wie möglich": Es gibt einen 90-Sekunden-Cooldown
-je Banner-Art, und im Spiel oder bei „Nicht stören" bleiben unkritische Meldungen ganz
+Die Grundhaltung ist „so wenig Banner wie möglich“: Es gibt einen 90-Sekunden-Cooldown
+je Banner-Art, und im Spiel oder bei „Nicht stören“ bleiben unkritische Meldungen ganz
 aus.
 
 ### Ausgabe
@@ -1358,11 +1513,12 @@ gesprochene Delimiter gibt es seit v3.0.0 nicht mehr.
 
 | Einstellung | Bedeutung | Standard |
 |---|---|---|
-| Formel-Erkennung | Automatisch / Aus (siehe oben) | Automatisch |
+| Formel-Erkennung | Automatisch / Aus (siehe oben) | Aus |
 | Eingriffsgrad | Minimal / Standard / Strong | Standard |
 | Safe-Word-Befehle aktiv | Befehlsmodus insgesamt an/aus | an |
+| Gesprochene Zeichen schreiben | „Slash Hunter“ → „/Hunter“; nur Slash, Backslash, Hashtag, Klammeraffe (Kapitel 8) | an |
 | Cursor-Rückkehr | fügt den Text dort ein, wo das Diktat begann | an |
-| Safe-Word | Auslösewort für Befehle; leeres Feld zeigt als Platzhalter den tatsächlich wirksamen Wert aus `config.yaml` (statt nur „leer = Wert aus config.yaml" zu behaupten, ohne ihn zu nennen) | Kimono |
+| Safe-Word | Auslösewort für Befehle; leeres Feld zeigt als Platzhalter den tatsächlich wirksamen Wert aus `config.yaml` (statt nur „leer = Wert aus config.yaml“ zu behaupten, ohne ihn zu nennen) | Kimono |
 
 ### Textersetzung
 
@@ -1370,13 +1526,14 @@ Drei Blöcke auf einer Seite:
 
 - **Wörterbuch** (Format siehe [Kapitel 8](#8-das-persönliche-wörterbuch)) und
   **Ignoriert** — zwei mehrzeilige Editoren, je eine Zeile pro Eintrag, automatisch
-  gespeichert (800 ms nach der letzten Eingabe). „Ignoriert" sind die Paare
+  gespeichert (800 ms nach der letzten Eingabe). „Ignoriert“ sind die Paare
   `falsch => richtig`, die nie mehr vorgeschlagen werden — gespeist aus abgelehnten
-  Rückfragen und dem „Ignorieren"-Knopf der Insights-Vorschläge; eine Zeile löschen
+  Rückfragen und dem „Ignorieren“-Knopf der Insights-Vorschläge; eine Zeile löschen
   holt den jeweiligen Vorschlag zurück.
-- **Gelerntes Vokabular** (Projekt-Gedächtnis, Kapitel 20) — eine Auswahlliste der in
-  der aktuellen App gelernten Begriffe, häufigste zuerst, mit „Begriff vergessen" für
-  genau einen. Bis 5.10.5 ließ sich dort nur alles auf einmal löschen — ein einzelner
+- **Gedächtnis** (Projekt-Gedächtnis, Kapitel 20) — ein Schalter (Standard: an; aus =
+  weder lernen noch verwenden), darunter eine Auswahlliste der in der aktuellen App
+  gelernten Begriffe, häufigste zuerst, mit „Begriff vergessen“ für genau einen und
+  „Gelerntes vergessen“ für alles. Bis 5.10.5 ließ sich dort nur alles auf einmal löschen — ein einzelner
   Hörfehler im Gedächtnis (`Cloud-Code`, `FLEACH`) bedeutete also entweder ihn zu
   behalten oder das gesamte gelernte Vokabular zu verlieren.
 
@@ -1385,10 +1542,14 @@ Drei Blöcke auf einer Seite:
 | Einstellung | Bedeutung | Standard |
 |---|---|---|
 | Version | aktuelle Version und Build-Stempel | — |
-| Updates | manuelle Prüfung | — |
-| Update-Feed | optionale Feed-URL | leer |
-| GPU-Beschleunigung (STT) | Erkennung auf der Grafikkarte; aus = CPU erzwingen | an |
-| Modell-Warmhaltung | *Nach Nutzung* / *Dauerhaft* (~3,5 GB dauerhaft belegt) / *Aus* | Nach Nutzung |
+| Updates | „Nach Updates suchen“ — manuelle Prüfung | — |
+| Automatisch nach Updates suchen | beim Start und danach täglich; installiert wird nie ohne Klick | an |
+| Updates im Hintergrund laden | lädt eine gefundene Version gleich herunter (mit Prüfsummen-Kontrolle) | an |
+| Update-Quelle | leer = GitHub-Releases des Projekts; sonst die HTTPS-Adresse eines JSON-Feeds mit `version`, `url`, `sha256` | leer |
+| Sitzung | nur unter Wayland: welche Funktionen dort eingeschränkt sind (Kapitel 17) | — |
+| GPU-Beschleunigung bevorzugen (STT) | Erkennung auf der Grafikkarte; aus = CPU erzwingen | an |
+| Spracherkennung | *Standard* (Whisper turbo) / *Deutsch-optimiert* (dasselbe Modell, auf Deutsch nachtrainiert; einmaliger Download, 1,6 GB) — siehe 13.1 | Standard |
+| Modell-Warmhaltung | nur bei lokaler KI: *Nach Nutzung* / *Dauerhaft* (~3,5 GB dauerhaft belegt) / *Aus* | Nach Nutzung |
 | Im Leerlauf entladen nach | 3 / 10 / 30 / 45 Minuten | 10 Minuten |
 | Debug-Logging | wirkt **ab dem nächsten Start** (Log-Level DEBUG statt INFO) — bis 5.10.2 wurde der Haken zwar gespeichert, aber von nichts gelesen | aus |
 
@@ -1435,6 +1596,17 @@ Sequenz nur ~0,2 s dauert, ist das unkritisch.
 gefolgt vom normalen Einfügen — alles in einem atomaren Block. Voraussetzung: Der Cursor
 steht noch direkt hinter dem eigenen Text.
 
+**Spät fertig, Nutzer woanders (seit 5.13.0).** Ist ein Diktat erst **mehr als 30
+Sekunden** nach dem Ende der Aufnahme fertig (`injection.SPAET_S`; das 99. Perzentil lag
+an 454 Diktaten bei 27 s) **und** steht inzwischen ein anderes Fenster vorn, fügt Fleech
+nicht ein: Es holt das alte Fenster nicht nach vorn und klickt nicht hinein, sondern
+legt den Text in die Zwischenablage. Eine amber Blase an der Pille sagt das zwölf
+Sekunden lang, mit dem Anfang des Textes und „Strg+V“ — bewusst unabhängig von den
+Benachrichtigungs-Einstellungen, denn die erste Fassung meldete es per Windows-Banner,
+und wer die abgeschaltet hatte, sah gar nichts. Im Verlauf steht der Eintrag mit dem
+Grund „Nicht eingefügt — lag nur in der Zwischenablage“. Wer im Feld wartet, bekommt
+seinen Text wie immer; ein Klick auf die Pille selbst zählt nicht als Fensterwechsel.
+
 ### 12.2 Zwischenablage
 
 Eine Nahtstelle, zwei Backends: unter **Windows** `pyperclip` (bewährt, ohne
@@ -1468,15 +1640,18 @@ wieder her:
 Beide Schritte **verifizieren ihr Ergebnis**, statt Erfolg anzunehmen: Nach 60 ms wird
 geprüft, ob das Fenster tatsächlich vorn ist. Hat sich das Fenster verschoben, ist es
 geschlossen oder liegt die gemerkte Position außerhalb, wird **nicht** geklickt — der
-Text geht dann an den aktuellen Fokus. Nie ein Absturz, nie ein Verlust.
+Text geht dann an den aktuellen Fokus. Nie ein Absturz, nie ein Verlust. Die eine
+Ausnahme vom Zurückholen ist das spät fertige Diktat aus 12.1: Wer nach einer halben
+Minute längst woanders arbeitet, wird nicht mehr herausgerissen.
 
 Unter Linux wird nur das Fenster aktiviert (per EWMH-Nachricht an den Fenstermanager);
 eine Cursor-Position ist dort nicht allgemein auslesbar.
 
 ### 12.4 Hotkeys
 
-**Format.** Hotkeys werden kanonisch als `strg+alt+m`-artige Zeichenketten gespeichert
-(Modifier in fester Reihenfolge, alles klein). Erkannt wird über den **virtuellen
+**Format.** Hotkeys werden kanonisch als `ctrl+alt+m`-artige Zeichenketten gespeichert
+(Modifier `ctrl`, `alt`, `shift`, `win` in fester Reihenfolge, alles klein; Maustasten
+als `mouse4`, `mouse5`, `mouse_middle`). Erkannt wird über den **virtuellen
 Tastencode**, nicht über das Zeichen — sonst käme bei gehaltenem Strg ein Steuerzeichen
 an.
 
@@ -1485,7 +1660,7 @@ an.
 - Buchstaben, Ziffern, Numpad-Ziffern
 - **F1 bis F24** — inklusive des Bereichs F13–F24, auf den Gaming-Tastaturen ihre
   Zusatztasten legen (Corsair G-Tasten über iCUE, Logitech über G HUB)
-- Exotische Tasten als generischer Code, angezeigt als „Sondertaste (227)"
+- Exotische Tasten als generischer Code, angezeigt als „Sondertaste (227)“
 - **Maustaste 4, 5 und Mitte** — links und rechts sind bewusst gesperrt, das würde die
   normale Mausbedienung zerstören
 
@@ -1494,19 +1669,28 @@ Linke und rechte Modifier werden zusammengefasst; AltGr zählt als Alt.
 **Exaktes Matching.** `Strg+Leertaste` feuert nicht, wenn zusätzlich Shift gehalten
 wird. Das verhindert Fehlauslösungen bei überlappenden Belegungen.
 
+**Verklemmte Zusatztasten (seit 5.11.2).** Fleech führt Buch, welche Modifier gedrückt
+sind. Geht ein Loslassen verloren — Sperrbildschirm, Rechteabfrage auf dem sicheren
+Desktop, Fenstertausch, eine Makrotaste, die nur das Drücken meldet —, galt der
+Modifier bis zum Neustart als gedrückt, und danach passte **kein** Hotkey mehr, lautlos.
+Unter Windows fragt Fleech deshalb bei jedem Tastendruck den echten Zustand ab
+(`GetAsyncKeyState`) und räumt die Buchführung auf. Jeder verworfene Tastendruck
+hinterlässt außerdem eine Zeile im Protokoll — genau daran war die Suche nach diesem
+Fehler fast gescheitert.
+
 **Selbstheilung bei Makro-Tasten.** Ein real aufgetretenes Problem: G-Tasten senden je
-nach Zuweisung nur ein „Taste gedrückt" **ohne** „Taste losgelassen". Die Belegung bliebe
-dann dauerhaft „aktiv", und jeder weitere Druck würde als Auto-Repeat verschluckt — die
+nach Zuweisung nur ein „Taste gedrückt“ **ohne** „Taste losgelassen“. Die Belegung bliebe
+dann dauerhaft „aktiv“, und jeder weitere Druck würde als Auto-Repeat verschluckt — die
 Taste war nach dem ersten Druck tot. Lösung: Ein erneuter Druck auf eine noch aktive
 Belegung zählt nach einer Schonfrist als neuer Druck; vorher wird die Belegung
 **deaktiviert**, bevor der neue Druck sie erneut aktiviert — sonst verwarf der
 Entprell-Schutz genau diesen nachgeholten Druck beim Diktat-Hotkey, und die Taste blieb
-trotz „Heilung" tot.
+trotz „Heilung“ tot.
 
 Die Schonfrist ist **hergeleitet, nicht geraten**: Sie war lange fest auf 0,4 s gesetzt
 — UNTER der Windows-Verzögerung bis zur ersten Auto-Wiederholung (bei diesem Nutzer real
 500 ms). Das allererste Wiederholungsereignis einer normal gehaltenen Taste wurde damit
-selbst als „Release fehlte" gedeutet, 53-mal im Protokoll, und löste Pause,
+selbst als „Release fehlte“ gedeutet, 53-mal im Protokoll, und löste Pause,
 KI-Prompting oder Profilwechsel ein zweites Mal aus. Fleech liest deshalb
 `SPI_GETKEYBOARDDELAY` (250–1000 ms, vier Windows-Stufen) und legt 0,3 s Aufschlag
 drauf — der Hook sieht das Wiederholungsereignis nie exakt zum eingestellten Zeitpunkt.
@@ -1519,7 +1703,7 @@ weiterhin unterdrückt.
 eine Maustaste belegt ist — er würde sonst für **jede Mausbewegung** aufgerufen
 (hunderte Ereignisse pro Sekunde). Ist eine Maustaste belegt, wird ihre normale Funktion
 unter Windows unterdrückt, solange sie als Hotkey wirkt (sonst löste Maustaste 5 im
-Browser zusätzlich „Vorwärts" aus). Unter Linux ist das ohne globalen Pointer-Grab nicht
+Browser zusätzlich „Vorwärts“ aus). Unter Linux ist das ohne globalen Pointer-Grab nicht
 möglich — dort löst die Taste ihre Originalfunktion zusätzlich aus. Eine bewusste,
 dokumentierte Asymmetrie.
 
@@ -1529,11 +1713,13 @@ Während einer Aufnahme werden andere Programme leiser gestellt, damit Musik ode
 laufendes Video nicht ins Mikrofon rückkoppelt.
 
 **Die Architektur-Invariante lautet:** Aufgenommen wird **ausschließlich** das gewählte
-Mikrofon. Es existiert kein Codepfad, der Systemaudio, Loopback oder „Stereo Mix" in die
+Mikrofon. Es existiert kein Codepfad, der Systemaudio, Loopback oder „Stereo Mix“ in die
 Transkription mischt. Das Ducking betrifft nur die *Wiedergabe* fremder Programme.
 
-Drei Modi: **Aus**, **Leiser stellen** (auf 25 % der jeweiligen Originallautstärke) und
-**Stark absenken** (8 %). Die Absenkung ist **relativ** — leise Apps bleiben leise. Der
+Drei Modi: **Aus**, **Leiser stellen** und **Stark absenken**. Wie leise, bestimmt der
+Regler „Restlautstärke anderer Apps“ (Standard 25 % der jeweiligen
+Originallautstärke); er gilt in der Desktop-App für beide Absenk-Modi (siehe Kapitel
+11, Audio-Fokus). Die Absenkung ist **relativ** — leise Apps bleiben leise. Der
 Übergang läuft als weiche Rampe in 8 Schritten über 250 ms, kein harter Schnitt. Beim
 Beenden fährt Fleech vom aktuellen Ist-Pegel zurück auf die gemerkten Originalwerte.
 
@@ -1545,7 +1731,7 @@ deshalb zusätzlich **synchron** an, bevor der Prozess endet.
 
 Die gemerkten Originalwerte werden außerdem **nicht bei jedem Diktat neu eingelesen**,
 solange sie noch stehen: Bricht ein Fade ab (Ausnahme, Programm verschwunden), läse ein
-Neu-Einlesen den bereits abgesenkten Pegel als „Original" — bei jedem weiteren Diktat
+Neu-Einlesen den bereits abgesenkten Pegel als „Original“ — bei jedem weiteren Diktat
 sänke die Lautstärke fremder Apps ein Stück weiter, wie eine Sperrklinke.
 
 Verschwindet ein Programm während des Übergangs, wird das abgefangen. Schlägt das
@@ -1556,11 +1742,11 @@ Linux wird über PulseAudio/PipeWire dieselbe Schnittstelle nachgebaut, sodass d
 Ducking-Logik auf beiden Plattformen identisch bleibt. Die eigene Anwendung wird immer
 ausgenommen.
 
-**Math Focus** (optional) senkt zusätzlich den Mikrofon-Eingangspegel während der
-Aufnahme — aggressive Treiber-Boosts übersteuern bei lauter Sprache, und ein moderater
-Pegel verbessert die Erkennungsqualität.
+Den früheren **Math Focus**, der zusätzlich den Mikrofon-Eingangspegel absenkte, gibt es
+nicht mehr: Er gehörte zu langen Formeldiktaten über den Cloud-Pfad und ist mit 3.0.0
+entfallen (der Code dafür, `MicLevelController`, wird nirgends mehr erzeugt).
 
-### 12.6 Erkennung von Spielen und „Nicht stören"
+### 12.6 Erkennung von Spielen und „Nicht stören“
 
 Fleech fragt alle 3 Sekunden den Systemzustand ab (sehr billige Aufrufe) und leitet
 daraus ab, ob es sich zurückhalten soll:
@@ -1569,8 +1755,8 @@ daraus ab, ob es sich zurückhalten soll:
   und Präsentationsmodus) plus eine eigene Heuristik: Deckt das Vordergrundfenster den
   Monitor exakt oder mehr ab und ist es kein Shell-Fenster, gilt es als Vollbild. Unter
   Linux wird stattdessen der Fenster-Zustand über X11 gelesen.
-- **„Nicht stören"** — unter Windows nur über eine undokumentierte Systemabfrage lesbar;
-  schlägt sie fehl, gilt der Zustand als *unbekannt* und wird konservativ als „kein DND"
+- **„Nicht stören“** — unter Windows nur über eine undokumentierte Systemabfrage lesbar;
+  schlägt sie fehl, gilt der Zustand als *unbekannt* und wird konservativ als „kein DND“
   behandelt (sonst blieben Töne und Hinweise dauerhaft grundlos aus). Unter Linux ist
   das nicht allgemein abfragbar.
 
@@ -1598,15 +1784,15 @@ Autostart-Eintrag (der Deinstallationsschritt räumt ihn weg), die Einstellungsd
 ### 12.8 Nur eine Instanz
 
 Mehrere gleichzeitig laufende Instanzen wären schädlich: Jede verarbeitet denselben
-Hotkey (vervielfachter Text im Feld) und jede fährt ihren eigenen Wiederholungs-Backoff
-gegen den Formel-Anbieter. Fleech verhindert das über eine Systemsperre — unter Windows
+Hotkey (vervielfachter Text im Feld), jede sichert und überschreibt dieselbe
+Zwischenablage, und jede hält ihr eigenes Sprachmodell warm. Fleech verhindert das über eine Systemsperre — unter Windows
 über ein benanntes Kernel-Objekt, unter Linux über eine Sperrdatei im Laufzeitverzeichnis.
 Beide Varianten werden vom Betriebssystem **bei jedem** Prozessende freigegeben, auch
 nach einem Absturz oder hartem Beenden; es gibt also keine hängenden Sperren.
 
 Ein zweiter Start ist dann aber kein stilles Nichts: Über einen lokalen Kanal weckt die
 zweite Instanz die laufende, die daraufhin ihr Hauptfenster öffnet — und beendet sich
-selbst ohne Fehlermeldung. Bei „Neu laden" wird die Sperre gezielt vor dem Neustart
+selbst ohne Fehlermeldung. Bei „Neu laden“ wird die Sperre gezielt vor dem Neustart
 freigegeben.
 
 Für die Diagnose-Modi (`--cli`, Selbsttests) gilt die Sperre bewusst nicht.
@@ -1615,20 +1801,33 @@ Für die Diagnose-Modi (`--cli`, Selbsttests) gilt die Sperre bewusst nicht.
 
 - **Kein Geister-Diktat bei Fehlstart.** Schlägt `recorder.start()` fehl, ruft Fleech
   gezielt `controller.cancel()` statt des normalen Stopp-Wegs — der liefe sonst über
-  Stoppton und den Zustand „Verarbeitung" bis zu einem Worker mit null Samples, der
-  eine Zehntelsekunde später „nichts erkannt" in die Pille schreibt und damit die
+  Stoppton und den Zustand „Verarbeitung“ bis zu einem Worker mit null Samples, der
+  eine Zehntelsekunde später „nichts erkannt“ in die Pille schreibt und damit die
   eigentliche Fehlermeldung überdeckt.
-- **„Rückgängig" (`Strg+Alt+Z`) prüft das Zielfenster frisch**, statt sich auf den
+- **„Rohtext einsetzen“ (`Strg+Alt+Z`) prüft das Zielfenster frisch**, statt sich auf den
   letzten 3-Sekunden-Poll zu verlassen — sonst hielt die Wache nach einem
   Fensterwechsel fälschlich fest, der Cursor stehe noch an der alten Stelle, und die
   Rücktasten trafen ein fremdes Dokument. Das eigentliche Ersetzen läuft dazu im
   **Worker-Thread**: Bei 4 ms je Rücktaste sind das bei einem mittleren Diktat 1,3 s,
   im Maximum 23 s — Zeit, in der sonst alle weiteren Fleech-Hotkeys (auch der
   Diktat-Hotkey) blockiert gewesen wären.
-- **„Lokale KI läuft nicht."** Wer die Einführung übersprungen und damit auch Ollama
-  nie eingerichtet hat, bekam bisher nur „eingefügt (Fallback — Log prüfen)" zu jedem
+- **„Lokale KI läuft nicht.“** Wer die Einführung übersprungen und damit auch Ollama
+  nie eingerichtet hat, bekam bisher nur „eingefügt (Fallback — Log prüfen)“ zu jedem
   einzelnen Diktat. Einmal je Sitzung meldet die Pille jetzt den eigentlichen Grund
-  und den Weg zurück (Einstellungen → Allgemein → „Einführung erneut zeigen").
+  und den Weg zurück (Einstellungen → Allgemein → „Einführung erneut zeigen“). Gemeldet
+  wird das nur, wenn der lokale Dienst die Verbindung wirklich ablehnt — eine
+  Zeitüberschreitung heißt „läuft, war nur zu langsam“ und zählt seit 5.13.0 nicht mehr
+  dazu. Bei einem Cloud-Anbieter nennen ein Windows-Banner (Stufe „Wichtiges“) und der
+  Verlauf stattdessen den HTTP-Grund: Schlüssel abgelehnt (401/403) oder Kontingent
+  erschöpft (429).
+- **Lokale KI auf dem Prozessor.** Findet Ollama nach einem eigenen Update die
+  Grafikkarte nicht, dauert jede Bereinigung 10–30 Sekunden statt unter einer. Seit
+  5.13.3 prüft Fleech beim Warmhalten, wo das Modell rechnet, und sagt es einmal in
+  einer Blase an der Pille — mit der Abhilfe (Ollama neu starten).
+- **Ungewöhnlich lange Verarbeitung.** Dauert ein Diktat länger als 12 Sekunden plus
+  0,05 s je Sekunde Aufnahme (über dem 95. Perzentil von 9,2 s), zeigt die Pille
+  „Dauert länger als üblich …“ mit laufender Uhr — statt eines Ladekreises, der von
+  „hängt“ nicht zu unterscheiden ist (`desktopapp/wachhund.py`).
 
 ---
 
@@ -1636,8 +1835,35 @@ Für die Diagnose-Modi (`--cli`, Selbsttests) gilt die Sperre bewusst nicht.
 
 ### 13.1 Spracherkennung
 
-**Standard: faster-whisper `large-v3-turbo`, lokal.** Das Modell wird erst beim ersten
-Diktat geladen, nicht beim Start.
+**Standard: faster-whisper `large-v3-turbo`, lokal.** Nach dem Start lädt Fleech das
+Modell im Hintergrund (ein Aufwärmlauf mit einer halben Sekunde Stille), damit schon das
+erste Diktat nicht auf das Laden wartet. Auf der Grafikkarte rechnet es seit 5.15.1 als
+`int8_float16` statt `float16`: gemessen 1,0 statt 2,1 GB Grafikspeicher, gleich
+schnell, nicht mehr Fehler — ein Gigabyte mehr Luft neben einem Spiel oder
+Stimmwandler, und eine volle Karte macht die Erkennung um ein Vielfaches langsamer.
+
+**Deutsch-optimiert (seit 5.15.0, wählbar).** Unter *Einstellungen → Advanced →
+Spracherkennung* gibt es neben „Standard“ ein auf deutsche Sprache nachtrainiertes
+Turbo-Modell (`jimmymeister/whisper-large-v3-turbo-german-ct2`, eine CTranslate2-Fassung
+von `primeline/whisper-large-v3-turbo-german`). An den Test-Aufnahmen (5–120 s,
+Computerstimme) machte es 4 statt 11 Fehler und erfand bei Rauschen hinter dem letzten
+Wort keinen Schlusssatz; Tempo und Größe sind gleich. Beim ersten Umschalten lädt
+Fleech es einmalig herunter (1,6 GB); bis dahin erkennt das bisherige Modell weiter.
+Für englische Diktate bleibt „Standard“ die bessere Wahl (`fleech/stt/modellwahl.py`).
+
+**Erkennen, während man spricht (seit 5.14.0).** Früher begann die Erkennung erst nach
+dem Loslassen — bei einer Minute Diktat wartete man danach 1,5 s nur auf Whisper, bei
+ausgelasteter Grafikkarte bis zu 7,5 s. `fleech/stt/abschnitte.py` schneidet die
+laufende Aufnahme jetzt an Sprechpausen (≥ 400 ms) in Abschnitte von 6 bis 28 Sekunden
+und lässt jeden fertigen Abschnitt im Hintergrund erkennen — mit demselben Priming wie
+das Diktat und den letzten 40 erkannten Wörtern als Kontext. Nach dem Loslassen bleibt
+nur der letzte Abschnitt: gemessen 0,26–0,39 s Wartezeit statt 0,6–3,5 s, bei gleich
+vielen oder weniger Fehlern. Jeder Zweifel — eine andere Sprache, eine überlastete
+Grafikkarte (ein Abschnitt braucht länger als 1 s plus 0,15 s je Sekunde Audio), ein
+Fehler im Hintergrund — endet darin, dass der Rest wie früher am Stück erkannt wird:
+schlimmstenfalls so schnell wie vorher, nie schlechter. Kurze Diktate unter sechs
+Sekunden laufen ohnehin am Stück; der Weg gilt nur für Diktate per Taste
+(`config.yaml` → `stt.abschnitte`).
 
 Robustheit über zwei Stufen: Schlägt die GPU-Initialisierung fehl, wird automatisch auf
 CPU mit int8-Quantisierung umgeschaltet. Tritt ein CUDA-Fehler erst *während* der
@@ -1651,14 +1877,16 @@ Laufzeitumgebung nicht von selbst findet. Fleech registriert sie beim Start selb
 unter Windows über den Suchpfad, unter Linux durch Vorladen in der richtigen Reihenfolge
 (die Abhängigkeiten untereinander sind dabei kritisch).
 
-**Sprache.** Deutsch, Englisch oder „automatisch". Letzteres lässt Whisper selbst
+**Sprache.** Deutsch, Englisch oder „automatisch“. Letzteres lässt Whisper selbst
 entscheiden und eignet sich für gemischtsprachiges Diktat.
 
-**Kein Cloud-Fallback mehr.** Der optionale Groq-Weg ist mit 3.0.0 entfernt worden.
-Ohne brauchbare GPU läuft die Erkennung auf der CPU — langsamer, aber lokal.
+**Kein Cloud-Fallback mehr.** Der optionale Groq-Weg für die Spracherkennung ist mit
+3.6.0 entfernt worden. Ohne brauchbare GPU läuft die Erkennung auf der CPU — langsamer,
+aber lokal. Der Ton verlässt den Rechner nie, auch nicht bei einem Cloud-Anbieter für
+die Bereinigung (13.2).
 
 **Sprache je Profil.** Seit 5.4.0 gilt die Diktiersprache nicht mehr nur global,
-sondern lässt sich pro Profil festlegen; siehe [22](#22-sprachen).
+sondern lässt sich pro Profil festlegen; siehe [22](#22-sprachen-seit-540).
 
 ### 13.2 Der LLM-Zugang
 
@@ -1666,12 +1894,45 @@ Standard ist ein **lokales Ollama** — kein Konto, keine Kosten, kein Text verl
 Rechner. Seit 6.1.0 lässt sich unter *Einstellungen → KI* stattdessen ein
 Cloud-Anbieter mit **eigenem API-Schlüssel** wählen (OpenAI, Anthropic, Google Gemini,
 Mistral, Groq, OpenRouter oder ein eigener OpenAI-kompatibler Server) — oder „Ohne
-KI", dann wird nur erkannt und nicht bereinigt. Ein Abo (ChatGPT Plus, Claude Pro)
+KI“, dann wird nur erkannt und nicht bereinigt. Ein Abo (ChatGPT Plus, Claude Pro)
 lässt sich dafür nicht verwenden: Die Anbieter trennen Abo und Programmierschnittstelle.
 Der Schlüssel liegt im **Schlüsselbund des Systems** (Windows: Anmeldeinformations-
-verwaltung), nie in `settings.json`; die Modellliste holt Fleech beim Anbieter selbst.
-Bei einem Cloud-Anbieter geht der diktierte **Text** (nicht der Ton) dorthin — die
-Einstellungsseite sagt das in einem Satz.
+verwaltung, Linux: Secret Service), nie in `settings.json`; die Modellliste holt
+Fleech beim Anbieter selbst. Bei einem Cloud-Anbieter geht der diktierte **Text**
+(nicht der Ton) dorthin — die Einstellungsseite sagt das in einem Satz.
+
+**Drei Schnittstellen reichen für alle** (`fleech/llm/providers.py`, `fleech/llm/client.py`,
+nur Standardbibliothek, kein SDK):
+
+| Art | Anbieter | Aufruf |
+|---|---|---|
+| `ollama` | Lokal (Ollama) | Ollamas eigene `/api/chat` mit `num_ctx` |
+| `openai` | OpenAI, Google Gemini, Mistral, Groq, OpenRouter, eigener Server | `/chat/completions` mit Bearer-Schlüssel |
+| `anthropic` | Anthropic (Claude) | die eigene Messages-API (`/messages`, `x-api-key`) |
+
+Welche Schnittstelle gilt, entscheidet der gewählte Anbieter, nicht die Adresse.
+Ollama-eigene Handgriffe — vorladen, entladen, fehlende Modelle ziehen, nachsehen, ob
+das Modell auf der Grafikkarte rechnet — bekommt nur ein Endpunkt, der **Ollama ist und
+lokal läuft**; ein LM Studio auf `localhost:1234` bekommt sie nicht. Startmodelle der
+Cloud-Anbieter sind bewusst die schnellen, günstigen (`gpt-4o-mini`, `claude-haiku-4-5`,
+`gemini-2.5-flash`, `mistral-small-latest`, `llama-3.3-70b-versatile`); „Liste laden“
+zeigt, was der eigene Schlüssel darüber hinaus darf. Bei den Denk-Modellen von OpenAI
+(o-Reihe, `gpt-5`) lässt Fleech `temperature` weg — sie lehnen jeden anderen als ihren
+Vorgabewert ab.
+
+**Woher der Schlüssel kommt** (`fleech/llm/apikeys.py`), in dieser Reihenfolge:
+Schlüsselbund (Dienst „Fleech“, Konto = Anbieter-Kennung), dann die Umgebungsvariable,
+die der Anbieter selbst dokumentiert (`OPENAI_API_KEY`, `ANTHROPIC_API_KEY` …), dann
+`FLEECH_<ANBIETER>_API_KEY` — auch aus einer `.env` im Benutzerordner. Gibt es keinen
+Schlüsselbund, sagt die Oberfläche ehrlich, dass nur die Umgebungsvariable bleibt,
+statt den Schlüssel still in eine Datei zu schreiben. Kein Schlüssel erscheint je im
+Protokoll.
+
+**„Ohne KI“.** Fleech fügt das Transkript ein, ohne dass ein Modell den Text sieht —
+und ohne das als Fehler zu melden. Füllwörter („äh“, „ähm“) entfernt der Code weiterhin,
+das Wörterbuch greift; Safe-Word-Befehle und die umformulierenden Formate ruhen, weil
+sie ein Modell brauchen. Ein Sprachmodell muss dafür nicht einmal heruntergeladen
+werden.
 
 **Ein Modell für alles: `gemma3:4b` (seit 3.5.0).** An 15 echten Diktaten gemessen
 ist es **34 % schneller** als das frühere `qwen3.5:9b`, halb so groß (3,3 GB) und dabei
@@ -1680,37 +1941,44 @@ kleine Modell für kurze Sätze ist ersatzlos entfallen: Es brachte 0,1 Sekunden
 Treue und belegte dauerhaft 8,5 GB Grafikspeicher — der Hauptgrund für die ständigen
 Entladungen.
 
-**Thinking-Modelle.** Wer auf ein Reasoning-Modell zurückwechselt (`qwen3.5:9b` & Co.),
-**muss** `reasoning_effort: none` setzen. Ohne das denkt es 30–50 Sekunden pro Diktat
-nach und liefert teils leeren Inhalt; auch `low` ist unbrauchbar. Schreibt ein Modell
-seine Denkblöcke trotzdem in die Antwort, entfernt Fleech sie im Code.
+**Thinking-Modelle.** Wer lokal auf ein Reasoning-Modell zurückwechselt (`qwen3.5:9b`
+& Co.), **muss** in `config.yaml` `reasoning_effort: none` setzen — dann schickt Fleech
+Ollama `think: false`. Ohne das denkt das Modell 30–50 Sekunden pro Diktat nach und
+liefert teils leeren Inhalt; auch `low` ist unbrauchbar. Schreibt ein Modell seine
+Denkblöcke trotzdem in die Antwort (`<think>`, `<reasoning>` …), entfernt Fleech sie
+im Code.
 
 **`num_ctx` ist Pflicht, nicht Feinschliff.** Ollama lädt Modelle immer mit 4096 Token
 Kontext, egal was das Modell könnte — und der OpenAI-Aufsatz ignoriert jede Option
 dagegen (gemessen). Allein `prompts/cleanup.md` belegt ~3000 Token; lange Diktate
 brachen dadurch mitten im Satz ab. Deshalb spricht der Client lokal Ollamas eigene
 `/api/chat` mit `options.num_ctx` (8192) an; Cloud-Anbieter laufen über
-`/chat/completions` bzw. Anthropics `/messages`. Bricht eine Antwort doch am Fenster ab, meldet der Client
-das, und die Pipeline fügt den **Rohtext** ein statt eines halben Satzes.
+`/chat/completions` bzw. Anthropics `/messages`. Bricht eine Antwort doch am Fenster
+ab (Ollama `done_reason`, OpenAI-Form `finish_reason` „length“, Anthropic
+`stop_reason` „max_tokens“), meldet der Client das, und die Pipeline fügt den
+**Rohtext** ein statt eines halben Satzes.
 
-**Keine versteckten Wiederholungen.** Die SDK-internen Wiederholungsversuche sind
-**abgeschaltet**. Grund: Fleech hat überall eigene, explizite Fehlerpfade. Mit den
-Standardeinstellungen multiplizierten sich die Anfragen unsichtbar — vier eigene
-Versuche mal drei SDK-Versuche ergaben **zwölf Anfragen pro Formel**, live im
-Anbieter-Dashboard beobachtet.
-
-**Nur der Formel-Pfad wiederholt**, und zwar gezielt bei Rate-Limits: bis zu vier
-Versuche mit 2, 4 und 8 Sekunden Wartezeit. Danach fällt es sauber auf die normale
-Bereinigung zurück.
+**Keine versteckten Wiederholungen.** Der Client nutzt kein Anbieter-SDK, sondern
+`urllib` aus der Standardbibliothek — und wiederholt nichts von sich aus, auch nicht
+bei Rate-Limits. Früher, mit SDK und eigenem Formel-Pfad, multiplizierten sich die
+Anfragen unsichtbar (vier eigene Versuche mal drei SDK-Versuche ergaben zwölf Anfragen
+pro Formel). Heute gibt es genau die expliziten Fehlerpfade der Pipeline: Scheitert ein
+Aufruf, kommt der Rohtext, und der Grund steht im Verlauf („Ollama hat nicht
+geantwortet“, „KI-Dienst hat den API-Schlüssel abgelehnt“, „KI-Dienst meldet:
+Kontingent erschöpft“). Die einzigen zweiten Versuche sind die bewussten der Guards
+(Kapitel 5), mit strengerer Ansage. Ein langes Diktat in Blöcken schickt nach einem
+Verbindungsfehler die übrigen Blöcke gar nicht erst.
 
 ### 13.3 Warmhaltung und Arbeitsspeicher
 
-Ein geladenes Sprachmodell antwortet in ~4,8 s statt ~12,9 s — aber es belegt Speicher.
-Fleech balanciert das über drei Einstellungen:
+Ein geladenes Sprachmodell antwortet sofort; ein kaltes kostet beim ersten Diktat rund
+acht Sekunden Ladezeit — aber geladen belegt es Speicher. Fleech balanciert das über
+drei Einstellungen (nur bei lokaler KI; bei einem Cloud-Anbieter oder „Ohne KI“ gibt es
+nichts warmzuhalten):
 
 | Modus | Verhalten |
 |---|---|
-| **Dauerhaft** | Modell bleibt immer geladen (~3,3 GB), schnellste Antwort |
+| **Dauerhaft** | Modell bleibt immer geladen (~3,5 GB), schnellste Antwort |
 | **Nach Nutzung** (Standard) | warm bis X Minuten nach dem letzten Diktat, dann **aktiv entladen** |
 | **Aus** | nie aktiv warmhalten |
 
@@ -1718,12 +1986,20 @@ Der Clou am Standardmodus: Fleech **entlädt aktiv**, statt nur auslaufen zu las
 Auslöser:
 
 1. **Leerlauf** — nach der eingestellten Zeit (3/10/30/45 Minuten, Standard 10).
-2. **Ein Spiel startet** — dann werden die Modelle innerhalb von ~3 Sekunden entladen,
-   unabhängig vom Leerlauf-Fenster. Endet das Spiel, werden sie wieder vorgewärmt.
+2. **Ein Spiel startet** — dann werden die Modelle innerhalb von ~3 Sekunden entladen
+   (Takt der Spielerkennung), unabhängig vom Leerlauf-Fenster.
 
-Ohne diesen Mechanismus bliebe der Speicher bis zu 75 Minuten nach dem letzten Diktat
-belegt — auch während des Spielens, obwohl währenddessen gar nicht diktiert wird. Mit
-nur noch einem Modell (3,3 GB statt 8,5 GB) ist dieser Druck deutlich kleiner geworden.
+Endet das Spiel, lädt Fleech das Modell **nicht** sofort zurück, sondern erst nach fünf
+Minuten ohne Spiel (`SPIELPAUSE_S`, seit 5.13.0): Im Protokoll von sechs Wochen löste
+jedes kurze Alt-Tab aus dem Spiel einen Ladevorgang von rund 4 GB aus — 729-mal, und
+nur selten folgte überhaupt ein Diktat. Während ein Diktat läuft, wird nie entladen;
+das Entladen wartet dann bis zum nächsten Takt.
+
+Ohne diesen Mechanismus bliebe der Speicher lange nach dem letzten Diktat belegt —
+auch während des Spielens, obwohl währenddessen gar nicht diktiert wird. Mit nur noch
+einem Modell (3,3 GB statt 8,5 GB) ist dieser Druck deutlich kleiner geworden. Damit
+Ollama das Modell nicht nach seinen eigenen fünf Minuten wieder auswirft, schickt
+jedes Diktat und jedes Vorladen `keep_alive` 30 Minuten mit.
 
 Diktieren geht trotzdem jederzeit: Beim Aufnahmestart werden die Modelle **parallel zum
 Sprechen** geladen, was die Ladezeit größtenteils verdeckt.
@@ -1738,7 +2014,7 @@ Sprechen** geladen, was die Ladezeit größtenteils verdeckt.
 
 ### 14.1 Modulkarte
 
-111 Dateien, rund 27.700 Zeilen. Der Kern ist bewusst klein geschnitten; die
+121 Dateien, rund 29.100 Zeilen. Der Kern ist bewusst klein geschnitten; die
 Oberfläche ist der größte Block, weil sie am meisten Fälle abdecken muss.
 
 > **Zur Dateizahl:** Sie ist zwischen 5.4.0 und 5.9.1 von 70 auf 101 gestiegen, ohne
@@ -1750,7 +2026,7 @@ Oberfläche ist der größte Block, weil sie am meisten Fälle abdecken muss.
 > (`tests/test_ui_struktur.py`, `tests/test_kernstruktur.py`). Seit 5.10.3 kommt
 > `tests/test_anzeige_gegen_wirkung.py` dazu — es prüft gezielt, dass eine Einstellung,
 > die die Oberfläche anbietet, auch einen echten Codepfad hat (Anlass: die
-> Formel-Erkennung zeigte „Automatisch", ohne dass `auto_latex` je gesetzt wurde). Reißt
+> Formel-Erkennung zeigte „Automatisch“, ohne dass `auto_latex` je gesetzt wurde). Reißt
 > eine Grenze, ist die Antwort ein neuer Ort für das neue Thema — nicht eine größere
 > Zahl.
 
@@ -1759,37 +2035,40 @@ fleech/
 ├── __main__.py          Einstiegspunkt, CLI-Argumente, Logging
 ├── app.py               Engine-Verdrahtung ohne GUI
 ├── config.py            config.yaml + ENV-Overrides → AppConfig
-├── usersettings.py      settings.json — atomar, Modul-Lock, .bak-/Ruecksetzer-Heilung
-├── settingsheilung.py   erkennt einen Ruecksetzer, der wie eine gueltige Datei aussieht
+├── usersettings.py      settings.json — atomar, Modul-Lock, .bak-/Rücksetzer-Heilung
+├── settingsheilung.py   erkennt einen Rücksetzer, der wie eine gültige Datei aussieht
+├── einstellungssicherung.py  datierte Sicherungen bei Versionswechsel (zwölf jüngste)
 ├── version.py           eine Stelle für die Versionsnummer
 │
 ├── audio.py             Recorder: Mikrofon, Pegel, sample-genaue Position, tail()
 ├── recording_control.py Halten / Umschalten / Anstupsen — UI-unabhängig, testbar
-├── hotkey.py            Tasten, Maus, Modifier, Entprellung
-├── freihand.py          Diktieren ohne Taste: VAD → Prüfmodell → Aufnahme
+├── hotkey.py            Tasten, Maus, Modifier, Entprellung, echter Modifier-Zustand
+├── freihand.py          Diktieren ohne Taste: VAD → Prüfmodell → Aufnahme (eingefroren)
 ├── freihand_diagnose.py geprüfte Startwort-Fenster aufheben (opt-in, Fehlersuche)
 ├── stillewache.py       wann ist eine Aufnahme wegen Sprechpause zu Ende?
 ├── wortprobe.py         ein Wort einsprechen und prüfen, ob es ankommt
 │
 ├── pipeline.py          ▶ Orchestrierung der gesamten Verarbeitung
 ├── pipeline_factory.py  baut die Pipeline aus Config + Settings
-├── routing.py           Modus-Erkennung auf dem Rohtranskript
+├── routing.py           Befehl oder Bereinigung? Format-Ansage am Ende abtrennen
 ├── commands.py          Befehls-JSON, Plausibilitäts- und Löschguards
 ├── formula.py           gesprochene Mathematik → LaTeX (Parser, kein Modell)
 ├── textfilter.py        ▶ die Qualitäts-Guards: erfundene Ergänzungen, Wortsalat,
 │                          fremde Schrift, Sinnumkehr — Kern-Fachlogik
+├── bloecke.py           lange Diktate blockweise bereinigen, jeden Block prüfen
+├── vorbereinigung.py    „äh"/„ähm" deterministisch entfernen, ohne Modell
 ├── textutils.py         nur noch der Rahmen um den LLM-Call
 ├── dictionary.py        persönliches Wörterbuch (Priming, Ersetzung, Vorschläge)
-├── varianten.py         Schreibvarianten desselben Begriffs finden ("Cloud-Code"/"Claude Code")
+├── varianten.py         Schreibvarianten desselben Begriffs finden („Cloud-Code"/„Claude Code")
 ├── profiles.py          App-Profile: Regeln, Farben, Schnellwechsel
 ├── profilexport.py      Profile + Schnellwechsel sichern/zurückholen (JSON)
 ├── document.py          was habe ich selbst eingefügt?
 ├── kontext.py           Projekt-Gedächtnis: Fachbegriffe je App und Titel
 ├── prompts.py           Prompt-Dateien laden (Nutzerfassung bevorzugt)
 │
-├── injection.py         Text einfügen (Clipboard + Strg+V, serialisiert)
+├── injection.py         Text einfügen (Clipboard + Strg+V, serialisiert, „spät fertig")
 ├── clipboard.py         Zwischenablage — eine Nahtstelle für beide Systeme
-├── audiofocus.py        Ducking, Loopback-Erkennung, Mikrofonpegel
+├── audiofocus.py        Ducking, Loopback-Erkennung
 ├── history.py           SQLite-Verlauf und Statistiken
 ├── gruende.py           feste Texte: warum ein Diktat nicht glatt lief
 ├── overlay.py           Live-Vorschau (Streaming)
@@ -1805,43 +2084,57 @@ fleech/
 ├── resources.py         Assets/Prompts im Bundle finden
 ├── portaudio_bootstrap.py  Audio-Bibliothek unter Linux finden
 │
-├── stt/                 faster_whisper_stt.py (lokal, einziger Weg) + base.py
-├── llm/client.py        Ollamas /api/chat mit num_ctx, Warmhaltung
+├── stt/
+│   ├── base.py               gemeinsame Schnittstelle der Erkenner
+│   ├── faster_whisper_stt.py lokal, einziger Weg; GPU/CPU-Rückfall, Rechenart
+│   ├── abschnitte.py         erkennen, während man spricht (Abschnitte an Pausen)
+│   ├── nachlauf.py           Segmente ohne Ton am Ende streichen
+│   └── modellwahl.py         Standard oder Deutsch-optimiert
+├── llm/
+│   ├── client.py        Chat-Aufrufe: Ollama (/api/chat, num_ctx), OpenAI-Form,
+│   │                      Anthropic; Ollama vorladen, entladen, Modelle ziehen
+│   ├── providers.py     die Anbieterliste (lokal, Cloud, „Ohne KI"), Modellliste abrufen
+│   └── apikeys.py       API-Schlüssel im Schlüsselbund des Systems ablegen und lesen
 └── ui/
     ├── desktop.py       ▶ DesktopApp: Aufbau, Aufnahme-Lebenszyklus, Verdrahtung
     ├── desktopapp/      die Teilgebiete von DesktopApp als Mixins
     │   ├── profil.py         Profilwahl, Farbe, Schnellwechsel
-    │   ├── freihand.py       Lauscher aufbauen, Ereignisse, Startwort-Probe
-    │   ├── anstupsen.py      Bedienmodus "Anstupsen": Stille-Wache waehrend der Aufnahme
-    │   ├── keinton.py        Kein-Ton-Wache: Pegel im Waveform-Takt pruefen, warnen
-    │   ├── modelle.py        Warmhaltung, Entladen bei Spielstart
+    │   ├── freihand.py       Lauscher aufbauen, Ereignisse (eingefroren)
+    │   ├── anstupsen.py      Bedienmodus „Anstupsen": Stille-Wache während der Aufnahme
+    │   ├── keinton.py        Kein-Ton-Wache: Pegel im Waveform-Takt prüfen, warnen
+    │   ├── vorerkennung.py   Abschnitte während der Aufnahme: starten, stoppen, abholen
+    │   ├── wachhund.py       „Dauert länger als üblich …" bei langer Verarbeitung
+    │   ├── modelle.py        Warmhaltung, Entladen bei Spielstart, KI-Wechsel
     │   ├── nachbereitung.py  neu bereinigen, Rohtext, Vorschläge, letzte Aufnahme
     │   ├── updatepruefung.py Update-Prüfung im Hintergrund, Update-Dialog
     │   └── lebenszyklus.py   Start, IPC, Beenden
     ├── theme.py         Design-Token, Seitenmaße, Button-Stile — unterste Schicht
     ├── widgets.py       wiederverwendbare Bausteine (Karten, Suchfeld, Gauge)
     ├── dialogs.py       Prompt, Transkript-Detail, Wort-Detail, Wörterbuch
+    ├── nachbearbeitungdialog.py  Fortschritt und Ergebnis von „Neu bereinigen als …"
     ├── main_window.py   das Fenstergerüst: Sidebar, Seitenwechsel, Geometrie
+    ├── fensterlage.py   liegt die gespeicherte Fensterlage auf einem Bildschirm? ohne Qt
     ├── pages/           je Seite eine Datei, dazu Qt-freie Helfer je Thema
     │   ├── home.py          Begrüßung, Verlauf, Kurz-Statistik
     │   ├── insights.py      Kennzahlen aus der eigenen Historie
     │   ├── verlauffilter.py Verlaufssuche (Wort/App/Zeitraum) + Markdown-Export, ohne Qt
     │   ├── apps.py          welches Profil greift in welchem Programm
-    │   ├── jetztzeile.py    "Wenn du jetzt diktierst" als Satz, ohne Qt
+    │   ├── jetztzeile.py    „Wenn du jetzt diktierst" als Satz, ohne Qt
     │   ├── titelvorschlag.py zuletzt gesehene Fenstertitel + Segmente anbieten, ohne Qt
     │   ├── appsvorschlaege.py Zuordnungsvorschläge aus dem Verlauf, ohne Qt
-    │   └── profiles.py      Format, Stil, Sprache, Zuordnung, Export/Import
+    │   └── profiles.py      Format, Farbe, Sprache, Schnellwechsel, Export/Import
     ├── settings_window.py  Panel-Gerüst + Widget-Bauer
-    ├── settings/       die neun Einstellungsseiten, je Seite ein build(panel)
-    │                   (allgemein, aufnahme, audiofokus, overlay, sounds,
-    │                    benachrichtigungen, ausgabe, textersetzung, advanced)
+    ├── settings/       die zehn Einstellungsseiten, je Seite ein build(panel)
+    │                   (allgemein, ki, aufnahme, audiofokus, overlay, sounds,
+    │                    benachrichtigungen, ausgabe, textersetzung, advanced),
+    │                   dazu common (geteilte Hilfetexte) und wortprobe (Einsprech-Probe)
     ├── overlay_qt.py    die Pille: Aufbau, Hintergrund, Qt-Ereignisse
     ├── overlaypille/    ihre Teile
     │   ├── konstanten.py     Maße, Farben, Zeiten
     │   ├── bausteine.py      Waveform, Status-Punkt, Textblase (echte Widgets)
     │   ├── geometrie.py      Position, Ziehen, Presets        (Mixin)
     │   ├── einblendungen.py  Transkript, Formeln, Fortschritt (Mixin)
-    │   └── zustand.py        Aufnahme, Modus, Profil, Pause   (Mixin)
+    │   └── zustand.py        Aufnahme, Profil, Pause, Kein Ton (Mixin)
     ├── state.py         StateBus (thread-sichere Signale)
     ├── tray.py          Tray-Icon und -Menü
     ├── sounds.py        synthetisierte Töne
@@ -1881,17 +2174,17 @@ dass es dabei bleibt (`tests/test_ui_struktur.py`) — samt Prüfung, dass die
 Oberfläche **keine Importzyklen** enthält.
 
 `theme.py` hält seit 5.9.0 auch die **Seitenmaße** (`PAGE_MARGINS`, `PAGE_SPACING`,
-`PAGE_TITLE_PT`). Anlass war ein sichtbarer Bruch: „Apps" war herausgewachsen — Rand
+`PAGE_TITLE_PT`). Anlass war ein sichtbarer Bruch: „Apps“ war herausgewachsen — Rand
 28/24/28/20 statt 20/18/20/18, Titel 17 pt statt 12 pt, Kartenabstand 14 statt 12. Beim
 Umschalten sprang dadurch das Layout. Die Werte standen viermal einzeln im Code; jetzt
 stehen sie an einer Stelle, und ein Test schlägt an, wenn eine Seite wieder ausschert
 oder jemand die Zahlen direkt hinschreibt.
 
 **Namenskonvention (bewusst gemischt):** Fachbegriffe der Domäne stehen auf Deutsch
-(`freihand`, `kontext`, `profil`, `nachbereitung`, `stillewache`), technische
-Infrastruktur auf Englisch (`pipeline`, `injection`, `history`, `StateBus`). Grund: Die
+(`freihand`, `kontext`, `profil`, `nachbereitung`, `stillewache`, `bloecke`),
+technische Infrastruktur auf Englisch (`pipeline`, `injection`, `history`, `StateBus`). Grund: Die
 Anwendung ist deutschsprachig, ihre Fachbegriffe haben keine natürliche englische
-Entsprechung — „Freihand" ist nicht „freehand".
+Entsprechung — „Freihand“ ist nicht „freehand“.
 
 ### 14.2 Threads und Zustand
 
@@ -1902,9 +2195,10 @@ Fleech läuft mit wenigen, klar abgegrenzten Threads:
 | **UI (Haupt)** | Qt-Ereignisschleife, alle Widgets |
 | **Audio-Callback** | liefert Mikrofon-Blöcke (von PortAudio verwaltet) |
 | **Hotkey-Listener** | globale Tasten-/Maus-Hooks |
-| **Verarbeitung** | pro Diktat einer: Erkennung, Modell, Einfügen |
-| **Formel-Jobs** | je Inline-Segment einer, parallel zur laufenden Aufnahme |
-| **Live-Vorschau** | optional, eigener Dekodier-Takt |
+| **Abschnitts-Erkennung** | während der Aufnahme: erkennt fertige Abschnitte im Hintergrund |
+| **Verarbeitung** | pro Diktat einer: Erkennung des letzten Abschnitts, Modell, Einfügen |
+| **Live-Vorschau** | optional, eigener Dekodier-Takt (1 s, in Sprechpausen gar nicht) |
+| **Kurze Helfer** | Warmhalten/Entladen, Update-Prüfung, Modellliste und Verbindungstest der KI-Seite — je ein Hintergrund-Thread, Ergebnis über Signale |
 
 Die Verbindung zwischen Arbeits-Threads und Oberfläche läuft **ausschließlich** über
 einen Signal-Bus. Worker senden Signale, UI-Elemente empfangen sie — Qt stellt die
@@ -1923,8 +2217,9 @@ bereit → aufnehmend → verarbeitend → bereit
 ```
 
 Alle Erkennungs-Aufrufe sind zusätzlich untereinander serialisiert, weil das
-Whisper-Modell nebenläufige Aufrufe nicht garantiert verträgt. Seit 5.3.0 kommt der
-Freihand-Lauscher als zweiter Audio-Weg hinzu — er **pausiert**, solange eine
+Whisper-Modell nebenläufige Aufrufe nicht garantiert verträgt — auch die Abschnitte
+während der Aufnahme reihen sich dort ein. Der Freihand-Lauscher (seit 5.3.0, seit
+5.10.1 stillgelegt) wäre ein zweiter Audio-Weg; er **pausiert**, solange eine
 Hotkey-Aufnahme läuft, weil zwei sammelnde Wege zwei konkurrierende Diktate wären.
 
 ---
@@ -1941,18 +2236,35 @@ Fehlersuche nicht pro Plattform verzweigen:
 
 | Datei | Inhalt |
 |---|---|
-| `settings.json` | alle Einstellungen aus der Oberfläche |
+| `settings.json` | alle Einstellungen aus der Oberfläche (der API-Schlüssel eines Cloud-Anbieters steht **nicht** darin) |
 | `history.db` | Diktat-Verlauf (SQLite) |
-| `fleech.log` | Protokoll |
+| `fleech.log` | Protokoll, rotiert als `fleech.log.1`–`.3` |
 | `kontext.db` | Projekt-Gedächtnis: gelernte Fachbegriffe (SQLite) |
 | `prompts/` | *optional* — eigene Fassungen der System-Prompts |
 | `settings.json.bak` | Sicherung der zuletzt funktionierenden Einstellungen |
+| `sicherungen/` | datierte Kopien der `settings.json`, angelegt beim ersten Start einer neuen Version, bevor irgendetwas geschrieben wird; die zwölf jüngsten bleiben |
 | `settings.json.zurueckgesetzt` | *nur nach einer Heilung* — die verworfene, auf Vorgaben zurückgefallene Fassung, zur Ansicht beiseitegelegt |
+| `settings.json.kaputt` | *nur nach einem Unfall* — eine nicht lesbare Fassung, beiseitegelegt statt überschrieben |
+| `updates/` | heruntergeladene, geprüfte Installationsdateien |
 | `config.yaml` | *optional* — überschreibt die mitgelieferte Konfiguration |
-| `.env` | *optional* — API-Schlüssel, nur bei fremden Anbietern |
+| `.env` | *optional* — Rückfall für Umgebungsvariablen, etwa `FLEECH_OPENAI_API_KEY`, falls kein Schlüsselbund verfügbar ist; der Normalweg für API-Schlüssel ist der Schlüsselbund des Systems |
 
-Die Programmdateien (Prompts, Icons) liegen getrennt davon im Installationsordner. Ein
-Update ersetzt nur diese; Einstellungen, Verlauf und Wörterbuch überleben.
+API-Schlüssel liegen im **Schlüsselbund des Systems** (Windows:
+Anmeldeinformationsverwaltung, Linux: Secret Service), nicht in diesem Ordner.
+
+Die Programmdateien (Prompts, Icons) liegen getrennt davon im Installationsordner
+(Windows: `%LOCALAPPDATA%\Programs\Fleech`). Ein Update ersetzt nur diese;
+Einstellungen, Verlauf und Wörterbuch überleben — ein Test wacht darüber, dass die
+beiden Orte getrennt bleiben. Die Deinstallation entfernt aus dem Datenordner nur
+`fleech.log`.
+
+**Datierte Sicherungen (seit 5.11.4).** Die eine `settings.json.bak` wird bei *jedem*
+Speichern überschrieben; sie schützt gegen einen abgebrochenen Schreibvorgang, nicht
+gegen einen erfolgreichen mit falschem Inhalt. `fleech/einstellungssicherung.py` legt
+deshalb bei einem Versionswechsel eine Kopie nach `sicherungen/`
+(`settings-JJJJMMTT-HHMMSS-update.json`) — nur wenn sich wirklich etwas geändert hat,
+sonst verdrängten zwölf identische Kopien jeden Stand, der noch etwas anderes wusste.
+Zurückholen: Fleech beenden, die gewünschte Datei als `settings.json` kopieren, starten.
 
 **Schreiben und Heilen der `settings.json` seit 5.10.3** (`usersettings.py` +
 `settingsheilung.py`): `save()` läuft unter einem prozessweiten Schloss — die
@@ -1962,10 +2274,10 @@ Nebendatei teilen und ein Gemisch aus beiden Fassungen in `os.replace` schieben 
 der beobachteten Kollisionen ergaben eine unlesbare Datei). Die Nebendatei trägt jetzt
 Prozess- und Thread-Kennung im Namen. Die `.bak` entsteht nur noch aus einer Fassung,
 die sich als JSON lesen lässt — sonst hätte der nächste Speichervorgang eine kaputte
-Datei zur „letzten guten Fassung" gemacht und die Rettung wäre mit ihr weg gewesen.
+Datei zur „letzten guten Fassung“ gemacht und die Rettung wäre mit ihr weg gewesen.
 
 `load()` erkennt zusätzlich einen **Rücksetzer, der wie eine gültige Datei aussieht**:
-Steht die `settings.json` auf allen „wertvollen" Feldern (Onboarding, Wörterbuch,
+Steht die `settings.json` auf allen „wertvollen“ Feldern (Onboarding, Wörterbuch,
 Schnellwechsel, Profilliste, Hotkeys) auf Werkszustand, während die `.bak` in
 mindestens zweien davon abweicht, gilt die Datei als zurückgesetzt. Sie wird dann
 nicht geladen, sondern als `settings.json.zurueckgesetzt` beiseitegelegt, und Fleech
@@ -1984,16 +2296,19 @@ einigen Megabyte nur noch über Zeilennummern durchsuchbar.
 
 | Funktion | Ziel |
 |---|---|
-| Spracherkennung | **nichts** (lokal) |
-| Bereinigung, Befehle, KI-Prompting | **nichts** (lokales Ollama) |
-| Formel-Modus | **nichts** (deterministischer Parser, seit 3.0.0) |
-| Freihand-Lauscher | **nichts** — beide Stufen laufen lokal |
-| Projekt-Gedächtnis | **nichts** — `kontext.db` bleibt auf dem Rechner |
-| Update-Prüfung | nur die Feed-URL, nur auf Klick |
+| Spracherkennung | **nichts** (lokal, auch der Ton bei einem Cloud-Anbieter) |
+| Bereinigung, Befehle, KI-Prompting, E-Mail, Stichpunkte | **nichts** bei lokalem Ollama (Standard) und bei „Ohne KI“; bei einem gewählten Cloud-Anbieter der diktierte **Text** an diesen Anbieter |
+| Formel-Erkennung | **nichts** (deterministischer Parser, seit 3.0.0) |
+| Freihand-Lauscher | **nichts** — beide Stufen laufen lokal (ohnehin stillgelegt) |
+| Projekt-Gedächtnis | **nichts** — `kontext.db` bleibt auf dem Rechner und geht auch nie an ein Sprachmodell |
+| Einrichtung | Ollama-Installation per `winget` (nur auf Klick), Download des Sprachmodells über Ollama und des Erkennungsmodells (beim Umschalten auch des deutsch-optimierten) |
+| KI-Seite | „Liste laden“ und „Verbindung testen“ — nur auf Klick, nur an den gewählten Anbieter |
+| Update-Prüfung | GitHub-Releases des Projekts (oder der eigene Feed): 45 s nach dem Start und danach täglich, eine gefundene Version wird im Hintergrund geladen — beides abschaltbar unter *Advanced*; installiert wird nur auf Klick |
 
-Im Auslieferungszustand gibt es damit **keine** Funktion mit Netzverkehr außer der
-Update-Prüfung auf Klick. Wer in `config.yaml` bewusst einen fremden Anbieter einträgt,
-ändert das für die Bereinigung — an keiner anderen Stelle.
+Im Auslieferungszustand verlässt damit **kein diktierter Inhalt** den Rechner. Der
+Netzverkehr beschränkt sich auf Einrichtung und Update-Prüfung. Das ändert sich nur,
+wenn man unter *Einstellungen → KI* bewusst einen Cloud-Anbieter wählt — und auch dann
+nur für die Bereinigung, nie für den Ton.
 
 **Zum Freihand-Lauscher im Besonderen:** Im Speicher liegen immer nur die letzten zwei
 Sekunden, und sie überschreiben sich fortlaufend. Gesammelt wird erst ab dem erkannten
@@ -2010,46 +2325,52 @@ Fleech hat **zwei Konfigurationsebenen**:
 
 | Ebene | Datei | Inhalt | Wer ändert das? |
 |---|---|---|---|
-| **Technisch** | `config.yaml` | Modelle, Endpunkte, Timeouts, Prompt-Verzeichnis | selten, bewusst |
-| **Nutzer** | `settings.json` | alles aus der Oberfläche | ständig, automatisch |
+| **Technisch** | `config.yaml` | Modelle, Endpunkte, Timeouts, `num_ctx`, Prompt-Verzeichnis | selten, bewusst |
+| **Nutzer** | `settings.json` | alles aus der Oberfläche, auch die Wahl des KI-Anbieters | ständig, automatisch |
 
 **Priorität:** Umgebungsvariable **>** `config.yaml` **>** eingebaute Standardwerte.
 Liegt eine `config.yaml` im Benutzerordner, ersetzt sie die mitgelieferte vollständig
 (kein Zusammenführen) — so lässt sich die installierte App anpassen, ohne den
-Programmordner anzufassen.
+Programmordner anzufassen. Umgebungsvariablen gibt es genau acht: `FLEECH_HOTKEY`,
+`FLEECH_STT_BACKEND`, `FLEECH_STT_MODEL`, `FLEECH_STT_DEVICE`, `FLEECH_STT_LANGUAGE`,
+`FLEECH_LLM_BASE_URL`, `FLEECH_LLM_MODEL` und `FLEECH_TRIGGER_WORD`.
+
+In der Desktop-App legt `UserSettings.apply_to` danach die Werte der Oberfläche
+darüber: KI-Anbieter und -Modell, Diktat-Hotkey, Mikrofon, Erkennungssprache,
+GPU/CPU, das deutsch-optimierte Erkennungsmodell, Audio-Fokus und ein eingetragenes
+Safe-Word. Für diese Punkte ist `settings.json` maßgeblich — `FLEECH_HOTKEY`,
+`FLEECH_STT_LANGUAGE` und `FLEECH_STT_DEVICE` wirken dort nicht.
 
 **Vererbung der Modell-Endpunkte.** Nur der Bereinigungs-Endpunkt wird vollständig
-konfiguriert; das Befehls-Modell **erbt** Basis-URL, Zeitlimit und Schlüsselnamen davon
-und überschreibt nur, was ausdrücklich angegeben ist. Einen eigenen Formel-Endpunkt gibt
-es seit 3.0.0 nicht mehr — Formeln entstehen im Parser, ohne Modell.
+konfiguriert; das Befehls-Modell und der Endpunkt der Routing-Stufe „simple“ **erben**
+Anbieter, Basis-URL und Zeitlimit davon und überschreiben nur, was ausdrücklich
+angegeben ist (das Befehls-Modell etwa `reasoning_effort: none`). Einen eigenen
+Formel-Endpunkt gibt es seit 3.0.0 nicht mehr — Formeln entstehen im Parser, ohne
+Modell.
 
-Praktische Folge: Ein einziges `FLEECH_LLM_BASE_URL` stellt alles auf einen anderen
-Anbieter um.
+Praktische Folge: Ein einziges `FLEECH_LLM_BASE_URL` stellt alle Endpunkte auf einen
+anderen Ollama-Server um, etwa einen zweiten Rechner im Netz.
 
-> Zeigt die Basis-URL auf **localhost**, spricht Fleech nicht den OpenAI-Aufsatz an,
-> sondern Ollamas eigene `/api/chat` — nur dort lässt sich `num_ctx` setzen, und ohne
-> das brechen lange Diktate mitten im Satz ab (siehe [13.2](#132-der-llm-zugang)).
+> Welche Schnittstelle Fleech anspricht, entscheidet der **Anbieter** (`provider`),
+> nicht die Adresse: Für Ollama immer dessen eigene `/api/chat` — nur dort lässt sich
+> `num_ctx` setzen, und ohne das brechen lange Diktate mitten im Satz ab (siehe
+> [13.2](#132-der-llm-zugang)).
 
-**Anbieter wechseln** — Beispiel DeepSeek statt lokalem Ollama:
-
-```yaml
-llm:
-  cleanup:
-    base_url: https://api.deepseek.com/v1
-    model: deepseek-chat
-    api_key_env: DEEPSEEK_API_KEY
-    reasoning_effort: ""
-```
-
-Der Schlüssel selbst gehört in die `.env` im Benutzerordner.
+**Anbieter wechseln** geht seit 6.1.0 über *Einstellungen → KI*, ohne Neustart und
+ohne Datei. Beispiel DeepSeek statt lokalem Ollama: Anbieter „Eigener Server
+(OpenAI-kompatibel)“, Server-Adresse `https://api.deepseek.com/v1`, Modell
+`deepseek-chat`, Schlüssel einfügen und Enter — er landet im Schlüsselbund.
+„Verbindung testen“ zeigt, ob alles stimmt. Bei einem Cloud-Anbieter gelten die
+Ollama-Eigenheiten aus `config.yaml` (`num_ctx`, `reasoning_effort`) nicht; wer zurück
+auf „Lokal“ wechselt, bekommt sie wieder.
 
 **Prompts anpassen.** Die System-Prompts liegen als lesbare Markdown-Dateien in
-`prompts/` — u. a. `cleanup.md`, `cleanup-en.md`, `command.md`, `prompt_engineer.md`,
-`summary.md`, `email.md`, `stichpunkte.md`. Sie sind das eigentliche „Verhalten" der
-App. Seit 5.2.0 lassen sie sich **direkt in der Oberfläche** ansehen und ändern
-(Profilseite → „Prompt ansehen …"); eigene Fassungen landen im Benutzerordner und
+`prompts/`: `cleanup.md`, `cleanup-en.md`, `cleanup-strong.md` (Zusatz für den
+Eingriffsgrad „Strong“), `command.md`, `prompt_engineer.md` (KI-Prompt), `email.md`
+und `summary.md` (Stichpunkte). Sie sind das eigentliche „Verhalten“ der App. Seit 5.2.0 lassen sie sich **direkt in der Oberfläche** ansehen und ändern
+(Profilseite → „Prompt ansehen …“); eigene Fassungen landen im Benutzerordner und
 überleben damit jedes Update. Der Werkszustand bleibt als Rücksetzpunkt erhalten —
-siehe [23](#23-nachbearbeiten-und-offene-prompts).
+siehe [23](#23-nachbearbeiten-und-offene-prompts-seit-520).
 
 ---
 
@@ -2066,14 +2387,21 @@ verstreute Plattform-Abfragen im ganzen Code.
 | Ducking | Audio-Sessions je Prozess | PulseAudio/PipeWire, gleiche Schnittstelle nachgebaut |
 | Fenster-Fokus | Win32 + Cursor-Rückklick | X11/EWMH, nur Fensteraktivierung |
 | Vollbild-Erkennung | Systemabfrage + Heuristik | X11-Fensterzustand |
-| „Nicht stören" | Systemabfrage | nicht verfügbar (gilt als unbekannt) |
+| „Nicht stören“ | Systemabfrage | nicht verfügbar (gilt als unbekannt) |
 | Autostart | Registry (benutzerbezogen) | `.desktop`-Datei |
 | Einzelinstanz | benanntes Kernel-Objekt | Sperrdatei im Laufzeitverzeichnis |
 | Maus-Hotkeys | Originalfunktion wird unterdrückt | Originalfunktion läuft zusätzlich |
 | Audio-Bibliothek | im Paket enthalten | Systempaket oder mitgelieferte Bibliothek |
+| API-Schlüssel | Anmeldeinformationsverwaltung | Secret Service (KWallet, GNOME-Schlüsselbund) |
+| Ollama einrichten | per `winget` auf Klick | offizieller Befehl wird angezeigt, nicht ausgeführt |
+| Updates installieren | auf Klick aus der App | keine automatische Installation (aus dem Quellcode bauen) |
 
 Fehlt eine Fähigkeit (etwa X11 unter Wayland), liefern die betroffenen Funktionen
 neutrale Werte — die App läuft weiter, nur die jeweilige Zusatzfunktion entfällt.
+Unter einer Wayland-Sitzung nennt *Einstellungen → Advanced* die Einschränkungen
+ausdrücklich: Die Cursor-Rückkehr springt nur zum Fenster, nicht ins genaue Textfeld;
+die Vollbild- und Spielerkennung greift nicht; gebundene Maustasten lösen zusätzlich
+ihre normale Funktion aus.
 
 ---
 
@@ -2082,7 +2410,7 @@ neutrale Werte — die App läuft weiter, nur die jeweilige Zusatzfunktion entf�
 **Windows:**
 
 ```powershell
-.venv\Scripts\python -m pytest -q          # Testsuite (rund 1500 Tests)
+.venv\Scripts\python -m pytest -q          # Testsuite (rund 1600 Tests)
 .venv\Scripts\python packaging\build.py    # → dist\Fleech\Fleech.exe
 .venv\Scripts\python packaging\build.py --gpu --installer   # + CUDA + Setup
 ```
@@ -2124,12 +2452,17 @@ Die Zahlen, die das Verhalten bestimmen — alle mit Begründung im Quellcode.
 | **0,3 s** | Mindestlänge einer Aufnahme |
 | **0,5** | Mindest-Übereinstimmung Ausgabe ↔ Rohtext, sonst Rohtext-Rückfall |
 | **6 Wörter** | Mindest-Signal, damit diese Prüfung greift |
-| **24 Wörter** | Obergrenze für „einfach" |
-| **5 Wörter** | Obergrenze für „trivial" (kein Modell) |
-| **0,4 s / 0,004** | Mindestlänge und Mindestpegel eines Textfensters im Formel-Mix |
+| **24 Wörter** | Obergrenze für „einfach“ |
+| **5 Wörter** | Obergrenze für „trivial“ (kein Modell) |
+| **0,7 / 0,5** | Wortgetreue: darunter strengerer Zweitversuch / Rohtext |
+| **22 %** | Anteil neuer Wörter, ab dem ein strengerer Zweitversuch läuft (`_ADDED_MAX`) |
+| **200 / 150 Wörter** | ab dieser Länge blockweise bereinigen / höchste Blockgröße (`bloecke.py`) |
+| **70 %** | Mindest-Abdeckung der Inhaltswörter je Block (bei Selbstkorrektur 45 %) |
+| **0,004** | Pegel, unter dem die Live-Vorschau gar nicht erst dekodiert |
+| **400 ms / 6–28 s** | Sprechpause als Schnittstelle / Länge eines Abschnitts beim Erkennen während des Sprechens |
 | **600 Zeichen** | Kontextfenster für Befehle |
 | **60 Begriffe** | Obergrenze für das Vokabular-Priming |
-| **0,002** (`KEIN_TON_SCHWELLE`) | roher RMS-Pegel, unter dem „da kommt nichts" gilt — eine Zehnerpotenz unter dem leisesten real gemessenen Mikrofon, noch **nicht am Gerät kalibriert** |
+| **0,002** (`KEIN_TON_SCHWELLE`) | roher RMS-Pegel, unter dem „da kommt nichts“ gilt — eine Zehnerpotenz unter dem leisesten real gemessenen Mikrofon; an einem Mikrofon geprüft (normal / leiser / noch leiser / stumm) |
 | **4,0 s** (`KEIN_TON_AB_S`) | Aufnahmedauer, ab der die Kein-Ton-Wache überhaupt prüft |
 | **5,0 s** (`KEIN_TON_FENSTER_S`) | Fenster, über das der lauteste Rohpegel zählt |
 | **10 s** (`_ROHPEGEL_VORRAT_S`) | wie weit `Recorder` den Rohpegel-Verlauf zurückhält — großzügig über dem 5-s-Fenster der Wache |
@@ -2152,15 +2485,20 @@ Die Zahlen, die das Verhalten bestimmen — alle mit Begründung im Quellcode.
 | **3 s** | Takt der Fokus-/Spielerkennung |
 | **60 s** | Takt der Modell-Warmhaltung |
 | **10 Min** | Standard-Leerlauf bis zum Entladen |
+| **5 Min** (`SPIELPAUSE_S`) | so lange nach einem Spielende wird das Modell nicht im Hintergrund zurückgeholt |
 | **20 ms / 400 ms** | Poll-Takt und Obergrenze der Clipboard-Bestätigung |
 | **150 ms** | Wartezeit nach dem Einfügen (einstellbar) |
+| **30 s** (`SPAET_S`) | ab so spät nach Aufnahmeende wird bei Fensterwechsel nicht mehr eingefügt, sondern in die Zwischenablage gelegt |
+| **120 s** | so lange lässt sich die letzte Ausgabe per „Rohtext einsetzen“ ersetzen |
+| **12 s + 0,05 s je Sekunde Audio** | ab dieser Verarbeitungsdauer meldet die Pille „Dauert länger als üblich …“ |
 | **4 ms** | Abstand zwischen Rücktasten beim Ersetzen |
 | **60 ms** | Wartezeit vor der Fokus-Verifikation |
 | **250 ms / 8 Schritte** | Ducking-Rampe |
-| **25 % / 8 %** | Restlautstärke bei Leiser stellen / Stark absenken |
+| **25 %** | Standard der Restlautstärke anderer Apps (in der Desktop-App für beide Absenk-Modi; `config.yaml` kennt ohne Oberfläche 25 % / 8 %) |
 | **90 s** | Cooldown je Banner-Art |
-| **2 / 4 / 8 s** | Wartezeiten beim Formel-Rate-Limit |
-| **30 min** | Warmhalte-Zeitraum je Ollama-Ping |
+| **30 min** | `keep_alive`, das Fleech Ollama bei jedem Diktat und jedem Vorladen mitschickt |
+| **8192 Token** | `num_ctx` für lokales Ollama |
+| **12 Stände** | datierte Sicherungen der `settings.json` in `sicherungen/` |
 | **20 MB × 3** | Log-Rotation (`fleech.log` + drei ältere Stände) |
 
 ### Freihand und Anstupsen
@@ -2171,7 +2509,7 @@ und 21.
 | Wert | Bedeutung |
 |---|---|
 | **1,0 s** (`VAD_FENSTER_S`) | Audio, das dem VAD vorgelegt wird. Auf 0,2 s meldet Silero **nie** Sprache (0 %), ab 0,8 s zu 98,6 %, ab 1,0 s zu 100 % |
-| **1,5 s** (`ANLAUF_S` / `MIN_LAUFZEIT_S`) | Anlaufzeit, in der nicht wegen Stille beendet wird — vorher ist „keine Sprache" eine Messgrenze, keine Aussage |
+| **1,5 s** (`ANLAUF_S` / `MIN_LAUFZEIT_S`) | Anlaufzeit, in der nicht wegen Stille beendet wird — vorher ist „keine Sprache“ eine Messgrenze, keine Aussage |
 | **2,0 s** (`FENSTER_S`) | Länge des Startwort-Prüffensters |
 | **0,6 s** (`PRUEF_ABSTAND_S`) | Mindestabstand zweier Startwort-Prüfungen |
 | **1,0 s** (`SPERRE_NACH_START_S`) | Sperre nach einer Aktivierung, damit der eigene Nachsatz nicht sofort neu auslöst |
@@ -2188,14 +2526,14 @@ und 21.
 |---|---|
 | **5 Diktate** | Mindestmenge für Muster-Aussagen |
 | **98 Tage** | Fenster des Aktivitäts-Kalenders |
-| **50** | Einträge in der Verlaufs-Zeitleiste |
+| **40 / 200** | Einträge in der Verlaufs-Zeitleiste ohne Filter / mit Suche oder Filter |
 
 ---
 
 ## 20. Projekt-Gedächtnis (seit 5.1.0)
 
-Fachbegriffe sind der wunde Punkt jeder Spracherkennung. „Ollama" wird zu „Olama",
-„PySide" zu „Pi-Seite" — und man korrigiert dasselbe Wort zum zwanzigsten Mal.
+Fachbegriffe sind der wunde Punkt jeder Spracherkennung. „Ollama“ wird zu „Olama“,
+„PySide“ zu „Pi-Seite“ — und man korrigiert dasselbe Wort zum zwanzigsten Mal.
 
 Das persönliche Wörterbuch aus [8](#8-das-persönliche-wörterbuch) löst das, verlangt
 aber Pflege von Hand. Das Projekt-Gedächtnis füllt die Lücke: Fleech merkt sich
@@ -2209,7 +2547,7 @@ gegen die echte `history.db` mit 1190 Diktaten kalibriert wurde.
 
 **Zwei plausible Ideen wurden dabei gemessen und verworfen.** Die naheliegendste war,
 Begriffe als fachlich zu werten, wenn sie *nur in einer App* vorkommen. An echten Daten
-lieferte das „Wahrscheinlichkeit" und „Waffe" — Wörter, die zufällig in einem einzigen
+lieferte das „Wahrscheinlichkeit“ und „Waffe“ — Wörter, die zufällig in einem einzigen
 Kontext auftauchten. Ohne die Messung wäre die Funktion mit dieser Heuristik
 ausgeliefert worden.
 
@@ -2228,7 +2566,7 @@ Die Kontexte entstehen aus App **und** Fenstertitel: Derselbe Editor trägt mal 
 mal das andere Projekt. Gespeichert wird in `kontext.db` neben dem Verlauf — kein
 Diktattext, nur die Begriffe und wie oft sie vorkamen. Löschen lässt sich das wie der
 Verlauf — komplett, oder seit 5.10.5 auch **ein einzelner Begriff** (Einstellungen →
-Textersetzung → „Begriff vergessen"): In `kontext.db` stehen auch echte Hörfehler
+Textersetzung → „Begriff vergessen“): In `kontext.db` stehen auch echte Hörfehler
 (`Cloud-Code`, `FLEACH`), die sich über den `initial_prompt` selbst weiter primen; bis
 5.10.5 ließ sich dagegen nur alles auf einmal löschen. Dieselbe Funktion nutzt die
 Schreibvarianten-Vorschlagskarte ([9](#9-verlauf-und-statistiken)): Übernimmt man dort
@@ -2243,12 +2581,12 @@ eine Regel, vergisst Fleech die als falsch erkannte Form auch hier.
 > zuverlässig zu bekommen — und jeder Fehlstart tippt Text in das gerade fokussierte
 > Fenster. 5.10.1 hat den Start per `freihand.STILLGELEGT` verriegelt und die
 > Einstellungen ausgegraut; 5.11.0 hat den ganzen Block aus der Aufnahme-Seite
-> genommen, dazu den Tray-Eintrag „Freihand: an/aus" und die Startwort-Probe. Der
+> genommen, dazu den Tray-Eintrag „Freihand: an/aus“ und die Startwort-Probe. Der
 > **Code bleibt eingefroren** — dieses Kapitel beschreibt weiterhin, wie er arbeitet,
 > und ein einziges `False` in `fleech/freihand.py` macht ihn wieder verfügbar (die
 > Oberfläche dazu müsste dann neu entstehen). Der **Nachfolger** ist der Bedienmodus
 > **Anstupsen** (Kapitel 4a): einmal drücken, reden, es hört von selbst auf —
-> auslösen kann dort nur, wer die Taste drückt. Sein Regler „Sprechpause bis Ende"
+> auslösen kann dort nur, wer die Taste drückt. Sein Regler „Sprechpause bis Ende“
 > teilt sich das Settings-Feld `freihand.stille_s` und steht deshalb weiter auf der
 > Aufnahme-Seite, beim Bedienmodus.
 
@@ -2301,7 +2639,7 @@ Hardware gemessen, 200-ms-Blöcke:
 | 900 ms | 36,1 % |
 
 Rund die **Hälfte** des Gesprochenen ging verloren. Das Prüfmodell bekam zerhackte
-Fetzen und riet daraus „Ich bin hier.", „Wirksam.", „Vielen Dank." — alles echt aus dem
+Fetzen und riet daraus „Ich bin hier.“, „Wirksam.“, „Vielen Dank.“ — alles echt aus dem
 Protokoll. Der Hotkey-Weg blieb tadellos, weil `audio.Recorder` im Callback nur kopiert.
 
 Seit 5.7.0 legt der Callback den Block nur in eine Warteschlange (Mikrosekunden), ein
@@ -2310,7 +2648,7 @@ sonst wäre die Stille-Uhr um den Rückstand verschoben.
 
 **(b) Die Stille-Uhr lief gegen eine Messgrenze.** Das VAD braucht mindestens 0,8 s
 Audio, um Sprache zu melden. Direkt nach dem Startwort ist die Aufnahme aber erst 0,2 s
-lang — in dieser Zeit meldet es zwangsläufig „keine Sprache", ganz gleich ob jemand
+lang — in dieser Zeit meldet es zwangsläufig „keine Sprache“, ganz gleich ob jemand
 spricht. Im Protokoll endete deshalb **jedes** Diktat nach exakt `stille_s`:
 
 ```
@@ -2319,7 +2657,7 @@ spricht. Im Protokoll endete deshalb **jedes** Diktat nach exakt `stille_s`:
 ```
 
 Für den Nutzer hieß das: Die Pille kam und war wieder weg, bevor er reagieren konnte —
-gemeldet als „ich kann nicht abbrechen". Der Abbruch-Knopf war dabei in Ordnung; es gab
+gemeldet als „ich kann nicht abbrechen“. Der Abbruch-Knopf war dabei in Ordnung; es gab
 schlicht nichts mehr abzubrechen. Seit 5.9.0 gibt es eine **Anlaufzeit** (`ANLAUF_S`,
 1,5 s), in der nicht wegen Stille beendet wird.
 
@@ -2334,7 +2672,7 @@ sonst und überdeckt das, was wirklich gesagt wurde.
 ### 21.2 Mehrere Startwörter (seit 5.9.0)
 
 Welches Wort die eigene Aussprache zuverlässig trifft, lässt sich nicht vorhersagen —
-diese Erfahrung kostete mehrere Runden mit „Kimono", „Apfel", „Redax" und „Fleech".
+diese Erfahrung kostete mehrere Runden mit „Kimono“, „Apfel“, „Redax“ und „Fleech“.
 Deshalb sind es jetzt **mehrere**: Wort eintippen, Enter, es steht als Zeile darunter
 mit einem ✕ zum Entfernen. Fleech startet bei jedem davon.
 
@@ -2352,22 +2690,22 @@ Idee. Gemessen am unscharfen Vergleich:
 
 ### 21.3 Das Startwort einsprechen
 
-Der Knopf „Startwort einsprechen …" stand unter *Einstellungen → Aufnahme* und ist mit
+Der Knopf „Startwort einsprechen …“ stand unter *Einstellungen → Aufnahme* und ist mit
 der Freihand-Oberfläche in 5.11.0 entfallen; der Weg dorthin
 (`wortprobe(…, zweck="startwort")`) bleibt eingefroren im Code. Er sagte: Wort sagen, und
 Fleech zeigt, was ankommt und ob Freihand anspringen würde. Geprüft wird mit dem Erkenner, der
 im Betrieb **läuft** — nicht mit dem Diktat-Weg. Der hört ungleich besser, und ein Test,
 der besteht während der Alltag scheitert, ist schlimmer als keiner.
 
-Für Freihand zählt dabei eine andere Frage als beim Wörterbuch: „nur ähnlich" heißt hier
-**genügt** (der Vergleich ist bewusst unscharf), im Wörterbuch heißt es „noch üben".
+Für Freihand zählt dabei eine andere Frage als beim Wörterbuch: „nur ähnlich“ heißt hier
+**genügt** (der Vergleich ist bewusst unscharf), im Wörterbuch heißt es „noch üben“.
 
 ### 21.4 Fehlersuche
 
 Ein Schalter, der die geprüften Startwort-Fenster als Tondateien aufhebt (zwei Sekunden
 je Prüfung, höchstens 60 Stück, in `%APPDATA%\Fleech\freihand-diagnose`; die Dateinamen
 nennen das Ergebnis und was verstanden wurde). Gebaut, weil sich die Frage „warum trifft
-die Probe und der Betrieb nicht?" anders nicht beantworten ließ — alles ohne echtes
+die Probe und der Betrieb nicht?“ anders nicht beantworten ließ — alles ohne echtes
 Signal Vergleichbare zeigte Gleichstand.
 
 **Standardmäßig aus, und das bleibt so.** Hier wird Audio gespeichert — genau das, was
@@ -2390,7 +2728,7 @@ nicht vereinbar —
 und jedes neue Startwort hieße rund eine Stunde Training. Porcupine ist kostenlos nur
 zur Evaluation.
 
-**Deshalb ist „Anstupsen" (Abschnitt 4a) der Weg**, wenn es um das automatische Ende
+**Deshalb ist „Anstupsen“ (Abschnitt 4a) der Weg**, wenn es um das automatische Ende
 geht. Freihand ist seit 5.10.1 verriegelt, seit 5.11.0 auch ohne Oberfläche — in den
 Einstellungen steht deshalb gar nichts mehr darüber, statt eines ausgegrauten
 Versprechens.
@@ -2420,7 +2758,7 @@ Versprechens.
 - **Deckel bei zwei Minuten** (`MAX_DIKTAT_S`) als zweite Sicherung für den Fall, dass
   die Stille-Erkennung nie greift und niemand hinsieht.
 - **Ein Ende, ein Weg.** Ob Stille, Fertig-Knopf oder Deckel — alle drei laufen durch
-  dieselben zwei Prüfungen (Abbruchwort, „war überhaupt Sprache drin"). Der Fertig-Knopf
+  dieselben zwei Prüfungen (Abbruchwort, „war überhaupt Sprache drin“). Der Fertig-Knopf
   umging sie zunächst; damit wäre Mikrofonrauschen in die Pipeline gegangen.
 
 Der Zustand ist am Punkt der Pille sichtbar (ruhiger Ring beim Lauschen, kein Blinken).
@@ -2450,12 +2788,12 @@ die richtige Erwartung. Wiederholungsschleifen und fremde Diakritika zählen unv
 
 **Ein eigener Prompt war nötig, und das wurde gemessen:** Mit dem deutschen
 Cleanup-Prompt hat `gemma3` englische Diktate ins Deutsche *übersetzt*. Ein bloßer
-Zusatz („This dictation is in ENGLISH, answer in ENGLISH") änderte daran **nichts** —
+Zusatz („This dictation is in ENGLISH, answer in ENGLISH“) änderte daran **nichts** —
 die rund 3000 Token auf Deutsch dominieren. Deshalb `prompts/cleanup-en.md` mit
 denselben Kernregeln. Fehlt die Datei, läuft alles wie bisher weiter.
 
 **Mischdiktate bleiben ganz.** „Ich habe den MCP-Server neu gestartet und das Deployment
-läuft" geht unverändert durch — es zählt der Anteil fremder Füllwörter, nicht das
+läuft“ geht unverändert durch — es zählt der Anteil fremder Füllwörter, nicht das
 einzelne Fachwort. Umgekehrt bleiben deutsche Begriffe in englischen Diktaten stehen.
 
 Bei `auto` erkennt Whisper die Sprache selbst; für die Guards gilt dann Deutsch — ein
@@ -2468,14 +2806,14 @@ Zeile verdoppeln, ohne dass ein Diktat dadurch besser wird.
 
 ## 23. Nachbearbeiten und offene Prompts (seit 5.2.0)
 
-**Live-Vorschau.** Während die Bereinigung läuft, steht der **Rohtext schon in der
-Pille**: Die Erkennung ist nach ~0,8 s durch, das Sprachmodell braucht noch rund vier.
-Man liest bereits, während gearbeitet wird. Die Statusmeldungen darunter („Bereinige …",
-„Füge ein …") hängen an den echten Schritten der Pipeline, nicht an einem geschätzten
-Balken.
+**Rohtext-Vorschau.** Während die Bereinigung läuft, steht der **Rohtext schon in der
+Pille**: Die Erkennung ist längst durch, das Sprachmodell arbeitet noch — bei einem
+langen Diktat in Blöcken auch mal etliche Sekunden. Man liest bereits, während
+gearbeitet wird. Die Statusmeldungen darunter („Bereinige …“, „Füge ein …“) hängen an
+den echten Schritten der Pipeline, nicht an einem geschätzten Balken.
 
 **Nachträglich anderes Format.** Falsches Profil erwischt? Rechtsklick auf den
-Verlaufseintrag → „Neu bereinigen als …". Das schickt das gespeicherte
+Verlaufseintrag → „Neu bereinigen als …“. Das schickt das gespeicherte
 **Rohtranskript** noch einmal durch dieselbe Pipeline, inklusive aller Guards — nicht
 die bereits bereinigte Fassung, sonst triebe jeder Durchlauf den Text weiter vom
 Gesprochenen weg.
@@ -2485,7 +2823,16 @@ Verlauf rechtsklickt, steht im Fleech-Fenster; blind ins zuletzt benutzte Feld z
 schreiben ist genau die Fehlerklasse, aus der die Cursor-Regeln in
 [12.3](#123-cursor-rückkehr) stammen.
 
-**Die Prompts sind offen.** Auf der Profilseite zeigt „Prompt ansehen …", welche
+Seit 5.12.1 zeigt das ein eigenes Fenster dort, wo geklickt wurde: Es öffnet sofort mit
+dem Rohtext und einem laufenden Balken an der Stelle des Ergebnisses; ist der neue
+Text da, steht er an der Stelle des Balkens, mit dem Hinweis, dass er schon in der
+Zwischenablage liegt. Geht etwas schief, steht dort **warum** — die KI antwortet
+nicht, gerade läuft ein Diktat, oder zu diesem Eintrag ist kein Rohtranskript
+gespeichert (das hebt der Verlauf erst seit 5.10.4 auf). Vorher lief die Rückmeldung
+an die Pille, und die zeigt Zwischenschritte nur während eines echten Diktats — jeder
+Klick endete in sichtbarem Nichts, während das Protokoll „erfolgreich“ meldete.
+
+**Die Prompts sind offen.** Auf der Profilseite zeigt „Prompt ansehen …“, welche
 Anweisung das Modell tatsächlich bekommt, und lässt sie ändern. Eigene Fassungen liegen
 im **Benutzerordner** unter `prompts/` — nicht im Programmordner, der bei jedem Update
 gespiegelt wird. Der Werkszustand bleibt als Rücksetzpunkt. Die Sicherheitsregel zu den
@@ -2537,45 +2884,48 @@ dass keine Zugangsdaten und keine Schlüsseldateien im Repository liegen.
 Ehrlichkeit über das, was Fleech **nicht** kann oder bewusst anders löst:
 
 **Fleech kann fremde Textfelder nicht lesen.** Alle Befehls-Funktionen beziehen sich auf
-den Text, den Fleech selbst eingefügt hat. „Ganzes Dokument" heißt „alles, was ich
-diktiert habe". Der Lese-Kontext überlebt Fensterwechsel (Session-Kontext, 15 min),
+den Text, den Fleech selbst eingefügt hat. „Ganzes Dokument“ heißt „alles, was ich
+diktiert habe“. Der Lese-Kontext überlebt Fensterwechsel (Session-Kontext, 15 min),
 **Ersetzungen** aber funktionieren nur in der ununterbrochenen Sitzung am Ende des
 eigenen Diktats — nach einer Rückkehr ist die Cursor-Position unbekannt, und blinde
 Rücktasten würden fremden Text löschen.
 
-**Der Formel-Modus verlangt gesprochene Grenzen.** Seit der Cloud-Pfad weg ist,
+**Die Formel-Erkennung verlangt gesprochene Klammern.** Seit der Cloud-Pfad weg ist,
 liest ein Parser die Struktur aus dem Text — Betonung und Pausen stehen ihm nicht zur
-Verfügung. „In Klammern … Klammer zu" und „das Ganze durch" muss man deshalb wirklich
-sagen. Der Handel war bewusst: Bestimmtheit und Offline-Betrieb gegen etwas
-Bequemlichkeit.
+Verfügung. Mehrdeutiges übersetzt er nach Schulmathematik-Vorrang und markiert es als
+geraten; eindeutig wird es erst mit „Klammer auf … Klammer zu“. Der Handel war bewusst:
+Bestimmtheit und Offline-Betrieb gegen etwas Bequemlichkeit.
 
 **Freihand ist kein Diktat für die Hosentasche — und seit 5.10.1 ohnehin stillgelegt.**
 Das Gate ist auf einen ruhigen Arbeitsplatz ausgelegt: In einer Besprechung oder bei
 laufendem Fernseher hält Stufe 1 kaum etwas zurück, und das kleine Modell prüft
 dauernd — dafür gibt es die Ausschlussliste je Programm. Seit 5.10.1 startet der Modus
 gar nicht mehr (`freihand.STILLGELEGT`), unverändert im Auslieferungszustand; Details
-und der Ersatzweg über „Anstupsen" stehen in Kapitel 21.
+und der Ersatzweg über „Anstupsen“ stehen in Kapitel 21.
 
 **Die Kein-Ton-Wache ist eine Warnung, kein Messgerät.** Die Schwelle (RMS 0,002) ist
-konservativ hergeleitet, aber **noch nicht am echten Mikrofon kalibriert** — dafür
-bräuchte es einen Vergleich stumm/leise/normal gesprochen an echten Geräten, den es bis
-5.11.0 nicht gab. Und sie läuft nur, solange die Pille **sichtbar** ist: Sie hängt am
-50-ms-Waveform-Takt der Pille (`level_provider`), bei Sichtbarkeit „Deaktiviert" oder
-außerhalb einer laufenden Aufnahme prüft niemand.
+konservativ hergeleitet und an **einem** echten Mikrofon geprüft: In einem
+54-Sekunden-Diktat mit normaler, leiserer, noch leiserer und stummer Stimme blieb sie
+still, solange die Erkennung noch etwas verstand, und löste aus, wo sie nichts mehr
+verstand. An weiteren Geräten ist sie nicht gegengeprüft. Und sie läuft nur, solange
+die Pille **sichtbar** ist: Sie hängt am 50-ms-Waveform-Takt der Pille
+(`level_provider`), bei Sichtbarkeit „Deaktiviert“ oder außerhalb einer laufenden
+Aufnahme prüft niemand.
 
 **Bei zwei sich überlappenden Diktaten ist das Fokusziel kein Schnappschuss.** Die
 Cursor-Rückkehr (12.3) hält genau ein Fokusziel als Instanzfeld, gesetzt beim
 Aufnahmestart. Beginnt ein zweites Diktat in einem **anderen** Fenster, während das
 erste noch verarbeitet wird (typisches Zeitfenster: median 2 s, p90 7 s), landet der
 Text des ersten Diktats im Fenster des zweiten — Ausgabeformat, Profil und Vokabular
-bleiben davon unberührt, und der Text ist über Verlauf und „Rückgängig" wiederherstellbar.
+bleiben davon unberührt, und der Text ist über den Verlauf wiederherstellbar.
 Eine Nachprüfung an 1399 protokollierten Diktaten fand **keinen einzigen** Fall (der
 schnellste beobachtete App-Wechsel-Start lag 1,9 s nach dem Ende des vorherigen
 Diktats). Ein sauberer Fix — ein Fokusziel-Schnappschuss je Diktat — hätte einen Preis:
 die bewusste Entscheidung, ob das erste Diktat dem zweiten den Vordergrund entreißen
-darf. Bei kürzerer Verarbeitung (kleines Modell, warmes Ollama) ist das Risiko
-praktisch geschlossen; bricht die Latenz wieder auf, wie es kaltes Ollama zeigt (bis 19 s
-im Protokoll beobachtet), wächst es.
+darf. Bei kurzer Verarbeitung (warmes Modell) ist das Risiko praktisch geschlossen;
+bricht die Latenz wieder auf, wie es kaltes Ollama zeigt (bis 19 s im Protokoll
+beobachtet), wächst es. Erst ab 30 Sekunden greift die Regel aus 12.1 und legt den
+Text in die Zwischenablage, statt ihn in ein fremdes Fenster zu schreiben.
 
 **Die Fachbegriff-Heuristik ist eine Heuristik.** Sie erkennt Begriffe an ihrer
 Schreibweise, nicht an ihrer Bedeutung. Ein klein geschriebenes Fachwort ohne Ziffer
@@ -2586,8 +2936,8 @@ jedes Wort ersetzt, kann fälschlich als verdächtig gelten und landet dann im R
 Bewusst so gewählt: lieber ein umständlicher Rückfall als ein halluziniertes Ergebnis im
 Textfeld.
 
-**Erkennung von „Nicht stören" ist unter Windows undokumentiert** und unter Linux gar
-nicht verfügbar. Fleech behandelt Unbekanntes konservativ als „kein DND".
+**Erkennung von „Nicht stören“ ist unter Windows undokumentiert** und unter Linux gar
+nicht verfügbar. Fleech behandelt Unbekanntes konservativ als „kein DND“.
 
 **Maus-Hotkeys verhalten sich plattformabhängig.** Unter Windows wird die
 Originalfunktion unterdrückt, unter Linux nicht (das ginge nur über einen globalen
@@ -2597,11 +2947,19 @@ Pointer-Grab, der die Maus für andere Programme blockieren würde).
 belegten Speicher. Deshalb ist die Leerlaufzeit einstellbar und die Spielerkennung
 entlädt automatisch.
 
-**Es gibt keinen automatischen Updater.** Bewusst: Bei einer App, die tief in Hotkeys,
-Fokus und Zwischenablage eingreift, soll ein Update eine bewusste Handlung bleiben.
+**Updates installieren sich nie von selbst.** Fleech prüft (abschaltbar) und lädt im
+Hintergrund vor, aber der Installer startet erst auf Klick. Bewusst: Bei einer App, die
+tief in Hotkeys, Fokus und Zwischenablage eingreift — und für die Installation neu
+starten muss —, soll ein Update eine bewusste Handlung bleiben.
+
+**Ein Cloud-Anbieter sieht den Text.** Wer unter *Einstellungen → KI* einen Anbieter
+wählt, schickt jedes Diktat (als Text, nicht als Ton) dorthin, wo es nach dessen
+Bedingungen verarbeitet wird — auch Verlaufseinträge, die man über „Neu bereinigen als
+…“ erneut bereinigt. Fleech sagt das auf der Seite in einem Satz, kann es aber nicht
+abschwächen. Lokal bleibt deshalb der Standard und die Empfehlung.
 
 **Bei automatischer Formel-Erkennung ist die Wortgetreue-Prüfung ausgesetzt** — im
-Rohtext steht die gesprochene Formel („x hoch zwei"), in der Ausgabe ein Symbol; die
+Rohtext steht die gesprochene Formel („x hoch zwei“), in der Ausgabe ein Symbol; die
 Kennzahl würde dort die Formel messen, nicht das Umformulieren. Der Grounding-Schutz
 läuft in diesem Modus dagegen sehr wohl (auf dem formelbereinigten Fließtext), ergänzt
 um eine Obergrenze für die Zahl erzeugter Formelblöcke.
@@ -2610,7 +2968,7 @@ um eine Obergrenze für die Zahl erzeugter Formelblöcke.
 Einschränkung dieses Dokuments, und sie steht bewusst am Schluss, weil sie fast jede
 Zahl darin betrifft.
 
-Die Guards sind an „994 echten Diktaten", „1043 Diktaten", „15 Diktaten" gemessen — es
+Die Guards sind an „994 echten Diktaten“, „1043 Diktaten“, „15 Diktaten“ gemessen — es
 sind durchweg die Diktate des Entwicklers: deutsches Fachvokabular aus Software,
 Mathematik und Philosophie, ein Sprechtempo, ein Akzent, ein Mikrofon (Focusrite
 Scarlett Solo). Werte wie der Fremdanteil von 0,35, die Salat-Wortlänge, die
@@ -2629,8 +2987,8 @@ gestellt wurde.
 
 ---
 
-*Diese Datei beschreibt den Stand von Version 5.11.0 — rund 27.700 Zeilen Programm in
-111 Dateien, dazu die Testsuite mit 1480 Tests. Bei Verhaltensfragen ist der Quellcode
+*Diese Datei beschreibt den Stand von Version 6.1.0 — rund 29.100 Zeilen Programm in
+121 Dateien, dazu die Testsuite mit rund 1.600 Tests. Bei Verhaltensfragen ist der Quellcode
 maßgeblich: Die Kommentare dort dokumentieren zu fast jeder Konstante auch den Grund
 ihres Werts, meist mit dem konkret aufgetretenen Fehlerbild. Was sich Version für
 Version geändert hat, steht in [CHANGELOG.md](../CHANGELOG.md).*
