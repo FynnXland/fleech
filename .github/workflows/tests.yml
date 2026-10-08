@@ -40,12 +40,13 @@ jobs:
       # Vorerst ohne die zwei Autostart-Tests: Sie schreiben in den echten Run-Schlüssel
       # der Registry, den es auf dem Runner nicht gibt (FileNotFoundError). Sobald sie
       # einen eigenen Test-Eintrag nutzen, fallen die zwei --deselect wieder weg.
-      # shell: python statt PowerShell: Unter pwsh endete der Schritt nach „alle grün“
-      # (pytest-Code 0) trotzdem mit Code 1. Maßgeblich ist das Ergebnis von pytest.
+      # Beenden per TerminateProcess: Auf dem Runner stürzt der Prozess NACH dem
+      # Testlauf beim Entladen nativer Bibliotheken ab (0xC0000005, lokal nicht).
+      # Maßgeblich ist das Ergebnis von pytest; TerminateProcess überspringt das Entladen.
       - name: Run tests
         shell: python
         run: |
-          import os, sys
+          import ctypes, sys
           import pytest
           code = int(pytest.main([
               "-q",
@@ -54,4 +55,7 @@ jobs:
           ]))
           print(f"pytest exit code: {code}", flush=True)
           sys.stderr.flush()
-          os._exit(code)
+          k32 = ctypes.windll.kernel32
+          k32.GetCurrentProcess.restype = ctypes.c_void_p
+          k32.TerminateProcess.argtypes = [ctypes.c_void_p, ctypes.c_uint]
+          k32.TerminateProcess(k32.GetCurrentProcess(), code)
