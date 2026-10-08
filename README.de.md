@@ -8,6 +8,7 @@
 </p>
 
 <p align="center">
+  <a href="https://github.com/FynnXland/fleech/actions/workflows/tests.yml"><img src="https://github.com/FynnXland/fleech/actions/workflows/tests.yml/badge.svg?branch=main" alt="Tests"></a>
   <a href="https://github.com/FynnXland/fleech/releases/latest"><img src="https://img.shields.io/github/v/release/FynnXland/fleech?label=release" alt="Neueste Version"></a>
   <a href="LICENSE"><img src="https://img.shields.io/github/license/FynnXland/fleech" alt="MIT-Lizenz"></a>
   <img src="https://img.shields.io/badge/platform-Windows%20%7C%20Linux%20(X11)-0078D6" alt="Plattform: Windows und Linux (X11)">
