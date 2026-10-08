@@ -39,16 +39,13 @@ leaves your PC. Fleech is a local, open-source alternative to cloud tools like W
 
 ```mermaid
 flowchart LR
-    A["Hold F9<br/>and speak"] --> B["Whisper<br/>speech recognition"]
-    B --> C{"Mode"}
-    C -->|dictation| F["Formulas → LaTeX<br/>(opt-in, no model)"]
-    F --> D["Cleanup<br/>(LLM)"]
+    A["Hold F9<br/>and speak"] --> B["Whisper<br/>(local)"]
+    B --> C{"Safe word?"}
+    C -->|no| D["Cleanup<br/>(LLM)"]
     C -->|"Kimono, …"| E["Voice command<br/>(LLM)"]
-    D --> G["Quality checks"]
-    E --> G
-    G --> H["Paste at<br/>the cursor"]
-    classDef optional stroke-dasharray: 5 5
-    class F optional
+    D --> F["Quality<br/>check"]
+    E --> F
+    F --> G["Paste at<br/>the cursor"]
 ```
 
 Fleech transcribes each section during your speaking pauses, so only the last sentence is

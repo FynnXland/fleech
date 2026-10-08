@@ -40,16 +40,13 @@ Open-Source-Alternative zu Cloud-Diktierdiensten wie Wispr Flow.
 
 ```mermaid
 flowchart LR
-    A["F9 halten<br/>und sprechen"] --> B["Whisper<br/>Spracherkennung"]
-    B --> C{"Modus"}
-    C -->|Diktat| F["Formeln → LaTeX<br/>(einschaltbar, ohne Modell)"]
-    F --> D["Bereinigung<br/>(LLM)"]
+    A["F9 halten<br/>und sprechen"] --> B["Whisper<br/>(lokal)"]
+    B --> C{"Safe-Word?"}
+    C -->|nein| D["Bereinigung<br/>(LLM)"]
     C -->|"Kimono, …"| E["Sprachbefehl<br/>(LLM)"]
-    D --> G["Qualitätsprüfung"]
-    E --> G
-    G --> H["Einfügen<br/>am Cursor"]
-    classDef optional stroke-dasharray: 5 5
-    class F optional
+    D --> F["Qualitäts-<br/>prüfung"]
+    E --> F
+    F --> G["Einfügen<br/>am Cursor"]
 ```
 
 Fleech erkennt jeden Abschnitt schon in deinen Sprechpausen; nach dem Loslassen fehlt nur
