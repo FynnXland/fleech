@@ -7,7 +7,7 @@
 
 from __future__ import annotations
 
-APP_VERSION = "6.1.0"  # 6.1.0: KI-Anbieter waehlbar (lokal, Cloud-Schluessel, ohne KI)
+APP_VERSION = "6.1.1"  # 6.1.1: Testsuite loescht den echten Autostart-Eintrag nicht mehr
 
 
 def _read_build() -> str:

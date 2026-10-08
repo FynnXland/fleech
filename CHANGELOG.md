@@ -11,6 +11,17 @@ GitHub-Release-Notizen (`packaging/release.py`).
 
 ---
 
+## 6.1.1 — 2026-10-08 · nicht einzeln veröffentlicht
+
+**Die Testsuite löscht deinen Autostart nicht mehr.** Betrifft nur, wer Fleech aus
+dem Quellcode baut und die Tests laufen lässt: Bisher entfernte jeder volle
+Testlauf unter Windows den Autostart-Eintrag — Fleech startete dann nach der
+nächsten Anmeldung nicht von selbst, bis man es einmal von Hand geöffnet hatte.
+Die Tests arbeiten jetzt auf einem eigenen Testeintrag, den echten können sie
+nicht einmal mehr öffnen. An der App selbst ändert sich nichts.
+
+---
+
 ## 6.1.0 — 2026-10-06
 
 **Wähle, wer deinen Text bereinigt.** Neue Einstellungsseite *KI*:

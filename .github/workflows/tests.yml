@@ -37,9 +37,6 @@ jobs:
           Get-Content requirements.txt | Where-Object { $_ -notmatch '^\s*nvidia-' } | Set-Content $req
           python -m pip install -r $req "pytest>=8.0"
 
-      # Vorerst ohne die zwei Autostart-Tests: Sie schreiben in den echten Run-Schlüssel
-      # der Registry, den es auf dem Runner nicht gibt (FileNotFoundError). Sobald sie
-      # einen eigenen Test-Eintrag nutzen, fallen die zwei --deselect wieder weg.
       # Beenden per TerminateProcess: Auf dem Runner stürzt der Prozess NACH dem
       # Testlauf beim Entladen nativer Bibliotheken ab (0xC0000005, lokal nicht).
       # Maßgeblich ist das Ergebnis von pytest; TerminateProcess überspringt das Entladen.
@@ -50,8 +47,6 @@ jobs:
           import pytest
           code = int(pytest.main([
               "-q",
-              "--deselect", "tests/test_autostart.py::test_enable_disable_roundtrip",
-              "--deselect", "tests/test_autostart.py::test_refresh_updates_stale_path",
           ]))
           print(f"pytest exit code: {code}", flush=True)
           sys.stderr.flush()

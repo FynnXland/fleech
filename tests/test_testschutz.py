@@ -15,12 +15,16 @@ das zweite Mal etwas kostet.
 """
 
 import os
+import sys
 from pathlib import Path
+
+import pytest
 
 import fleech.history as history
 import fleech.kontext as kontext
 import fleech.usersettings as us
 from fleech.platformpaths import user_data_dir
+from fleech.ui import autostart
 
 
 def _norm(pfad) -> str:
@@ -63,6 +67,41 @@ def test_speichern_ohne_pfad_landet_nicht_beim_nutzer():
     s.save()
     assert Path(us.SETTINGS_PATH).is_file()
     assert not _liegt_im_echten_ordner(us.SETTINGS_PATH)
+
+
+# -- Der Autostart-Eintrag des Nutzers ebenso nicht -----------------------------------
+
+_ECHTER_RUN = r"Software\Microsoft\Windows\CurrentVersion\Run"
+_ECHTE_FREIGABE = r"Software\Microsoft\Windows\CurrentVersion\Explorer\StartupApproved\Run"
+
+
+@pytest.mark.skipif(sys.platform != "win32", reason="Registry nur unter Windows")
+def test_autostart_zeigt_waehrend_der_tests_nicht_in_den_echten_schluessel():
+    """Bis 6.1.0 hat jeder volle Testlauf den echten Autostart-Eintrag
+    geloescht (test_autostart.py raeumte im `finally` den Wert `Fleech` ab)."""
+    assert autostart._RUN_KEY.lower() != _ECHTER_RUN.lower()
+    assert autostart._APPROVED_KEY.lower() != _ECHTE_FREIGABE.lower()
+
+
+@pytest.mark.skipif(sys.platform != "win32", reason="Registry nur unter Windows")
+@pytest.mark.parametrize("pfad", [_ECHTER_RUN, _ECHTE_FREIGABE])
+def test_echter_autostart_schluessel_ist_gesperrt(pfad):
+    """Auch ein hart verdrahteter Pfad kommt nicht durch — weder zum Lesen noch
+    zum Schreiben."""
+    import winreg
+
+    with pytest.raises(pytest.fail.Exception, match="echten Autostart-Schluessel"):
+        winreg.OpenKey(winreg.HKEY_CURRENT_USER, pfad, 0, winreg.KEY_SET_VALUE)
+    with pytest.raises(pytest.fail.Exception):
+        winreg.CreateKeyEx(winreg.HKEY_CURRENT_USER, pfad + "\\")
+
+
+@pytest.mark.skipif(sys.platform != "win32", reason="Registry nur unter Windows")
+def test_set_autostart_nebenbei_schreibt_nirgendwohin():
+    """Ein Test, der (etwa ueber einen Einstellungs-Schalter) `set_autostart`
+    ausloest, ohne die Test-Schluessel anzulegen, landet im Leeren."""
+    assert autostart.set_autostart(True) is False
+    assert not autostart.is_autostart_enabled()
 
 
 # -- Ein Update darf die Einstellungen nicht anfassen -----------------------------------

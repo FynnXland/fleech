@@ -55,6 +55,94 @@ def _keine_echten_einstellungen(tmp_path, monkeypatch):
     monkeypatch.setattr(history, "DB_PATH", heim / "history.db")
 
 
+# Wurzel der Autostart-Schluessel waehrend der Tests (unter HKCU) — je Prozess
+# eigen, damit zwei parallele Testlaeufe (zwei Worktrees) sich nicht gegenseitig
+# die Werte loeschen.
+AUTOSTART_TESTWURZEL = rf"Software\Fleech-Tests\{os.getpid()}"
+
+
+@pytest.fixture(autouse=True)
+def _kein_echter_autostart(monkeypatch):
+    """Kein Test fasst den echten Autostart-Eintrag des Nutzers an.
+
+    Bis 6.1.0 schrieb test_autostart.py in den echten Wert `Fleech` unter
+    HKCU\\...\\CurrentVersion\\Run und raeumte im `finally` mit
+    `set_autostart(False)` auf — loeschte also bei JEDEM vollen Testlauf den
+    Eintrag des Nutzers. Erst der naechste Start von Fleech stellte ihn wieder her.
+
+    Deshalb zeigen beide Schluessel, die `autostart` kennt (Run und Windows'
+    Freigabeliste StartupApproved), waehrend der Tests unter
+    `AUTOSTART_TESTWURZEL`. Dort existiert nichts, solange ein Test es nicht
+    ausdruecklich anlegt (Fixture `autostart_registry`) — ein Test, der nebenbei
+    `set_autostart()` ausloest, schreibt also nirgendwohin.
+
+    Und weil das Umbiegen nur hilft, solange alle ueber die Konstanten gehen,
+    scheitert jeder Versuch laut, den echten Schluessel ueberhaupt zu oeffnen —
+    auch ueber einen hart verdrahteten Pfad. `pytest.fail` ist kein `Exception`,
+    das `except Exception` in `autostart` schluckt es also nicht.
+
+    Linux: Die XDG-Autostart-Tests biegen `XDG_CONFIG_HOME` selbst um.
+    """
+    if sys.platform != "win32":
+        return
+    import winreg
+
+    from fleech.ui import autostart
+
+    gesperrt = {autostart._RUN_KEY.lower(), autostart._APPROVED_KEY.lower()}
+
+    def bewacht(original):
+        def oeffnen(key, sub_key, *args, **kwargs):
+            if key == winreg.HKEY_CURRENT_USER and str(sub_key).strip("\\").lower() in gesperrt:
+                pytest.fail(f"Ein Test oeffnet den echten Autostart-Schluessel "
+                            f"HKCU\\{sub_key} — der gehoert dem Nutzer.")
+            return original(key, sub_key, *args, **kwargs)
+        return oeffnen
+
+    for name in ("OpenKey", "OpenKeyEx", "CreateKey", "CreateKeyEx"):
+        monkeypatch.setattr(winreg, name, bewacht(getattr(winreg, name)))
+    monkeypatch.setattr(autostart, "_RUN_KEY", AUTOSTART_TESTWURZEL + r"\Run")
+    monkeypatch.setattr(autostart, "_APPROVED_KEY",
+                        AUTOSTART_TESTWURZEL + r"\StartupApproved\Run")
+
+
+def _loesche_schluesselbaum(winreg, pfad):
+    """`winreg` kennt kein DeleteTree — Kinder zuerst, dann der Schluessel selbst."""
+    try:
+        with winreg.OpenKey(winreg.HKEY_CURRENT_USER, pfad, 0, winreg.KEY_ALL_ACCESS) as key:
+            while True:
+                try:
+                    kind = winreg.EnumKey(key, 0)
+                except OSError:
+                    break
+                _loesche_schluesselbaum(winreg, pfad + "\\" + kind)
+    except FileNotFoundError:
+        return
+    winreg.DeleteKey(winreg.HKEY_CURRENT_USER, pfad)
+
+
+@pytest.fixture
+def autostart_registry():
+    """Legt die umgebogenen Autostart-Schluessel an und raeumt sie restlos ab.
+
+    Angelegt statt vorausgesetzt: Auf dem GitHub-Runner (windows-latest) gibt es
+    nicht einmal den echten Run-Schluessel — ein Test, der nur oeffnet, scheitert
+    dort an `FileNotFoundError`.
+    """
+    import winreg
+
+    from fleech.ui import autostart
+
+    for pfad in (autostart._RUN_KEY, autostart._APPROVED_KEY):
+        winreg.CreateKey(winreg.HKEY_CURRENT_USER, pfad).Close()
+    yield
+    _loesche_schluesselbaum(winreg, AUTOSTART_TESTWURZEL)
+    try:  # leer = kein anderer Testlauf mehr darunter
+        winreg.DeleteKey(winreg.HKEY_CURRENT_USER, r"Software\Fleech-Tests")
+    except OSError:
+        pass
+
+
 class SchluesselbundImSpeicher:
     """Ersatz fuer `keyring`: dieselben drei Aufrufe, nur ein Dict."""
 
