@@ -1,0 +1,936 @@
+{
+  "_hinweis": "Erzeugt von make_media.py --beispiele: Rohtext = was gesprochen wurde (erfunden), Ausgabe = was Fleechs Pipeline mit dem lokalen Modell daraus gemacht hat (temperature 0). Nicht von Hand ändern.",
+  "_modell": "gemma3:4b",
+  "_fleech": "6.1.0",
+  "_erzeugt": "2026-10-08",
+  "hero": {
+    "de": {
+      "raw": "Hallo zusammen, ähm, ich schicke euch die Präsentation bis Donnerstag, äh, nein, bis Freitagmittag, dann können wir sie am Montag durchgehen.",
+      "text": "Hallo zusammen, ich schicke euch die Präsentation bis Freitagmittag, dann können wir sie am Montag durchgehen.",
+      "status": "ok",
+      "mode": "cleanup",
+      "tier": "complex",
+      "llm_ms": 473,
+      "statuszeilen": [
+        "Bereinige …",
+        "Füge ein …"
+      ]
+    },
+    "en": {
+      "raw": "Hey team, um, I'll send the slides by Thursday, uh, actually by Friday noon, and we can go through them on Monday.",
+      "text": "Hey team, I’ll send the slides by Friday noon, and we can go through them on Monday.",
+      "status": "ok",
+      "mode": "cleanup",
+      "tier": "simple",
+      "llm_ms": 720,
+      "statuszeilen": [
+        "Bereinige …",
+        "Füge ein …"
+      ]
+    }
+  },
+  "profiles": {
+    "de": {
+      "raw": "Also, ähm, die neue Website soll nächste Woche online gehen, vorher müssen wir aber noch die Texte prüfen und, äh, die Bilder komprimieren.",
+      "ergebnisse": {
+        "Standard": {
+          "text": "Die neue Website soll nächste Woche online gehen, vorher müssen wir aber noch die Texte prüfen und die Bilder komprimieren.",
+          "status": "ok",
+          "mode": "cleanup",
+          "tier": "simple",
+          "llm_ms": 450,
+          "statuszeilen": [
+            "Bereinige …",
+            "Füge ein …"
+          ]
+        },
+        "E-Mail": {
+          "text": "Guten Tag,\n\ndie neue Website soll nächste Woche online gehen.\n\nDavor müssen wir die Texte prüfen und die Bilder komprimieren.\n\nViele Grüße,\nAlex",
+          "status": "ok",
+          "mode": "email",
+          "tier": "",
+          "llm_ms": 761,
+          "statuszeilen": [
+            "E-Mail wird formuliert …",
+            "Füge ein …"
+          ]
+        },
+        "Stichpunkte": {
+          "text": "- Neue Website soll nächste Woche online gehen\n- Texte prüfen\n- Bilder komprimieren",
+          "status": "ok",
+          "mode": "summary",
+          "tier": "",
+          "llm_ms": 452,
+          "statuszeilen": [
+            "Stichpunkte werden gebildet …",
+            "Füge ein …"
+          ]
+        },
+        "KI-Prompt": {
+          "text": "**Rolle:** Du bist ein Projektmanager mit Fokus auf Website-Launch-Prozesse.\n\n**Kontext:** Die neue Website soll nächste Woche online gehen. Vorher sind Texte und Bilder zu prüfen/komprimieren.\n\n**Aufgabe:** Plane die Aufgaben zur Vorbereitung des Website-Launches.\n\n**Anforderungen:**\n- Texte prüfen\n- Bilder komprimieren",
+          "status": "ok",
+          "mode": "prompt",
+          "tier": "",
+          "llm_ms": 997,
+          "statuszeilen": [
+            "Prompt wird strukturiert …",
+            "Füge ein …"
+          ]
+        }
+      }
+    },
+    "_en": {
+      "raw": "Um, so the new website should go live next week, but before that we still need to check the copy and, uh, compress the images.",
+      "email": "Guten Tag,\n\ndie neue Website soll voraussichtlich nächste Woche online gehen.\n\nAllerdings müssen wir vor dem Launch noch die Inhalte überprüfen und die Bilder komprimieren.\n\nIch freue mich über Rückmeldung.\nViele Grüße,\nAlex",
+      "hinweis": "Die Format-Prompts antworten auf Deutsch — deshalb gibt es diese Szene nur auf Deutsch."
+    }
+  },
+  "command": {
+    "de": {
+      "diktat_raw": "Hey Leute, das wird morgen nix mit dem Meeting, ich bin krank.",
+      "befehl_raw": "Kimono, mach den letzten Satz höflicher.",
+      "status": [
+        "ok",
+        "ok"
+      ],
+      "log": [
+        [
+          "inject",
+          "Hey Leute, das wird morgen nix mit dem Meeting, ich bin krank."
+        ],
+        [
+          "replace_tail",
+          62,
+          "Hallo Leute, ich muss morgen leider das Meeting absagen, da ich krank bin."
+        ]
+      ]
+    },
+    "en": {
+      "diktat_raw": "Hey guys, I can't make it to the meeting tomorrow, I'm sick.",
+      "befehl_raw": "Kimono, make the last sentence more polite.",
+      "status": [
+        "ok",
+        "ok"
+      ],
+      "log": [
+        [
+          "inject",
+          "Hey guys, I can’t make it to the meeting tomorrow, I’m sick."
+        ],
+        [
+          "replace_tail",
+          60,
+          "Unfortunately, I won’t be able to attend the meeting tomorrow as I’m feeling unwell."
+        ]
+      ]
+    }
+  },
+  "math": {
+    "de": [
+      {
+        "raw": "Nach Pythagoras gilt a Quadrat plus b Quadrat gleich c Quadrat.",
+        "text": "Nach Pythagoras gilt $a^{2} + b^{2} = c^{2}$.",
+        "formeln": [
+          [
+            "a^{2} + b^{2} = c^{2}",
+            false
+          ]
+        ],
+        "status": "ok"
+      },
+      {
+        "raw": "Und das Ergebnis ist Wurzel aus x Quadrat plus c.",
+        "text": "Und das Ergebnis ist $\\sqrt{x^{2}} + c$.",
+        "formeln": [
+          [
+            "\\sqrt{x^{2}} + c",
+            true
+          ]
+        ],
+        "status": "ok"
+      }
+    ]
+  },
+  "verlauf": [
+    {
+      "tag": 16,
+      "zeit": "09:05",
+      "app": "notepad.exe",
+      "profil": "Standard",
+      "sprache": "de",
+      "raw": "Einkaufsliste für morgen: Milch, Eier, Haferflocken und, äh, Kaffee.",
+      "text": "Einkaufsliste für morgen: Milch, Eier, Haferflocken und Kaffee.",
+      "mode": "cleanup",
+      "tier": "simple",
+      "status": "ok",
+      "llm_ms": 290
+    },
+    {
+      "tag": 16,
+      "zeit": "11:20",
+      "app": "thunderbird.exe",
+      "profil": "E-Mail",
+      "sprache": "de",
+      "raw": "hallo frau berger, danke für die unterlagen, ich schaue sie mir bis freitag an und melde mich dann.",
+      "text": "Guten Tag Frau Berger,\n\nvielen Dank für die Unterlagen.\n\nIch werde sie mir bis Freitag ansehen und mich dann wieder bei Ihnen melden.\n\nViele Grüße,\nAlex",
+      "mode": "email",
+      "tier": "",
+      "status": "ok",
+      "llm_ms": 619
+    },
+    {
+      "tag": 16,
+      "zeit": "15:40",
+      "app": "code.exe",
+      "profil": "Coding",
+      "sprache": "de",
+      "raw": "TODO: Fehlerbehandlung für leere Eingaben ergänzen.",
+      "text": "TODO: Fehlerbehandlung für leere Eingaben ergänzen.",
+      "mode": "cleanup",
+      "tier": "",
+      "status": "ok",
+      "llm_ms": 0
+    },
+    {
+      "tag": 15,
+      "zeit": "08:50",
+      "app": "obsidian.exe",
+      "profil": "Standard",
+      "sprache": "de",
+      "raw": "Idee fürs Wochenende: ähm, Fahrradtour an der Elbe und danach Picknick am Wasser.",
+      "text": "Idee fürs Wochenende: Fahrradtour an der Elbe und danach Picknick am Wasser.",
+      "mode": "cleanup",
+      "tier": "simple",
+      "status": "ok",
+      "llm_ms": 368
+    },
+    {
+      "tag": 15,
+      "zeit": "10:15",
+      "app": "winword.exe",
+      "profil": "Geschäftlich",
+      "sprache": "de",
+      "raw": "Im dritten Quartal ist der Umsatz um, äh, rund acht Prozent gestiegen, vor allem durch das Online-Geschäft.",
+      "text": "Im dritten Quartal ist der Umsatz um rund acht Prozent gestiegen, vor allem durch das Online-Geschäft.",
+      "mode": "cleanup",
+      "tier": "complex",
+      "status": "ok",
+      "llm_ms": 387
+    },
+    {
+      "tag": 15,
+      "zeit": "14:30",
+      "app": "firefox.exe",
+      "profil": "Standard",
+      "sprache": "en",
+      "raw": "What's the difference between a process and a thread? Explain it with a simple example.",
+      "text": "What’s the difference between a process and a thread? Explain it with a simple example.",
+      "mode": "cleanup",
+      "tier": "simple",
+      "status": "ok",
+      "llm_ms": 508
+    },
+    {
+      "tag": 15,
+      "zeit": "16:45",
+      "app": "notepad.exe",
+      "profil": "Standard",
+      "sprache": "de",
+      "raw": "Der Cluster läuft auf kubernetis, die Pods starten aber noch ziemlich langsam.",
+      "text": "Der Cluster läuft auf Kubernetes, die Pods starten aber noch ziemlich langsam.",
+      "mode": "cleanup",
+      "tier": "simple",
+      "status": "ok",
+      "llm_ms": 370
+    },
+    {
+      "tag": 14,
+      "zeit": "09:30",
+      "app": "thunderbird.exe",
+      "profil": "E-Mail",
+      "sprache": "de",
+      "raw": "kurze info an alle, das meeting morgen verschiebt sich auf elf uhr, der raum bleibt gleich.",
+      "text": "Guten Tag,\n\nich möchte kurz die Teilnehmer des Meetings informieren.\n\nDas Meeting verschiebt sich auf morgen um 11:00 Uhr.\n\nDer Raum bleibt unverändert.\n\nViele Grüße,\nAlex",
+      "mode": "email",
+      "tier": "",
+      "status": "ok",
+      "llm_ms": 672
+    },
+    {
+      "tag": 14,
+      "zeit": "13:10",
+      "app": "obsidian.exe",
+      "profil": "Stichpunkte",
+      "sprache": "de",
+      "raw": "Für den Umzug brauchen wir noch Kartons, einen Transporter fürs Wochenende und, ähm, jemanden, der beim Tragen hilft.",
+      "text": "- Kartons\n- Transporter fürs Wochenende\n- Jemanden, der beim Tragen hilft",
+      "mode": "summary",
+      "tier": "",
+      "status": "ok",
+      "llm_ms": 447
+    },
+    {
+      "tag": 14,
+      "zeit": "17:20",
+      "app": "code.exe",
+      "profil": "Coding",
+      "sprache": "de",
+      "raw": "Der Test schlägt fehl, weil die Zeitzone nicht gesetzt ist.",
+      "text": "Der Test schlägt fehl, weil die Zeitzone nicht gesetzt ist.",
+      "mode": "cleanup",
+      "tier": "",
+      "status": "ok",
+      "llm_ms": 0
+    },
+    {
+      "tag": 13,
+      "zeit": "08:40",
+      "app": "notepad.exe",
+      "profil": "Standard",
+      "sprache": "de",
+      "raw": "Termin beim Zahnarzt am Dienstag um, äh, halb neun, vorher noch die Versichertenkarte suchen.",
+      "text": "Termin beim Zahnarzt am Dienstag um halb neun, vorher noch die Versichertenkarte suchen.",
+      "mode": "cleanup",
+      "tier": "simple",
+      "status": "ok",
+      "llm_ms": 458
+    },
+    {
+      "tag": 13,
+      "zeit": "11:55",
+      "app": "firefox.exe",
+      "profil": "KI-Prompt",
+      "sprache": "de",
+      "raw": "Erklär mir, wie Indizes in SQLite funktionieren, am besten mit einem kurzen Beispiel.",
+      "text": "**Rolle:** Du bist ein Datenbankexperte mit fundierten Kenntnissen über SQL und SQLite.\n\n**Aufgabe:** Erkläre, wie Indizes in SQLite funktionieren, und liefere ein kurzes Beispiel.\n\n**Anforderungen:**\n- Das Beispiel sollte einfach und verständlich sein.\n- Die Erklärung sollte die Vorteile von Indizes hervorheben (z.B. schnellere Abfragen).",
+      "mode": "prompt",
+      "tier": "",
+      "status": "ok",
+      "llm_ms": 1111
+    },
+    {
+      "tag": 13,
+      "zeit": "15:05",
+      "app": "winword.exe",
+      "profil": "Geschäftlich",
+      "sprache": "de",
+      "raw": "Wir empfehlen, das Projekt in zwei Phasen umzusetzen, ähm, zuerst die Schnittstellen und danach die Oberfläche.",
+      "text": "Wir empfehlen, das Projekt in zwei Phasen umzusetzen: zuerst die Schnittstellen und danach die Oberfläche.",
+      "mode": "cleanup",
+      "tier": "complex",
+      "status": "ok",
+      "llm_ms": 562
+    },
+    {
+      "tag": 13,
+      "zeit": "19:30",
+      "app": "obsidian.exe",
+      "profil": "Standard",
+      "sprache": "de",
+      "raw": "Kapitel drei war, ähm, deutlich spannender als erwartet.",
+      "text": "Kapitel drei war deutlich spannender als erwartet.",
+      "mode": "cleanup",
+      "tier": "simple",
+      "status": "ok",
+      "llm_ms": 210
+    },
+    {
+      "tag": 12,
+      "zeit": "09:10",
+      "app": "thunderbird.exe",
+      "profil": "E-Mail",
+      "sprache": "de",
+      "raw": "hallo sam, danke für die schnelle antwort, dienstag passt mir gut, sagen wir vierzehn uhr.",
+      "text": "Hallo Sam,\n\nvielen Dank für deine schnelle Antwort.\n\nDienstag passt mir gut, sagen wir 14 Uhr.\n\nViele Grüße,\nAlex",
+      "mode": "email",
+      "tier": "",
+      "status": "ok",
+      "llm_ms": 568
+    },
+    {
+      "tag": 12,
+      "zeit": "10:40",
+      "app": "code.exe",
+      "profil": "Coding",
+      "sprache": "de",
+      "raw": "Die Funktion sollte lieber eine leere Liste zurückgeben statt None.",
+      "text": "Die Funktion sollte lieber eine leere Liste zurückgeben statt None.",
+      "mode": "cleanup",
+      "tier": "",
+      "status": "ok",
+      "llm_ms": 0
+    },
+    {
+      "tag": 12,
+      "zeit": "14:20",
+      "app": "notepad.exe",
+      "profil": "Standard",
+      "sprache": "de",
+      "raw": "Für den Release brauchen wir noch Screenshots, ähm, das Changelog und die neuen Übersetzungen.",
+      "text": "Für den Release brauchen wir noch Screenshots, das Changelog und die neuen Übersetzungen.",
+      "mode": "cleanup",
+      "tier": "simple",
+      "status": "ok",
+      "llm_ms": 356
+    },
+    {
+      "tag": 12,
+      "zeit": "16:50",
+      "app": "obsidian.exe",
+      "profil": "Standard",
+      "sprache": "de",
+      "raw": "Wir migrieren die Datenbank nächste Woche auf kubernetis, das Backup läuft vorher noch einmal komplett durch.",
+      "text": "Wir migrieren die Datenbank nächste Woche auf Kubernetes, das Backup läuft vorher noch einmal komplett durch.",
+      "mode": "cleanup",
+      "tier": "simple",
+      "status": "ok",
+      "llm_ms": 286
+    },
+    {
+      "tag": 10,
+      "zeit": "08:30",
+      "app": "notepad.exe",
+      "profil": "Standard",
+      "sprache": "de",
+      "raw": "Ähm, heute erledigen: Steuererklärung abschicken, Reifenwechsel buchen, Paket zur Post bringen.",
+      "text": "Heute erledigen: Steuererklärung abschicken, Reifenwechsel buchen, Paket zur Post bringen.",
+      "mode": "cleanup",
+      "tier": "simple",
+      "status": "ok",
+      "llm_ms": 288
+    },
+    {
+      "tag": 10,
+      "zeit": "12:15",
+      "app": "firefox.exe",
+      "profil": "Standard",
+      "sprache": "en",
+      "raw": "Quick question: does the store close at six or at eight on Saturdays?",
+      "text": "Quick question: does the store close at six or at eight on Saturdays?",
+      "mode": "cleanup",
+      "tier": "simple",
+      "status": "ok",
+      "llm_ms": 492
+    },
+    {
+      "tag": 10,
+      "zeit": "15:35",
+      "app": "winword.exe",
+      "profil": "Geschäftlich",
+      "sprache": "de",
+      "raw": "Die Ergebnisse der Umfrage zeigen, dass, ähm, zwei Drittel der Befragten die neue Funktion täglich nutzen.",
+      "text": "Die Ergebnisse der Umfrage zeigen, dass zwei Drittel der Befragten die neue Funktion täglich nutzen.",
+      "mode": "cleanup",
+      "tier": "complex",
+      "status": "ok",
+      "llm_ms": 442
+    },
+    {
+      "tag": 10,
+      "zeit": "18:05",
+      "app": "thunderbird.exe",
+      "profil": "E-Mail",
+      "sprache": "de",
+      "raw": "hallo zusammen, ich bin ab montag wieder im büro und bringe kuchen mit.",
+      "text": "Hallo zusammen,\n\nich bin ab Montag wieder im Büro und bringe Kuchen mit.\n\nViele Grüße,\nAlex",
+      "mode": "email",
+      "tier": "",
+      "status": "ok",
+      "llm_ms": 498
+    },
+    {
+      "tag": 9,
+      "zeit": "09:45",
+      "app": "obsidian.exe",
+      "profil": "Stichpunkte",
+      "sprache": "de",
+      "raw": "Beim Gespräch heute ging es um das Budget, die neue Stelle im Support und, äh, den Termin für die Weihnachtsfeier.",
+      "text": "- Budget\n- Neue Stelle im Support\n- Termin für die Weihnachtsfeier",
+      "mode": "summary",
+      "tier": "",
+      "status": "ok",
+      "llm_ms": 412
+    },
+    {
+      "tag": 9,
+      "zeit": "11:30",
+      "app": "code.exe",
+      "profil": "Coding",
+      "sprache": "de",
+      "raw": "Refactoring: die Konfiguration aus der Klasse herausziehen und als eigenes Modul anlegen.",
+      "text": "Refactoring: die Konfiguration aus der Klasse herausziehen und als eigenes Modul anlegen.",
+      "mode": "cleanup",
+      "tier": "",
+      "status": "ok",
+      "llm_ms": 0
+    },
+    {
+      "tag": 9,
+      "zeit": "14:50",
+      "app": "notepad.exe",
+      "profil": "Standard",
+      "sprache": "de",
+      "raw": "Rezept für Sonntag: Kürbissuppe mit Ingwer, ähm, Kokosmilch und ein bisschen Chili.",
+      "text": "Rezept für Sonntag: Kürbissuppe mit Ingwer, Kokosmilch und ein bisschen Chili.",
+      "mode": "cleanup",
+      "tier": "simple",
+      "status": "ok",
+      "llm_ms": 473
+    },
+    {
+      "tag": 9,
+      "zeit": "16:10",
+      "app": "firefox.exe",
+      "profil": "KI-Prompt",
+      "sprache": "de",
+      "raw": "Schreib mir eine kurze Zusammenfassung der wichtigsten Unterschiede zwischen REST und GraphQL.",
+      "text": "**Rolle:** Du bist ein erfahrener Softwarearchitekt mit fundierten Kenntnissen in modernen API-Technologien.\n\n**Aufgabe:** Erstelle eine kurze Zusammenfassung der wichtigsten Unterschiede zwischen REST und GraphQL.\n\n**Anforderungen:**\n- Die Zusammenfassung sollte prägnant und verständlich sein.\n- Die wichtigsten Unterschiede in Bezug auf Datenabfrage, Schema-Definition und Flexibilität hervorheben.\n- Die Zusammenfassung sollte für Entwickler ohne tiefgreifende Erfahrung in diesen Technologien zugänglich sein.",
+      "mode": "prompt",
+      "tier": "",
+      "status": "ok",
+      "llm_ms": 1330
+    },
+    {
+      "tag": 8,
+      "zeit": "10:05",
+      "app": "thunderbird.exe",
+      "profil": "E-Mail",
+      "sprache": "de",
+      "raw": "hallo herr klein, anbei wie besprochen das angebot, bei fragen melden sie sich gern.",
+      "text": "Sehr geehrter Herr Klein,\n\nanbei wie besprochen sende ich Ihnen das Angebot.\n\nBei Fragen melden Sie sich gerne.\n\nMit freundlichen Grüßen,\n\nAlex",
+      "mode": "email",
+      "tier": "",
+      "status": "ok",
+      "llm_ms": 539
+    },
+    {
+      "tag": 8,
+      "zeit": "13:40",
+      "app": "winword.exe",
+      "profil": "Geschäftlich",
+      "sprache": "de",
+      "raw": "Die Kosten für die Wartung liegen bei, äh, etwa zwölftausend Euro im Jahr.",
+      "text": "Die Kosten für die Wartung liegen bei etwa zwölftausend Euro im Jahr.",
+      "mode": "cleanup",
+      "tier": "complex",
+      "status": "ok",
+      "llm_ms": 406
+    },
+    {
+      "tag": 8,
+      "zeit": "17:15",
+      "app": "obsidian.exe",
+      "profil": "Standard",
+      "sprache": "de",
+      "raw": "Für das Deployment auf kubernetis brauchen wir noch einen eigenen Namespace und die Freigabe vom Team.",
+      "text": "Für das Deployment auf Kubernetes brauchen wir noch einen eigenen Namespace und die Freigabe vom Team.",
+      "mode": "cleanup",
+      "tier": "simple",
+      "status": "ok",
+      "llm_ms": 299
+    },
+    {
+      "tag": 7,
+      "zeit": "08:55",
+      "app": "notepad.exe",
+      "profil": "Standard",
+      "sprache": "en",
+      "raw": "Note to self: call the landlord about the heating before Thursday.",
+      "text": "Note to self: call the landlord about the heating before Thursday.",
+      "mode": "cleanup",
+      "tier": "simple",
+      "status": "ok",
+      "llm_ms": 455
+    },
+    {
+      "tag": 7,
+      "zeit": "11:25",
+      "app": "code.exe",
+      "profil": "Coding",
+      "sprache": "de",
+      "raw": "Kommentar: Hier wird der Cache nur geleert, wenn sich die Version geändert hat.",
+      "text": "Kommentar: Hier wird der Cache nur geleert, wenn sich die Version geändert hat.",
+      "mode": "cleanup",
+      "tier": "",
+      "status": "ok",
+      "llm_ms": 0
+    },
+    {
+      "tag": 7,
+      "zeit": "15:00",
+      "app": "obsidian.exe",
+      "profil": "Standard",
+      "sprache": "de",
+      "raw": "Für den Vortrag lieber mit einer Frage an das Publikum anfangen, ähm, statt mit der Agenda.",
+      "text": "Für den Vortrag lieber mit einer Frage an das Publikum anfangen, statt mit der Agenda.",
+      "mode": "cleanup",
+      "tier": "simple",
+      "status": "ok",
+      "llm_ms": 389
+    },
+    {
+      "tag": 7,
+      "zeit": "18:40",
+      "app": "firefox.exe",
+      "profil": "Standard",
+      "sprache": "de",
+      "raw": "Wie lange braucht man mit dem Zug von Hamburg nach Kopenhagen?",
+      "text": "Wie lange braucht man mit dem Zug von Hamburg nach Kopenhagen?",
+      "mode": "cleanup",
+      "tier": "complex",
+      "status": "fallback",
+      "llm_ms": 0
+    },
+    {
+      "tag": 6,
+      "zeit": "09:20",
+      "app": "thunderbird.exe",
+      "profil": "E-Mail",
+      "sprache": "de",
+      "raw": "hallo zusammen, die folien für donnerstag liegen jetzt im gemeinsamen ordner, bitte schaut sie euch vorher an.",
+      "text": "Guten Tag,\n\ndie Folien für Donnerstag liegen jetzt im gemeinsamen Ordner.\n\nBitte schaut sie euch vorher an.\n\nViele Grüße,\nAlex",
+      "mode": "email",
+      "tier": "",
+      "status": "ok",
+      "llm_ms": 573
+    },
+    {
+      "tag": 6,
+      "zeit": "12:45",
+      "app": "winword.exe",
+      "profil": "Geschäftlich",
+      "sprache": "de",
+      "raw": "Als nächsten Schritt schlagen wir einen gemeinsamen Workshop im November vor.",
+      "text": "Als nächsten Schritt schlagen wir einen gemeinsamen Workshop im November vor.",
+      "mode": "cleanup",
+      "tier": "complex",
+      "status": "ok",
+      "llm_ms": 442
+    },
+    {
+      "tag": 6,
+      "zeit": "16:30",
+      "app": "notepad.exe",
+      "profil": "Standard",
+      "sprache": "de",
+      "raw": "Geschenkideen für Mama: ein gutes Kochbuch, Konzertkarten oder, äh, ein Wochenende an der Ostsee.",
+      "text": "Geschenkideen für Mama: ein gutes Kochbuch, Konzertkarten oder ein Wochenende an der Ostsee.",
+      "mode": "cleanup",
+      "tier": "simple",
+      "status": "ok",
+      "llm_ms": 310
+    },
+    {
+      "tag": 4,
+      "zeit": "08:45",
+      "app": "obsidian.exe",
+      "profil": "Standard",
+      "sprache": "de",
+      "raw": "Heute zuerst die Präsentation fertig machen, ähm, und danach zum Sport.",
+      "text": "Heute zuerst die Präsentation fertig machen und danach zum Sport.",
+      "mode": "cleanup",
+      "tier": "simple",
+      "status": "ok",
+      "llm_ms": 229
+    },
+    {
+      "tag": 4,
+      "zeit": "10:30",
+      "app": "code.exe",
+      "profil": "Coding",
+      "sprache": "de",
+      "raw": "Bug: Der Export bricht ab, wenn der Dateiname ein Leerzeichen enthält.",
+      "text": "Bug: Der Export bricht ab, wenn der Dateiname ein Leerzeichen enthält.",
+      "mode": "cleanup",
+      "tier": "",
+      "status": "ok",
+      "llm_ms": 0
+    },
+    {
+      "tag": 4,
+      "zeit": "13:55",
+      "app": "thunderbird.exe",
+      "profil": "E-Mail",
+      "sprache": "de",
+      "raw": "hallo frau öztürk, vielen dank für die einladung, ich komme gern und bringe eine kollegin mit.",
+      "text": "Sehr geehrte Frau Öztürk,\n\nvielen Dank für die Einladung, ich komme gerne und bringe eine Kollegin mit.\n\nMit freundlichen Grüßen,\nAlex",
+      "mode": "email",
+      "tier": "",
+      "status": "ok",
+      "llm_ms": 645
+    },
+    {
+      "tag": 4,
+      "zeit": "17:05",
+      "app": "firefox.exe",
+      "profil": "KI-Prompt",
+      "sprache": "de",
+      "raw": "Hilf mir, eine freundliche Absage für ein Vorstellungsgespräch zu formulieren.",
+      "text": "**Rolle:** Du bist ein professioneller Kommunikationsassistent, der sich auf das Formulieren von höflichen und präzisen Absagen spezialisiert hat.\n\n**Aufgabe:** Formuliere eine freundliche Absage für ein Vorstellungsgespräch.\n\n**Anforderungen:**\n- Höflich und respektvoll.\n- Kurze Begründung (optional, aber empfohlen).\n- Dank für die Zeit und Gelegenheit.\n- Ausdruck des Bedauerns, dass die Position nicht passt.\n- Klare Aussage, dass die Entscheidung getroffen wurde.",
+      "mode": "prompt",
+      "tier": "",
+      "status": "ok",
+      "llm_ms": 1259
+    },
+    {
+      "tag": 3,
+      "zeit": "09:00",
+      "app": "notepad.exe",
+      "profil": "Standard",
+      "sprache": "en",
+      "raw": "Packing list: passport, charger, rain jacket and the hiking boots.",
+      "text": "Packing list: passport, charger, rain jacket and the hiking boots.",
+      "mode": "cleanup",
+      "tier": "simple",
+      "status": "ok",
+      "llm_ms": 388
+    },
+    {
+      "tag": 3,
+      "zeit": "11:40",
+      "app": "winword.exe",
+      "profil": "Geschäftlich",
+      "sprache": "de",
+      "raw": "Zusammenfassend lässt sich sagen, dass die Pilotphase alle Erwartungen erfüllt hat.",
+      "text": "Zusammenfassend lässt sich sagen, dass die Pilotphase alle Erwartungen erfüllt hat.",
+      "mode": "cleanup",
+      "tier": "complex",
+      "status": "ok",
+      "llm_ms": 415
+    },
+    {
+      "tag": 3,
+      "zeit": "14:15",
+      "app": "obsidian.exe",
+      "profil": "Stichpunkte",
+      "sprache": "de",
+      "raw": "Für die neue Website fehlen noch das Impressum, die Datenschutzerklärung und, ähm, ein paar Fotos vom Team.",
+      "text": "- Impressum fehlt\n- Datenschutzerklärung fehlt\n- Einige Fotos vom Team fehlen",
+      "mode": "summary",
+      "tier": "",
+      "status": "ok",
+      "llm_ms": 584
+    },
+    {
+      "tag": 3,
+      "zeit": "16:55",
+      "app": "code.exe",
+      "profil": "Coding",
+      "sprache": "de",
+      "raw": "Die Abfrage dauert zu lange, wir sollten einen Index auf die Spalte created_at legen.",
+      "text": "Die Abfrage dauert zu lange, wir sollten einen Index auf die Spalte created_at legen.",
+      "mode": "cleanup",
+      "tier": "",
+      "status": "ok",
+      "llm_ms": 0
+    },
+    {
+      "tag": 3,
+      "zeit": "20:10",
+      "app": "notepad.exe",
+      "profil": "Standard",
+      "sprache": "de",
+      "raw": "Filmabend am Samstag, ähm, Popcorn nicht vergessen.",
+      "text": "Filmabend am Samstag, Popcorn nicht vergessen.",
+      "mode": "cleanup",
+      "tier": "simple",
+      "status": "ok",
+      "llm_ms": 351
+    },
+    {
+      "tag": 2,
+      "zeit": "08:35",
+      "app": "thunderbird.exe",
+      "profil": "E-Mail",
+      "sprache": "de",
+      "raw": "hallo team, ich bin heute nachmittag beim kunden und ab vier wieder erreichbar.",
+      "text": "Hallo Team,\n\nich bin heute Nachmittag beim Kunden und ab vier Uhr wieder erreichbar.\n\nViele Grüße,\nAlex",
+      "mode": "email",
+      "tier": "",
+      "status": "ok",
+      "llm_ms": 545
+    },
+    {
+      "tag": 2,
+      "zeit": "10:50",
+      "app": "obsidian.exe",
+      "profil": "Standard",
+      "sprache": "de",
+      "raw": "Leseliste: Atomic Habits zu Ende lesen, danach, ähm, endlich mal Der Schwarm.",
+      "text": "Leseliste: Atomic Habits zu Ende lesen, danach endlich mal Der Schwarm.",
+      "mode": "cleanup",
+      "tier": "simple",
+      "status": "ok",
+      "llm_ms": 358
+    },
+    {
+      "tag": 2,
+      "zeit": "13:20",
+      "app": "firefox.exe",
+      "profil": "Standard",
+      "sprache": "en",
+      "raw": "Can you recommend a good beginner book about photography?",
+      "text": "Can you recommend a good beginner book about photography?",
+      "mode": "cleanup",
+      "tier": "simple",
+      "status": "ok",
+      "llm_ms": 448
+    },
+    {
+      "tag": 2,
+      "zeit": "15:45",
+      "app": "winword.exe",
+      "profil": "Geschäftlich",
+      "sprache": "de",
+      "raw": "Bitte beachten Sie, dass sich die Lieferzeiten im Dezember um etwa eine Woche verlängern.",
+      "text": "Bitte beachten Sie, dass sich die Lieferzeiten im Dezember um etwa eine Woche verlängern.",
+      "mode": "cleanup",
+      "tier": "complex",
+      "status": "ok",
+      "llm_ms": 538
+    },
+    {
+      "tag": 2,
+      "zeit": "18:30",
+      "app": "notepad.exe",
+      "profil": "Standard",
+      "sprache": "de",
+      "raw": "Ähm, Erinnerung: Blumen gießen und die Pflanzen auf dem Balkon reinholen, bevor es friert.",
+      "text": "Erinnerung: Blumen gießen und die Pflanzen auf dem Balkon reinholen, bevor es friert.",
+      "mode": "cleanup",
+      "tier": "simple",
+      "status": "ok",
+      "llm_ms": 311
+    },
+    {
+      "tag": 1,
+      "zeit": "09:15",
+      "app": "code.exe",
+      "profil": "Coding",
+      "sprache": "de",
+      "raw": "Neue Option hinzufügen, mit der man die Sprache pro Projekt festlegen kann.",
+      "text": "Neue Option hinzufügen, mit der man die Sprache pro Projekt festlegen kann.",
+      "mode": "cleanup",
+      "tier": "",
+      "status": "ok",
+      "llm_ms": 0
+    },
+    {
+      "tag": 1,
+      "zeit": "11:05",
+      "app": "thunderbird.exe",
+      "profil": "E-Mail",
+      "sprache": "de",
+      "raw": "liebe lena, danke für dein feedback zum entwurf, ich baue die punkte bis morgen ein.",
+      "text": "Liebe Lena,\n\nvielen Dank für dein Feedback zum Entwurf.\n\nIch baue die Punkte bis morgen ein.\n\nViele Grüße,\nAlex",
+      "mode": "email",
+      "tier": "",
+      "status": "ok",
+      "llm_ms": 558
+    },
+    {
+      "tag": 1,
+      "zeit": "14:40",
+      "app": "obsidian.exe",
+      "profil": "Standard",
+      "sprache": "de",
+      "raw": "Mit einem guten Mikrofon steigt die Erkennungsrate deutlich, ähm, vor allem bei Fachbegriffen.",
+      "text": "Mit einem guten Mikrofon steigt die Erkennungsrate deutlich, vor allem bei Fachbegriffen.",
+      "mode": "cleanup",
+      "tier": "simple",
+      "status": "ok",
+      "llm_ms": 395
+    },
+    {
+      "tag": 1,
+      "zeit": "16:20",
+      "app": "firefox.exe",
+      "profil": "KI-Prompt",
+      "sprache": "de",
+      "raw": "Schlag mir drei Namen für ein kleines Café am Hafen vor.",
+      "text": "**Rolle:** Du bist ein kreativer Namensgenerator mit Schwerpunkt auf atmosphärischen und einladenden Namen.\n\n**Aufgabe:** Schlage drei Namen für ein kleines Café am Hafen vor.\n\n**Anforderungen:**\n- Die Namen sollen zum maritimen Umfeld passen.\n- Sie sollen einladend und einprägsam sein.",
+      "mode": "prompt",
+      "tier": "",
+      "status": "ok",
+      "llm_ms": 1051
+    },
+    {
+      "tag": 1,
+      "zeit": "19:00",
+      "app": "notepad.exe",
+      "profil": "Standard",
+      "sprache": "de",
+      "raw": "Abendessen: Pasta mit Tomaten, Basilikum und, äh, Parmesan.",
+      "text": "Abendessen: Pasta mit Tomaten, Basilikum und Parmesan.",
+      "mode": "cleanup",
+      "tier": "simple",
+      "status": "ok",
+      "llm_ms": 370
+    },
+    {
+      "tag": 0,
+      "zeit": "08:40",
+      "app": "obsidian.exe",
+      "profil": "Standard",
+      "sprache": "de",
+      "raw": "Ähm, Notizen zum Standup: Das Release ist fertig, die Tests laufen und morgen gehen die Release Notes raus.",
+      "text": "Das Release ist fertig, die Tests laufen und morgen gehen die Release Notes raus.",
+      "mode": "cleanup",
+      "tier": "simple",
+      "status": "ok",
+      "llm_ms": 261
+    },
+    {
+      "tag": 0,
+      "zeit": "10:20",
+      "app": "thunderbird.exe",
+      "profil": "E-Mail",
+      "sprache": "de",
+      "raw": "hallo zusammen, kurze erinnerung an das teamessen am freitag um neunzehn uhr.",
+      "text": "Guten Tag,\n\nich wollte kurz daran erinnern, dass wir am Freitag um 19 Uhr unser Teamessen haben.\n\nViele Grüße,\nAlex",
+      "mode": "email",
+      "tier": "",
+      "status": "ok",
+      "llm_ms": 601
+    },
+    {
+      "tag": 0,
+      "zeit": "13:05",
+      "app": "code.exe",
+      "profil": "Coding",
+      "sprache": "de",
+      "raw": "Die Validierung prüft jetzt auch, ob das Datum in der Zukunft liegt.",
+      "text": "Die Validierung prüft jetzt auch, ob das Datum in der Zukunft liegt.",
+      "mode": "cleanup",
+      "tier": "",
+      "status": "ok",
+      "llm_ms": 0
+    },
+    {
+      "tag": 0,
+      "zeit": "15:30",
+      "app": "notepad.exe",
+      "profil": "Standard",
+      "sprache": "de",
+      "raw": "Ähm, also bis Freitag noch die Präsentation fertig machen, äh, nein, bis Donnerstag, weil Freitag frei ist.",
+      "text": "Bis Donnerstag noch die Präsentation fertig machen, weil Freitag frei ist.",
+      "mode": "cleanup",
+      "tier": "complex",
+      "status": "ok",
+      "llm_ms": 325
+    },
+    {
+      "tag": 0,
+      "zeit": "16:45",
+      "app": "obsidian.exe",
+      "profil": "Standard",
+      "sprache": "en",
+      "raw": "Idea for the blog: a short post about how dictation changed my writing workflow.",
+      "text": "Idea for the blog: a short post about how dictation changed my writing workflow.",
+      "mode": "cleanup",
+      "tier": "simple",
+      "status": "ok",
+      "llm_ms": 554
+    }
+  ]
+}
