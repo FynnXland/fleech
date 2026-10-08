@@ -42,6 +42,8 @@ from dataclasses import dataclass, field
 from enum import Enum
 
 import numpy as np
+from .protokolltext import inhalt
+
 
 log = logging.getLogger(__name__)
 
@@ -505,8 +507,8 @@ class Lauscher:
             self.statistik.aktivierungen += 1
             # Welches Wort getroffen hat, gehoert ins Protokoll: Bei mehreren
             # Startwoertern ist „hat ausgeloest" sonst nur die halbe Auskunft.
-            log.info("Freihand: Startwort %r erkannt in %r.",
-                     treffer, text.strip()[:60])
+            log.info("Freihand: Startwort %r erkannt in %s.",
+                     treffer, inhalt(text.strip(), 60))
             self.zustand = Zustand.AUFNAHME
             # Das Startwort-Fenster wird NICHT ins Diktat uebernommen — sonst
             # stuende „Kimono" am Anfang jedes Textes.
@@ -683,7 +685,7 @@ class Lauscher:
         treffer = bool(text) and bool(
             enthaelt_eines(text, self.einstellungen.startwort))
         if text:
-            log.info("Freihand hoerte: %r  (Startwort %r: %s)", text, wort,
+            log.info("Freihand hoerte: %s  (Startwort %r: %s)", inhalt(text), wort,
                      "TREFFER" if treffer else "kein Treffer")
         if self._mitschnitt is not None:
             # Auch bei LEEREM Text mitschneiden — „das Modell hat gar nichts

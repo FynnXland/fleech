@@ -152,9 +152,9 @@ class NachbearbeitungDialog(QDialog):
         self._hinweis.setText("Der Eintrag im Verlauf bleibt unverändert.")
 
     def _kopiere(self) -> None:
-        from PySide6.QtWidgets import QApplication
+        from ..clipboard import copy_text   # privat: nicht im Win+V-Verlauf
 
         if not self._text:
             return
-        QApplication.clipboard().setText(self._text)
+        copy_text(self._text)
         self._kopieren.setText("Kopiert ✓")

@@ -29,6 +29,8 @@ import time
 from dataclasses import dataclass, field
 
 import numpy as np
+from ..protokolltext import inhalt
+
 
 log = logging.getLogger(__name__)
 
@@ -168,7 +170,7 @@ class AbschnittsErkenner:
                     e.verworfen.append(verworfen)
                 log.info("Abschnitt %d (%.1f–%.1f s, %.2f s): %s", e.abschnitte,
                          (e.bis - schnitt) / self._sr, e.bis / self._sr, dauer,
-                         text[:80] or "<leer>")
+                         inhalt(text, 80))
                 if ist_ueberlastet(dauer, schnitt / self._sr):
                     log.info("Abschnitts-Erkennung pausiert: %.2f s für %.1f s Audio "
                              "— Grafikkarte belegt, der Rest kommt am Stück.",

@@ -79,9 +79,7 @@ def test_reprocess_fuegt_nichts_ein():
 # -- Die Oberfläche --------------------------------------------------------------------
 
 
-def test_ergebnis_landet_in_der_zwischenablage(qapp, monkeypatch):
-    from PySide6.QtWidgets import QApplication
-
+def test_ergebnis_landet_in_der_zwischenablage(qapp, monkeypatch, zwischenablage):
     from fleech.ui.desktop import DesktopApp
 
     gemeldet = []
@@ -91,7 +89,7 @@ def test_ergebnis_landet_in_der_zwischenablage(qapp, monkeypatch):
         _melde_nachbearbeitung=lambda t, g: ans_fenster.append((t, g)),
     )
     DesktopApp._on_reprocessed(fake, "Sehr geehrte Damen und Herren, …", "E-Mail")
-    assert QApplication.clipboard().text().startswith("Sehr geehrte")
+    assert zwischenablage[-1].startswith("Sehr geehrte")
     assert "E-Mail" in gemeldet[0]
     # Das Fortschritts-Fenster bekommt denselben Text — ohne diesen Weg blieb der
     # Erfolg unsichtbar (die Pille zeigt ihn nur waehrend einer Verarbeitung).
@@ -182,16 +180,14 @@ def test_kontextmenue_bietet_die_ausgabeformate(qapp, tmp_path):
     assert "Formeln" not in formate
 
 
-def test_kopieren_legt_text_in_die_zwischenablage(qapp, tmp_path):
-    from PySide6.QtWidgets import QApplication
-
+def test_kopieren_legt_text_in_die_zwischenablage(qapp, tmp_path, zwischenablage):
     from fleech.history import HistoryStore
     from fleech.ui.main_window import HomePage
     from fleech.usersettings import UserSettings
 
     seite = HomePage(UserSettings(), HistoryStore(tmp_path / "h.db"))
     seite._kopiere("Der bereinigte Text")
-    assert QApplication.clipboard().text() == "Der bereinigte Text"
+    assert zwischenablage == ["Der bereinigte Text"]
 
 
 # -- Das Fortschritts-Fenster ----------------------------------------------------------

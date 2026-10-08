@@ -16,6 +16,8 @@ from __future__ import annotations
 
 import logging
 import re
+from .protokolltext import inhalt
+
 
 log = logging.getLogger(__name__)
 
@@ -139,13 +141,13 @@ def bereinige_in_bloecken(raw: str, bereinige, beispiele: list[str], inhaltswoer
         grenze = MIN_ABDECKUNG - (KORREKTUR_NACHLASS if hat_korrektur(teil) else 0)
         if leck:
             log.warning("Prompt-Beispiel im Ergebnis (%s …) — Block als Rohtext.",
-                        leck[0][:60])
+                        inhalt(leck[0], 60))
             merke(gruende.PROMPT_BEISPIEL)
             text, rueckfall = teil, True
         elif pruefe_abdeckung and anzahl >= 6 and anteil < grenze:
             log.warning("Block liess zu viel weg (%.0f %% des Inhalts erhalten, "
                         "Grenze %.0f %%) — Block als Rohtext. Ausgabe war: %s",
-                        anteil * 100, grenze * 100, text[:120])
+                        anteil * 100, grenze * 100, inhalt(text, 120))
             merke(gruende.AUSLASSUNG)
             text, rueckfall = teil, True
         ergebnis.append(text)

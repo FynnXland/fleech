@@ -75,6 +75,17 @@ Provider/Modelle/Prompts sind in `config.yaml` + `prompts/` konfigurierbar
   Importiert `profiles`, **nie umgekehrt**. `save()` läuft unter einem Modul-Lock mit
   eindeutiger Nebendatei; `load()` heilt eine gültige, aber zurückgesetzte Datei aus
   der `.bak` (Erkennung in `fleech/settingsheilung.py`, kennt weder Pfade noch Schreiben).
+- `fleech/tresor/` — **alle persönlichen Daten liegen seit 6.3.0 nur verschlüsselt auf der
+  Platte**: `history.db`/`kontext.db` per SQLCipher (`datenbank`), `settings.json` + `.bak` +
+  Sicherungen per AES-256-GCM (`datei`), Hauptschlüssel per DPAPI-Datei `schluessel.dpapi`
+  bzw. Secret Service (`ablage` — einzige Plattformweiche), Teilschlüssel per HKDF,
+  Wiederherstellungscode (`schluessel`), einmalige Umstellung von Klartext beim Start
+  (`umstellung`, aufgerufen aus `ui/tresordialoge.tresor_bereitstellen`). **Nie
+  `sqlite3.connect`** — immer `tresor.verbinde(pfad, zweck)` (Test wacht). Ad-hoc-Skripte
+  gegen Fleech-Module mit `APPDATA` auf ein Wegwerf-Verzeichnis starten, sonst legen sie
+  einen echten Schlüssel an.
+- `fleech/protokolltext.py` — Diktattext und Fenstertitel gehen nur durch `inhalt()` ins Log
+  (sonst „‹12 Wörter›"); Freigabe zur Fehlersuche: Einstellungen → Advanced.
 - `fleech/history.py` — SQLite-Verlauf (`history.db`), Stats für Insights; je Eintrag seit 5.10.4
   auch `reason`/`profile`/`title`/`dropped`. `fleech/gruende.py` — die Grund-Texte dazu.
 - `fleech/ui/` — `desktop.py` (Aufbau, Aufnahme-Lebenszyklus, Hotkeys, Verdrahtung),
@@ -190,7 +201,8 @@ halten (`platformpaths`, `clipboard`, `audiofocus.default_playback_sessions`,
   nicht nur Unit-Tests — Unit-Tests mocken das LLM.
 - **Bugs aus dem Log diagnostizieren, nicht raten**: `%APPDATA%\Fleech\fleech.log`
   (Windows) bzw. `~/.config/Fleech/fleech.log` (Linux). Immer erst den echten Verlauf
-  lesen, bevor du eine Ursache behauptest.
+  lesen, bevor du eine Ursache behauptest. Seit 6.3.0 steht dort kein Diktattext mehr —
+  braucht die Diagnose den Text, den Nutzer „Diktattexte ins Protokoll" einschalten lassen.
 - **UI-Änderungen offscreen rendern und ansehen** (siehe Fallen), nicht blind bauen.
 - **Ehrlich berichten**: was getestet/übersprungen wurde, was verifiziert ist. Kein Hedging
   bei Verifiziertem, keine „erledigt"-Behauptung bei fehlgeschlagenen Schritten.

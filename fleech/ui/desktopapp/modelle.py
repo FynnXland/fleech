@@ -239,14 +239,19 @@ class ModelleMixin:
         mode = self.settings.advanced.llm_keep_warm
         if mode == "off" or not ki_lokal(self.settings):
             return
-        gaming = False
+        signal, ctx = "", self.notifier.context
         try:
-            gaming = self.notifier.policy.gaming_active(self.notifier.context)
+            # Dieselbe enge Regel wie beim Fokus-Poll: nur ein Spiel im Vordergrund.
+            # Mit dem breiten Signal entlud dieser Takt am 2026-10-08 das Modell im
+            # Minutenrhythmus wieder, kaum dass ein Diktat es geladen hatte.
+            signal = self.notifier.policy.spiel_zum_entladen(ctx)
         except Exception:
             log.debug("Gaming-Check fuer Keep-Warm fehlgeschlagen.", exc_info=True)
         idle = time.monotonic() - self._last_dictation > self._idle_unload_window_s()
-        if mode == "smart" and (gaming or idle):
-            self._unload_llms_async("Spiel erkannt" if gaming else "Leerlauf")
+        if mode == "smart" and (signal or idle):
+            self._unload_llms_async(
+                f"Spiel erkannt: {getattr(ctx, 'foreground_process', '') or '?'}, {signal}"
+                if signal else "Leerlauf")
             return
         seit_spiel = time.monotonic() - getattr(self, "_spiel_ende", float("-inf"))
         if getattr(self, "_llms_unloaded", False) and seit_spiel < SPIELPAUSE_S:

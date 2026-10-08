@@ -22,6 +22,8 @@ from ..theme import (
     PAGE_SPACING, ROW_HOVER, SIDEBAR, TEXT, TRACK, page_title_qss, style_button,
 )
 from ..widgets import _card, _no_hscroll, _passt, _suchfeld
+from ...protokolltext import inhalt
+
 
 log = logging.getLogger(__name__)
 
@@ -875,7 +877,7 @@ class AppsPage(QWidget):
                 break
         self.settings.save()
         self._on_changed("profiles")
-        log.info("App %s (Titel %r) → Profil %s", app, titel, ziel)
+        log.info("App %s (Titel %s) → Profil %s", app, inhalt(titel), ziel)
         self._regel_titel.clear()
         self.refresh()
 

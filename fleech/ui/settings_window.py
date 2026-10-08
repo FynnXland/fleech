@@ -28,6 +28,8 @@ from .theme import (
 )
 from .settings.wortprobe import WortprobeMixin
 from .widgets import HelpBadge
+from ..protokolltext import inhalt
+
 
 log = logging.getLogger(__name__)
 
@@ -307,7 +309,7 @@ class SettingsPanel(WortprobeMixin, QWidget):
         if not begriff or speicher is None:
             return
         anzahl = speicher.vergiss(begriff=begriff)
-        log.info("Gelernter Begriff vergessen: %s (%d Eintraege).", begriff, anzahl)
+        log.info("Gelernter Begriff vergessen: %s (%d Eintraege).", inhalt(begriff), anzahl)
         self._refresh_kontext_zeile()
 
     def _kontext_vergessen(self) -> None:

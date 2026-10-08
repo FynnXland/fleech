@@ -31,6 +31,8 @@ import os
 import sys
 import time
 from dataclasses import dataclass
+from ..protokolltext import inhalt
+
 
 log = logging.getLogger(__name__)
 
@@ -227,8 +229,8 @@ def ziel_ist_vorn(target) -> bool | None:
         # verlassen — dort soll der Text weiterhin hin.
         if _prozess_von(vorn) == os.getpid():
             return None
-        log.info("Ziel-Fenster nicht mehr vorn: Ziel %r, vorn %r.",
-                 _fenstertitel(int(hwnd)), _fenstertitel(vorn))
+        log.info("Ziel-Fenster nicht mehr vorn: Ziel %s, vorn %s.",
+                 inhalt(_fenstertitel(int(hwnd))), inhalt(_fenstertitel(vorn)))
         return False
     except Exception:
         log.debug("Vordergrundfenster nicht ermittelbar.", exc_info=True)

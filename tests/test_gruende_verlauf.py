@@ -551,3 +551,22 @@ def test_eingefuegtes_diktat_meldet_weiter_eingefuegt(qapp, tmp_path, ergebnis, 
     assert zustaende[-1] == zustand
     assert blasen == []
     assert not any("Zwischenablage" in t[2] for t in toasts)
+
+
+@pytest.mark.parametrize("entladen,erwartet", [
+    (True, "KI-Modell wird geladen, dann bereinigt …"),
+    (False, "Bereinige …"),
+])
+def test_ladehinweis_bleibt_waehrend_der_bereinigung_stehen(qapp, tmp_path,
+                                                            entladen, erwartet):
+    """Am 2026-10-08 wartete ein Diktat 8,6 s aufs Laden des Modells — die Pille
+    zeigte „Bereinige …", weil die Pipeline den Ladehinweis sofort ersetzte."""
+    from fleech.ui.desktop import DesktopApp
+
+    fake, _z, _b, _t = _app_nach_diktat(tmp_path, "ok", False)
+    gesehen = []
+    fake.pipeline.process = lambda audio, samplerate, **kw: (
+        gesehen.append(fake.pipeline.status_bereinigen), "ok")[1]
+    fake._llms_unloaded = entladen
+    DesktopApp._process_locked(fake, b"\x00" * 32)
+    assert gesehen == [erwartet]

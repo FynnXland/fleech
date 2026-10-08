@@ -22,6 +22,8 @@ from __future__ import annotations
 
 import logging
 import re
+from .protokolltext import inhalt
+
 
 log = logging.getLogger(__name__)
 
@@ -530,7 +532,7 @@ def apply_formulas(text: str) -> tuple[str, list[str], list[bool]]:
         formulas.append(latex)
         uncertain.append(bool(guessed))
         if guessed:
-            log.info("Formel GERATEN (%s): %s", guessed[0], latex[:60])
+            log.info("Formel GERATEN (%s): %s", guessed[0], inhalt(latex, 60))
         last = end
     out.append(text[last:])
     log.info("Formeln erkannt: %d (%d davon geraten)", len(formulas), sum(uncertain))

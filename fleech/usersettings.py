@@ -18,7 +18,7 @@ import threading
 from dataclasses import asdict, dataclass, field
 from pathlib import Path
 
-from . import einstellungssicherung
+from . import einstellungssicherung, tresor
 from .platformpaths import user_data_dir
 from .profiles import ProfilesSettings
 from .settingsheilung import (
@@ -50,12 +50,13 @@ def _lies_json(path: Path):
 
     Die Leer-Pruefung ist der Kern: Eine auf 0 Byte gekuerzte Datei ist genau das,
     was ein abgebrochener Schreibvorgang hinterlaesst, und `json.loads("")` wirft —
-    beides muss denselben Weg gehen, naemlich zur Sicherung.
+    beides muss denselben Weg gehen, naemlich zur Sicherung. Seit 6.3.0 liegt die
+    Datei verschluesselt (`tresor`); ein Klartext von frueher wird weiter gelesen.
     """
     try:
         if not path.is_file():
             return None
-        roh = path.read_text(encoding="utf-8").strip()
+        roh = tresor.oeffne(path.read_bytes(), tresor.EINSTELLUNGEN).decode("utf-8").strip()
         if not roh:
             return None
         data = json.loads(roh)
@@ -70,6 +71,8 @@ class GeneralSettings:
     language: str = "de"
     # Diktat-Historie fuer Home/Insights (lokal, %APPDATA%/Fleech/history.db).
     save_history: bool = True
+    verlauf_tage: int = 90              # Aufbewahrungsfrist, 0 = unbegrenzt (history)
+    wiederherstellung_notiert: bool = False   # Tresor-Code als notiert bestaetigt
     # Anzeigename fuer die Begruessung; leer = Windows-Benutzername.
     display_name: str = ""
     # Einfuehrung (Onboarding) abgeschlossen? Gesetzt von „Los geht's" und
@@ -421,6 +424,7 @@ class OutputSettings:
 @dataclass
 class AdvancedSettings:
     debug_logging: bool = False
+    protokoll_inhalte: bool = False     # Diktattext ins Log (nur Fehlersuche, protokolltext)
     # Projekt-Gedaechtnis (fleech/kontext.py): Fachbegriffe je App/Fenster lernen
     # und beim naechsten Diktat als Erkennungs-Hinweis mitgeben. Kostet keine
     # spuerbare Zeit (0,6 ms Abruf) und beeinflusst nur die Schreibweise erkannter
@@ -566,8 +570,8 @@ class UserSettings:
                     except Exception:
                         log.debug("Sicherung der Einstellungen fehlgeschlagen.",
                                   exc_info=True)
-                with open(tmp, "w", encoding="utf-8") as f:
-                    f.write(inhalt)
+                with open(tmp, "wb") as f:
+                    f.write(tresor.schuetze(inhalt.encode("utf-8"), tresor.EINSTELLUNGEN))
                     f.flush()
                     os.fsync(f.fileno())
                 os.replace(tmp, path)

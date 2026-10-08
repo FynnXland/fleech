@@ -216,9 +216,7 @@ def test_home_entry_rows_are_clickable_and_open_full_text(qapp, tmp_path, monkey
     assert dlg._text == long_text
     assert "…" not in dlg._edit.toPlainText()
 
-def test_transcript_detail_dialog_copies_to_clipboard(qapp):
-    from PySide6.QtWidgets import QApplication
-
+def test_transcript_detail_dialog_copies_to_clipboard(qapp, zwischenablage):
     from fleech.ui.main_window import TranscriptDetailDialog
 
     entry = {"id": 1, "ts": 1_700_000_000.0, "cleaned": "Der Report ist fertig.",
@@ -226,7 +224,7 @@ def test_transcript_detail_dialog_copies_to_clipboard(qapp):
     dlg = TranscriptDetailDialog(entry)
     assert "Der Report ist fertig." in dlg._edit.toPlainText()
     dlg._copy()
-    assert QApplication.clipboard().text() == "Der Report ist fertig."
+    assert zwischenablage == ["Der Report ist fertig."]
     assert "Kopiert" in dlg._copy_btn.text()
     dlg.close()
 

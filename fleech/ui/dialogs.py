@@ -232,7 +232,9 @@ class TranscriptDetailDialog(QDialog):
         outer.addLayout(buttons)
 
     def _copy(self) -> None:
-        QApplication.clipboard().setText(self._text)
+        from ..clipboard import copy_text   # privat: nicht im Win+V-Verlauf
+
+        copy_text(self._text)
         self._copy_btn.setText("Kopiert ✓")
 
     def event(self, e) -> bool:

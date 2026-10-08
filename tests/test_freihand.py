@@ -493,15 +493,30 @@ def test_unschaerfe_laesst_sich_abschalten():
     assert enthaelt_wort("Kimunno", "Kimono", unscharf=False) is False
 
 
-def test_erkanntes_wird_protokolliert(caplog):
+def test_erkanntes_wird_protokolliert(caplog, monkeypatch):
     """Ohne diese Spur ist im Alltag nicht feststellbar, warum nichts passiert —
-    man sieht nur Stille und verdaechtigt das Startwort."""
+    man sieht nur Stille und verdaechtigt das Startwort.
+
+    Seit 6.3.0 steht dort ohne Freigabe nur der Umfang des Gehoerten: Freihand
+    lauscht auch ausserhalb jedes Diktats, und was im Raum gesprochen wird,
+    gehoert nicht unverschluesselt in eine Datei. Mit der Freigabe zur
+    Fehlersuche (`protokolltext`) kommt der Text wieder hinein."""
     import logging
+
+    from fleech import protokolltext
 
     lau = _lauscher(text="also Kimono jetzt")
     with caplog.at_level(logging.INFO, logger="fleech.freihand"):
         lau.verarbeite(block(1.0), jetzt=100.0)
+    zeilen = [r.getMessage() for r in caplog.records]
+    assert not any("Kimono jetzt" in z for z in zeilen), zeilen
+    assert any("3 Wörter" in z and "TREFFER" in z for z in zeilen), zeilen
 
+    caplog.clear()
+    monkeypatch.setattr(protokolltext, "_zeigen", True)
+    lau = _lauscher(text="also Kimono jetzt")
+    with caplog.at_level(logging.INFO, logger="fleech.freihand"):
+        lau.verarbeite(block(1.0), jetzt=100.0)
     zeilen = [r.getMessage() for r in caplog.records]
     assert any("Kimono jetzt" in z for z in zeilen), \
         f"das Gehoerte steht nicht im Protokoll: {zeilen}"

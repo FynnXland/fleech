@@ -136,11 +136,11 @@ def test_limit_wird_eingehalten(speicher):
 
 def test_alte_begriffe_verfallen(speicher):
     """Projekte enden. Ein Vokabular, das nie vergisst, primt auf Vergangenes."""
-    import sqlite3
+    from tresorhelfer import verbinde
 
     for _ in range(MIN_TREFFER):
         speicher.lerne("claude.exe", "", "Das Alt-Projekt hier")
-    with sqlite3.connect(speicher.path) as con:
+    with verbinde(speicher.path) as con:
         con.execute("UPDATE begriffe SET zuletzt = ?", (time.time() - 200 * 86400,))
     assert speicher.priming_begriffe("claude.exe") == []
     assert speicher.aufraeumen() > 0

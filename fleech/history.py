@@ -5,9 +5,13 @@ Cloud, kein Login. Alle Flow-artigen Kennzahlen sind aus den Rohdaten ableitbar:
 Woerter/Minute (Woerter / Sprechdauer), Korrekturen (Diff roh↔bereinigt),
 App-Nutzung (Ziel-App pro Diktat), Serie (Tage mit >= 1 Diktat).
 
-Datenschutz: abschaltbar (Einstellungen → Allgemein) und jederzeit loeschbar.
+Datenschutz: abschaltbar (Einstellungen → Allgemein), jederzeit loeschbar, nach
+`aufbewahrung_tage` automatisch geloescht (Einstellung, Vorgabe 90) und die ganze Datei per
+SQLCipher verschluesselt (`fleech/tresor`). Was nach Ablauf der Frist bleibt, sind
+reine Zahlen je Tag (`tagesbilanz`) — damit Serie, Lebenszeit-Woerter und die
+Gesamtsummen der Insights nicht mit dem Text verschwinden.
 Schreibzugriffe kommen aus dem Pipeline-Worker-Thread — jede Operation nutzt ihre
-eigene kurzlebige Verbindung (sqlite3 ist dafuer sicher, Volumen ist winzig).
+eigene kurzlebige Verbindung (SQLite ist dafuer sicher, Volumen ist winzig).
 """
 
 from __future__ import annotations
@@ -17,11 +21,12 @@ import difflib
 import logging
 import math
 import re
-import sqlite3
+import time
 from collections import Counter
 from dataclasses import dataclass, field
 from pathlib import Path
 
+from . import tresor
 from .usersettings import SETTINGS_DIR
 
 log = logging.getLogger(__name__)
@@ -105,7 +110,18 @@ CREATE TABLE IF NOT EXISTS dictations (
     dropped TEXT NOT NULL DEFAULT ''
 );
 CREATE INDEX IF NOT EXISTS idx_dictations_ts ON dictations(ts);
+CREATE TABLE IF NOT EXISTS tagesbilanz (
+    tag TEXT PRIMARY KEY,
+    diktate INTEGER NOT NULL,
+    woerter INTEGER NOT NULL,
+    sekunden REAL NOT NULL
+);
 """
+
+# Die Aufbewahrungsfrist pflegt `add()` hoechstens stuendlich. Ihre Vorgabe (90
+# Tage) steht allein in `GeneralSettings.verlauf_tage`; ein HistoryStore ohne
+# Angabe loescht nichts von selbst.
+_PFLEGE_ABSTAND_S = 3600
 
 # Additive Migrationen fuer Bestands-Datenbanken (CREATE TABLE IF NOT EXISTS greift
 # nur bei neuen DBs): fehlende Spalten werden beim Start nachgezogen.
@@ -237,8 +253,10 @@ class Stats:
 
 
 class HistoryStore:
-    def __init__(self, path: Path | None = None):
+    def __init__(self, path: Path | None = None, aufbewahrung_tage: int = 0):
         self.path = path or DB_PATH
+        self.aufbewahrung_tage = int(aufbewahrung_tage)
+        self._gepflegt = float("-inf")
         self.path.parent.mkdir(parents=True, exist_ok=True)
         with self._connect() as con:
             con.executescript(_SCHEMA)
@@ -248,8 +266,8 @@ class HistoryStore:
                     con.execute(f"ALTER TABLE dictations ADD COLUMN {column} {decl}")
                     log.info("Historie: Spalte %s nachgezogen (Migration).", column)
 
-    def _connect(self) -> sqlite3.Connection:
-        return sqlite3.connect(self.path, timeout=5)
+    def _connect(self):
+        return tresor.verbinde(self.path, tresor.VERLAUF)
 
     # -- Schreiben -----------------------------------------------------------------
 
@@ -274,10 +292,60 @@ class HistoryStore:
                 )
         except Exception:
             log.exception("Historie: Eintrag konnte nicht gespeichert werden.")
+        # Die Frist wird hier gepflegt und nicht nur beim Start: Fleech laeuft als
+        # Tray-App oft wochenlang durch.
+        if time.monotonic() - self._gepflegt >= _PFLEGE_ABSTAND_S:
+            self.aufbewahren()
+
+    def aufbewahren(self, jetzt: float | None = None) -> int:
+        """Diktate jenseits der Aufbewahrungsfrist loeschen. Rueckgabe: Anzahl.
+
+        Vorher wandern ihre Zahlen in die `tagesbilanz` (Diktate, Woerter,
+        Sprechsekunden je Tag) — Text, App, Fenstertitel gehen, die Statistik
+        bleibt. Gezaehlt wird ALLES, was geht: Ein Tag kann ueber zwei Laeufe
+        verteilt geloescht werden, deshalb wird aufaddiert, nicht ersetzt.
+        """
+        self._gepflegt = time.monotonic()
+        if self.aufbewahrung_tage <= 0:
+            return 0
+        grenze = (jetzt if jetzt is not None else _dt.datetime.now().timestamp()) \
+            - self.aufbewahrung_tage * 86400
+        try:
+            with self._connect() as con:
+                con.execute(
+                    "INSERT INTO tagesbilanz (tag, diktate, woerter, sekunden) "
+                    "SELECT date(ts, 'unixepoch', 'localtime') d, COUNT(*), "
+                    "COALESCE(SUM(words), 0), COALESCE(SUM(audio_seconds), 0) "
+                    "FROM dictations WHERE ts < ? GROUP BY d "
+                    "ON CONFLICT(tag) DO UPDATE SET "
+                    "diktate = diktate + excluded.diktate, "
+                    "woerter = woerter + excluded.woerter, "
+                    "sekunden = sekunden + excluded.sekunden", (grenze,))
+                weg = con.execute("DELETE FROM dictations WHERE ts < ?",
+                                  (grenze,)).rowcount
+        except Exception:
+            log.exception("Historie: Aufbewahrungsfrist nicht anwendbar.")
+            return 0
+        if weg:
+            log.info("Historie: %d Diktate aelter als %d Tage geloescht (Zahlen "
+                     "bleiben in der Tagesbilanz).", weg, self.aufbewahrung_tage)
+        return weg
+
+    def _bilanz(self, con, since: float | None) -> tuple[int, int, float, dict]:
+        """(Diktate, Woerter, Sekunden, {Tag: Diktate}) der geloeschten Diktate."""
+        sql = "SELECT tag, diktate, woerter, sekunden FROM tagesbilanz"
+        p: tuple = ()
+        if since:
+            sql += " WHERE tag >= date(?, 'unixepoch', 'localtime')"
+            p = (since,)
+        zeilen = con.execute(sql, p).fetchall()
+        return (sum(z[1] for z in zeilen), sum(z[2] for z in zeilen),
+                float(sum(z[3] for z in zeilen)), {z[0]: z[1] for z in zeilen})
 
     def clear(self) -> None:
         with self._connect() as con:
             con.execute("DELETE FROM dictations")
+            con.execute("DELETE FROM tagesbilanz")
 
     def delete(self, entry_id: int) -> None:
         """Einzelnen Verlaufseintrag entfernen (Home-Timeline)."""
@@ -291,7 +359,7 @@ class HistoryStore:
 
     def recent(self, limit: int = 50) -> list[dict]:
         with self._connect() as con:
-            con.row_factory = sqlite3.Row
+            con.row_factory = tresor.Row
             rows = con.execute(
                 # Bewusst OHNE `raw`: Die Liste zeigt 50 Eintraege, der Rohtext
                 # wird nur fuer den Einzelfall gebraucht (Detailansicht,
@@ -346,7 +414,7 @@ class HistoryStore:
         args.append(max(1, int(limit)))
         try:
             with self._connect() as con:
-                con.row_factory = sqlite3.Row
+                con.row_factory = tresor.Row
                 rows = con.execute(sql, args).fetchall()
         except Exception:
             log.exception("Historie: Suche fehlgeschlagen.")
@@ -693,11 +761,21 @@ class HistoryStore:
             fallback_count = con.execute(
                 "SELECT COUNT(*) FROM dictations" + und("status = 'fallback'"), p
             ).fetchone()[0]
+            # Was die Aufbewahrungsfrist schon geloescht hat, zaehlt als Zahl mit:
+            # in den Summen des Zeitraums, in Lebenszeit-Woertern und Serie.
+            b_diktate, b_woerter, b_sekunden, _ = self._bilanz(con, since)
+            _, alle_b_woerter, _, b_tage = self._bilanz(con, None)
 
+        lebend = total   # Quoten nur ueber Diktate, deren Einzelheiten noch da sind
+        total, words, seconds = total + b_diktate, words + b_woerter, seconds + b_sekunden
+        tage = {d: c for d, c in daily_rows}
+        for tag, anzahl in b_tage.items():
+            tage[tag] = tage.get(tag, 0) + anzahl
         stats = Stats(
             total_dictations=total, total_words=words,
             total_audio_seconds=seconds, corrected_words=corrected,
-            non_cleanup_dictations=non_cleanup, lifetime_words=int(lifetime_words or 0),
+            non_cleanup_dictations=non_cleanup,
+            lifetime_words=int(lifetime_words or 0) + int(alle_b_woerter or 0),
             wpm=(words / (seconds / 60.0)) if seconds > 0 else 0.0,
             app_usage=[], top_words=[], daily_counts={}, tier_shares={},
         )
@@ -709,14 +787,14 @@ class HistoryStore:
         stats.llm_p90_ms = _percentile(llm_vals, 0.9)
         tier_total = sum(c for _t, c in tier_rows) or 1
         stats.tier_shares = {t: c / tier_total for t, c in tier_rows}
-        stats.fallback_rate = (fallback_count / total) if total else 0.0
+        stats.fallback_rate = (fallback_count / lebend) if lebend else 0.0
         usage_total = sum(w for _a, w in usage_rows) or 1
         stats.app_usage = [(a, w, w / usage_total) for a, w in usage_rows]
         stats.top_words = self.top_words(limit=8, since=since)
-        stats.daily_counts = {d: c for d, c in daily_rows}
+        stats.daily_counts = dict(sorted(tage.items()))
         stats.streak, stats.longest_streak = self._streaks(set(stats.daily_counts))
 
-        if total >= MIN_DICTATIONS_FOR_PATTERN:
+        if lebend >= MIN_DICTATIONS_FOR_PATTERN:
             daypart_words = Counter()
             for h, w in hour_rows:
                 daypart_words[_daypart_for_hour(int(h))] += w

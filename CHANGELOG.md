@@ -11,6 +11,66 @@ GitHub-Release-Notizen (`packaging/release.py`).
 
 ---
 
+## 6.3.0 — 2026-10-09
+
+**Deine Diktate liegen jetzt verschlüsselt auf dem Rechner.** Verlauf, gelerntes
+Vokabular und Einstellungen sind mit AES-256 verschlüsselt — die ganze Datei,
+also auch Uhrzeiten, Programmnamen und Fenstertitel. Der Schlüssel ist an dein
+Windows-Konto gebunden (unter Linux an den Schlüsselbund). Wer die Platte ausbaut,
+den Ordner kopiert, ein Backup findet oder sich mit einem anderen Konto anmeldet,
+kann nichts damit anfangen. Für dich ändert sich nichts: Fleech entsperrt alles
+automatisch, sobald du angemeldet bist.
+
+Beim ersten Start stellt Fleech deine vorhandenen Daten um und zeigt dir einmal
+einen **Wiederherstellungscode**. Schreib ihn auf oder leg ihn in deinen
+Passwort-Manager: Nach einer Neuinstallation von Windows oder auf einem neuen
+Rechner öffnet nur dieser Code deine Daten wieder. Du findest ihn jederzeit unter
+Einstellungen → Allgemein → Verschlüsselung.
+
+**Im Protokoll steht kein Diktat mehr.** Bisher schrieb Fleech jedes Diktat im
+Volltext in `fleech.log` — zuletzt rund 60 MB, unverschlüsselt, und genau die
+Datei, die man zur Fehlersuche weitergibt. Jetzt steht dort nur noch, wie viele
+Wörter es waren. Die alten Protokolle werden bei der Umstellung überschrieben und
+gelöscht. Für eine Fehlersuche lässt sich der Text vorübergehend wieder
+einschalten (Einstellungen → Advanced → „Diktattexte ins Protokoll").
+
+**Diktate landen nicht mehr im Zwischenablageverlauf von Windows** (Win+V) und
+nicht in der Cloud-Zwischenablage auf deinen anderen Geräten. Fleech fügt über
+die Zwischenablage ein und kennzeichnet seinen Text jetzt so, wie es auch
+Passwort-Manager tun. Strg+V funktioniert wie gewohnt.
+
+**Der Verlauf räumt sich selbst auf.** Diktate, die älter als 90 Tage sind, löscht
+Fleech automatisch, beim ersten Start also auch ältere vorhandene. Die Zahlen in
+den Insights (Serie, Wörter insgesamt, Diktiertage) bleiben erhalten, Text,
+Programm und Fenstertitel nicht. Die Frist stellst du unter Einstellungen →
+Allgemein → „Verlauf aufbewahren" ein (30 Tage bis unbegrenzt).
+
+Was Verschlüsselung nicht leisten kann: Ein Schadprogramm, das unter deinem
+eigenen Konto läuft, während Fleech offen ist, kann lesen, was Fleech lesen kann.
+Das gilt für jede Anwendung. Und auf einer SSD bleiben Reste der alten
+Klartext-Dateien unter Umständen in freien Speicherbereichen liegen. Beides deckt
+eine verschlüsselte Festplatte ab: Schalte unter Windows **BitLocker** bzw. die
+Geräteverschlüsselung ein (im Startmenü nach „BitLocker verwalten" suchen).
+
+---
+
+## 6.2.3 — 2026-10-08 · nicht einzeln veröffentlicht
+
+**Ein Vollbild-Video auf dem anderen Monitor bremst das Diktat nicht mehr.**
+Fleech gibt den Grafikspeicher frei, sobald ein Spiel läuft — bisher zählte
+dafür aber schon „irgendwo läuft etwas im Vollbild", etwa ein YouTube-Video im
+Browser, während du im anderen Fenster diktierst. Dann wurde das KI-Modell nach
+fast jedem Diktat entladen, und das nächste wartete bis zu zehn Sekunden aufs
+Neuladen. Jetzt zählt nur noch ein Spiel oder Vollbild im **Vordergrund**. Töne,
+Benachrichtigungen und die Pille verhalten sich bei Vollbild wie bisher.
+
+Muss das Modell doch einmal erst geladen werden, zeigt die Pille das jetzt die
+ganze Zeit („KI-Modell wird geladen, dann bereinigt …") statt sofort
+„Bereinige …" — die Wartezeit sah bisher aus wie langsames Rechnen. Im Protokoll
+steht beim Entladen jetzt, welches Programm als Spiel erkannt wurde.
+
+---
+
 ## 6.2.2 — 2026-10-08 · nicht einzeln veröffentlicht
 
 **Kein falsches „eingefügt" mehr, wenn die KI ausfällt und das Diktat spät

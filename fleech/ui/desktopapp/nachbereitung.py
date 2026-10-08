@@ -292,9 +292,9 @@ class NachbereitungMixin:
             self._melde_nachbearbeitung("", grund)
             return
         try:
-            from PySide6.QtWidgets import QApplication
+            from ...clipboard import copy_text   # privat: nicht im Win+V-Verlauf
 
-            QApplication.clipboard().setText(text)
+            copy_text(text)
         except Exception:
             log.exception("Zwischenablage nicht beschreibbar.")
             self._flash_status("Zwischenablage nicht erreichbar")

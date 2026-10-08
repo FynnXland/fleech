@@ -7,7 +7,7 @@
 
 from __future__ import annotations
 
-APP_VERSION = "6.2.2"  # 6.2.2: KI-Ausfall + spaet fertig meldet die Zwischenablage statt „eingefügt"
+APP_VERSION = "6.3.0"  # 6.3.0: lokale Daten verschluesselt, kein Diktattext im Protokoll
 
 
 def _read_build() -> str:

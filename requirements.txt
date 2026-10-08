@@ -22,6 +22,12 @@ psutil>=5.9
 # (Windows: Anmeldeinformationsverwaltung, Linux: Secret Service).
 keyring>=25
 
+# Verschlüsselung der lokalen Daten (6.3.0, fleech/tresor): SQLCipher für Verlauf
+# und Gedächtnis (Wheels für Windows und Linux, OpenSSL eingebaut), AES-256-GCM
+# und HKDF für Einstellungen und Teilschlüssel.
+sqlcipher3-wheels>=0.5.7
+cryptography>=42
+
 # Desktop-App (Tray, Overlay, Settings-Fenster)
 PySide6-Essentials>=6.6
 

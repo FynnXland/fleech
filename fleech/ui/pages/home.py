@@ -13,8 +13,7 @@ import logging
 
 from PySide6.QtCore import QSize, Qt, Signal
 from PySide6.QtWidgets import (
-    QApplication, QFrame, QHBoxLayout, QLabel, QPushButton, QScrollArea,
-    QVBoxLayout, QWidget,
+    QFrame, QHBoxLayout, QLabel, QPushButton, QScrollArea, QVBoxLayout, QWidget,
 )
 
 from ...history import HistoryStore, treffer_als_markdown
@@ -382,7 +381,9 @@ class HomePage(QWidget):
     def _kopiere(self, text: str) -> None:
         if not text:
             return
-        QApplication.clipboard().setText(text)
+        from ...clipboard import copy_text   # privat: nicht im Win+V-Verlauf
+
+        copy_text(text)
         log.info("In die Zwischenablage kopiert (%d Zeichen).", len(text))
 
     def _reprocess(self, entry: dict, fmt: str, name: str) -> None:

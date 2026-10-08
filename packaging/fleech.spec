@@ -26,7 +26,9 @@ binaries = []
 hiddenimports = ["fleech", "fleech.ui.desktop"]
 
 # Pakete mit nativen Teilen / Datendateien vollstaendig einsammeln.
-collect_pkgs = ["faster_whisper", "ctranslate2", "av", "sounddevice", "numpy"]
+# sqlcipher3 (6.3.0): native Erweiterung mit eingebautem OpenSSL — der Tresor.
+collect_pkgs = ["faster_whisper", "ctranslate2", "av", "sounddevice", "numpy",
+                "sqlcipher3"]
 if IS_WIN:
     collect_pkgs += ["pycaw", "comtypes"]
 else:

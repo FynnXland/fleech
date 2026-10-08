@@ -31,6 +31,7 @@ from .textutils import (
 from .bloecke import beispielsaetze, bereinige_in_bloecken
 from .stt.abschnitte import erkenne_mit_vorab
 from .vorbereinigung import entferne_fuellwoerter
+from .protokolltext import inhalt
 from .textfilter import (
     added_ratio,
     classify_complexity,
@@ -234,6 +235,10 @@ class Pipeline:
         # „Ohne KI" (Einstellungen → KI): Transkript ohne Modell, aber nicht als
         # Rueckfall — der Nutzer hat es so gewaehlt.
         self.ki_aus = False
+        # Was die Pille waehrend der Bereinigung zeigt. Die App setzt es je Diktat,
+        # wenn das Modell erst noch geladen wird — sonst ueberschrieb „Bereinige …"
+        # deren Hinweis sofort, und das Warten aufs Laden sah aus wie Rechnen.
+        self.status_bereinigen = "Bereinige …"
         # "" | "quota" | "key" | "llm_offline" (lokaler Ollama nicht erreichbar)
         self.last_error_kind = ""
         # Warum lief das letzte Diktat nicht glatt? Kurzer deutscher Grund, leer =
@@ -386,7 +391,7 @@ class Pipeline:
             log.exception("STT fehlgeschlagen.")
             return "error"
         self.last_stt_ms = int((time.perf_counter() - t0) * 1000)
-        log.info("STT (%.1f s Audio, %.2f s): %s", duration, time.perf_counter() - t0, raw or "<leer>")
+        log.info("STT (%.1f s Audio, %.2f s): %s", duration, time.perf_counter() - t0, inhalt(raw))
         # Schwanz ohne Ton: Das Backend hat Segmente hinter dem letzten echten Wort
         # verworfen (Whisper-Floskeln auf Stille, siehe `fleech/stt/nachlauf.py`).
         # Der Text ist weg, bevor die Pipeline ihn sieht — der Nutzer soll ihn
@@ -533,7 +538,7 @@ class Pipeline:
         sicher uebersetzen kann, wird VOR dem Modell zu einem Platzhalter und erst
         NACH allen Guards wieder zu LaTeX.
         """
-        self._status("Bereinige …")
+        self._status(self.status_bereinigen)
         # Formeln ZUERST und ohne Modell: Was der Parser sicher uebersetzen kann,
         # wird zu einem Platzhalter — das Sprachmodell bekommt die Formel damit nie
         # zu sehen und kann sie weder umschreiben noch als „erfundene Woerter"
@@ -612,7 +617,7 @@ class Pipeline:
         self.last_tier = tier
         if llm is None:
             # trivial: bei Whisper bereits sauber interpunktiert — LLM waere nur Latenz.
-            log.info("Cleanup uebersprungen (trivial): %s", raw)
+            log.info("Cleanup uebersprungen (trivial): %s", inhalt(raw))
             return raw.strip(), False
 
         system = self.cleanup_prompt
@@ -692,7 +697,7 @@ class Pipeline:
                 log.warning(
                     "Unplausibel viele Formel-Bloecke (%d bei %d Rohwoertern) — "
                     "fuege Roh-Transkript ein. Ausgabe war: %s",
-                    blocks, len(raw.split()), cleaned[:120],
+                    blocks, len(raw.split()), inhalt(cleaned, 120),
                 )
                 self._merke_grund(gruende.FORMEL_UNPLAUSIBEL)
                 return raw.strip(), True
@@ -704,7 +709,7 @@ class Pipeline:
                 log.warning(
                     "Cleanup wirkt ausgefuehrt statt transkribiert (Grounding %.2f) — "
                     "fuege Roh-Transkript ein. Ausgabe war: %s",
-                    grounding, cleaned[:120],
+                    grounding, inhalt(cleaned, 120),
                 )
                 self._merke_grund(gruende.AUSGEFUEHRT)
                 return raw.strip(), True
@@ -761,7 +766,7 @@ class Pipeline:
         collapsed = collapse_trailing_repetitions(raw)
         if collapsed != raw:
             log.warning("STT-Wiederholung am Ende gekuerzt (%d → %d Zeichen): %s",
-                        len(raw), len(collapsed), raw[len(collapsed):].strip()[:120])
+                        len(raw), len(collapsed), inhalt(raw[len(collapsed):].strip(), 120))
             self._merke_grund(gruende.ENDE_GEKUERZT)
         # Fremde Schrift zuerst: Der sicherste Marker (Kyrillisch/CJK/Ersatzzeichen
         # in einem deutschen Diktat kann nur geraten sein) und der einzige, der auch
@@ -770,13 +775,13 @@ class Pipeline:
         if dropped:
             log.warning(
                 "STT-Halluzination verworfen (fremde Schrift, %d Woerter) — lief "
-                "Musik oder Sprache mit? %s", len(dropped.split()), dropped[:160],
+                "Musik oder Sprache mit? %s", len(dropped.split()), inhalt(dropped, 160),
             )
             self._merke_grund(gruende.FREMDE_SCHRIFT)
         rest, dropped2 = strip_hallucinated_tail(cleaned)
         if dropped2:
             log.warning("STT-Halluzination am Ende verworfen (%d Woerter): %s",
-                        len(dropped2.split()), dropped2[:160])
+                        len(dropped2.split()), inhalt(dropped2, 160))
             self._merke_grund(gruende.DOMINANZ_SCHWANZ)
             cleaned = rest
         # Vierter Fall: fremdsprachiger Wortsalat, der die drei Filter oben
@@ -790,7 +795,7 @@ class Pipeline:
         rest3, dropped3 = strip_gibberish_tail(cleaned, self.sprache)
         if dropped3:
             log.warning("STT-Wortsalat am Ende verworfen (%d Woerter): %s",
-                        len(dropped3.split()), dropped3[:160])
+                        len(dropped3.split()), inhalt(dropped3, 160))
             self._merke_grund(gruende.WORTSALAT)
             cleaned = rest3
         # Fuenfter Fall: die Schleife steht MITTEN im Text. Die vier Guards oben
@@ -802,7 +807,7 @@ class Pipeline:
         rest4, gekuerzt = collapse_inner_repetitions(cleaned)
         if gekuerzt:
             log.warning("STT-Wiederholung im Text gekuerzt (%d Woerter): %s",
-                        len(gekuerzt.split()), gekuerzt[:160])
+                        len(gekuerzt.split()), inhalt(gekuerzt, 160))
             self._merke_grund(gruende.WIEDERHOLUNG_INNEN)
             cleaned = rest4
         # Der STT-Schwanz ohne Ton steht schon drin (in `process` abgeholt) und
@@ -844,7 +849,7 @@ class Pipeline:
         if removed:
             log.warning(
                 "Cleanup: %d erfundene(n) Satz/Saetze am Ende entfernt — nicht "
-                "gesprochen: %s", removed, cleaned[len(trimmed):].strip()[:160],
+                "gesprochen: %s", removed, inhalt(cleaned[len(trimmed):].strip(), 160),
             )
             cleaned = trimmed
 
@@ -885,7 +890,7 @@ class Pipeline:
             log.warning(
                 "Cleanup hat den Text ausgeschmueckt (%.0f %% neue Woerter, Grenze "
                 "%.0f %%) — strengerer Zweitversuch. Ausgabe war: %s",
-                added * 100, limit * 100, cleaned[:120],
+                added * 100, limit * 100, inhalt(cleaned, 120),
             )
             second = self._verbatim_retry(raw, system, llm)
             if second:
@@ -927,7 +932,7 @@ class Pipeline:
         if ratio < hard_min:
             log.warning(
                 "Auch der Zweitversuch formuliert um (wortgetreu %.2f) — fuege das "
-                "Roh-Transkript ein. Ausgabe war: %s", ratio, cleaned[:120],
+                "Roh-Transkript ein. Ausgabe war: %s", ratio, inhalt(cleaned, 120),
             )
             self._merke_grund(gruende.UMFORMULIERT)
             return raw.strip(), True
@@ -962,7 +967,7 @@ class Pipeline:
 
         log.warning(
             "Auch der Zweitversuch dreht die Aussage (%s) — fuege das Roh-Transkript "
-            "ein. Ausgabe war: %s", problem, cleaned[:120],
+            "ein. Ausgabe war: %s", problem, inhalt(cleaned, 120),
         )
         # MIT Detail: „Aussage verändert: 1 Zahl fehlt" ist nachpruefbar, die
         # blosse Feststellung waere es nicht.
@@ -1100,7 +1105,7 @@ class Pipeline:
             log.warning(
                 "Befehl lieferte LEERES replacement fuer scope=%s ohne Loesch-"
                 "Anweisung — verworfen (Schutz vor Textverlust). Aeusserung: %s",
-                cmd.replace_scope, raw[:120],
+                cmd.replace_scope, inhalt(raw, 120),
             )
             return False
 
@@ -1121,8 +1126,8 @@ class Pipeline:
                 and not replacement_plausible(target, cmd.replacement, threshold):
             log.warning(
                 "Befehls-replacement wirkt halluziniert (kaum inhaltliche Ueberlappung "
-                "mit dem Zieltext) — Cleanup-Fallback. replacement=%r",
-                cmd.replacement[:120],
+                "mit dem Zieltext) — Cleanup-Fallback. replacement=%s",
+                inhalt(cmd.replacement, 120),
             )
             return False
         self._apply_command(cmd)
@@ -1166,7 +1171,8 @@ class Pipeline:
         self.injector.replace_tail(len(region), cmd.replacement)
         self.tracker.record_replace(len(region), cmd.replacement)
         self.last_injected = (self.last_injected + " " + cmd.replacement).strip()
-        log.info("Ersetzt (%s): %d Zeichen → %r", cmd.replace_scope, len(region), cmd.replacement[:80])
+        log.info("Ersetzt (%s): %d Zeichen → %s", cmd.replace_scope, len(region),
+                 inhalt(cmd.replacement, 80))
 
     # ------------------------------------------------------------------------------
 
@@ -1263,7 +1269,7 @@ class Pipeline:
             # in keinem Dokument; der Aufrufer meldet es sichtbar.
             self.in_ablage_statt_eingefuegt = True
             self.in_ablage_text = text
-            log.info("In der Zwischenablage statt eingefuegt: %s", text)
+            log.info("In der Zwischenablage statt eingefuegt: %s", inhalt(text))
             return
         self.tracker.record_append(injected)
         # Erst nach dem Einfuegen lernen: Was nie beim Nutzer ankam (verworfen,
@@ -1271,4 +1277,4 @@ class Pipeline:
         self._kontext_lernen(getattr(self, "_ziel_app", ""),
                              getattr(self, "_ziel_fenster", ""), text)
         self.last_injected = (self.last_injected + " " + text).strip()
-        log.info("Eingefuegt: %s", text)
+        log.info("Eingefuegt: %s", inhalt(text))

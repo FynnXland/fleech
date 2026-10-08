@@ -50,6 +50,8 @@ from .widgets import (  # noqa: F401
     _diktierzeit_text, _link_button, _metric, _no_hscroll, _passt, _ranked_row,
     _rebuild_ranked_list, _suchfeld, _x_icon, enable_card_hiding,
 )
+from ..protokolltext import inhalt
+
 
 log = logging.getLogger(__name__)
 
@@ -298,7 +300,7 @@ class MainWindow(QMainWindow):
             return
         rules.append(line)
         self.settings.save()
-        log.info("Woerterbuch-Regel aus Insights uebernommen: %s", line)
+        log.info("Woerterbuch-Regel aus Insights uebernommen: %s", inhalt(line))
         self._kontext_vergessen(wrong)
         # Settings-Seite und laufende Pipeline nachziehen (dieselbe Nahtstelle, die
         # auch der Editor nutzt) — sonst greift die Regel erst nach einem Neustart.
@@ -322,7 +324,7 @@ class MainWindow(QMainWindow):
             return
         anzahl = speicher.vergiss(begriff=falsch)
         if anzahl:
-            log.info("Gedaechtnis: %r vergessen (%d Eintraege).", falsch, anzahl)
+            log.info("Gedaechtnis: %s vergessen (%d Eintraege).", inhalt(falsch), anzahl)
         panel_refresh = getattr(self.settings_panel, "_refresh_kontext_zeile", None)
         if callable(panel_refresh):
             panel_refresh()

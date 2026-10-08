@@ -17,6 +17,8 @@ from __future__ import annotations
 import logging
 from PySide6.QtCore import QTimer
 from ...profiles import APP_STANDARD
+from ...protokolltext import inhalt
+
 
 log = logging.getLogger(__name__)
 # Ab dieser Haltedauer gilt der Profil-Hotkey als „gehalten" und oeffnet die
@@ -94,8 +96,8 @@ class ProfilMixin:
             # Befund G-B9: Die AUTOMATISCHE Aufloesung protokollierte bisher
             # nichts — ob eine Regel griff und welche, war nach dem Diktat nicht
             # mehr feststellbar, auch nicht im Log.
-            log.info("Profil %s ueber Regel %r fuer %s / %r",
-                     chosen.get("name", ""), regel, app, title)
+            log.info("Profil %s ueber Regel %r fuer %s / %s",
+                     chosen.get("name", ""), regel, app, inhalt(title))
         return overrides_from(chosen)
 
     def current_app(self) -> str:

@@ -34,11 +34,11 @@ from __future__ import annotations
 
 import logging
 import re
-import sqlite3
 import threading
 import time
 from pathlib import Path
 
+from . import tresor
 from .platformpaths import user_data_dir
 
 log = logging.getLogger(__name__)
@@ -145,7 +145,8 @@ CREATE INDEX IF NOT EXISTS idx_begriffe_app ON begriffe(app, segment);
 
 
 class KontextSpeicher:
-    """Gelerntes Vokabular, dauerhaft in einer eigenen SQLite-Datei.
+    """Gelerntes Vokabular, dauerhaft in einer eigenen, verschluesselten SQLite-Datei
+    (SQLCipher, `fleech/tresor` — Begriffe je Fenstertitel verraten viel).
 
     Eigene Datei statt einer Tabelle in `history.db`: Der Verlauf laesst sich in
     den Einstellungen loeschen, ohne dass das Gelernte mitverschwindet — und
@@ -160,7 +161,7 @@ class KontextSpeicher:
             con.executescript(_SCHEMA)
 
     def _connect(self):
-        con = sqlite3.connect(self.path, timeout=5.0)
+        con = tresor.verbinde(self.path, tresor.KONTEXT)
         con.execute("PRAGMA journal_mode=WAL")
         return con
 
@@ -376,7 +377,7 @@ def erstbefuellung(speicher: "KontextSpeicher", history_db: Path | None = None,
         return 0
 
     try:
-        con = sqlite3.connect(f"file:{pfad}?mode=ro", uri=True, timeout=5.0)
+        con = tresor.verbinde(Path(pfad), tresor.VERLAUF, nur_lesen=True)
         rows = con.execute(
             "SELECT app, cleaned FROM dictations WHERE cleaned != '' AND app != ''"
             " ORDER BY ts DESC LIMIT ?", (max_diktate,)).fetchall()

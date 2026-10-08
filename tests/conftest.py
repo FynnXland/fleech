@@ -187,3 +187,53 @@ def qapp():
     from PySide6.QtWidgets import QApplication
 
     yield QApplication.instance() or QApplication([])
+
+
+class TresorAblageImSpeicher:
+    """Ersatz fuer DPAPI/Secret Service: der Datenschluessel lebt nur im Test."""
+
+    def __init__(self):
+        self.wert = None
+
+    def beschreibung(self) -> str:
+        return "im Test-Speicher abgelegt"
+
+    def lies(self):
+        return self.wert
+
+    def speichere(self, schluessel: bytes) -> None:
+        self.wert = schluessel
+
+
+@pytest.fixture(autouse=True)
+def tresor_ablage(tmp_path, monkeypatch):
+    r"""Kein Test fasst den echten Datenschluessel an (`fleech/tresor`).
+
+    Ohne das legte der erste Test, der Einstellungen speichert, einen
+    DPAPI-Block in `%APPDATA%\Fleech` an — oder schlimmer: ersetzte dort einen
+    vorhandenen, und die echten Daten waeren mit dem Test-Schluessel nicht mehr
+    zu oeffnen. Ablage und Datenordner zeigen deshalb fuer JEDEN Test ins
+    Wegwerf-Verzeichnis; der Zwischenspeicher des Schluessels wird geleert.
+    """
+    from fleech.tresor import schluessel
+
+    ablage = TresorAblageImSpeicher()
+    monkeypatch.setattr(schluessel, "ablage", lambda: ablage)
+    monkeypatch.setattr(schluessel, "DATENORDNER", tmp_path / "appdata")
+    schluessel.vergiss()
+    yield ablage
+    schluessel.vergiss()
+
+
+@pytest.fixture(autouse=True)
+def zwischenablage(monkeypatch):
+    """Kein Test schreibt in die echte Zwischenablage des Nutzers.
+
+    Seit 6.3.0 schreibt Fleech unter Windows selbst in die Ablage (ohne Verlauf
+    und Cloud, `clipboard._kopiere_privat`). Hier landet stattdessen jeder
+    kopierte Text in einer Liste, die Tests pruefen koennen."""
+    from fleech import clipboard
+
+    kopiert: list = []
+    monkeypatch.setattr(clipboard, "_kopiere_privat", kopiert.append)
+    return kopiert

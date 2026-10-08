@@ -53,8 +53,9 @@ def _attach_console_if_available() -> None:
             _STDERR_IST_ERSATZ = True
 
 
-def _debug_logging_gewuenscht() -> bool:
+def _debug_logging_gewuenscht(feld: str = "debug_logging") -> bool:
     """Einstellungen → Erweitert → „Debug-Logging": ist der Haken gesetzt?
+    (Mit `feld="protokoll_inhalte"` dieselbe Frage fuer „Diktattexte ins Protokoll".)
 
     Der Schalter wurde bis 5.10.2 gespeichert und von niemandem gelesen (Befund
     B-6) — der Tooltip versprach ein ausfuehrliches Protokoll, das nie entstand.
@@ -67,8 +68,9 @@ def _debug_logging_gewuenscht() -> bool:
         from .usersettings import SETTINGS_PATH, AdvancedSettings, _lies_json
 
         daten = _lies_json(SETTINGS_PATH) or {}
-        vorgabe = AdvancedSettings.debug_logging
-        return bool((daten.get("advanced") or {}).get("debug_logging", vorgabe))
+        vorgabe = {"debug_logging": AdvancedSettings.debug_logging,
+                   "protokoll_inhalte": AdvancedSettings.protokoll_inhalte}[feld]
+        return bool((daten.get("advanced") or {}).get(feld, vorgabe))
     except Exception:
         return False
 
@@ -143,6 +145,13 @@ def main() -> int:
         logging.getLogger().setLevel(logging.DEBUG)
         logging.getLogger(__name__).info(
             "Debug-Logging aus den Einstellungen aktiv — ausfuehrliches Protokoll. "
+            "Zum Abschalten: Einstellungen → Erweitert.")
+    if desktop_modus and _debug_logging_gewuenscht("protokoll_inhalte"):
+        from .protokolltext import zeige_inhalte
+
+        zeige_inhalte(True)
+        logging.getLogger(__name__).warning(
+            "Diktattexte werden ins Protokoll geschrieben (Fehlersuche) — "
             "Zum Abschalten: Einstellungen → Erweitert.")
 
     if args.list_devices:

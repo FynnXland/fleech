@@ -34,9 +34,9 @@ from .state import AppState, StateBus
 from .settings_window import SettingsPanel
 from .tray import TrayController
 from .desktopapp import (
-    AnstupsenMixin, FreihandMixin, KeinTonMixin, LebenszyklusMixin, ModelleMixin,
-    ModellpruefungMixin, NachbereitungMixin, ProfilMixin, UpdateMixin, VorerkennungMixin,
-    WachhundMixin,
+    AnstupsenMixin, DatenschutzMixin, FreihandMixin, KeinTonMixin, LebenszyklusMixin,
+    ModelleMixin, ModellpruefungMixin, NachbereitungMixin, ProfilMixin, UpdateMixin,
+    VorerkennungMixin, WachhundMixin,
 )
 from .desktopapp.vorerkennung import (
     abschnitte_ergebnis, uebergib_abschnitte, verwirf_abschnitte,
@@ -53,7 +53,7 @@ log = logging.getLogger(__name__)
 class DesktopApp(
     ProfilMixin, FreihandMixin, KeinTonMixin, AnstupsenMixin, ModelleMixin,
     NachbereitungMixin, UpdateMixin, ModellpruefungMixin, LebenszyklusMixin,
-    WachhundMixin, VorerkennungMixin,
+    WachhundMixin, VorerkennungMixin, DatenschutzMixin,
 ):
     """Verdrahtung der App: Aufbau, Aufnahme-Lebenszyklus, Hotkeys, Fenster.
 
@@ -86,7 +86,8 @@ class DesktopApp(
         # Modus-Punkt-Klick: KI-Prompting an/aus.
         self.overlay.profile_cycle_requested.connect(self.cycle_profile)
         self.tray = TrayController(self._tray_aktionen())
-        self.store = HistoryStore()
+        self.store = HistoryStore(aufbewahrung_tage=self.settings.general.verlauf_tage)
+        self.store.aufbewahren()
         self.panel = panel = SettingsPanel(
             self.settings, self._on_setting_changed, list_input_devices,
             test_hooks={
@@ -452,6 +453,12 @@ class DesktopApp(
             # Pipeline-Attrappen kennen das Argument nicht).
             vorab = abschnitte_ergebnis(abschnitte)
             extra = {"vorab": vorab} if vorab is not None else {}
+            # Laedt das Modell noch, bleibt das waehrend der Bereinigung sichtbar.
+            # Bis 6.2.2 ersetzte „Bereinige …" den Ladehinweis sofort — am
+            # 2026-10-08 wartete ein Diktat so 8,6 s, scheinbar beim Rechnen.
+            self.pipeline.status_bereinigen = (
+                "KI-Modell wird geladen, dann bereinigt …"
+                if getattr(self, "_llms_unloaded", False) else "Bereinige …")
             result = self.pipeline.process(
                 audio, self.config.audio.samplerate,
                 intervention_override=override,
@@ -738,6 +745,8 @@ class DesktopApp(
                                          self.settings.output.dictionary_usage)
         elif section == "onboarding":
             self.show_onboarding()
+        elif section == "datenschutz":
+            self._wende_datenschutz_an()
         # Der Abschnitt „adaptive" ist mit dem Schalter „Adaptive Geschwindigkeit"
         # in 5.11.0 entfallen (Befund E-4) — das Routing laeuft fest weiter.
         elif section == "warmhold":
@@ -816,8 +825,8 @@ class DesktopApp(
 
     def _poll_focus(self) -> None:
         """Alle 3 s: Fokus-Kontext aktualisieren und Overlay-Verhalten anpassen.
-        Reagiert auch SOFORT auf Spielstart/-ende (statt auf den 4-min-Warmhalte-Tick
-        zu warten): Spiel an → LLMs entladen (RAM frei), Spiel aus → ggf. aufwaermen."""
+        Reagiert auch SOFORT auf Spielstart/-ende (statt auf den 60-s-Warmhalte-Tick
+        zu warten): Spiel an → LLMs entladen (RAM frei), Spiel aus → Zeitpunkt merken."""
         ctx = self.notifier.refresh()
         self.overlay.set_focus_override(self.notifier.policy.overlay_override(ctx))
         # Session-Punkt: erinnert sich Fleech an Diktate im gerade fokussierten
@@ -827,13 +836,21 @@ class DesktopApp(
             self.overlay.set_session_info(self.pipeline.tracker.session_info())
         except Exception:
             log.debug("Session-Info nicht ermittelbar.", exc_info=True)
-        gaming = self.notifier.policy.gaming_active(ctx)
+        # Entladen nur fuer ein Spiel im VORDERGRUND — Pille, Toasts und Toene oben
+        # nutzen das breitere Signal (siehe `spiel_zum_entladen`).
+        signal = self.notifier.policy.spiel_zum_entladen(ctx)
+        gaming = bool(signal)
         if gaming != self._was_gaming:
             self._was_gaming = gaming
             if self.settings.advanced.llm_keep_warm == "smart":
                 if gaming:
-                    self._unload_llms_async("Spiel gestartet")
+                    # Wer und woran: Bis 6.2.2 stand hier nur „Spiel gestartet" —
+                    # welches Fenster es ausloeste, liess sich nicht mehr klaeren.
+                    self._unload_llms_async(
+                        f"Spiel gestartet: {ctx.foreground_process or '?'}, {signal}")
                 else:
+                    log.info("Spiel nicht mehr im Vordergrund — das Modell laedt "
+                             "das naechste Diktat.")
                     # Frueher: sofort wieder aufwaermen. Im Log von 42 Tagen waren das
                     # 729 Neuladevorgaenge direkt nach dem Spiel-Entladen, im Median
                     # 40 s spaeter — Alt-Tab raus, 4 GB in die Grafikkarte, zurueck
@@ -1039,6 +1056,15 @@ def run_desktop() -> int:
         except Exception:
             pass
 
+    # Vor allem anderen: Schluessel da, Klartext von frueher verschluesselt
+    # (fleech/tresor). None = ohne Schluessel beendet.
+    from .tresordialoge import tresor_bereitstellen
+
+    tresor_bericht = tresor_bereitstellen()
+    if tresor_bericht is None:
+        lock.release()
+        return 0
+
     desktop = None
     try:
         try:
@@ -1072,10 +1098,11 @@ def run_desktop() -> int:
             desktop.window.show()
         # Einfuehrung beim ersten Start (bzw. bis sie einmal weggeklickt wurde).
         # Nach app.exec-Start via Timer, damit der Event-Loop schon laeuft.
-        if not desktop.settings.general.onboarding_done:
-            from PySide6.QtCore import QTimer
+        from PySide6.QtCore import QTimer
 
+        if not desktop.settings.general.onboarding_done:
             QTimer.singleShot(400, desktop.show_onboarding)
+        QTimer.singleShot(1200, lambda: desktop._melde_tresor(tresor_bericht))
         # Positive Startbestaetigung. Ohne sie laesst sich ein geglueckter Start
         # nicht vom abgebrochenen unterscheiden: „Prozess laeuft" und „keine
         # ERROR-Zeile" waren beide erfuellt, WAEHREND die App tot war.

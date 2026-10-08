@@ -16,6 +16,8 @@ Fleech's license changes their terms.
 | NumPy | BSD-3-Clause (and others, see package) | https://numpy.org |
 | sounddevice | MIT | https://github.com/spatialaudio/python-sounddevice |
 | keyring | MIT | https://github.com/jaraco/keyring |
+| sqlcipher3-wheels (bundles SQLCipher and OpenSSL 3) | zlib; SQLCipher: BSD-3-Clause; OpenSSL: Apache-2.0 | https://github.com/laggykiller/sqlcipher3 |
+| cryptography | Apache-2.0 OR BSD-3-Clause | https://github.com/pyca/cryptography |
 | PyYAML | MIT | https://github.com/yaml/pyyaml |
 | psutil | BSD-3-Clause | https://github.com/giampaolo/psutil |
 | pyperclip | BSD-3-Clause | https://github.com/asweigart/pyperclip |

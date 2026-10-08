@@ -11,6 +11,7 @@ from datetime import datetime
 import pytest
 
 from fleech import einstellungssicherung as sicherung
+from tresorhelfer import lies_json
 
 
 def _schreibe(pfad, inhalt="a"):
@@ -116,7 +117,7 @@ def test_versionswechsel_sichert_vor_dem_ersten_speichern(tmp_path, monkeypatch)
 
     kopien = sicherung.vorhandene(sicherung.ordner_fuer(pfad))
     assert len(kopien) == 1 and kopien[0].name.endswith("-update.json")
-    inhalt = json.loads(kopien[0].read_text(encoding="utf-8"))
+    inhalt = lies_json(kopien[0])
     assert inhalt["recording"]["hotkey"] == "f23"
     assert inhalt["output"]["dictionary"] == ["Fleech"]
     # Die geladene Fassung merkt sich ab jetzt die neue Version.

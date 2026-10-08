@@ -185,3 +185,32 @@ def test_all_toast_kinds_have_settings_fields():
     s = FocusSettings()
     for field, _critical in TOAST_KINDS.values():
         assert hasattr(s, field), field
+
+
+# -- Modell entladen: nur ein Spiel im Vordergrund ------------------------------------
+
+
+def test_systemweites_vollbild_entlaedt_das_modell_nicht():
+    """2026-10-08: Ein YouTube-Vollbild in Comet (QUNS_BUSY) auf dem einen Monitor,
+    diktiert wurde in Claude auf dem anderen. Fleech entlud das Modell nach fast
+    jedem Diktat; das naechste wartete bis zu 10 s aufs Laden. Fuer Toene und
+    Toasts bleibt das Signal ein Spiel — fuers Entladen nicht."""
+    p = policy()
+    busy = FocusContext(presentation_or_busy=True, foreground_process="claude.exe")
+    assert p.gaming_active(busy)
+    assert p.spiel_zum_entladen(busy) == ""
+
+
+def test_spiel_im_vordergrund_entlaedt_mit_grund():
+    p = policy()
+    assert p.spiel_zum_entladen(ctx(fullscreen=True, proc="game.exe")) == \
+        "Vollbild im Vordergrund"
+    assert p.spiel_zum_entladen(ctx(d3d=True, proc="game.exe")) == "D3D-Vollbild"
+    assert p.spiel_zum_entladen(ctx(proc="game.exe")) == ""
+
+
+def test_entladen_respektiert_ausnahmen_und_schalter():
+    assert policy(gaming_exceptions=["Game.exe"]).spiel_zum_entladen(
+        ctx(fullscreen=True, proc="game.exe")) == ""
+    assert policy(gaming_detection=False).spiel_zum_entladen(
+        ctx(d3d=True, proc="game.exe")) == ""

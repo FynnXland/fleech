@@ -1,4 +1,4 @@
-"""Allgemein — Autostart, Sprache, Name, Verlauf.
+"""Allgemein — Autostart, Sprache, Name, Verlauf und Datenschutz.
 
 Baut die Seite in das uebergebene SettingsPanel; die Widget-Bauer
 (`panel._combo`, `panel._check`, ...) bleiben dort.
@@ -10,6 +10,7 @@ from PySide6.QtWidgets import QLineEdit, QPushButton
 
 from .. import autostart
 from ..theme import style_button
+from . import datenschutz
 from .common import hint
 
 
@@ -17,7 +18,7 @@ def build(panel) -> None:
     s = panel.settings
     _, form = panel._page()
     form.addRow("", hint(
-        "Grundlegendes: Start mit Windows, Sprache, dein Name und der lokale Verlauf."
+        "Grundlegendes: Start mit Windows, Sprache, dein Name und der verschlüsselte Verlauf."
     ))
     panel._autostart_cb = auto = panel._check(
         form, "Autostart mit Windows", autostart.is_autostart_enabled(), "general",
@@ -50,7 +51,9 @@ def build(panel) -> None:
     form.addRow(label_w, name)
     panel._check(form, "Diktat-Verlauf speichern", s.general.save_history, "general",
                  lambda v: setattr(s.general, "save_history", v),
-                 "Speichert Diktate lokal für Home und Insights — keine Cloud.")
+                 "Speichert Diktate lokal für Home und Insights — keine Cloud, "
+                 "verschlüsselt auf der Platte.")
+    datenschutz.baue(panel, form)
     clear_btn = style_button(QPushButton("Verlauf löschen …"), "danger")
     clear_btn.clicked.connect(lambda: (panel._on_clear_history or (lambda: None))())
     label_w, _ = panel._row_label(

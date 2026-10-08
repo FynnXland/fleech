@@ -136,3 +136,8 @@ def build(panel) -> None:
                  lambda v: setattr(s.advanced, "debug_logging", v),
                  f"Ausführliches Protokoll in {SETTINGS_DIR / 'fleech.log'} — "
                  "greift ab dem nächsten Start von Fleech.")
+    panel._check(form, "Diktattexte ins Protokoll", s.advanced.protokoll_inhalte,
+                 "datenschutz", lambda v: setattr(s.advanced, "protokoll_inhalte", v),
+                 "Nur zur Fehlersuche: Schreibt erkannten und eingefügten Text "
+                 "unverschlüsselt in fleech.log. Normalerweise steht dort nur, wie "
+                 "viele Wörter es waren. Danach wieder ausschalten.")

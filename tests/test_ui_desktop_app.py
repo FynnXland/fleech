@@ -77,7 +77,9 @@ def _keep_warm_fake(monkeypatch, gaming: bool = False):
         _unload_llms_async=lambda reason: calls["unload"].append(reason),
         notifier=types.SimpleNamespace(
             context=object(),
-            policy=types.SimpleNamespace(gaming_active=lambda ctx: gaming),
+            policy=types.SimpleNamespace(
+                gaming_active=lambda ctx: gaming,
+                spiel_zum_entladen=lambda ctx: "Vollbild im Vordergrund" if gaming else ""),
         ),
     )
     fake._idle_unload_window_s = types.MethodType(
@@ -133,7 +135,7 @@ def test_keep_warm_tick_unloads_while_gaming(monkeypatch):
     fake.settings.advanced.llm_keep_warm = "smart"
     DesktopApp._keep_warm_tick(fake)         # letztes Diktat gerade eben — egal: Spiel!
     assert calls["warm"] == []
-    assert calls["unload"] == ["Spiel erkannt"]
+    assert calls["unload"] == ["Spiel erkannt: ?, Vollbild im Vordergrund"]
 
     # "always" respektiert den ausdruecklichen Nutzerwunsch (kein Auto-Entladen).
     fake.settings.advanced.llm_keep_warm = "always"
@@ -1076,3 +1078,42 @@ def test_ohne_grafikkarte_kein_hinweis(monkeypatch):
     fake, hinweise = _ki_fake(monkeypatch, lambda: True, stt_auf_cpu=True)
     DesktopApp._pruefe_ki_auf_grafikkarte(fake, _GEMMA)
     assert hinweise == []
+
+
+def _poll_fake(ctx_wert, signal):
+    import types
+
+    entladen = []
+    fake = types.SimpleNamespace(
+        settings=UserSettings(),
+        _was_gaming=False, _spiel_ende=float("-inf"),
+        _unload_llms_async=entladen.append,
+        notifier=types.SimpleNamespace(
+            refresh=lambda: ctx_wert,
+            policy=types.SimpleNamespace(overlay_override=lambda c: None,
+                                         spiel_zum_entladen=lambda c: signal),
+        ),
+        overlay=types.SimpleNamespace(set_focus_override=lambda v: None,
+                                      set_session_info=lambda v: None),
+        pipeline=types.SimpleNamespace(
+            tracker=types.SimpleNamespace(session_info=lambda: None)),
+    )
+    fake.settings.advanced.llm_keep_warm = "smart"
+    return fake, entladen
+
+
+def test_fokus_poll_entlaedt_nur_fuer_ein_spiel_im_vordergrund():
+    """Vollbild woanders (QUNS_BUSY) → kein Entladen. Echtes Spiel vorne → Entladen,
+    und das Protokoll nennt Prozess und Signal (bis 6.2.2 nur „Spiel gestartet")."""
+    from fleech.ui.desktop import DesktopApp
+    from fleech.ui.windowsfocus import FocusContext
+
+    woanders = FocusContext(presentation_or_busy=True, foreground_process="claude.exe")
+    fake, entladen = _poll_fake(woanders, "")
+    DesktopApp._poll_focus(fake)
+    assert entladen == [] and fake._was_gaming is False
+
+    vorne = FocusContext(fullscreen=True, foreground_process="game.exe")
+    fake, entladen = _poll_fake(vorne, "Vollbild im Vordergrund")
+    DesktopApp._poll_focus(fake)
+    assert entladen == ["Spiel gestartet: game.exe, Vollbild im Vordergrund"]

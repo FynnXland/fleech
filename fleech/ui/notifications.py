@@ -46,17 +46,38 @@ class NotificationPolicy:
 
     # -- Hilfen ------------------------------------------------------------------
 
-    def _gaming_active(self, ctx: FocusContext) -> bool:
-        s = self.settings
-        if not s.gaming_detection or not ctx.gaming_or_fullscreen:
-            return False
+    def _ausgenommen(self, ctx: FocusContext) -> bool:
         proc = (ctx.foreground_process or "").lower()
-        return proc not in {e.strip().lower() for e in s.gaming_exceptions if e.strip()}
+        return proc in {e.strip().lower() for e in self.settings.gaming_exceptions
+                        if e.strip()}
+
+    def _gaming_active(self, ctx: FocusContext) -> bool:
+        if not self.settings.gaming_detection or not ctx.gaming_or_fullscreen:
+            return False
+        return not self._ausgenommen(ctx)
 
     def gaming_active(self, ctx: FocusContext) -> bool:
         """Oeffentlich: Spiel/Vollbild im Vordergrund (respektiert Ausnahmen) —
-        auch von der LLM-Warmhaltung genutzt (RAM beim Zocken freigeben)."""
+        fuer Toasts, Toene und die Pille."""
         return self._gaming_active(ctx)
+
+    def spiel_zum_entladen(self, ctx: FocusContext) -> str:
+        """Woran ein Spiel erkannt wurde, das das lokale KI-Modell verdraengen
+        soll — "" heisst: keines. Enger als `gaming_active`: Nur das Fenster im
+        VORDERGRUND zaehlt (Vollbild oder exklusives D3D-Vollbild).
+
+        `presentation_or_busy` (QUNS_BUSY) ist ein systemweites Signal: Am
+        2026-10-08 reichte ein YouTube-Vollbild in Comet auf dem einen Monitor,
+        waehrend in Claude auf dem anderen diktiert wurde — das Modell wurde nach
+        fast jedem Diktat entladen, das naechste wartete bis zu 10 s aufs Laden.
+        Fuer Toasts und Toene bleibt das Signal richtig, fuers Entladen nicht."""
+        if not self.settings.gaming_detection or self._ausgenommen(ctx):
+            return ""
+        if ctx.d3d_fullscreen:
+            return "D3D-Vollbild"
+        if ctx.fullscreen:
+            return "Vollbild im Vordergrund"
+        return ""
 
     def _dnd_active(self, ctx: FocusContext) -> bool:
         # None (nicht ermittelbar) behandeln wir konservativ als "kein DND",

@@ -33,6 +33,8 @@ import logging
 from dataclasses import dataclass
 
 from .freihand import enthaelt_wort, normalisiere
+from .protokolltext import inhalt
+
 
 log = logging.getLogger(__name__)
 
@@ -155,6 +157,6 @@ def pruefe_audio(audio, begriff: str, erkenne, samplerate: int = 16000,
         log.exception("Wortprobe: Erkennung fehlgeschlagen.")
         return Probe(Ergebnis.NICHTS, "", begriff, zweck)
     probe = bewerte(gehoert, begriff, zweck)
-    log.info("Wortprobe %r (%s): %s (gehört: %r)", begriff, zweck,
-             probe.ergebnis, gehoert)
+    log.info("Wortprobe %r (%s): %s (gehört: %s)", begriff, zweck,
+             probe.ergebnis, inhalt(gehoert))
     return probe

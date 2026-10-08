@@ -284,18 +284,28 @@ on the [mode you choose](#choose-how-it-runs). Besides that, Fleech only goes on
 - **Your cloud provider**, only if you select one.
 
 All data lives in one folder: `%APPDATA%\Fleech` on Windows, `~/.config/Fleech` on Linux.
+History, project memory and settings are **encrypted at rest**: the databases with SQLCipher
+(AES-256, the whole file including timestamps, app names and window titles), the settings
+with AES-256-GCM. The key is bound to your Windows account via DPAPI (Linux: the Secret
+Service keychain); Fleech unlocks it automatically when you are signed in. A recovery code
+(Settings → *Allgemein* → *Verschlüsselung*) reopens your data after a Windows reinstall.
+Encryption protects against a stolen or copied disk, other accounts and backups, not against
+malware running under your own account while Fleech is open. For leftovers on SSDs, turn on
+BitLocker or device encryption.
 
 | File | What it holds |
 |---|---|
-| `settings.json` | Settings, profiles and dictionary; protected by `settings.json.bak` and dated backups in `sicherungen/` |
-| `history.db` | Dictation history (raw and cleaned text); can be switched off and cleared under Settings → *Allgemein* (General) |
-| `kontext.db` | Project memory: terms learned per app, used only to prime local speech recognition |
-| `fleech.log` | Log (rotates at 20 MB). It quotes your dictated text and window titles: redact before sharing |
+| `settings.json` | Settings, profiles and dictionary (encrypted); protected by `settings.json.bak` and dated backups in `sicherungen/` |
+| `history.db` | Dictation history (raw and cleaned text, encrypted); deleted after 90 days by default, can be switched off and cleared under Settings → *Allgemein* (General) |
+| `kontext.db` | Project memory (encrypted): terms learned per app, used only to prime local speech recognition |
+| `schluessel.dpapi` | The data key, protected by Windows (DPAPI); useless on another account or PC |
+| `fleech.log` | Log (rotates at 20 MB). Contains no dictated text, only word counts, unless you turn on *Diktattexte ins Protokoll* for troubleshooting |
 | `prompts/` | Prompts you edited in the prompt editor |
 | `updates/` | Downloaded installers |
 
 Audio is never written to disk, unless you save the last recording as WAV from the tray
-menu. API keys go into the system keychain (Windows Credential Manager, Secret Service on
+menu. Dictations Fleech pastes are kept out of the Windows clipboard history (Win+V) and
+the cloud clipboard. API keys go into the system keychain (Windows Credential Manager, Secret Service on
 Linux). The uninstaller removes only the log; delete the folder to remove everything.
 Security issues: see [SECURITY.md](SECURITY.md).
 
@@ -307,7 +317,7 @@ Security issues: see [SECURITY.md](SECURITY.md).
 | **Text arrives raw, not cleaned up** | Either the model did not answer (Ollama not running, or a cloud key rejected) or a quality check kept your words on purpose. The history entry on the *Home* page names the reason. For Ollama, restart Fleech: the setup page shows what is missing. |
 | **Text lands in the wrong window or only in the clipboard** | *Cursor-Rückkehr* (cursor return, under Settings → *Ausgabe*, on by default) brings the text back to the field where you started. If a result is ready more than 30 s after the recording and you are in another window by then, it goes to the clipboard and the pill tells you. |
 | **Windows Defender or SmartScreen flags Fleech** | Apps packaged with PyInstaller are sometimes flagged by mistake. Compare the installer's SHA-256 with the release notes. If it matches, restore the file under *Windows Security → Protection history*, report the false positive at [microsoft.com/wdsi/filesubmission](https://www.microsoft.com/wdsi/filesubmission) and let us know in an [issue](https://github.com/FynnXland/fleech/issues). |
-| **It hangs or crashes** | The log is at `%APPDATA%\Fleech\fleech.log` (Linux: `~/.config/Fleech/fleech.log`). It quotes what you dictated and window titles: replace those with `[redacted]` and check paths for your user name before you [open an issue](https://github.com/FynnXland/fleech/issues/new/choose). |
+| **It hangs or crashes** | The log is at `%APPDATA%\Fleech\fleech.log` (Linux: `~/.config/Fleech/fleech.log`). It contains no dictated text unless you turned on *Diktattexte ins Protokoll*; check paths for your user name before you [open an issue](https://github.com/FynnXland/fleech/issues/new/choose). |
 
 ## Development
 

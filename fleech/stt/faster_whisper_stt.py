@@ -13,6 +13,8 @@ import numpy as np
 from .base import STTEngine, resample_to_16k
 from .lokal import ModellFehlt, lade_whisper
 from .nachlauf import KEIN_TON_RMS, lautester_pegel, streiche_tonlosen_schwanz
+from ..protokolltext import inhalt
+
 
 log = logging.getLogger(__name__)
 
@@ -172,7 +174,7 @@ class FasterWhisperSTT(STTEngine):
         if nsp < _NO_SPEECH_MAX:
             return True
         log.info("STT-Segment verworfen (keine Sprache, %.0f %% — Musik/Geraeusch?): %s",
-                 nsp * 100, (seg.text or "").strip()[:80])
+                 nsp * 100, inhalt((seg.text or "").strip(), 80))
         return False
 
     def _run(self, audio: np.ndarray, initial_prompt: str | None = None,

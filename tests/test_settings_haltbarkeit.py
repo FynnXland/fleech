@@ -16,6 +16,7 @@ from dataclasses import asdict
 import pytest
 
 from fleech.usersettings import UserSettings, _backup_path
+from tresorhelfer import lies_text
 
 
 @pytest.fixture
@@ -49,7 +50,7 @@ def _temp_reste(pfad) -> list:
 
 def test_speichern_ist_atomar_und_hinterlaesst_keine_reste(pfad):
     _mit_inhalt(pfad)
-    assert json.loads(pfad.read_text(encoding="utf-8"))["general"]["display_name"]
+    assert json.loads(lies_text(pfad))["general"]["display_name"]
     assert not _temp_reste(pfad)                            # kein Temp-Muell
 
 
@@ -57,9 +58,9 @@ def test_zweites_speichern_legt_eine_sicherung_an(pfad):
     s = _mit_inhalt(pfad)
     s.general.display_name = "Name-neuer"
     s.save(pfad)
-    gesichert = json.loads(_backup_path(pfad).read_text(encoding="utf-8"))
+    gesichert = json.loads(lies_text(_backup_path(pfad)))
     assert gesichert["general"]["display_name"] == "Name-echt"   # die VORIGE
-    assert json.loads(pfad.read_text(encoding="utf-8"))["general"]["display_name"] \
+    assert json.loads(lies_text(pfad))["general"]["display_name"] \
         == "Name-neuer"
 
 
@@ -91,8 +92,7 @@ def test_ohne_sicherung_wird_die_kaputte_datei_aufgehoben_nicht_ueberschrieben(p
     geladen = UserSettings.load(pfad)
     assert geladen.general.display_name == ""            # Vorgaben
     assert pfad.with_name(pfad.name + ".kaputt").is_file()
-    assert "display_name" in pfad.with_name(pfad.name + ".kaputt").read_text(
-        encoding="utf-8")
+    assert "display_name" in lies_text(pfad.with_name(pfad.name + ".kaputt"))
 
 
 def test_gesunde_datei_wird_nie_beiseitegelegt(pfad):
@@ -112,7 +112,7 @@ def test_schreibfehler_laesst_die_alte_fassung_stehen(pfad, monkeypatch):
     """Ist das Ziel nicht beschreibbar, bleibt die bisherige Datei unangetastet —
     ein gescheiterter Speicherversuch darf nie schlimmer sein als keiner."""
     _mit_inhalt(pfad)
-    vorher = pfad.read_text(encoding="utf-8")
+    vorher = lies_text(pfad)
 
     def kaputt(*_a, **_k):
         raise OSError("Datentraeger voll")
@@ -121,18 +121,18 @@ def test_schreibfehler_laesst_die_alte_fassung_stehen(pfad, monkeypatch):
     s = UserSettings.load(pfad)
     s.general.display_name = "Name-ginge-verloren"
     s.save(pfad)                                   # darf nicht werfen
-    assert pfad.read_text(encoding="utf-8") == vorher
+    assert lies_text(pfad) == vorher
 
 
 def test_unserialisierbares_feld_zerstoert_die_datei_nicht(pfad, monkeypatch):
     """Frueher truncierte write_text zuerst und serialisierte dann — ein Fehler
     dabei hinterliess eine leere Datei. Jetzt wird erst serialisiert."""
     _mit_inhalt(pfad)
-    vorher = pfad.read_text(encoding="utf-8")
+    vorher = lies_text(pfad)
     s = UserSettings.load(pfad)
     s.profiles.items = [{"kaputt": object()}]      # nicht JSON-faehig
     s.save(pfad)
-    assert pfad.read_text(encoding="utf-8") == vorher
+    assert lies_text(pfad) == vorher
 
 
 # --- D-2: zwei Threads im Schreibpfad -----------------------------------------
@@ -153,9 +153,12 @@ def test_gleichzeitiges_speichern_zerstoert_die_datei_nicht(pfad):
     def leser(stop: threading.Event):
         while not stop.is_set():
             try:
-                roh = pfad.read_text(encoding="utf-8")
+                roh = lies_text(pfad)
             except OSError:
                 continue                     # Datei gerade ersetzt — kein Fehler
+            except Exception as fehler:      # Umschlag unlesbar = halb geschrieben
+                kaputt.append(f"{fehler}")
+                continue
             if not roh.strip():
                 continue
             try:
@@ -176,7 +179,7 @@ def test_gleichzeitiges_speichern_zerstoert_die_datei_nicht(pfad):
     beobachter.join(timeout=5)
 
     assert kaputt == []
-    assert json.loads(pfad.read_text(encoding="utf-8"))["general"]["display_name"] \
+    assert json.loads(lies_text(pfad))["general"]["display_name"] \
         in {"Name-0", "Name-1"}
     assert not _temp_reste(pfad)
 
@@ -237,12 +240,12 @@ def test_kaputte_quelle_wird_nicht_zur_sicherung(pfad):
     s = _mit_inhalt(pfad)
     s.profiles.active = "E-Mail"
     s.save(pfad)                                   # gute Sicherung
-    vorher = _backup_path(pfad).read_text(encoding="utf-8")
+    vorher = lies_text(_backup_path(pfad))
 
     pfad.write_text('{"general": {"display_name": "Ec', encoding="utf-8")
     UserSettings().save(pfad)                      # naechster Speichervorgang
 
-    assert _backup_path(pfad).read_text(encoding="utf-8") == vorher
+    assert lies_text(_backup_path(pfad)) == vorher
     assert json.loads(vorher)["general"]["display_name"] == "Name-echt"
     # Damit ist die Rettung noch da — und A-5 holt sie beim naechsten Start:
     assert UserSettings.load(pfad).general.display_name == "Name-echt"
@@ -272,8 +275,7 @@ def test_heilung_b_alles_auf_werk_waehrend_die_sicherung_mehr_hat(pfad):
     assert geladen.profiles.app_quick == {"claude.exe": ["KI-Prompt", "Stichpunkte"]}
     assert pfad.with_name(pfad.name + ".zurueckgesetzt").is_file()
     # Die zurueckgesetzte Fassung wird beiseitegelegt, nicht ueberschrieben.
-    assert json.loads(pfad.with_name(pfad.name + ".zurueckgesetzt").read_text(
-        encoding="utf-8"))["recording"]["hotkey"] == "f9"
+    assert json.loads(lies_text(pfad.with_name(pfad.name + ".zurueckgesetzt")))["recording"]["hotkey"] == "f9"
 
 
 def test_keine_heilung_bei_einer_einzelnen_abweichung(pfad):
