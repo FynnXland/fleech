@@ -40,13 +40,18 @@ jobs:
       # Vorerst ohne die zwei Autostart-Tests: Sie schreiben in den echten Run-Schlüssel
       # der Registry, den es auf dem Runner nicht gibt (FileNotFoundError). Sobald sie
       # einen eigenen Test-Eintrag nutzen, fallen die zwei --deselect wieder weg.
-      # pytest.main() + os._exit: Auf dem Runner endete der Prozess nach „alle grün“
-      # beim Aufräumen am Prozessende trotzdem mit Code 1 (lokal 0). Maßgeblich ist
-      # das Ergebnis von pytest selbst, deshalb wird es ausgegeben und direkt übernommen.
+      # shell: python statt PowerShell: Unter pwsh endete der Schritt nach „alle grün“
+      # (pytest-Code 0) trotzdem mit Code 1. Maßgeblich ist das Ergebnis von pytest.
       - name: Run tests
-        run: >-
-          python -c "import os, sys, pytest; c = int(pytest.main(sys.argv[1:]));
-          print(f'pytest exit code: {c}', flush=True); sys.stderr.flush(); os._exit(c)"
-          -q
-          --deselect tests/test_autostart.py::test_enable_disable_roundtrip
-          --deselect tests/test_autostart.py::test_refresh_updates_stale_path
+        shell: python
+        run: |
+          import os, sys
+          import pytest
+          code = int(pytest.main([
+              "-q",
+              "--deselect", "tests/test_autostart.py::test_enable_disable_roundtrip",
+              "--deselect", "tests/test_autostart.py::test_refresh_updates_stale_path",
+          ]))
+          print(f"pytest exit code: {code}", flush=True)
+          sys.stderr.flush()
+          os._exit(code)
