@@ -62,11 +62,10 @@ afterwards. Details: [docs/architecture.md](docs/architecture.md).
 | Mode | Speech recognition | Cleanup | What leaves your PC |
 |---|---|---|---|
 | **Local** (default) | Whisper `large-v3-turbo`, on your GPU or CPU | `gemma3:4b` via Ollama | nothing |
-| **Your own API key** ¹ | local | OpenAI, Anthropic, Google Gemini, Mistral, Groq, OpenRouter or any OpenAI-compatible server | the dictated *text*, to the provider you chose; never audio |
-| **No AI** ¹ | local | none: plain transcript, fillers removed, dictionary applied | nothing |
+| **Your own API key** | local | OpenAI, Anthropic, Google Gemini, Mistral, Groq, OpenRouter or any OpenAI-compatible server | the dictated *text*, to the provider you chose; never audio |
+| **No AI** | local | none: plain transcript, fillers removed, dictionary applied | nothing |
 
-<sub>¹ Comes with the next release (6.2); the current installer (6.0.0) runs locally only.
-API keys are stored in the system keychain, never in Fleech's settings or log.</sub>
+<sub>API keys are stored in the system keychain, never in Fleech's settings or log.</sub>
 
 ## Features
 
@@ -169,7 +168,7 @@ plus dictionary suggestions for words that keep being misheard.
 **Settings → *Aufnahme* (Recording):** hotkeys, recording mode and microphone.
 <p align="center"><img src="docs/media/settings-recording.png" width="838" alt="Recording settings with F9 as push-to-talk key"></p>
 
-**Settings → *KI* (AI)** (next release): local, your own key, or no AI.
+**Settings → *KI* (AI):** local, your own key, or no AI.
 <p align="center"><img src="docs/media/settings-ai.png" width="838" alt="AI settings: local Ollama selected by default"></p>
 
 </details>
@@ -279,12 +278,12 @@ on the [mode you choose](#choose-how-it-runs). Besides that, Fleech only goes on
 - **Speech model check:** each time Fleech loads the Whisper model (at every start),
   faster-whisper asks Hugging Face whether the model has changed and downloads the update
   if it has. No audio or text is sent.
-- **Model check** (next release): once a week Fleech looks for a newer model for your
+- **Model check:** once a week Fleech looks for a newer model for your
   choice, in its model list on GitHub and the Ollama library, or in your cloud provider's
   model list. It only suggests, never switches by itself; turn it off under Settings →
   *KI* (AI).
 - **German speech model:** downloaded from Hugging Face only if you choose it.
-- **Your cloud provider** (next release), only if you select one.
+- **Your cloud provider**, only if you select one.
 
 All data lives in one folder: `%APPDATA%\Fleech` on Windows, `~/.config/Fleech` on Linux.
 

@@ -64,11 +64,10 @@ Zwischenablage-Text kommt danach zurück. Mehr dazu (englisch):
 | Betriebsart | Spracherkennung | Bereinigung | Was deinen PC verlässt |
 |---|---|---|---|
 | **Lokal** (Standard) | Whisper `large-v3-turbo`, auf Grafikkarte oder Prozessor | `gemma3:4b` über Ollama | nichts |
-| **Eigener API-Schlüssel** ¹ | lokal | OpenAI, Anthropic, Google Gemini, Mistral, Groq, OpenRouter oder jeder OpenAI-kompatible Server | der diktierte *Text*, an den gewählten Anbieter; nie der Ton |
-| **Ohne KI** ¹ | lokal | keine: reines Transkript, Füllwörter entfernt, Wörterbuch angewandt | nichts |
+| **Eigener API-Schlüssel** | lokal | OpenAI, Anthropic, Google Gemini, Mistral, Groq, OpenRouter oder jeder OpenAI-kompatible Server | der diktierte *Text*, an den gewählten Anbieter; nie der Ton |
+| **Ohne KI** | lokal | keine: reines Transkript, Füllwörter entfernt, Wörterbuch angewandt | nichts |
 
-<sub>¹ Kommt mit dem nächsten Release (6.2); der aktuelle Installer (6.0.0) arbeitet nur lokal.
-API-Schlüssel liegen im Schlüsselbund des Systems, nie in den Einstellungen oder im Protokoll.</sub>
+<sub>API-Schlüssel liegen im Schlüsselbund des Systems, nie in den Einstellungen oder im Protokoll.</sub>
 
 ## Funktionen
 
@@ -171,7 +170,7 @@ korrigiert hat, dazu Wörterbuch-Vorschläge für Wörter, die immer wieder fals
 **Einstellungen → Aufnahme:** Hotkeys, Bedienmodus und Mikrofon.
 <p align="center"><img src="docs/media/settings-recording.png" width="838" alt="Aufnahme-Einstellungen mit F9 als Diktat-Taste"></p>
 
-**Einstellungen → KI** (nächstes Release): lokal, eigener Schlüssel oder ohne KI.
+**Einstellungen → KI:** lokal, eigener Schlüssel oder ohne KI.
 <p align="center"><img src="docs/media/settings-ai.png" width="838" alt="KI-Einstellungen: lokal über Ollama (Standard)"></p>
 
 </details>
@@ -284,12 +283,12 @@ ins Netz:
 - **Prüfung des Erkennungsmodells:** Jedes Mal, wenn Fleech das Whisper-Modell lädt (bei
   jedem Start), fragt faster-whisper bei Hugging Face nach, ob es eine neue Fassung des
   Modells gibt, und lädt sie gegebenenfalls herunter. Dabei geht weder Ton noch Text hinaus.
-- **Modell-Check** (nächstes Release): Einmal pro Woche sieht Fleech nach, ob es für deine
+- **Modell-Check:** Einmal pro Woche sieht Fleech nach, ob es für deine
   Wahl ein neueres Modell gibt, in seiner Modellliste auf GitHub und in der Ollama-Bibliothek
   oder in der Modellliste deines Cloud-Anbieters. Fleech schlägt nur vor und stellt nie selbst
   um; abschaltbar unter Einstellungen → *KI*.
 - **Deutsch-optimierte Spracherkennung:** wird nur von Hugging Face geladen, wenn du sie wählst.
-- **Dein Cloud-Anbieter** (nächstes Release), nur wenn du einen auswählst.
+- **Dein Cloud-Anbieter**, nur wenn du einen auswählst.
 
 Alle Daten liegen in einem Ordner: `%APPDATA%\Fleech` unter Windows, `~/.config/Fleech`
 unter Linux.
