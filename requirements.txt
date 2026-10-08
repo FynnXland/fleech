@@ -1,21 +1,24 @@
+# coding: utf-8 (sonst liest pip die Datei in der Systemkodierung)
+# Laufzeit-Abhängigkeiten von Fleech. Für Tests und Build zusätzlich
+# requirements-dev.txt installieren (pytest, Pillow, PyInstaller).
 faster-whisper>=1.1.0
 sounddevice>=0.5.0
 numpy>=1.26
 # Linux: pynput separat mit --no-deps installieren (siehe packaging/setup-linux.sh).
-# Grund: pynput zieht dort "evdev" (nur fuers Wayland/uinput-Backend noetig, das
+# Grund: pynput zieht dort "evdev" (nur fürs Wayland/uinput-Backend nötig, das
 # Fleech nicht nutzt) — evdev hat keine Binary-Wheels und scheitert ohne
 # python3-dev-Header am Source-Build. Das X11-Backend braucht nur python-xlib.
 pynput>=1.7.7; sys_platform != "linux"
 python-xlib>=0.33; sys_platform == "linux"
 pyperclip>=1.9.0
-# Kein SDK fuer Ollama oder Cloud-Anbieter: alles laeuft ueber urllib
+# Kein SDK für Ollama oder Cloud-Anbieter: alles läuft über urllib
 # (fleech/llm/client.py) — der OpenAI-Aufsatz von Ollama ignorierte num_ctx.
 PyYAML>=6.0
 # Prozessnamen (Gaming-Erkennung, App-Profile). Unter Windows bisher transitiv
-# ueber pycaw — explizit, damit es auch unter Linux da ist.
+# über pycaw — explizit, damit es auch unter Linux da ist.
 psutil>=5.9
 
-# API-Schluessel fuer Cloud-Anbieter im Schluesselbund des Systems ablegen
+# API-Schlüssel für Cloud-Anbieter im Schlüsselbund des Systems ablegen
 # (Windows: Anmeldeinformationsverwaltung, Linux: Secret Service).
 keyring>=25
 
@@ -27,15 +30,11 @@ pycaw>=20240210; sys_platform == "win32"
 comtypes>=1.4; sys_platform == "win32"
 
 # Linux: Ducking/Mic-Pegel via PulseAudio-API (funktioniert auch mit PipeWire),
-# Clipboard ohne xclip-Systemabhaengigkeit.
+# Clipboard ohne xclip-Systemabhängigkeit.
 pulsectl>=23.5; sys_platform == "linux"
 copykitten>=1.2; sys_platform == "linux"
 
-# GPU-Unterstuetzung fuer faster-whisper (ctranslate2 braucht CUDA-12-Libs).
+# GPU-Unterstützung für faster-whisper (ctranslate2 braucht CUDA-12-Libs).
 # Ohne GPU schaden sie nicht — es greift automatisch der CPU-Fallback.
 nvidia-cublas-cu12; sys_platform == "win32" or sys_platform == "linux"
 nvidia-cudnn-cu12>=9,<10; sys_platform == "win32" or sys_platform == "linux"
-
-# Build (assets/make_icons.py) + Tests
-pillow>=10
-pytest>=8.0

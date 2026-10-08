@@ -208,7 +208,7 @@ def main() -> int:
     dist_dir = ROOT / "dist" if is_win else ROOT / "dist" / "linux"
     print(f"[build] Fleech {APP_VERSION}  ({'Windows' if is_win else 'Linux'}, "
           f"GPU={'ja' if gpu else 'nein'})")
-    subprocess.check_call([sys.executable, str(ROOT / "assets" / "make_icons.py")])
+    subprocess.check_call([sys.executable, str(ROOT / "packaging" / "make_icons.py")])
     write_build_stamp()
     write_version_info()
 

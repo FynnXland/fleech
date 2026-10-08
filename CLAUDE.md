@@ -65,7 +65,7 @@ Provider/Modelle/Prompts sind in `config.yaml` + `prompts/` konfigurierbar
 - `fleech/textutils.py` — nur noch der Rahmen um den LLM-Call (Transkript einpacken/auspacken).
 - `fleech/stt/nachlauf.py` — Roh-Guard auf der Audio-Seite: streicht Whisper-Segmente
   am Ende, hinter denen kein Ton liegt („Vielen Dank."-Halluzination).
-- `fleech/mathmode.py`, `document.py` — Formeln, Diktat-Puffer.
+- `fleech/formula.py`, `document.py` — Formeln (gesprochene Mathematik → LaTeX), Diktat-Puffer.
 - `fleech/profiles.py` — App-Profile: Regeln (Prozess + Titel), Farben, Schnellwechsel.
 - `fleech/usersettings.py` — `%APPDATA%\Fleech\settings.json` (Dataclasses, additive Migration).
   Importiert `profiles`, **nie umgekehrt**. `save()` läuft unter einem Modul-Lock mit
@@ -118,7 +118,7 @@ entscheidet die Plattform, auf der du gerade arbeitest:
 
 **Windows** (venv im Projekt: `.venv`):
 
-1. **Volle Testsuite grün**: `.venv/Scripts/python -m pytest -q` (aktuell 390+ Tests).
+1. **Volle Testsuite grün**: `.venv/Scripts/python -m pytest -q` (aktuell rund 1600 Tests).
    Neue Logik = neue/angepasste Tests. Fehlschläge nennst du mit Output, nicht verschweigen.
 2. **EXE bauen**: `.venv/Scripts/python packaging/build.py`.
 3. **Syncen + Neustart** (PowerShell): Fleech **beenden** (robocopy hängt sonst am

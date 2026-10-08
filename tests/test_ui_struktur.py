@@ -181,8 +181,8 @@ def test_keine_importzyklen_in_der_oberflaeche():
 ])
 def test_alter_importweg_funktioniert_weiter(name):
     """Aufraeumen darf nichts brechen, was heute laeuft. Diese Namen wurden vor
-    der Aufteilung aus `main_window` gezogen — von Tests, von `desktop.py`, von
-    `docs/_briefing_shots.py`. Sie bleiben dort erreichbar."""
+    der Aufteilung aus `main_window` gezogen — von Tests, von `desktop.py` und
+    von Hilfsskripten, die Screenshots rendern. Sie bleiben dort erreichbar."""
     import fleech.ui.main_window as mw
 
     assert hasattr(mw, name), f"{name} ist aus main_window verschwunden"

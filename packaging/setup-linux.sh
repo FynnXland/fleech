@@ -1,9 +1,9 @@
 #!/usr/bin/env bash
-# Linux-Dev-Umgebung fuer Fleech aufsetzen (Kubuntu/X11).
+# Linux-Dev-Umgebung für Fleech aufsetzen (Kubuntu/X11).
 #
 # Das venv liegt bewusst AUSSERHALB des Projekts (~/.venvs/fleech), weil das
 # Projekt auf einem NTFS-Mount liegt. Fehlt python3-venv/pip systemweit, wird
-# pip per get-pip.py gebootstrapt (kein sudo noetig).
+# pip per get-pip.py gebootstrapt (kein sudo nötig).
 #
 # Aufruf:  bash packaging/setup-linux.sh
 set -euo pipefail
@@ -20,11 +20,13 @@ if [ ! -x "$VENV/bin/python" ]; then
 fi
 
 echo "[setup] Installiere Requirements …"
-"$VENV/bin/pip" install -r "$ROOT/requirements.txt" pyinstaller
+# requirements-dev.txt zieht requirements.txt nach und ergänzt pytest, Pillow
+# und PyInstaller (Tests + Build).
+"$VENV/bin/pip" install -r "$ROOT/requirements-dev.txt"
 
-# pynput OHNE Abhaengigkeiten: das X11-Backend braucht nur python-xlib (oben
-# installiert); die deklarierte evdev-Abhaengigkeit (Wayland/uinput) hat keine
-# Binary-Wheels und wuerde ohne python3-dev-Header am Source-Build scheitern.
+# pynput OHNE Abhängigkeiten: das X11-Backend braucht nur python-xlib (oben
+# installiert); die deklarierte evdev-Abhängigkeit (Wayland/uinput) hat keine
+# Binary-Wheels und würde ohne python3-dev-Header am Source-Build scheitern.
 echo "[setup] Installiere pynput (ohne evdev) …"
 "$VENV/bin/pip" install --no-deps "pynput>=1.7.7"
 

@@ -1,0 +1,25 @@
+# https://editorconfig.org — einheitliche Grundformatierung für alle Editoren.
+root = true
+
+[*]
+charset = utf-8
+insert_final_newline = true
+trim_trailing_whitespace = true
+
+[*.{py,md,yaml,yml,toml,sh,json}]
+end_of_line = lf
+
+[*.ps1]
+end_of_line = crlf
+
+[*.py]
+indent_style = space
+indent_size = 4
+
+[*.{yaml,yml,json,toml}]
+indent_style = space
+indent_size = 2
+
+# Zwei Leerzeichen am Zeilenende sind in Markdown ein Zeilenumbruch.
+[*.md]
+trim_trailing_whitespace = false

@@ -1,0 +1,11 @@
+# coding: utf-8 (sonst liest pip die Datei in der Systemkodierung)
+# Entwicklung: alles aus requirements.txt plus Werkzeuge für Tests und Build.
+# Aufruf:  pip install -r requirements-dev.txt
+-r requirements.txt
+
+# Build: packt Fleech zur EXE bzw. zum Linux-Binary (packaging/build.py)
+pyinstaller
+# Testsuite (python -m pytest -q)
+pytest>=8.0
+# Build: rendert die App-Icons (packaging/make_icons.py)
+pillow>=10

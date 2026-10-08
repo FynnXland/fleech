@@ -1,9 +1,11 @@
 """Leitet aus dem Brand-Design PNG + Windows-ICO ab (Pillow, kein externer Renderer).
 
-Aufruf:  python assets/make_icons.py
-Erzeugt: logo_512.png, logo_256.png, logo_128.png, fleech.ico (16–256 multi-res).
+Aufruf:  python packaging/make_icons.py   (packaging/build.py ruft es bei jedem Build auf)
+Erzeugt: assets/logo_512.png, assets/logo_256.png, assets/logo_128.png,
+         assets/fleech.ico (16–256 multi-res).
 
 Die Geometrie entspricht assets/logo.svg (Tile + Verlauf + 5 Waveform-Balken).
+Das Skript liegt in packaging/, damit es nicht mit assets/ in die App gebündelt wird.
 """
 
 from pathlib import Path
@@ -11,8 +13,8 @@ from pathlib import Path
 import numpy as np
 from PIL import Image, ImageDraw
 
-ASSETS = Path(__file__).resolve().parent
-RENDER = 1024  # gross rendern, dann sauber herunterskalieren
+ASSETS = Path(__file__).resolve().parent.parent / "assets"
+RENDER = 1024  # groß rendern, dann sauber herunterskalieren
 
 TOP = (0x35, 0xC0, 0xD8)   # ruhiges Cyan
 BOTTOM = (0x25, 0x6A, 0xB0)  # tiefes Blau

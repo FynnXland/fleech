@@ -1189,7 +1189,7 @@ das der App sofort folgt statt erst nach drei Sekunden.
 Release und einen persönlichen Lizenzschlüssel. Beim ersten Start richtet Fleech
 sich selbst ein — Ollama, Sprachmodell, Spracherkennung, mit Fortschrittsanzeige
 statt Terminal. Danach läuft alles lokal: weder Audio noch Text verlassen den
-Rechner. Der ganze Ablauf steht in [docs/WEITERGABE.md](docs/WEITERGABE.md).
+Rechner. Der ganze Ablauf steht in `docs/WEITERGABE.md` (mit 6.0.0 entfallen).
 
 **Behoben (Werkzeug):** Schlug das Laden des Signaturschlüssels fehl, erschien ein
 roher Fehlerbericht — der sich las, als sei der Schlüssel zerstört. Er wird jetzt
@@ -1270,7 +1270,7 @@ liegt die vorige Fassung als Sicherung daneben, aus der Fleech sich selbst heilt
 
 **Weitergabe**: `Schluessel erstellen.bat` im Projektordner — Doppelklick, Name
 eintippen, der Schlüssel liegt in der Zwischenablage. Der ganze Ablauf steht in
-[docs/WEITERGABE.md](docs/WEITERGABE.md).
+`docs/WEITERGABE.md` (mit 6.0.0 entfallen).
 
 ## 4.6.1 — 2026-07-31 · nicht einzeln veröffentlicht
 

@@ -1,0 +1,10 @@
+# Nur Werkzeug-Konfiguration — bewusst ohne [project] und [build-system]:
+# - Die Versionsnummer steht allein in fleech/version.py (APP_VERSION); eine
+#   zweite Kopie hier würde auseinanderlaufen.
+# - Fleech wird als PyInstaller-Build verteilt (packaging/build.py), nicht als
+#   Python-Paket. Ein "pip install ." ließe config.yaml, prompts/ und assets/
+#   weg und ergäbe eine kaputte Installation.
+# Abhängigkeiten: requirements.txt (Laufzeit) und requirements-dev.txt (Tests, Build).
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]

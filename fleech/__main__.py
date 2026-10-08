@@ -92,9 +92,10 @@ def main() -> int:
     )
     parser.add_argument(
         "--pipeline-selftest", metavar="FIXTURES_DIR",
-        help="Diagnose: Cleanup/Redax-Befehl/Formel-Modus gegen echte Provider "
-             "durchlaufen lassen (erwartet diktat_de.wav/command_redax.wav/"
-             "math_quadratisch.wav im angegebenen Ordner, je optional).",
+        help="Diagnose: Cleanup/Safe-Word-Befehl/Formel-Modus gegen echte Provider "
+             "durchlaufen lassen (erwartet diktat_de.wav/command_safeword.wav/"
+             "math_quadratisch.wav im angegebenen Ordner, je optional; "
+             "erzeugen mit tests/fixtures/*.ps1).",
     )
     parser.add_argument("-v", "--verbose", action="store_true", help="Debug-Logging")
     args = parser.parse_args()
