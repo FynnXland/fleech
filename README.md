@@ -1,10 +1,10 @@
-<p align="center"><img src="assets/logo.svg" width="96" alt="Fleech logo"></p>
+<p align="center"><img src="assets/logo.svg" width="96" alt=""></p>
 
 <h1 align="center">Fleech</h1>
 
 <p align="center">
   <b>Local voice dictation for Windows and Linux.</b><br>
-  Hold a key, speak, release: clean text appears wherever your cursor is.
+  Hold a key, speak, release: clean text appears wherever your cursor is, in your own words.
 </p>
 
 <p align="center">
@@ -12,7 +12,6 @@
   <a href="https://github.com/FynnXland/fleech/releases/latest"><img src="https://img.shields.io/github/v/release/FynnXland/fleech?label=release" alt="Latest release"></a>
   <a href="LICENSE"><img src="https://img.shields.io/github/license/FynnXland/fleech" alt="MIT license"></a>
   <img src="https://img.shields.io/badge/platform-Windows%20%7C%20Linux%20(X11)-0078D6" alt="Platform: Windows and Linux (X11)">
-  <img src="https://img.shields.io/badge/runs-locally%20by%20default-2ea44f" alt="Runs locally by default">
 </p>
 
 <p align="center">
@@ -21,41 +20,67 @@
 </p>
 
 <p align="center">
-  <img src="docs/media/hero.en.gif" width="760" alt="Holding F9 and speaking: Fleech shows the raw transcript, then pastes the cleaned sentence">
-  <br><i>Raw transcript in the bubble, cleaned text in your app, all on your own PC.</i>
+  <img src="docs/media/hero.en.gif" width="760" alt="Top: the sentence as spoken, with &quot;um&quot; and the withdrawn &quot;by Thursday, uh, actually&quot; struck through. Below: the note app with the cleaned sentence Fleech pasted. Then the dictation plays: F9 held, the words appear as they are spoken, F9 released, the raw transcript shows in the pill's bubble, and the cleaned sentence is pasted at once.">
+  <br><i>Struck through: the fillers and what you took back. Everything else stays in your words.</i>
 </p>
 
 Fleech types into the programs you already use: Word, your browser, email, chat or your
-code editor. Unlike the dictation built into your OS, it has a language model tidy up
-afterwards. Fillers, slips and false starts disappear and punctuation is added, but your
-wording stays yours. By default, speech recognition (Whisper) and cleanup (a local model
-via Ollama) both run on your computer. No account, no subscription, and your audio never
-leaves your PC. Fleech is a local, open-source alternative to cloud tools like Wispr Flow.
+code editor. Speech recognition (Whisper) writes down what you say, a language model tidies
+it up, and Fleech checks that the result still says what you said; if in doubt, you get your own
+words rather than the model's. By default both models run on your computer. No account,
+no subscription, and your audio never leaves your PC. Fleech is a local, open-source
+alternative to cloud tools like Wispr Flow.
 
 > [!NOTE]
 > The interface is German for now; an English version is planned. Dictation works in
 > **German and English** (Settings → *Allgemein* (General), or per profile).
 
+## Why not just Whisper + ChatGPT?
+
+You could send a Whisper transcript to a chat model with "clean this up". That works until
+your dictation sounds like a request: the model cannot tell dictating from asking, so it
+answers, writes code or rewords what you said. Here is the same local model (`gemma3:4b-text`) with
+the same transcripts, once with a one-line prompt and once inside Fleech:
+
+| You said | Whisper + a one-line prompt | Fleech pastes |
+|---|---|---|
+| Hi Sam, thanks for the documents, I'll look at them by Friday and get back to you. | Hi Sam,<br>Thanks for sending the documents. I'll **review** them by Friday and get back to you **then**. | Hi Sam, thanks for the documents, I'll look at them by Friday and get back to you. |
+| What's the best way to cook rice without a rice cooker? | *"Okay, here's a cleaned-up version of how to cook rice without a rice cooker"*, then a seven-step recipe and two follow-up offers | What's the best way to cook rice without a rice cooker? |
+| Write a function that sorts the list by date, uh, newest first. | The function itself, with docstring, example and usage notes: 46 lines | Write a function that sorts the list by date, newest first. |
+| Can you write a short summary of the meeting notes and send it to Sam by Friday? I need it before the client call. | *"Okay, here are a few options for a cleaned-up version of your request"*: three reworded versions, then a question about the tone | Can you write a short summary of the meeting notes and send it to Sam by Friday? I need it before the client call. |
+
+<sub>Real output at temperature 0, frozen in [docs/media/examples.json](docs/media/examples.json).
+The one-line prompt was "Clean up this dictated text: remove filler words and fix
+punctuation and grammar." The sentences were chosen to show typical failures.</sub>
+
 ## How it works
 
 ```mermaid
 flowchart LR
-    A["Hold F9<br/>and speak"] --> B["Whisper<br/>(local)"]
-    B --> C{"Safe word?"}
-    C -->|no| D["Cleanup<br/>(LLM)"]
-    C -->|"Kimono, …"| E["Voice command<br/>(LLM)"]
-    D --> F["Quality<br/>check"]
-    E --> F
-    F --> G["Paste at<br/>the cursor"]
+    A["Hold F9<br/>and speak"] --> B["Whisper (local)<br/>primed with<br/>your vocabulary"]
+    B --> C["AI cleanup<br/>transcript as text,<br/>not as a request"]
+    C --> D{"Still what<br/>you said?"}
+    D -->|yes| E["Paste the<br/>cleaned text"]
+    D -->|no| F["Paste your<br/>raw words"]
 ```
 
-Fleech transcribes each section during your speaking pauses, so only the last sentence is
-left when you let go. Every cleaned section is checked against what you said: if too much
-is missing or something was invented, that section is pasted raw instead. Better raw than
-wrong. The text is pasted through the clipboard and a simulated <kbd>Ctrl</kbd>+<kbd>V</kbd>.
-That works in almost every app (not in terminals that paste with
-<kbd>Ctrl</kbd>+<kbd>Shift</kbd>+<kbd>V</kbd>), and your previous clipboard text comes back
-afterwards. Details: [docs/architecture.md](docs/architecture.md).
+- **It knows your vocabulary.** Your dictionary and the terms learned per app go to Whisper
+  as hints, so names come out right at the source. Phrases Whisper adds at the end with
+  no sound behind them ("Thank you.") are cut before any AI sees the text.
+- **Your dictation is text, not a request.** It reaches the model between markers, with
+  the rule that nothing inside them is an instruction. If the reply shares less than half
+  its words with what you said, you get your raw words.
+- **Your words, not synonyms.** If fewer than 70% of your words survive, or too many new
+  ones appear, the model gets one stricter try; below 50%, your raw words win.
+- **Nothing tacked on, nothing flipped.** Closing sentences you never said are cut. A lost
+  date, time or amount, or a lost "nicht" in German, gets a second try, else your raw words.
+
+The history names the reason for every fallback. The checks compare words, not meaning: a
+swapped "can" and "must" gets through. Fleech transcribes in your pauses as you speak,
+so only the last part is left when you let go. Pasting uses the clipboard and
+<kbd>Ctrl</kbd>+<kbd>V</kbd> (not for terminals that need <kbd>Ctrl</kbd>+<kbd>Shift</kbd>+<kbd>V</kbd>);
+your clipboard comes back afterwards. Every step with its limits:
+[docs/how-it-works.md](docs/how-it-works.md); for contributors: [docs/architecture.md](docs/architecture.md).
 
 ## Choose how it runs
 
@@ -65,72 +90,52 @@ afterwards. Details: [docs/architecture.md](docs/architecture.md).
 | **Your own API key** | local | OpenAI, Anthropic, Google Gemini, Mistral, Groq, OpenRouter or any OpenAI-compatible server | the dictated *text*, to the provider you chose; never audio |
 | **No AI** | local | none: plain transcript, fillers removed, dictionary applied | nothing |
 
-<sub>API keys are stored in the system keychain, never in Fleech's settings or log.</sub>
-
 ## Features
 
-**Voice commands.** Say the safe word, then the instruction: "Kimono, make the last
-sentence more polite" rewrites what you just dictated.
+**Voice commands.** Say the safe word, then the instruction: "Kimono, make the last sentence
+more polite" rewrites what you just dictated.
 
 <p align="center">
   <img src="docs/media/command.en.gif" width="760" alt="Saying &quot;Kimono, make the last sentence more polite&quot; rewrites the sentence just dictated">
 </p>
 
 **Profiles.** One dictation becomes clean text, an email, bullet points or a structured AI
-prompt; the ring around the dot shows the active profile. The three rewriting formats are
-German only for now.
+prompt; the ring around the dot shows the active profile. Assign profiles to programs,
+optionally by window title. The three rewriting formats are German only for now.
 
 <p align="center">
   <img src="docs/media/profiles.gif" width="760" alt="One dictation, four profiles: plain text, an email, bullet points and an AI prompt">
 </p>
 
-**Formulas to LaTeX.** Spoken maths is parsed without a model, and anything ambiguous is
-flagged as a guess (opt-in, German only).
-
-<p align="center">
-  <img src="docs/media/math.gif" width="760" alt="Spoken formulas become LaTeX; an ambiguous one is flagged as a guess">
-</p>
-
-- **Transcribes while you speak.** Each section is recognised in the next pause, so even a
-  minute-long dictation is ready moments after you release the key.
-- **Stays verbatim.** Cleanup smooths, it does not rephrase, and every result is checked
-  before it is pasted.
-- **Profiles per app.** Standard, *Geschäftlich* (business), *Privat* (private), Coding,
-  *Mathe* (maths), *E-Mail*, *KI-Prompt* (AI prompt) and *Stichpunkte* (bullet points);
-  assign them to programs, optionally by window title. The *E-Mail*, *KI-Prompt* and
-  *Stichpunkte* formats are German only for now.
-- **Voice commands.** Say the safe word (default "Kimono"), then the instruction.
-- **Personal dictionary.** Names and jargon are spelled your way, and the entries also
-  prime the speech recognition.
-- **History and insights.** Search, filter and re-clean past dictations; see words per
-  minute, app usage and streaks.
+- **Eight profiles.** Standard, *Geschäftlich* (business), *Privat* (private), Coding,
+  *Mathe* (maths), *E-Mail*, *KI-Prompt* (AI prompt) and *Stichpunkte* (bullet points).
+- **Personal dictionary.** Names and jargon spelled your way, and a hint for Whisper.
+- **History and insights.** Search, filter and re-clean past dictations; words per minute,
+  app usage and streaks.
 - **German and English.** Choose the language globally or per profile.
 
 <details>
 <summary><b>More features</b></summary>
 
+- **Formulas to LaTeX** (opt-in under Settings → *Ausgabe*, German only): spoken maths is parsed without a model, and anything ambiguous is flagged as a guess.
+  <p align="center"><img src="docs/media/math.gif" width="760" alt="Spoken formulas become LaTeX; an ambiguous one is flagged as a guess"></p>
 - **Nudge mode** (*Anstupsen*): press once and talk; the dictation ends on its own when you pause.
 - **Cursor return** (*Cursor-Rückkehr*): the text goes into the field where you started, even if you clicked elsewhere meanwhile.
-- **Clipboard restore:** your previous clipboard text comes back after pasting.
 - **Audio ducking:** music and videos get quieter while you dictate.
 - **Game and fullscreen detection:** frees GPU memory by unloading the language model, and respects Do Not Disturb.
 - **Keep-warm control:** keep the language model loaded for 3–45 min after a dictation, permanently, or not at all.
-- **Raw text hotkey:** swap the cleaned paste for the word-for-word transcript.
+- **Skip the AI:** the check mark in the pill pastes the recognised text right away instead of waiting for the cleanup.
 - **Spoken format suffix (German):** end with "… als Stichpunkte" or "… als E-Mail" to reformat just this dictation.
 - **Spoken symbols:** "Slash", "Hashtag" and similar become the characters.
 - **Dictionary suggestions:** when a word looks like a misheard dictionary term, Fleech asks "did you mean …?" and can learn it.
-- **Speak-to-test:** say a dictionary entry once and see what recognition makes of it.
-- **Project memory:** learns technical terms per app and window title to prime recognition; never sent to an LLM.
 - **Re-clean from history:** turn an old dictation into an email, bullet points or an AI prompt (German output).
-- **Markdown export** of filtered history entries.
-- **Profile export and import** as JSON.
+- **Markdown export** of filtered history entries; **profile export and import** as JSON.
 - **Prompt editor:** view and edit the instructions behind each format, with a reset to factory.
 - **Send directly:** a profile can press <kbd>Enter</kbd> after pasting, for chats.
 - **German-tuned speech model:** an optional Whisper turbo retrained on German (1.6 GB).
 - **Last recording:** recognise it again or save it as WAV from the tray menu.
 - **No-sound warning:** the pill tells you when the microphone delivers nothing.
 - **Safe settings:** atomic saves, automatic `.bak` recovery and dated backups.
-- **Self-tests:** `--audio-selftest` and `--pipeline-selftest` on the command line.
 
 </details>
 
@@ -149,8 +154,7 @@ attention, such as a silent microphone or text that went to the clipboard.
   <img src="docs/media/tour.gif" width="838" alt="A tour of the main window: history, insights, profiles, app rules and AI settings">
 </p>
 
-**One window** holds everything else: your dictation history, insights, profiles, per-app
-rules and the settings.
+**One window** holds everything else: history, insights, profiles, app rules and settings.
 
 <details>
 <summary><b>More screenshots</b></summary>
@@ -173,9 +177,8 @@ plus dictionary suggestions for words that keep being misheard.
 
 </details>
 
-<sub>All screenshots and GIFs show invented sample data; the texts are real output of
-gemma3:4b. The app's interface is German, so the English GIFs show German labels too; the
-profiles and formula GIFs are German only.</sub>
+<sub>All screenshots and GIFs show invented sample data and real output of gemma3:4b-text.
+The interface is German, so the English GIFs show German labels too.</sub>
 
 ## Installation
 
@@ -187,20 +190,17 @@ profiles and formula GIFs are German only.</sub>
 
 **Requirements**
 
-- Windows 10 or 11, 64-bit (developed and tested on Windows 11), or Linux with an X11
-  session. Under Wayland some features are limited; Settings → *Advanced* lists them.
-- A microphone and an internet connection for the first-run setup.
+- Windows 10 or 11, 64-bit (tested on 11), or Linux with X11 (under Wayland some features
+  are limited; Settings → *Advanced* lists them). A microphone; internet for the setup.
 - About **10 GB** of free disk space: app 2.2 GB, Ollama 3.1 GB, language model 2.5 GB,
   speech model 1.6 GB (about 6.5 GB if Ollama is already installed). During setup another
   3.3 GB are needed briefly for the original model, which Fleech removes again.
-- An NVIDIA GPU helps a lot but is not required. Without one, recognition runs on the CPU:
-  noticeably slower, but it works.
+- An NVIDIA GPU helps a lot but is not required: on the CPU, recognition is slower.
 
 ### Windows
 
-1. Download `FleechSetup-<version>.exe` from [Releases](https://github.com/FynnXland/fleech/releases/latest).
-2. Run it. Fleech installs into your user profile and adds a Start menu entry; autostart
-   and a desktop shortcut are optional.
+Download `FleechSetup-<version>.exe` from [Releases](https://github.com/FynnXland/fleech/releases/latest) and run it. Fleech
+installs into your user profile with a Start menu entry; autostart and a desktop shortcut are optional.
 
 > [!TIP]
 > The installer isn't code-signed yet, so SmartScreen may say "Windows protected your PC":
@@ -221,10 +221,9 @@ With an NVIDIA GPU, add `--gpu` to the last command: it bundles the CUDA librari
 
 ### First run
 
-A short introduction asks for your language, how the AI should run (and which model),
-your microphone and your hotkey: F9 by default, but any key, combination or mouse button
-works. Meanwhile Fleech downloads what your choice needs in the background, showing
-progress and the time remaining, no terminal involved. For the local default that is:
+A short introduction asks for your language, how the AI should run (and which model), your
+microphone and your hotkey (F9 by default; any key, combination or mouse button works).
+Meanwhile it downloads what you picked and shows the progress; for the local default:
 
 | Component | Purpose | Size |
 |---|---|---|
@@ -233,11 +232,9 @@ progress and the time remaining, no terminal involved. For the local default tha
 | **Whisper `large-v3-turbo`** | turns speech into text | ~1.6 GB |
 
 Ollama is installed only when you click: on Windows via `winget`; on Linux, Fleech shows
-the official install command instead. The introduction ends with a test dictation right in
-its window: if text arrives there, the whole chain works.
-
-**First dictation:** click into any text field, hold <kbd>F9</kbd>, speak, release. The
-first dictation after a start takes a few seconds longer while the models load.
+the official install command. The introduction ends with a test dictation in its window.
+Then click into any text field, hold <kbd>F9</kbd>, speak, release. The first dictation
+after a start takes a few seconds longer while the models load.
 
 ## Everyday use
 
@@ -254,18 +251,15 @@ buttons 4, 5 and middle.
 
 - **Recording modes:** *Hold-to-talk* (default), *Toggle* (press to start, press again to
   finish) or *Anstupsen* (nudge): press once, and the dictation ends after 1–4 s of silence.
-- **Safe word:** "Kimono, make that more formal" acts on what you just dictated. Change it
-  under Settings → *Ausgabe* (Output). It is off in the *Geschäftlich*, *E-Mail*,
-  *KI-Prompt* and *Stichpunkte* profiles.
-- **Profiles:** during a recording, tap the dot on the left of the pill to cycle. On the
-  *Apps* page you choose which profile applies in which program; the rewriting profiles
-  (*E-Mail*, *KI-Prompt*, *Stichpunkte*) are not assigned to any app by default.
-- **Dictionary:** Settings → *Textersetzung* (Text replacement). Add names, jargon and
-  abbreviations you use a lot; it is the most effective tweak there is.
-- **Tray:** closing the window keeps Fleech running in the system tray. Right-click the icon
-  → *Beenden* (Quit).
-- **Updates (Windows):** Fleech checks for new releases, downloads them in the background,
-  verifies the SHA-256 and installs only when you click.
+- **Safe word:** "Kimono, make that more formal" acts on what you just dictated; change it
+  under Settings → *Ausgabe* (Output). Off in *Geschäftlich* and the rewriting profiles.
+- **Profiles:** during a recording, tap the dot on the left of the pill to cycle. The *Apps*
+  page sets which profile applies where; rewriting profiles are assigned to no app at first.
+- **Dictionary:** Settings → *Textersetzung* (Text replacement). Names, jargon and
+  abbreviations you use a lot: the most effective tweak there is.
+- **Tray:** closing the window keeps Fleech running; quit via the tray icon → *Beenden*.
+- **Updates (Windows):** downloaded in the background, SHA-256 verified, installed only
+  when you click.
 
 ## Privacy and your data
 
@@ -276,26 +270,22 @@ on the [mode you choose](#choose-how-it-runs). Besides that, Fleech only goes on
   into `gemma3:4b-text` on your machine) and the Whisper model from Hugging Face.
 - **Update check:** asks GitHub for the latest release. You can turn the check off, or just
   the background download, under Settings → *Advanced*.
-- **Model check:** once a week Fleech looks for a newer model for your
-  choice, in its model list on GitHub and the Ollama library, or in your cloud provider's
-  model list. It only suggests, never switches by itself; turn it off under Settings →
-  *KI* (AI).
-- **German speech model:** downloaded from Hugging Face only if you choose it; the same
-  goes for the small model of the experimental live preview when you turn it on.
-- **Your cloud provider**, only if you select one.
+- **Model check:** once a week Fleech looks for a newer model for your choice, in its model
+  list on GitHub and the Ollama library, or in your cloud provider's model list. It only
+  suggests, never switches by itself; turn it off under Settings → *KI* (AI).
+- **Optional models** from Hugging Face, only if you choose them: the German speech model
+  and the small model of the experimental live preview. **Your cloud provider**, if chosen.
 - **Cloud fallback** (off by default): if you pick a provider under Settings → *KI* →
   *Wenn die lokale KI hängt* (if the local AI stalls), only the dictations the local model
-  doesn't finish in time are cleaned up there. The history marks them.
+  doesn't finish in time or fails on are cleaned up there. The history marks them.
 
 All data lives in one folder: `%APPDATA%\Fleech` on Windows, `~/.config/Fleech` on Linux.
-History, project memory and settings are **encrypted at rest**: the databases with SQLCipher
-(AES-256, the whole file including timestamps, app names and window titles), the settings
-with AES-256-GCM. The key is bound to your Windows account via DPAPI (Linux: the Secret
-Service keychain); Fleech unlocks it automatically when you are signed in. A recovery code
+History, project memory (*Gedächtnis*) and settings are **encrypted at rest** (SQLCipher with AES-256 for
+the whole database files, AES-256-GCM for the settings). The key is bound to your Windows
+account via DPAPI (Linux: Secret Service) and unlocks when you sign in; a recovery code
 (Settings → *Allgemein* → *Verschlüsselung*) reopens your data after a Windows reinstall.
-Encryption protects against a stolen or copied disk, other accounts and backups, not against
-malware running under your own account while Fleech is open. For leftovers on SSDs, turn on
-BitLocker or device encryption.
+This protects against a stolen or copied disk, other accounts and backups, not against
+malware in your own account while Fleech is open.
 
 | File | What it holds |
 |---|---|
@@ -309,9 +299,9 @@ BitLocker or device encryption.
 
 Audio is never written to disk, unless you save the last recording as WAV from the tray
 menu. Dictations Fleech pastes are kept out of the Windows clipboard history (Win+V) and
-the cloud clipboard. API keys go into the system keychain (Windows Credential Manager, Secret Service on
-Linux). The uninstaller removes only the log; delete the folder to remove everything.
-Security issues: see [SECURITY.md](SECURITY.md).
+the cloud clipboard. API keys go into the system keychain (Windows Credential Manager,
+Secret Service on Linux). The uninstaller removes only the log; delete the folder to remove
+everything. Security issues: see [SECURITY.md](SECURITY.md).
 
 ## Troubleshooting
 
@@ -321,7 +311,7 @@ Security issues: see [SECURITY.md](SECURITY.md).
 | **Text arrives raw, not cleaned up** | Either the model did not answer (Ollama not running, or a cloud key rejected) or a quality check kept your words on purpose. The history entry on the *Home* page names the reason. For Ollama, restart Fleech: the setup page shows what is missing. |
 | **Text lands in the wrong window or only in the clipboard** | *Cursor-Rückkehr* (cursor return, under Settings → *Ausgabe*, on by default) brings the text back to the field where you started. If a result is ready more than 30 s after the recording and you are in another window by then, it goes to the clipboard and the pill tells you. |
 | **Windows Defender or SmartScreen flags Fleech** | Apps packaged with PyInstaller are sometimes flagged by mistake. Compare the installer's SHA-256 with the release notes. If it matches, restore the file under *Windows Security → Protection history*, report the false positive at [microsoft.com/wdsi/filesubmission](https://www.microsoft.com/wdsi/filesubmission) and let us know in an [issue](https://github.com/FynnXland/fleech/issues). |
-| **It hangs or crashes** | The log is at `%APPDATA%\Fleech\fleech.log` (Linux: `~/.config/Fleech/fleech.log`). It contains no dictated text unless you turned on *Diktattexte ins Protokoll*; check paths for your user name before you [open an issue](https://github.com/FynnXland/fleech/issues/new/choose). |
+| **It hangs or crashes** | The log is at `%APPDATA%\Fleech\fleech.log` (Linux: `~/.config/Fleech/fleech.log`). It contains no dictated text unless you turned on *Diktattexte ins Protokoll*; remove your user name from paths before you [open an issue](https://github.com/FynnXland/fleech/issues/new/choose). |
 
 ## Development
 
@@ -336,14 +326,12 @@ python -m venv .venv
 .venv\Scripts\python packaging\build.py         # → dist\Fleech\Fleech.exe (--gpu for CUDA)
 ```
 
-Start with [CONTRIBUTING.md](CONTRIBUTING.md) and [docs/architecture.md](docs/architecture.md).
-The in-depth documents in [docs/](docs/) and the [CHANGELOG](CHANGELOG.md) are in German.
-Code comments and domain names are German too; infrastructure names are English.
+Start with [CONTRIBUTING.md](CONTRIBUTING.md) and [docs/architecture.md](docs/architecture.md). The in-depth
+documents in [docs/](docs/), the [CHANGELOG](CHANGELOG.md), code comments and domain names are in German.
 
 ## Acknowledgements
 
-Fleech builds on the work of others:
-[faster-whisper](https://github.com/SYSTRAN/faster-whisper) and
+Fleech builds on [faster-whisper](https://github.com/SYSTRAN/faster-whisper) and
 [OpenAI Whisper](https://github.com/openai/whisper) for speech recognition,
 [Ollama](https://ollama.com) and [Google Gemma](https://ai.google.dev/gemma) for the local
 cleanup, [Qt for Python (PySide6)](https://doc.qt.io/qtforpython-6/) for the interface, and
@@ -353,11 +341,9 @@ for the optional German model. All bundled libraries and their licenses are list
 
 ## License
 
-Fleech is licensed under the [MIT License](LICENSE). You may use, modify and
-redistribute it, including in closed-source and commercial projects, as long as you keep
-the copyright and license notice. Bundled third-party libraries keep their own
-licenses, see [THIRD-PARTY-NOTICES.md](THIRD-PARTY-NOTICES.md).
-
+Fleech is licensed under the [MIT License](LICENSE): use, modify and redistribute it, also
+in closed-source and commercial projects, as long as you keep the copyright and license
+notice. Bundled libraries keep their own licenses ([THIRD-PARTY-NOTICES.md](THIRD-PARTY-NOTICES.md)).
 Unless you explicitly state otherwise, any contribution you submit for inclusion in
 Fleech is licensed under the MIT License as well.
 

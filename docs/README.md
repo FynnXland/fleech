@@ -5,6 +5,7 @@ final authority; each document states the version it describes.
 
 | Document | Language | What it covers |
 |---|---|---|
+| [how-it-works.md](how-it-works.md) | English | What happens to a dictation, step by step: speech recognition, cleanup and the checks behind "in your own words", with their limits. **Start here if you want to know why Fleech can be trusted with your text.** |
 | [architecture.md](architecture.md) | English | Pipeline, threading model, module map, platform seams, data locations, structure rules. **Start here if you want to contribute code.** |
 | [concept.de.md](concept.de.md) | German | The complete description: every feature, every setting, every design decision with its reasons. **Start here if you read German.** |
 | [audio-architecture.de.md](audio-architecture.de.md) | German | Recording from the microphone only, ducking other apps, loopback guard, audio self-test |
