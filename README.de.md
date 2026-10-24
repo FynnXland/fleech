@@ -57,9 +57,9 @@ korrigiere Zeichensetzung und Grammatik.“ Die Sätze sind ausgesucht, um typis
 ## So funktioniert es
 
 ```mermaid
-flowchart LR
-    A["F9 halten<br/>und sprechen"] --> B["Whisper (lokal)<br/>kennt deine<br/>Begriffe"]
-    B --> C["KI räumt auf<br/>Transkript als Text,<br/>nicht als Auftrag"]
+flowchart TD
+    A["F9 halten<br/>und sprechen"] --> B["Whisper (lokal),<br/>kennt deine Begriffe"]
+    B --> C["KI räumt auf: Transkript<br/>als Text, nicht als Auftrag"]
     C --> D{"Noch das,<br/>was du gesagt hast?"}
     D -->|ja| E["Bereinigten Text<br/>einfügen"]
     D -->|nein| F["Deine Worte<br/>roh einfügen"]

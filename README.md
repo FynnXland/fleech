@@ -56,9 +56,9 @@ punctuation and grammar." The sentences were chosen to show typical failures.</s
 ## How it works
 
 ```mermaid
-flowchart LR
-    A["Hold F9<br/>and speak"] --> B["Whisper (local)<br/>primed with<br/>your vocabulary"]
-    B --> C["AI cleanup<br/>transcript as text,<br/>not as a request"]
+flowchart TD
+    A["Hold F9<br/>and speak"] --> B["Whisper (local),<br/>primed with your vocabulary"]
+    B --> C["AI cleanup: transcript<br/>as text, not as a request"]
     C --> D{"Still what<br/>you said?"}
     D -->|yes| E["Paste the<br/>cleaned text"]
     D -->|no| F["Paste your<br/>raw words"]
