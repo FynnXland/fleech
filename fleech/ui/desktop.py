@@ -752,6 +752,9 @@ class DesktopApp(
         elif section == "dictionary":
             self.pipeline.set_dictionary(self.settings.output.dictionary,
                                          self.settings.output.dictionary_usage)
+            from ..textbausteine import lies
+
+            self.pipeline.bausteine = lies(self.settings.output.textbausteine)
         elif section == "onboarding":
             self.show_onboarding()
         elif section == "datenschutz":

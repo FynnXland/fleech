@@ -1027,7 +1027,22 @@ des Projekt-Gedächtnisses sind in [9](#9-verlauf-und-statistiken) bzw.
 
 ---
 
-## 8a. Text-Bausteine (3.x–5.10) — entfernt in 5.11.0
+## 8a. Text-Bausteine — entfernt in 5.11.0, neu seit 6.5.0
+
+**Seit 6.5.0 wieder da, anders gebaut** (`fleech/textbausteine.py`). Zeilen
+„Kürzel => Text“ auf der Seite *Wörterbuch*; „\n“ wird zum Zeilenumbruch. Ohne
+Signalwort: Das Kürzel selbst löst aus, nur als ganze Wörter, Groß-/Kleinschreibung
+und Whisper-Satzzeichen zwischen den Wörtern egal, längere Kürzel zuerst.
+Statt Platzhalter durch das Modell zu schleusen, wird das Diktat an den Kürzeln
+**zerlegt**: Nur die Textstücke dazwischen gehen einzeln durch die normale
+Bereinigung samt allen Prüfungen und die letzte Stufe (Wörterbuch, gesprochene
+Zeichen); die Bausteine kommen danach unverändert dazwischen. Neben einem
+mehrzeiligen Baustein steht ein Zeilenumbruch, sonst ein Leerzeichen. Ein Diktat nur
+aus dem Kürzel braucht kein Modell. Gilt im Bereinigungsweg (auch „Ohne KI“ und
+„Minimal“), nicht in Befehlen und den umformulierenden Formaten. Meldet ein
+Textstück einen Rückfall, gilt das Diktat als Rückfall.
+
+Die alte Fassung, zur Einordnung:
 
 Ein gesprochenes Kürzel fügte einen festen Textblock ein („Baustein Signatur“ am Ende
 einer Mail). Die Funktion ist in 5.11.0 **entfernt**: In 1399 gemessenen Diktaten war

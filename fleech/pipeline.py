@@ -22,13 +22,9 @@ from .routing import (
     Mode, detect_mode, split_command_continuation, split_format_suffix,
     text_before_trigger,
 )
-from .textutils import (
-    TRANSCRIPT_CLOSE,
-    TRANSCRIPT_OPEN,
-    strip_wrapping_quotes,
-    wrap_transcript,
-)
+from .textutils import TRANSCRIPT_CLOSE, TRANSCRIPT_OPEN, strip_wrapping_quotes, wrap_transcript
 from .bloecke import beispielsaetze, bereinige_in_bloecken
+from .textbausteine import mit_bausteinen
 from .llm.frist import FristAbgelaufen, KiFrist, Uebersprungen
 from .stt.abschnitte import erkenne_mit_vorab
 from .vorbereinigung import entferne_fuellwoerter
@@ -233,9 +229,8 @@ class Pipeline:
         # Erkennung, den sprachgebundenen Teil der Guards und die Zielsprache der
         # umformulierenden Formate.
         self.sprache = "de"
-        # „Ohne KI" (Einstellungen → KI): Transkript ohne Modell, aber nicht als
-        # Rueckfall — der Nutzer hat es so gewaehlt.
-        self.ki_aus = False
+        self.ki_aus = False   # „Ohne KI": Transkript ohne Modell, gewaehlt — kein Rueckfall
+        self.bausteine = []   # [(Kuerzel, Text)] aus `textbausteine.lies`
         # Was die Pille waehrend der Bereinigung zeigt. Die App setzt es je Diktat,
         # wenn das Modell erst noch geladen wird — sonst ueberschrieb „Bereinige …"
         # deren Hinweis sofort, und das Warten aufs Laden sah aus wie Rechnen.
@@ -483,10 +478,10 @@ class Pipeline:
                     command_part, continuation, intervention_override, style_hints
                 )
 
-        text, cleanup_fallback = self._cleanup(raw, intervention_override, style_hints)
-        # Woerterbuch: deterministische Korrektur bekannter Fehlschreibungen — greift
-        # auch, wenn Whisper den Begriff falsch erkannt hat und das LLM ihn beliess.
-        text = self._finalize(text)
+        # Textbausteine gehen an Modell und Woerterbuch vorbei (textbausteine.py).
+        text, cleanup_fallback = mit_bausteinen(
+            raw, self.bausteine, self._finalize,
+            lambda t: self._cleanup(t, intervention_override, style_hints))
         self._inject_append(text)
         return "fallback" if (fallback or cleanup_fallback) else "ok"
 

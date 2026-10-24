@@ -38,6 +38,15 @@ Wo du was findest:
 
 Deine Einstellungen bleiben, wie sie sind; nur ihr Platz hat sich geändert.
 
+**Textbausteine.** Unter *Wörterbuch* trägst du Zeilen wie
+„Baustein Signatur => Viele Grüße\nAlex“ ein. Sagst du beim Diktieren das Kürzel,
+steht genau dieser Text im Feld — am Anfang, am Ende oder mitten im Satz. Keine KI
+sieht oder verändert ihn; „\n“ wird zu einer neuen Zeile. Besteht ein Diktat nur
+aus dem Kürzel, ist es sofort da, ganz ohne KI. Nimm am besten zwei Wörter, die
+du sonst nie sagst, damit nichts aus Versehen auslöst. Bausteine gelten im
+normalen Diktat, noch nicht in den Profilen *E-Mail*, *Stichpunkte* und
+*KI-Prompt*.
+
 ## 6.4.1 — 2026-10-25 · nicht einzeln veröffentlicht
 
 **Kommas bleiben, wo sie hingehören.** Lässt die KI ein „äh" oder „ähm" stehen,

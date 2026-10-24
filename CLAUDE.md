@@ -67,6 +67,8 @@ Provider/Modelle/Prompts sind in `config.yaml` + `prompts/` konfigurierbar
 - `fleech/textfilter.py` — **Qualitäts-Guards der Pipeline**: erfundene Ergänzungen,
   Wortsalat, fremde Schrift, Sinnumkehr. Kern-Fachlogik, keine Helfer-Sammlung.
 - `fleech/dictionary.py` — persönliches Wörterbuch (Priming, Ersetzung, Vorschläge).
+- `fleech/textbausteine.py` — Kürzel → fester Text (6.5.0): zerlegt das Diktat an den Kürzeln,
+  nur die Textstücke gehen durch Cleanup/Guards, Bausteine bleiben unverändert. Keine Platzhalter.
 - `fleech/textutils.py` — nur noch der Rahmen um den LLM-Call (Transkript einpacken/auspacken).
 - `fleech/stt/nachlauf.py` — Roh-Guard auf der Audio-Seite: streicht Whisper-Segmente
   am Ende, hinter denen kein Ton liegt („Vielen Dank."-Halluzination).

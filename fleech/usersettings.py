@@ -404,11 +404,9 @@ class OutputSettings:
     # unsichtbares Feld advice_dismissed mit 30-Tage-Frist; die Frist war nur der
     # Ersatz fuer die fehlende Oberflaeche.)
     dictionary_ignores: list = field(default_factory=list)
-    # `snippets` und `snippet_keyword` (Text-Bausteine: "<Signalwort> <Kuerzel>" →
-    # fester Textblock) sind nach 5.10.2 entfallen. In 1399 Diktaten war kein
-    # Baustein angelegt, und der Verlauf enthaelt keinen wiederkehrenden Text, der
-    # einer geworden waere. Alte settings.json laden weiter, die Schluessel werden
-    # beim Laden still uebergangen.
+    # Textbausteine (6.5.0, `fleech/textbausteine.py`): rohe Zeilen "Kuerzel => Text".
+    # Bewusst ein neuer Name: die alten `snippets` (bis 5.10) liefen ueber Platzhalter.
+    textbausteine: list = field(default_factory=list)
     # Wie oft kam ein Woerterbuch-Begriff zuletzt in eingefuegtem Text vor?
     # {begriff_klein: treffer}. Entscheidet, welche Begriffe ueber dem 60er-
     # Priming-Limit Vorrang haben — sonst verlieren Power-User das Priming

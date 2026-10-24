@@ -18,7 +18,8 @@ def build(panel) -> None:
     s = panel.settings
     seite, form = panel._page()
     form.addRow("", hint(
-        "Eigene Begriffe, die die Spracherkennung kennen soll — eine Zeile pro Eintrag."
+        "Eigene Begriffe für die Spracherkennung — und Textbausteine, die ein "
+        "gesprochenes Kürzel durch festen Text ersetzen."
     ))
     mehr = bereich(seite, form)
     panel._dictionary_editor = panel._lines_editor(
@@ -44,6 +45,18 @@ def build(panel) -> None:
     panel._priming_hint = hint("")
     panel._refresh_priming_hint()
     form.addRow("", panel._priming_hint)
+    panel._bausteine_editor = panel._lines_editor(
+        form, "Textbausteine", s.output.textbausteine, "dictionary",
+        lambda lines: setattr(s.output, "textbausteine", lines),
+        placeholder="Baustein Signatur => Viele Grüße\\nAlex\n"
+                    "Baustein Adresse => Musterstraße 1, 12345 Musterstadt",
+        hint_text="„Kürzel => Text“: Sagst du das Kürzel, steht genau dieser Text im "
+                  "Feld — ohne KI, Zeichen für Zeichen. „\\n“ im Text = neue Zeile. "
+                  "Nimm am besten zwei Wörter, die du sonst nie sagst (etwa "
+                  "„Baustein Signatur“), damit nichts aus Versehen auslöst. Gilt im "
+                  "normalen Diktat, nicht in E-Mail-, Stichpunkt- und Prompt-Profilen.",
+        height=90,
+    )
     # Ignorier-Liste: abgelehnte Rueckfragen + weggeklickte Insights-Vorschlaege.
     # Sichtbar und editierbar, DAMIT „Ignorieren" dauerhaft sein darf — Zeile
     # loeschen holt den Vorschlag bzw. die Rueckfrage zurueck.

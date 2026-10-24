@@ -16,6 +16,7 @@ from .llm import ChatClient
 from .pipeline import Pipeline
 from .prompts import load_command_prompt, load_prompt
 from .stt import create_stt
+from . import textbausteine
 from .usersettings import UserSettings
 
 log = logging.getLogger(__name__)
@@ -48,6 +49,7 @@ def build_pipeline(config: AppConfig, settings: UserSettings, injector=None,
     pipeline = _build(config, settings, injector, status)
     pipeline.set_dictionary(settings.output.dictionary,
                             settings.output.dictionary_usage)
+    pipeline.bausteine = textbausteine.lies(settings.output.textbausteine)
     pipeline.auto_latex = settings.math.enabled and settings.math.auto_latex
     pipeline.spoken_symbols = settings.output.spoken_symbols
     # Weitere Ausgabeformate: eine Prompt-Datei je Format. Fehlt sie, faellt genau
