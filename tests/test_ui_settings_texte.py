@@ -197,5 +197,5 @@ def test_warmhaltung_zahlen_sind_aktuell(qapp):
 
     quelle = inspect.getsource(advanced.build)
     assert "~8 GB" not in quelle
-    assert "3,5 GB" in quelle
+    assert "3,3 GB" in quelle   # gemma3:4b-text, gemessen (CPU-Modus)
     assert "~8 s" not in quelle

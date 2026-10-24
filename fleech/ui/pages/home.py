@@ -19,6 +19,7 @@ from PySide6.QtWidgets import (
 from ...history import HistoryStore, treffer_als_markdown
 from ...usersettings import UserSettings
 from ..dialogs import TranscriptDetailDialog
+from .verlaufbestand import bestand_zeile
 from .verlauffilter import VerlaufFilter
 from ..theme import (
     ACCENT, AMBER, MUTED, NAV_ACTIVE_BG, PAGE_MARGINS, PAGE_SPACING, ROW_HOVER,
@@ -163,6 +164,11 @@ class HomePage(QWidget):
         self._timeline.addStretch(1)
         self._scroll.setWidget(self._timeline_holder)
         links.addWidget(self._scroll, 1)
+        # Wie gross der Verlauf gerade ist (Datei, Diktate, KI-Aufrufe).
+        self._bestand = QLabel("")
+        self._bestand.setWordWrap(True)
+        self._bestand.setStyleSheet(f"color: {MUTED}; font-size: 8pt; padding-left: 8px;")
+        links.addWidget(self._bestand)
         body.addLayout(links, 1)
 
         # Kurz-Stats (rechts) — Design-System: grosse Kennzahl + kleines Label,
@@ -220,6 +226,8 @@ class HomePage(QWidget):
         self._stat_words.setText(f"{stats.total_words:n}")
         self._stat_wpm.setText(f"{round(stats.wpm)}")
         self._stat_streak.setText(f"{stats.streak}")
+        self._bestand.setText(bestand_zeile(self.store.bestand(),
+                                            self.settings.general.verlauf_tage))
 
         # Timeline neu aufbauen (gruppiert nach Tag)
         while self._timeline.count() > 1:
@@ -439,12 +447,25 @@ class HomePage(QWidget):
     def _open_entry(self, entry: dict) -> None:
         # Nicht-modal (.show statt .exec) — schliesst bei Klick daneben. Referenz
         # halten, sonst raeumt der GC den Dialog sofort wieder ab.
+        aufrufe = self.store.ki_aufrufe(entry["id"])
         self._detail_dialog = TranscriptDetailDialog(
-            entry, self, raw=self.store.raw_text(entry["id"])
+            entry, self, raw=self.store.raw_text(entry["id"]), ki_anzahl=len(aufrufe)
         )
+        self._detail_dialog.ki_gewuenscht.connect(
+            lambda a=aufrufe: self._open_ki(a))
         self._detail_dialog.show()
         self._detail_dialog.raise_()
         self._detail_dialog.activateWindow()
+
+    def _open_ki(self, aufrufe: list[dict]) -> None:
+        """Den KI-Austausch eines Eintrags zeigen. Der Transkript-Dialog schliesst
+        sich beim Fensterwechsel selbst — deshalb gehoert der neue der Seite."""
+        from ..kiaustauschdialog import KiAustauschDialog
+
+        self._ki_dialog = KiAustauschDialog(aufrufe, self)
+        self._ki_dialog.show()
+        self._ki_dialog.raise_()
+        self._ki_dialog.activateWindow()
 
     def _delete_entry(self, entry_id: int) -> None:
         self.store.delete(entry_id)

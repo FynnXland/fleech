@@ -71,8 +71,10 @@ class LLMEndpointConfig:
     base_url: str = "http://127.0.0.1:11434"
     # An echten Diktaten gemessen schneller als qwen3.5:9b UND wortgetreuer als jedes
     # getestete kleine Modell (siehe config.yaml). Halbe Groesse = haelt sich eher im
-    # VRAM, was in der Praxis mehr Zeit spart als die reine Rechenzeit.
-    model: str = "gemma3:4b"
+    # VRAM, was in der Praxis mehr Zeit spart als die reine Rechenzeit. Seit 6.4.0
+    # die schlanke Fassung ohne Bildteil (`llm/schlank.py`): gleiche Antworten,
+    # rund 0,8 GB weniger Speicher — Fleech baut sie selbst aus gemma3:4b.
+    model: str = "gemma3:4b-text"
     temperature: float = 0.0
     timeout: float = 60.0
     # Fuer Thinking-Modelle (z. B. qwen3.5 auf Ollama): "none" schaltet das Reasoning
@@ -87,8 +89,8 @@ class LLMEndpointConfig:
     # Kontextfenster fuer LOKALES Ollama (0 = Ollama-Default 4096). Ollama laedt
     # Modelle immer mit 4096 Token, unabhaengig davon, was das Modell koennte —
     # und der OpenAI-Aufsatz ignoriert jede Option dagegen. Bei einem langen Diktat
-    # verbraucht allein der System-Prompt ~3000 Token; die Antwort bricht dann mitten
-    # im Satz ab. Deshalb setzt Fleech den Wert ueber Ollamas eigene API.
+    # verbrauchen System-Prompt und Diktat schnell mehr (Format-Modi bekommen das ganze
+    # Diktat am Stueck); die Antwort bricht dann mitten im Satz ab. Deshalb setzt Fleech den Wert ueber Ollamas eigene API.
     # Gemessen: bei normalen Diktaten kostet das keine Zeit (die Rechenzeit haengt an
     # den tatsaechlichen Token, nicht am reservierten Fenster).
     num_ctx: int = 8192

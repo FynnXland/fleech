@@ -7,7 +7,7 @@
 
 from __future__ import annotations
 
-APP_VERSION = "6.3.0"  # 6.3.0: lokale Daten verschluesselt, kein Diktattext im Protokoll
+APP_VERSION = "6.4.0"  # 6.4.0: Zeitgrenze fuer die KI, Haken ueberspringt, Cloud-Ausweiche
 
 
 def _read_build() -> str:

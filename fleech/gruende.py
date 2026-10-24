@@ -44,6 +44,12 @@ AUSLASSUNG = "KI ließ zu viel vom Gesagten weg"
 # waren sie nie.
 BEFEHL_GESCHEITERT = "Befehl nicht ausführbar"
 FORMAT_GESCHEITERT = "Ausgabeformat lieferte nichts"
+# Zeitgrenze und Ueberspringen (6.4.0, `fleech/llm/frist.py`): Die KI war zu
+# langsam — meist, weil andere Programme Grafikkarte oder Speicher belegten.
+KI_FRIST = "KI zu langsam — Zeitgrenze erreicht"
+UEBERSPRUNGEN = "KI übersprungen (per Haken in der Pille)"
+# Kein Fehler, aber der Nutzer soll sehen, dass dieser Text die Cloud gesehen hat.
+AUSGEWICHEN = "Lokale KI zu langsam — in der Cloud bereinigt"
 
 # -- Roh-Guards: am Transkript wurde etwas weggeschnitten -----------------------------
 ENDE_GEKUERZT = "Ende gekürzt (Wiederholung)"
@@ -78,6 +84,9 @@ KURZFORM = {
     AUSLASSUNG: "Auslassung",
     BEFEHL_GESCHEITERT: "Befehl",
     FORMAT_GESCHEITERT: "Ausgabeformat",
+    KI_FRIST: "Zeitgrenze",
+    UEBERSPRUNGEN: "übersprungen",
+    AUSGEWICHEN: "Cloud-Ausweiche",
     ENDE_GEKUERZT: "Wiederholung",
     FREMDE_SCHRIFT: "fremde Schrift",
     WORTSALAT: "Wortsalat",

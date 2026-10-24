@@ -63,7 +63,7 @@ Zwischenablage-Text kommt danach zurück. Mehr dazu (englisch):
 
 | Betriebsart | Spracherkennung | Bereinigung | Was deinen PC verlässt |
 |---|---|---|---|
-| **Lokal** (Standard) | Whisper `large-v3-turbo`, auf Grafikkarte oder Prozessor | `gemma3:4b` über Ollama | nichts |
+| **Lokal** (Standard) | Whisper `large-v3-turbo`, auf Grafikkarte oder Prozessor | `gemma3:4b-text` über Ollama | nichts (außer du schaltest die Cloud-Ausweiche ein, siehe [Datenschutz](#datenschutz-und-deine-daten)) |
 | **Eigener API-Schlüssel** | lokal | OpenAI, Anthropic, Google Gemini, Mistral, Groq, OpenRouter oder jeder OpenAI-kompatible Server | der diktierte *Text*, an den gewählten Anbieter; nie der Ton |
 | **Ohne KI** | lokal | keine: reines Transkript, Füllwörter entfernt, Wörterbuch angewandt | nichts |
 
@@ -192,8 +192,9 @@ Ausgaben von gemma3:4b.</sub>
   X11-Sitzung. Unter Wayland sind einige Funktionen eingeschränkt; welche, steht unter
   Einstellungen → *Advanced*.
 - Ein Mikrofon und für die Ersteinrichtung eine Internetverbindung.
-- Rund **10 GB** freier Speicher: Programm 2,2 GB, Ollama 2,8 GB, Sprachmodell 3,3 GB,
-  Spracherkennung 1,6 GB (rund 7 GB, wenn Ollama schon installiert ist).
+- Rund **10 GB** freier Speicher: Programm 2,2 GB, Ollama 3,1 GB, Sprachmodell 2,5 GB,
+  Spracherkennung 1,6 GB (rund 6,5 GB, wenn Ollama schon installiert ist). Während der
+  Einrichtung braucht das Originalmodell kurz weitere 3,3 GB; Fleech entfernt es wieder.
 - Eine NVIDIA-Grafikkarte ist ein großer Vorteil, aber keine Bedingung. Ohne läuft die
   Erkennung auf dem Prozessor: spürbar langsamer, aber sie läuft.
 
@@ -230,8 +231,8 @@ ganz ohne Terminal. Für die lokale Standardwahl ist das:
 
 | Baustein | Wofür | Größe |
 |---|---|---|
-| **Ollama** | führt das Sprachmodell lokal aus | ~2,8 GB |
-| **`gemma3:4b`** | räumt den Text auf | ~3,3 GB |
+| **Ollama** | führt das Sprachmodell lokal aus | ~3,1 GB |
+| **`gemma3:4b-text`** | räumt den Text auf: `gemma3:4b` ohne den Bildteil, den Fleech nie nutzt (rund 0,8 GB weniger Speicher, gleiche Ergebnisse). Fleech baut es selbst aus `gemma3:4b` und entfernt das Original wieder, wenn es nur dafür geladen wurde | ~2,5 GB |
 | **Whisper `large-v3-turbo`** | macht aus Sprache Text | ~1,6 GB |
 
 Ollama wird nur auf deinen Klick installiert: unter Windows per `winget`, unter Linux zeigt
@@ -276,8 +277,8 @@ Fleech hat kein Konto, keine Telemetrie und keinen eigenen Server. Was deinen PC
 hängt von der [Betriebsart](#drei-betriebsarten) ab. Darüber hinaus geht Fleech nur hierfür
 ins Netz:
 
-- **Ersteinrichtung:** Ollama (per `winget`), `gemma3:4b` aus der Ollama-Bibliothek und das
-  Whisper-Modell von Hugging Face.
+- **Ersteinrichtung:** Ollama (per `winget`), `gemma3:4b` aus der Ollama-Bibliothek (wird auf
+  deinem Rechner zu `gemma3:4b-text`) und das Whisper-Modell von Hugging Face.
 - **Update-Prüfung:** fragt GitHub nach dem neuesten Release. Abschaltbar, ebenso der
   Download im Hintergrund, unter Einstellungen → *Advanced*.
 - **Modell-Check:** Einmal pro Woche sieht Fleech nach, ob es für deine
@@ -287,6 +288,9 @@ ins Netz:
 - **Deutsch-optimierte Spracherkennung:** wird nur von Hugging Face geladen, wenn du sie
   wählst; ebenso das kleine Modell der experimentellen Live-Vorschau, wenn du sie einschaltest.
 - **Dein Cloud-Anbieter**, nur wenn du einen auswählst.
+- **Cloud-Ausweiche** (Standard: aus): Wählst du unter Einstellungen → *KI* → *Wenn die lokale
+  KI hängt* einen Anbieter, bereinigt er nur die Diktate, mit denen die lokale KI nicht
+  rechtzeitig fertig wird. Der Verlauf kennzeichnet sie.
 
 Alle Daten liegen in einem Ordner: `%APPDATA%\Fleech` unter Windows, `~/.config/Fleech`
 unter Linux.
@@ -324,7 +328,7 @@ git clone https://github.com/FynnXland/fleech.git; cd fleech
 python -m venv .venv
 .venv\Scripts\pip install -r requirements-dev.txt
 .venv\Scripts\python -m fleech                  # aus dem Quellcode starten
-.venv\Scripts\python -m pytest -q               # rund 1600 Tests, LLM und STT gemockt
+.venv\Scripts\python -m pytest -q               # rund 1800 Tests, LLM und STT gemockt
 .venv\Scripts\python packaging\build.py         # → dist\Fleech\Fleech.exe (--gpu für CUDA)
 ```
 

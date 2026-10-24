@@ -144,10 +144,16 @@ def empfohlenes_modell(anbieter_id: str, daten: dict) -> str:
     """Was Fleech fuer diesen Anbieter vorschlaegt (Katalog vor eingebautem Wert)."""
     eintrag = anbieter(anbieter_id)
     if eintrag.id == OLLAMA:
+        from .schlank import bevorzugt
+
+        # Gibt es eine schlanke Fassung der Empfehlung, ist sie gemeint: dieselbe KI,
+        # weniger Speicher (`schlank.py`). Der Katalog selbst nennt weiter das
+        # Original — aeltere Fleech-Versionen lesen ihn auch und kennen die
+        # schlanke Fassung nicht.
         for m in ollama_modelle(daten):
             if m.empfohlen:
-                return m.modell
-        return eintrag.modell
+                return bevorzugt(m.modell)
+        return bevorzugt(eintrag.modell)
     wahl = ((daten or {}).get("cloud") or {}).get(eintrag.id)
     return str(wahl) if wahl else eintrag.modell
 
@@ -306,8 +312,11 @@ def pruefe(anbieter_id: str, modell: str, schluessel: str = "", adresse: str = "
 
 def _pruefe_ollama(aktuell: str, daten: dict, registry: bool,
                    timeout: float) -> Befund | None:
+    from .schlank import GROESSE_GB, erklaerung, schlanke_fassung
+
     modelle = ollama_modelle(daten)
-    groessen = {m.modell: m.groesse_gb for m in modelle}
+    # Schlanke Fassungen gibt es in keiner Registry — ihre Groesse kennt schlank.py.
+    groessen = {**GROESSE_GB, **{m.modell: m.groesse_gb for m in modelle}}
     for m in modelle:
         if not m.empfohlen or m.modell == aktuell:
             continue
@@ -316,6 +325,12 @@ def _pruefe_ollama(aktuell: str, daten: dict, registry: bool,
             return Befund(OLLAMA, aktuell, m.modell,
                           f"Fleech empfiehlt jetzt {m.modell}{groesse} — an echten "
                           f"Diktaten gemessen.", gemessen=True)
+    # Vor ungemessenen Neuheiten aus der Registry: Die schlanke Fassung ist
+    # gemessen und spart Speicher, eine neue Generation ist meist groesser.
+    schlank = schlanke_fassung(aktuell)
+    if schlank:
+        return Befund(OLLAMA, aktuell, schlank,
+                      f"Schlanke Fassung verfügbar: {erklaerung(schlank)}", gemessen=True)
     if not registry:
         return None
     name, groesse = ollama_nachfolger(aktuell, timeout)
@@ -326,6 +341,9 @@ def _pruefe_ollama(aktuell: str, daten: dict, registry: bool,
     for m in modelle:
         if _ollama_basis(m.modell)[:2] == _ollama_basis(name)[:2]:
             name, groesse = m.modell, m.groesse_gb or groesse
+            vorher = groessen.get(aktuell)
+            if groesse and vorher and groesse > MAX_WACHSTUM * vorher:
+                return None           # gemessen oder nicht: eine andere Rechnerklasse
             if m.gemessen:
                 gb = f" ({_gb(groesse)})" if groesse else ""
                 return Befund(OLLAMA, aktuell, name,
@@ -393,6 +411,8 @@ def lokale_auswahl(daten: dict, installiert=(), nachfolger: tuple = ("", None)) 
     Reihenfolge: die Empfehlung zuerst, dann der Katalog, dann Installiertes, dann
     die Registry-Neuheit. Einbettungsmodelle koennen keinen Text bereinigen.
     """
+    from . import schlank as schlank_mod
+
     installiert = {n for n in installiert or () if "embed" not in n.lower()}
     raus, gesehen = [], set()
     modelle = sorted(ollama_modelle(daten), key=lambda m: not m.empfohlen)
@@ -400,7 +420,16 @@ def lokale_auswahl(daten: dict, installiert=(), nachfolger: tuple = ("", None)) 
         teile = [m.modell]
         if m.groesse_gb:
             teile.append(_gb(m.groesse_gb))
-        if m.empfohlen:
+        schlank = schlank_mod.schlanke_fassung(m.modell)
+        if schlank and schlank not in gesehen:
+            # Die schlanke Fassung steht direkt VOR ihrem Original und erbt dessen
+            # Empfehlung — mit dem Satz, was sie ist und woher sie kommt.
+            st = [schlank, _gb(schlank_mod.GROESSE_GB.get(schlank, 0) or m.groesse_gb)]
+            st += ["empfohlen"] if m.empfohlen else []
+            st += ["installiert"] if schlank in installiert else []
+            raus.append(Wahl(schlank, " · ".join(st), schlank_mod.erklaerung(schlank)))
+            gesehen.add(schlank)
+        elif m.empfohlen:
             teile.append("empfohlen")
         elif m.neu and not m.gemessen:
             teile.append("neu, noch nicht gemessen")

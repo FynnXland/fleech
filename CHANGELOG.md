@@ -11,6 +11,69 @@ GitHub-Release-Notizen (`packaging/release.py`).
 
 ---
 
+## 6.4.0 — 2026-10-19
+
+**Die KI bleibt näher an deinen Worten.** Die Anweisung an die lokale KI ist neu
+geschrieben, kürzer und genauer. An 200 echten Diktaten gemessen tauscht sie gut
+ein Viertel weniger Wörter aus, streicht weniger, übersetzt Englisches nicht mehr
+ins Deutsche und ist dabei fast doppelt so schnell fertig. Wörter wie „halt",
+„quasi" oder „eben" bleiben jetzt stehen, denn sie gehören zu dem, was du gesagt
+hast; nur „äh" und „ähm" fallen weg.
+
+**Weniger Speicher, gleiche KI.** gemma3:4b bringt eine Bildverarbeitung mit,
+die Fleech nie nutzt; sie belegte trotzdem rund 0,8 GB. Fleech baut daraus jetzt
+einmalig `gemma3:4b-text`: dieselbe KI ohne den Bildteil, an echten Diktaten
+gemessen gleich wortgetreu. Das geschieht beim ersten Start nach dem Update von
+selbst, dauert etwa 20 Sekunden und lädt nichts herunter. Die Pille zeigt den
+Fortschritt, eine Meldung sagt danach, was passiert ist, und solange es läuft,
+bereinigt das Original weiter. Das Original gemma3:4b bleibt installiert; brauchst
+du es nicht, entfernst du es mit „ollama rm gemma3:4b". Bei einer neuen Einrichtung
+lädt Fleech gemma3:4b, baut daraus die schlanke Fassung und räumt das Original
+wieder weg. Klappt der Umbau einmal nicht, arbeitet Fleech mit dem Original weiter
+und sagt dir, warum. Hast du gemma3:4b unter Einstellungen → KI fest gewählt, wird
+dir die schlanke Fassung nur vorgeschlagen, nicht aufgezwungen.
+
+**Ein sparsames Modell für schwache Rechner.** Unter Einstellungen → KI steht mit
+qwen3.5:2b jetzt ein gemessenes kleines Modell zur Wahl: fast so wortgetreu wie
+gemma3:4b, braucht aber nur rund 2,4 statt 4 GB Speicher. Es baut gelegentlich
+einen Tippfehler ein. gemma3:1b ist nicht mehr zu empfehlen, es lässt ganze Sätze
+weg.
+
+**Kein ewiges Warten mehr auf die KI.** Laufen nebenher viele Programme, war die
+lokale KI manchmal so ausgebremst, dass ein Diktat bis zu einer Minute hing. Jetzt
+wartet Fleech nur noch begrenzt: bei kurzen Diktaten etwa 6 Sekunden, bei langen
+entsprechend länger, und etwas mehr, wenn das Modell erst geladen werden muss. Im
+Alltag merkst du davon nichts — normale Diktate sind weit schneller fertig. Reißt
+die Grenze, kommt dein Text ohne Bereinigung an (Füllwörter und Wörterbuch wirken
+trotzdem), und im Verlauf steht „KI zu langsam".
+
+**Der Haken in der Pille überspringt die KI.** Während Fleech verarbeitet, bleibt
+der Haken klickbar: Ein Klick fügt den erkannten Text sofort ein, ohne auf die
+Bereinigung zu warten.
+
+**Optional: in die Cloud ausweichen.** Unter Einstellungen → KI → „Wenn die lokale
+KI hängt" kannst du einen Cloud-Anbieter wählen (z. B. Google Gemini) und dessen
+Schlüssel eintragen. Dann bereinigt dieser Anbieter genau die Diktate, bei denen
+die lokale KI zu langsam ist oder ausfällt — alle anderen bleiben auf deinem
+Rechner. Fleech nimmt dafür automatisch das schnellste Modell des Anbieters. Im
+Verlauf steht bei solchen Diktaten „in der Cloud bereinigt". Standard bleibt: aus.
+
+**Der Verlauf hebt den ganzen KI-Austausch auf.** Zu jedem Diktat steht jetzt
+auch, was die KI bekommen hat (deine Worte samt Anweisungen) und was sie
+geantwortet hat. Das gilt auch dann, wenn Fleech die Antwort verworfen und
+lieber den Rohtext eingefügt hat. Du findest das im Verlauf: Eintrag anklicken,
+dann „KI-Austausch …". Es liegt verschlüsselt wie der übrige Verlauf und wird mit
+dem Eintrag gelöscht, auch nach Ablauf der Aufbewahrungsfrist.
+
+**Wie groß ist der Verlauf?** Unter der Verlaufsliste steht jetzt, wie viel Platz
+die Datenbank belegt und wie viele Diktate und KI-Aufrufe darin liegen.
+
+**Kleinigkeiten.** „Stark absenken“ (Einstellungen → Audio-Fokus) senkt andere Apps
+jetzt wirklich stärker ab, auf ein Drittel der eingestellten Restlautstärke; bisher
+wirkte es genau wie „Leiser stellen“. Unter *Advanced* steht nun, dass die
+Warmhaltung nur für die lokale KI gilt, und Insights verweist auf die richtige
+Einstellungsseite (*Textersetzung*).
+
 ## 6.3.0 — 2026-10-09
 
 **Deine Diktate liegen jetzt verschlüsselt auf dem Rechner.** Verlauf, gelerntes

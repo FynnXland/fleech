@@ -81,5 +81,5 @@ class ModellpruefungMixin:
         self.settings.save()
         log.info("Modellpruefung: %s → %s vorgeschlagen.", befund.aktuell, befund.neuer)
         if neu:
-            self.tray.notify("Fleech — neueres KI-Modell",
+            self.tray.notify("Fleech — Vorschlag zum KI-Modell",
                              f"{befund.grund} Übernehmen unter Einstellungen → KI.")

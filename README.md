@@ -61,7 +61,7 @@ afterwards. Details: [docs/architecture.md](docs/architecture.md).
 
 | Mode | Speech recognition | Cleanup | What leaves your PC |
 |---|---|---|---|
-| **Local** (default) | Whisper `large-v3-turbo`, on your GPU or CPU | `gemma3:4b` via Ollama | nothing |
+| **Local** (default) | Whisper `large-v3-turbo`, on your GPU or CPU | `gemma3:4b-text` via Ollama | nothing (unless you turn on the cloud fallback, see [Privacy](#privacy-and-your-data)) |
 | **Your own API key** | local | OpenAI, Anthropic, Google Gemini, Mistral, Groq, OpenRouter or any OpenAI-compatible server | the dictated *text*, to the provider you chose; never audio |
 | **No AI** | local | none: plain transcript, fillers removed, dictionary applied | nothing |
 
@@ -190,8 +190,9 @@ profiles and formula GIFs are German only.</sub>
 - Windows 10 or 11, 64-bit (developed and tested on Windows 11), or Linux with an X11
   session. Under Wayland some features are limited; Settings → *Advanced* lists them.
 - A microphone and an internet connection for the first-run setup.
-- About **10 GB** of free disk space: app 2.2 GB, Ollama 2.8 GB, language model 3.3 GB,
-  speech model 1.6 GB (about 7 GB if Ollama is already installed).
+- About **10 GB** of free disk space: app 2.2 GB, Ollama 3.1 GB, language model 2.5 GB,
+  speech model 1.6 GB (about 6.5 GB if Ollama is already installed). During setup another
+  3.3 GB are needed briefly for the original model, which Fleech removes again.
 - An NVIDIA GPU helps a lot but is not required. Without one, recognition runs on the CPU:
   noticeably slower, but it works.
 
@@ -227,8 +228,8 @@ progress and the time remaining, no terminal involved. For the local default tha
 
 | Component | Purpose | Size |
 |---|---|---|
-| **Ollama** | runs the language model locally | ~2.8 GB |
-| **`gemma3:4b`** | cleans up the text | ~3.3 GB |
+| **Ollama** | runs the language model locally | ~3.1 GB |
+| **`gemma3:4b-text`** | cleans up the text: `gemma3:4b` without its image part, which Fleech never uses (about 0.8 GB less memory, same output). Fleech builds it locally from `gemma3:4b` and removes the original again if it downloaded it just for this | ~2.5 GB |
 | **Whisper `large-v3-turbo`** | turns speech into text | ~1.6 GB |
 
 Ollama is installed only when you click: on Windows via `winget`; on Linux, Fleech shows
@@ -271,8 +272,8 @@ buttons 4, 5 and middle.
 Fleech has no account, no telemetry and no server of its own. What leaves your PC depends
 on the [mode you choose](#choose-how-it-runs). Besides that, Fleech only goes online for:
 
-- **First-run setup:** Ollama (via `winget`), `gemma3:4b` from the Ollama library and the
-  Whisper model from Hugging Face.
+- **First-run setup:** Ollama (via `winget`), `gemma3:4b` from the Ollama library (turned
+  into `gemma3:4b-text` on your machine) and the Whisper model from Hugging Face.
 - **Update check:** asks GitHub for the latest release. You can turn the check off, or just
   the background download, under Settings → *Advanced*.
 - **Model check:** once a week Fleech looks for a newer model for your
@@ -282,6 +283,9 @@ on the [mode you choose](#choose-how-it-runs). Besides that, Fleech only goes on
 - **German speech model:** downloaded from Hugging Face only if you choose it; the same
   goes for the small model of the experimental live preview when you turn it on.
 - **Your cloud provider**, only if you select one.
+- **Cloud fallback** (off by default): if you pick a provider under Settings → *KI* →
+  *Wenn die lokale KI hängt* (if the local AI stalls), only the dictations the local model
+  doesn't finish in time are cleaned up there. The history marks them.
 
 All data lives in one folder: `%APPDATA%\Fleech` on Windows, `~/.config/Fleech` on Linux.
 History, project memory and settings are **encrypted at rest**: the databases with SQLCipher
@@ -328,7 +332,7 @@ git clone https://github.com/FynnXland/fleech.git; cd fleech
 python -m venv .venv
 .venv\Scripts\pip install -r requirements-dev.txt
 .venv\Scripts\python -m fleech                  # run from source
-.venv\Scripts\python -m pytest -q               # about 1,600 tests, LLM and STT mocked
+.venv\Scripts\python -m pytest -q               # about 1,800 tests, LLM and STT mocked
 .venv\Scripts\python packaging\build.py         # → dist\Fleech\Fleech.exe (--gpu for CUDA)
 ```
 

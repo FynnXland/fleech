@@ -29,6 +29,7 @@ from .textutils import (
     wrap_transcript,
 )
 from .bloecke import beispielsaetze, bereinige_in_bloecken
+from .llm.frist import FristAbgelaufen, KiFrist, Uebersprungen
 from .stt.abschnitte import erkenne_mit_vorab
 from .vorbereinigung import entferne_fuellwoerter
 from .protokolltext import inhalt
@@ -239,6 +240,8 @@ class Pipeline:
         # wenn das Modell erst noch geladen wird — sonst ueberschrieb „Bereinige …"
         # deren Hinweis sofort, und das Warten aufs Laden sah aus wie Rechnen.
         self.status_bereinigen = "Bereinige …"
+        # Zeitgrenze, Ueberspringen per Haken, Cloud-Ausweiche (`llm/frist.py`).
+        self.frist = KiFrist()
         # "" | "quota" | "key" | "llm_offline" (lokaler Ollama nicht erreichbar)
         self.last_error_kind = ""
         # Warum lief das letzte Diktat nicht glatt? Kurzer deutscher Grund, leer =
@@ -409,6 +412,7 @@ class Pipeline:
         # Ab hier steht der Text — die Bereinigung dauert noch rund vier Sekunden.
         # Wer schon lesen kann, waehrend das Modell arbeitet, wartet gefuehlt nicht.
         self._melde_roh(raw)
+        self.frist.starte(len(raw.split()))
 
         # Vor Kontext-Zugriff: Puffer verwerfen, falls das Ziel-Fenster gewechselt hat.
         self.tracker.sync_window()
@@ -576,7 +580,7 @@ class Pipeline:
             self._merke_grund, pruefe_abdeckung=not self.auto_latex and eingriff != "strong",
             abbrechen=lambda: any(g in self.last_reason for g in (
                 gruende.OLLAMA, gruende.KI_DIENST, gruende.KI_SCHLUESSEL,
-                gruende.KI_KONTINGENT)))
+                gruende.KI_KONTINGENT, gruende.KI_FRIST, gruende.UEBERSPRUNGEN)))
         self.last_llm_ms = sum(dauer)
         return ergebnis
 
@@ -637,14 +641,17 @@ class Pipeline:
         try:
             # Roh-Transkript als abgegrenzter Datenblock (Delimiter-Rahmung) statt als
             # nackter User-Turn — Schicht 1 gegen den Prompt-Ausfuehrungs-Bug.
-            cleaned = llm.complete(system, wrap_transcript(raw))
+            cleaned = self._frage(llm, system, wrap_transcript(raw))
+        except Uebersprungen:
+            self._merke_grund(gruende.UEBERSPRUNGEN)   # Nutzerwahl, kein Fehler
+            return raw, False
         except Exception as exc:
             # Schnelles Modell nicht erreichbar → grosses Modell versuchen (Qualitaet
             # vor Tempo), erst dann Roh-Transkript.
             if llm is self.fast_llm and self.cleanup_llm is not None:
                 log.warning("Schnelles Cleanup-Modell fehlgeschlagen (%s) — grosses Modell.", exc)
                 try:
-                    cleaned = self.cleanup_llm.complete(system, wrap_transcript(raw))
+                    cleaned = self._frage(self.cleanup_llm, system, wrap_transcript(raw))
                     tier = "complex"
                 except Exception as exc2:
                     log.warning("Cleanup fehlgeschlagen (%s) — Roh-Transkript.", exc2)
@@ -724,6 +731,10 @@ class Pipeline:
         """
         from .llm.providers import OLLAMA
 
+        if isinstance(exc, (FristAbgelaufen, Uebersprungen)):
+            self._merke_grund(gruende.KI_FRIST if isinstance(exc, FristAbgelaufen)
+                              else gruende.UEBERSPRUNGEN)
+            return
         code = getattr(exc, "code", None)
         if (getattr(getattr(llm, "cfg", None), "provider", OLLAMA) or OLLAMA) == OLLAMA:
             # 5xx: Ollama lief und ist beim Laden/Rechnen gescheitert — kein Ausfall
@@ -740,6 +751,13 @@ class Pipeline:
             self._merke_grund(gruende.KI_DIENST)
         if _lokaler_endpunkt_nicht_erreichbar(llm, exc):
             self.last_error_kind = "llm_offline"
+
+    def _frage(self, llm, system: str, user: str) -> str:
+        """Jeder Bereinigungs-Aufruf laeuft ueber die Zeitgrenze des Diktats."""
+        antwort = self.frist.frage(llm, system, user)
+        if self.frist.ausgewichen:
+            self._merke_grund(gruende.mit_detail(gruende.AUSGEWICHEN, self.frist.ausweich_name))
+        return antwort
 
     def _status(self, text: str) -> None:
         """Zwischenschritt melden — Fehler hier duerfen das Diktat nie stoeren."""
@@ -985,7 +1003,7 @@ class Pipeline:
         self._status("Zweitversuch (wortgetreu) …")
         try:
             return strip_wrapping_quotes(
-                retry_llm.complete(f"{system}\n\n{_VERBATIM_RETRY}", wrap_transcript(raw))
+                self._frage(retry_llm, f"{system}\n\n{_VERBATIM_RETRY}", wrap_transcript(raw))
             )
         except Exception as exc:
             log.warning("Wortgetreuer Zweitversuch fehlgeschlagen (%s).", exc)
@@ -1065,7 +1083,7 @@ class Pipeline:
             f"{TRANSCRIPT_OPEN}\n{raw}\n{TRANSCRIPT_CLOSE}"
         )
         try:
-            reply = self.cleanup_llm.complete(system, user)
+            reply = self._frage(self.cleanup_llm, system, user)
         except Exception as exc:
             log.warning("Ausgabeformat %r fehlgeschlagen (%s).", fmt, exc)
             return ""
@@ -1084,9 +1102,9 @@ class Pipeline:
         """True = Befehl verarbeitet; False = Aufrufer soll Cleanup-Fallback fahren."""
         t0 = time.perf_counter()
         try:
-            reply = self.command_llm.complete(
-                self.command_prompt, build_user_message(self.tracker.context_tail(), raw)
-            )
+            reply = self.frist.mitschnitt.frage(
+                self.command_llm, self.command_prompt,
+                build_user_message(self.tracker.context_tail(), raw))
             cmd = parse_command_json(reply)
         except Exception as exc:
             log.warning("Befehls-Modus fehlgeschlagen (%s) — Cleanup-Fallback.", exc)
@@ -1200,6 +1218,7 @@ class Pipeline:
         raw = (raw or "").strip()
         if not raw:
             return ""
+        self.frist.neues_diktat()     # keine Zeitgrenze: hier wartet kein Cursor
         try:
             if output_format in REWRITING_FORMATS:
                 text = self._format_text(raw, output_format)

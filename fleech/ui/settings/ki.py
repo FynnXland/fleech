@@ -23,6 +23,7 @@ from PySide6.QtWidgets import (
 
 from ...llm import apikeys
 from ...llm.providers import ANBIETER, AUS, EIGENER, OLLAMA, anbieter, modell_vorschlag, modelle_abrufen
+from . import ki_ausweichen
 from .common import hint
 
 log = logging.getLogger(__name__)
@@ -124,6 +125,8 @@ def build(panel) -> None:
                           "Modellkatalog auf GitHub. Vorgeschlagen wird nur — "
                           "umgestellt wird nie von selbst.")[0], neu_w)
 
+    ausweiche_sichtbar = ki_ausweichen.build(panel, form, panel)
+
     def aktuell():
         return anbieter(box.currentData())
 
@@ -149,6 +152,7 @@ def build(panel) -> None:
         test_status.setText("")
         form.setRowVisible(neu_w, eintrag.id not in (AUS, EIGENER))
         neu_zeigen()
+        ausweiche_sichtbar(eintrag.id == OLLAMA)
 
     def anbieter_gewechselt(_index):
         s.ki.anbieter = aktuell().id

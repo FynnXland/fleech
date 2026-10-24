@@ -26,7 +26,7 @@ from collections import Counter
 from dataclasses import dataclass, field
 from pathlib import Path
 
-from . import tresor
+from . import kiverlauf, tresor
 from .usersettings import SETTINGS_DIR
 
 log = logging.getLogger(__name__)
@@ -204,6 +204,9 @@ class DictationRecord:
     profile: str = ""
     title: str = ""
     dropped: str = ""
+    # Der KI-Austausch dieses Diktats (`llm/mitschnitt.KiAufruf`), abgelegt in
+    # eigenen Tabellen (`kiverlauf.py`) — leer, wenn keine KI lief.
+    ki: list = field(default_factory=list)
 
 
 @dataclass
@@ -260,6 +263,7 @@ class HistoryStore:
         self.path.parent.mkdir(parents=True, exist_ok=True)
         with self._connect() as con:
             con.executescript(_SCHEMA)
+            con.executescript(kiverlauf.SCHEMA)
             existing = {row[1] for row in con.execute("PRAGMA table_info(dictations)")}
             for column, decl in _MIGRATION_COLUMNS.items():
                 if column not in existing:
@@ -274,7 +278,7 @@ class HistoryStore:
     def add(self, record: DictationRecord) -> None:
         try:
             with self._connect() as con:
-                con.execute(
+                cur = con.execute(
                     "INSERT INTO dictations (ts, raw, cleaned, words, corrected, "
                     "audio_seconds, app, mode, tier, status, stt_ms, llm_ms, "
                     "reason, profile, title, dropped) "
@@ -290,6 +294,7 @@ class HistoryStore:
                         record.dropped,
                     ),
                 )
+                kiverlauf.speichere(con, cur.lastrowid, record.ki)
         except Exception:
             log.exception("Historie: Eintrag konnte nicht gespeichert werden.")
         # Die Frist wird hier gepflegt und nicht nur beim Start: Fleech laeuft als
@@ -323,6 +328,7 @@ class HistoryStore:
                     "sekunden = sekunden + excluded.sekunden", (grenze,))
                 weg = con.execute("DELETE FROM dictations WHERE ts < ?",
                                   (grenze,)).rowcount
+                kiverlauf.aufraeumen(con)
         except Exception:
             log.exception("Historie: Aufbewahrungsfrist nicht anwendbar.")
             return 0
@@ -346,12 +352,14 @@ class HistoryStore:
         with self._connect() as con:
             con.execute("DELETE FROM dictations")
             con.execute("DELETE FROM tagesbilanz")
+            kiverlauf.aufraeumen(con)
 
     def delete(self, entry_id: int) -> None:
         """Einzelnen Verlaufseintrag entfernen (Home-Timeline)."""
         try:
             with self._connect() as con:
                 con.execute("DELETE FROM dictations WHERE id = ?", (entry_id,))
+                kiverlauf.aufraeumen(con)
         except Exception:
             log.exception("Historie: Eintrag %s konnte nicht geloescht werden.", entry_id)
 
@@ -688,6 +696,34 @@ class HistoryStore:
         except Exception:
             log.exception("Historie: Rohtext zu Eintrag %s nicht lesbar.", entry_id)
             return ""
+
+    def ki_aufrufe(self, entry_id: int) -> list[dict]:
+        """Was die KI zu diesem Diktat bekam und zurueckgab (Detail-Dialog)."""
+        try:
+            with self._connect() as con:
+                return kiverlauf.fuer_diktat(con, entry_id)
+        except Exception:
+            log.exception("Historie: KI-Austausch zu %s nicht lesbar.", entry_id)
+            return []
+
+    def bestand(self) -> dict:
+        """Wie gross der Verlauf gerade ist: Datei auf der Platte und Zeilen darin.
+
+        Die Groesse zaehlt die Nebendateien mit (WAL), sonst wirkte die Datei nach
+        einem Schwung Diktate kleiner, als sie ist. Geloeschtes macht sie nicht
+        sofort kleiner — SQLite verwendet die frei gewordenen Seiten wieder."""
+        dateien = [self.path] + [self.path.with_name(self.path.name + n)
+                                 for n in ("-wal", "-shm", "-journal")]
+        bestand = {"bytes": sum(p.stat().st_size for p in dateien if p.is_file()),
+                   "diktate": 0, "ki_aufrufe": 0}
+        try:
+            with self._connect() as con:
+                bestand["diktate"] = con.execute(
+                    "SELECT COUNT(*) FROM dictations").fetchone()[0]
+                bestand["ki_aufrufe"] = kiverlauf.anzahl(con)
+        except Exception:
+            log.exception("Historie: Bestand nicht ermittelbar.")
+        return bestand
 
     def stats(self, since: float | None = None) -> Stats:
         """Kennzahlen, wahlweise auf einen Zeitraum begrenzt.

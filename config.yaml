@@ -29,7 +29,10 @@ llm:
                               # und wartet den Verbindungs-Timeout ab. Gemessen:
                               # 3,43 s mit Name gegen 1,19 s mit IP, bei identischer
                               # Rechenzeit laut Ollama selbst.
-    model: gemma3:4b          # An 15 echten Diktaten gegen qwen3.5:9b / qwen3.5:4b /
+    model: gemma3:4b-text     # Seit 6.4.0: gemma3:4b OHNE Bildteil (llm/schlank.py) —
+                              # gleiche Antworten, rund 0,8 GB weniger Speicher; Fleech
+                              # baut sie selbst aus gemma3:4b (kein eigener Download).
+                              # gemma3:4b: an 15 echten Diktaten gegen qwen3.5:9b / qwen3.5:4b /
                               # qwen2.5:3b gemessen: rechnet 34 % schneller als das 9b
                               # (0,83 s statt 1,26 s), laedt halb so lang (3,3 statt
                               # 6,6 GB) — und ergaenzt sogar WENIGER eigene Woerter
@@ -43,10 +46,11 @@ llm:
                               # pro Diktat nachdenken). Nur low/medium/high laesst denken.
     num_ctx: 8192             # Kontextfenster bei LOKALEM Ollama (0 = Ollama-Default 4096).
                               # WICHTIG bei langen Diktaten: Ollama laedt Modelle immer mit
-                              # 4096 Token, egal was das Modell koennte. Allein dieser
-                              # System-Prompt belegt ~3000 davon — die Bereinigung eines
-                              # langen Diktats bricht dann mitten im Satz ab (gemessen:
-                              # 610 Woerter rein, 84 raus). Fleech setzt den Wert deshalb
+                              # 4096 Token, egal was das Modell koennte. Der Cleanup-Prompt
+                              # belegt seit 6.4.0 nur ~1000 davon, die Format-Prompts
+                              # (E-Mail, Stichpunkte, Prompt) bekommen aber das GANZE
+                              # Diktat am Stueck — mit 4096 brach das mitten im Satz ab
+                              # (gemessen: 610 Woerter rein, 84 raus). Fleech setzt den Wert deshalb
                               # ueber Ollamas eigene API; kostet bei normalen Diktaten
                               # keine Zeit. Nur erhoehen, solange es in den VRAM passt.
   cleanup_fast:               # Zweitmodell fuer kurze Diktate (adaptives Routing).
@@ -57,7 +61,7 @@ llm:
                               # VRAM — der Hauptgrund fuer die staendigen Entladungen
                               # (1074 im Log). Ein Modell = seltener nachladen = in der
                               # Praxis der groessere Zeitgewinn.
-    model: gemma3:4b
+    model: gemma3:4b-text
     reasoning_effort: ""
   command:                    # Prompt 2 (Safe-Word-Befehle) — ERBT alles von cleanup;
                               # hier stehen nur Abweichungen (z. B. anderes Reasoning/Modell).

@@ -51,7 +51,7 @@ class Anbieter:
 
 ANBIETER = (
     Anbieter(OLLAMA, "Lokal (Ollama) — empfohlen", "ollama",
-             "http://127.0.0.1:11434", "gemma3:4b", lokal=True),
+             "http://127.0.0.1:11434", "gemma3:4b-text", lokal=True),
     Anbieter("openai", "OpenAI", "openai", "https://api.openai.com/v1",
              "gpt-4o-mini", True, schluessel_url="https://platform.openai.com/api-keys",
              umgebung="OPENAI_API_KEY", bevorzugt=("nano", "mini")),

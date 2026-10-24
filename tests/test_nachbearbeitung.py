@@ -6,6 +6,7 @@ noch einmal durch dieselbe Pipeline geschickt — inklusive aller Guards.
 
 import types
 
+from fleech.llm.frist import KiFrist
 from fleech.pipeline import Pipeline
 
 
@@ -15,6 +16,7 @@ def _pipe(**kw):
         _finalize=lambda t: t,
         _cleanup=lambda raw, *a, **k: (f"bereinigt:{raw}", False),
         _format_text=lambda raw, fmt: f"{fmt}:{raw}",
+        frist=KiFrist(),
     )
     for k, v in kw.items():
         setattr(fake, k, v)

@@ -26,6 +26,7 @@ from ..stt import create_stt
 from ..usersettings import UserSettings
 from .. import gruende
 from ..history import DictationRecord, HistoryStore
+from ..llm.mitschnitt import aufrufe_von
 from .main_window import MainWindow
 from .notifications import NotificationPolicy, Notifier
 from .overlay_qt import OverlayWindow
@@ -456,9 +457,13 @@ class DesktopApp(
             # Laedt das Modell noch, bleibt das waehrend der Bereinigung sichtbar.
             # Bis 6.2.2 ersetzte „Bereinige …" den Ladehinweis sofort — am
             # 2026-10-08 wartete ein Diktat so 8,6 s, scheinbar beim Rechnen.
+            laden = bool(getattr(self, "_llms_unloaded", False))
             self.pipeline.status_bereinigen = (
-                "KI-Modell wird geladen, dann bereinigt …"
-                if getattr(self, "_llms_unloaded", False) else "Bereinige …")
+                "KI-Modell wird geladen, dann bereinigt …" if laden else "Bereinige …")
+            # Zeitgrenze neu, Haken-Klick zurueck; Laden bekommt einen Zuschlag.
+            frist = getattr(self.pipeline, "frist", None)
+            if frist is not None:
+                frist.neues_diktat(laden=laden)
             result = self.pipeline.process(
                 audio, self.config.audio.samplerate,
                 intervention_override=override,
@@ -505,6 +510,8 @@ class DesktopApp(
                 profile=prof.name,
                 title=(getattr(self, "_record_title", "") or "")[:MAX_TITLE_LEN],
                 dropped=self.pipeline.last_dropped_tail,
+                # Was die KI bekam und zurueckgab, auch wenn ein Guard es verwarf.
+                ki=aufrufe_von(self.pipeline),
             )
             self.store.add(record)
             self.bus.history_changed.emit()
@@ -728,9 +735,11 @@ class DesktopApp(
             self._apply_hotkey_bindings()  # aktualisiert die Bindungen live
         elif section == "audio_focus":
             self.config.audio_focus.mode = self.settings.audio_focus.mode
+            from ..usersettings import stark_abgesenkt
+
             level = max(0.0, min(1.0, float(self.settings.audio_focus.duck_level)))
             self.config.audio_focus.duck_level = level
-            self.config.audio_focus.hard_duck_level = level
+            self.config.audio_focus.hard_duck_level = stark_abgesenkt(level)
             self.focus = DictationApp._build_focus_controller(self.config)
         elif section == "math":
             self.pipeline.auto_latex = (
@@ -922,6 +931,15 @@ class DesktopApp(
         lauscher = self._freihand_lauscher()
         if lauscher is not None and lauscher.beende_vorzeitig():
             log.info("Freihand-Diktat per Pille beendet.")
+            return
+        if self.bus.state is AppState.PROCESSING:
+            # Waehrend der Verarbeitung heisst der Haken: nicht auf die KI warten,
+            # den erkannten Text sofort einfuegen (`llm/frist.py`).
+            frist = getattr(getattr(self, "pipeline", None), "frist", None)
+            if frist is not None and not frist.uebersprungen:
+                log.info("KI per Haken uebersprungen — Text kommt ohne Bereinigung.")
+                frist.ueberspringen()
+                self.bus.progress.emit("Füge ohne KI ein …")
             return
         self.controller.stop_if_active()
 

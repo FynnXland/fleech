@@ -28,7 +28,10 @@ wacht über die gröbsten Fälle).
    herunterladen darf allein `provisioning.ensure_whisper` (Einrichtung, Deutsch-Modell).
 2. **Routing** (`fleech/routing.py`, `detect_mode`): `cleanup` (Default) | `command`
    (Safe-Word erkannt) | `math` (Hotkey/Latch/gesprochene Delimiter).
-3. **LLM** — Cleanup: standardmäßig lokal Ollama `gemma3:4b` (ein Modell für alles).
+3. **LLM** — Cleanup: standardmäßig lokal Ollama `gemma3:4b-text` (ein Modell für alles) —
+   seit 6.4.0 `gemma3:4b` ohne Bildteil, von Fleech selbst gebaut (`fleech/llm/schlank.py`:
+   Ollamas GGUF lesen, `v.*`/`mm.*` weglassen, Textgewichte byte-gleich über `/api/blobs` +
+   `/api/create` anmelden; scheitert es, läuft das Original und der Nutzer erfährt den Grund).
    Seit 6.1.0 wählbar (Einstellungen → KI, `fleech/llm/providers.py`): Cloud-Anbieter
    mit eigenem API-Schlüssel (OpenAI-Form oder Anthropic nativ, Schlüssel im
    Schlüsselbund via `fleech/llm/apikeys.py`) oder „Ohne KI" (`Pipeline.ki_aus`). Formeln entstehen
@@ -47,8 +50,8 @@ eine ausdrückliche Stufe (low/medium/high) lässt es denken; gemma3 ist das Fel
 
 **`num_ctx` ist Pflicht, nicht Feinschliff:** Ollama lädt Modelle immer mit 4096 Token
 Kontext, egal was das Modell könnte — und der OpenAI-Aufsatz ignoriert jede Option
-dagegen (gemessen). Allein `prompts/cleanup.md` belegt ~3000 Token; lange Diktate
-brachen dadurch mitten im Satz ab. Deshalb spricht `ChatClient` bei localhost-Endpoints
+dagegen (gemessen). `prompts/cleanup.md` belegt seit 6.4.0 ~1000 Token (vorher ~3000), die
+Format-Prompts bekommen aber ganze Diktate am Stück; mit 4096 brachen lange Diktate mitten im Satz ab. Deshalb spricht `ChatClient` bei localhost-Endpoints
 Ollamas eigene `/api/chat` mit `options.num_ctx` (8192) an; Cloud-Anbieter laufen über
 `/chat/completions` bzw. Anthropics `/messages`. Zusätzlich meldet der Client `last_truncated` — bricht eine
 Antwort doch am Fenster ab, fügt die Pipeline den **Rohtext** ein statt eines halben Satzes.
@@ -100,6 +103,8 @@ Provider/Modelle/Prompts sind in `config.yaml` + `prompts/` konfigurierbar
 - `fleech/varianten.py` — Schreibvarianten desselben Begriffs (Cloud-Code/Claude Code)
   für die Vorschlagskarte; `fleech/profilexport.py` — Profile als JSON sichern/einlesen;
   `fleech/settingsheilung.py`, `fleech/gruende.py` s. o.
+- `fleech/llm/schlank.py` — schlanke Fassung (Modell ohne Bildteil) bauen und besorgen; der
+  Katalog nennt weiter das Original (ältere Versionen lesen ihn mit), `bevorzugt()` mappt.
 - `fleech/llm/modellberater.py` — gibt es ein neueres Modell? (Cloud: `/models` des
   Anbieters; Ollama: Registry + Katalog `fleech/llm/modelle.json`, wird wöchentlich
   von GitHub `main` gelesen — **Empfehlungen dort pflegen**, erreicht alle ohne Update).
@@ -139,7 +144,7 @@ entscheidet die Plattform, auf der du gerade arbeitest:
 
 **Windows** (venv im Projekt: `.venv`):
 
-1. **Volle Testsuite grün**: `.venv/Scripts/python -m pytest -q` (aktuell rund 1600 Tests).
+1. **Volle Testsuite grün**: `.venv/Scripts/python -m pytest -q` (aktuell rund 1800 Tests).
    Neue Logik = neue/angepasste Tests. Fehlschläge nennst du mit Output, nicht verschweigen.
 2. **EXE bauen**: `.venv/Scripts/python packaging/build.py`.
 3. **Syncen + Neustart** (PowerShell): Fleech **beenden** (robocopy hängt sonst am

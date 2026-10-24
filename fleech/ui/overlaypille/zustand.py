@@ -79,7 +79,12 @@ class ZustandMixin:
         self._wave.set_state(state)
         busy = state in (AppState.LISTENING, AppState.PROCESSING)
         self._cancel_btn.setEnabled(state is AppState.LISTENING)
-        self._finish_btn.setEnabled(state is AppState.LISTENING)
+        # Waehrend der Verarbeitung bleibt der Haken klickbar: Er fuegt dann den
+        # erkannten Text sofort ein, ohne auf die KI zu warten (`llm/frist.py`).
+        self._finish_btn.setEnabled(state in (AppState.LISTENING, AppState.PROCESSING))
+        self._finish_btn.setToolTip(
+            "Ohne KI einfügen — nicht auf die Bereinigung warten"
+            if state is AppState.PROCESSING else "Fertig — Text einfügen")
         self._pause_btn.setEnabled(state is AppState.LISTENING)
         # Profil-Punkt ebenso: wechseln nur waehrend der Aufnahme. Bewusst
         # set_klickbar statt setEnabled — der Punkt bleibt sichtbar und zeigt

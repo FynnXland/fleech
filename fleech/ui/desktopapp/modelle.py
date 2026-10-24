@@ -284,7 +284,11 @@ class ModelleMixin:
             # welches Modell es sein soll, und die Einrichtungsseite laedt es.
             if (self.settings.general.onboarding_done
                     and not self._einfuehrung_offen()):
-                ensure_ollama_models(endpoints, on_progress=self._report_model_download)
+                ensure_ollama_models(
+                    endpoints, on_progress=self._report_model_download,
+                    on_hinweis=self.bus.hinweis.emit,
+                    alle=(self.config.llm_cleanup, self.config.llm_cleanup_fast,
+                          self.config.llm_command))
             for endpoint in endpoints:
                 ollama_preload(endpoint)
             self._llms_unloaded = False  # wieder warm → naechstes Entladen erlaubt

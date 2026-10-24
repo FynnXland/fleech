@@ -25,7 +25,8 @@ def build(panel) -> None:
         help_map={
             "pure_mic": "Andere Apps bleiben unverändert laut.",
             "soft_duck": "Andere Apps werden beim Aufnehmen leiser gestellt.",
-            "hard_focus": "Andere Apps werden beim Aufnehmen stark abgesenkt.",
+            "hard_focus": "Andere Apps werden beim Aufnehmen auf ein Drittel der "
+                          "Restlautstärke unten abgesenkt.",
         },
     )
     panel._slider(form, "Restlautstärke anderer Apps", s.audio_focus.duck_level,

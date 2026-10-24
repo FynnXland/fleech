@@ -89,6 +89,9 @@ def build(panel) -> None:
         },
     )
 
+    form.addRow("", hint(
+        "Die nächsten beiden Einstellungen gelten nur für die lokale KI (Ollama) — "
+        "bei einem Cloud-Anbieter oder „Ohne KI“ wird nichts geladen."))
     panel._combo(
         form, "Modell-Warmhaltung",
         [("smart", "Nach Nutzung (empfohlen)"),
@@ -100,7 +103,7 @@ def build(panel) -> None:
             "smart": "KI bleibt nach dem letzten Diktat geladen (Zeit unten "
                      "einstellbar). Danach — oder sobald ein Spiel läuft — wird "
                      "sie sofort entladen (RAM/Grafikspeicher frei).",
-            "always": "KI bleibt dauerhaft geladen (~3,5 GB Speicher, ein Modell) — "
+            "always": "KI bleibt dauerhaft geladen (rund 3,3 GB Speicher) — "
                       "schnellste Antwort, auch beim Zocken belegt.",
             "off": "Kein Warmhalten — maximal freier Speicher, erstes "
                    "Diktat langsamer.",

@@ -462,7 +462,7 @@ def test_ki_schritt_vorbelegt_und_lokal_mit_katalog(qapp):
     dlg, _settings = _onboarding()
     seite = dlg._ki_seite
     assert seite._lokal.isChecked()               # Vorgabe: lokal
-    assert seite._lokal_modell.currentData() == "gemma3:4b"
+    assert seite._lokal_modell.currentData() == "gemma3:4b-text"   # schlanke Fassung
     assert "empfohlen" in seite._lokal_modell.currentText()
     assert "Diktaten" in seite._lokal_notiz.text()
     assert not seite._cloud_box.isVisibleTo(seite)

@@ -65,7 +65,7 @@ the AI cleanup in the running app, install [Ollama](https://ollama.com) and
 .venv\Scripts\python -m pytest -q
 ```
 
-- About 1,600 tests, under a minute. Speech recognition and the LLM are mocked, Qt runs
+- About 1,800 tests, under two minutes. Speech recognition and the LLM are mocked, Qt runs
   offscreen, and `tests/conftest.py` redirects settings, history and the keychain to
   temporary stand-ins.
 - **Every new behaviour needs a test.** A bug fix comes with a test that fails without

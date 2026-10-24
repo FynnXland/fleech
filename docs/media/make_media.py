@@ -384,8 +384,8 @@ def _pruefe_ollama() -> str:
     from fleech.config import load_config
 
     cfg = load_config().llm_cleanup
-    if cfg.model != "gemma3:4b":
-        raise SystemExit(f"config.yaml nennt {cfg.model!r} — die Medien zeigen gemma3:4b.")
+    if cfg.model != "gemma3:4b-text":
+        raise SystemExit(f"config.yaml nennt {cfg.model!r} — die Medien zeigen gemma3:4b-text.")
     try:
         with urllib.request.urlopen(cfg.base_url.rstrip("/") + "/api/tags", timeout=5) as r:
             namen = [m["name"] for m in json.load(r).get("models", [])]

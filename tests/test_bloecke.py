@@ -46,13 +46,13 @@ def test_ueberlanger_satz_bleibt_ganz():
 
 def test_beispielsaetze_kommen_aus_dem_echten_prompt():
     bsp = beispielsaetze(PROMPT)
-    assert any("projekt ziemlich gut läuft" in b for b in bsp)
-    assert any("gedicht über katzen" in b for b in bsp)
+    assert any("login erst fixen" in b for b in bsp)
+    assert any("tabelle ist jetzt fertig" in b for b in bsp)
 
 
 def test_leck_wird_erkannt_aber_nicht_wenn_es_gesagt_wurde():
     bsp = beispielsaetze(PROMPT)
-    leck = "Ich wollte nur sagen, dass das Projekt ziemlich gut läuft und wir im Zeitplan sind."
+    leck = "Wir müssen das Login erst fixen, bevor wir weitermachen."
     assert geleckt("Die Animation ist zu langsam.", leck + " Die Animation ist zu langsam.", bsp)
     assert not geleckt(leck, leck, bsp)
 
@@ -93,7 +93,7 @@ def test_langes_diktat_wird_blockweise_bereinigt():
 
 def test_geleckter_block_kommt_als_rohtext_der_rest_bleibt_bereinigt():
     raw = " ".join(_satz(i) for i in range(40))
-    leck = "Ich wollte nur sagen, dass das Projekt ziemlich gut läuft und wir im Zeitplan sind. "
+    leck = "Wir müssen das Login erst fixen, bevor wir weitermachen. "
 
     def antwort(teil):
         return (leck + teil.upper()) if "wort0x0" in teil else teil.upper()
@@ -102,7 +102,7 @@ def test_geleckter_block_kommt_als_rohtext_der_rest_bleibt_bereinigt():
     assert rueckfall and gemerkt == [gruende.PROMPT_BEISPIEL]
     assert text.startswith(gesehen[0])                    # Block 1 roh
     assert gesehen[1].upper() in text                     # Block 2 bereinigt
-    assert "Zeitplan" not in text
+    assert "Login" not in text
 
 
 def test_zu_viel_weggelassen_heisst_rohtext():

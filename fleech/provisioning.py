@@ -210,6 +210,7 @@ def build_steps(endpoints, stt_model: str, base_url: str) -> list:
     es weder Ollama noch Sprachmodelle einzurichten, nur die Spracherkennung.
     """
     from . import ollama_setup
+    from .llm import schlank
     from .llm.client import ollama_installed_models
 
     schritte = []
@@ -243,9 +244,18 @@ def build_steps(endpoints, stt_model: str, base_url: str) -> list:
             key=f"llm:{modell}", title=f"Sprachmodell {modell}",
             detail="bereinigt das Diktat (Füllwörter, Versprecher, Zeichensetzung).",
         )
+        quelle = schlank.quelle_von(modell)
+        if quelle:
+            schritt.detail = (f"bereinigt das Diktat — {quelle} ohne den Bildteil, "
+                              f"den Fleech nie braucht (spart rund 0,8 GB Speicher).")
         if modell in vorhanden:
             schritt.state = "done"
             schritt.note = "vorhanden"
+        elif quelle and quelle in vorhanden:
+            schritt.note = f"wird aus {quelle} gebaut (kein Download)"
+        elif quelle:
+            schritt.note = (_llm_groesse_text(quelle).replace("wird geladen", f"lädt {quelle}")
+                            + ", danach wird der Bildteil entfernt")
         else:
             schritt.note = _llm_groesse_text(modell)
         schritte.append(schritt)
@@ -354,7 +364,8 @@ class SetupRunner:
 
     def run(self) -> bool:
         """Alles Offene abarbeiten. Blockiert — immer in einem Thread aufrufen."""
-        from .llm.client import ollama_installed_models, ollama_pull
+        from .llm import schlank
+        from .llm.client import ollama_installed_models
 
         alles_gut = True
         if not self.base_url:              # keine lokale KI gewaehlt
@@ -385,12 +396,25 @@ class SetupRunner:
                 continue
             if self._abbruch.is_set():
                 return False
-            self._melde(key, "running", "wird geladen")
-            if ollama_pull(self.base_url, modell, on_bytes=self._pull_stand(key)):
-                self._melde(key, "done", "geladen")
-            else:
+            ergebnis = schlank.besorge(
+                self.base_url, modell,
+                on_phase=lambda text, k=key: self._melde(k, "running", text),
+                on_bytes=self._pull_stand(key),
+                on_prozent=lambda p, k=key: self._fortschritt(k, f"{p} %", p))
+            if not ergebnis.modell:
                 self._melde(key, "failed", "Download fehlgeschlagen")
                 alles_gut = False
+            elif ergebnis.modell != modell:
+                # Umbau ging nicht: das Original rechnet — ehrlich dazugesagt.
+                for ep in self.endpoints or []:
+                    if getattr(ep, "model", "") == modell:
+                        ep.model = ergebnis.modell
+                self._melde(key, "done", f"läuft als {ergebnis.modell} — "
+                                         f"{schlank.grund(modell) or 'Umbau ging nicht'}")
+            elif ergebnis.verschlankt:
+                self._melde(key, "done", "bereit · ohne Bildteil")
+            else:
+                self._melde(key, "done", "geladen")
 
         return self._schritt_stt() and alles_gut
 

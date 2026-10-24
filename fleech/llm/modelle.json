@@ -1,5 +1,5 @@
 {
-  "stand": "2026-10-06",
+  "stand": "2026-10-22",
   "hinweis": "Modellkatalog von Fleech. Jede Installation liest diese Datei wöchentlich von GitHub (main) - eine neue Empfehlung erreicht alle ohne Update. 'gemessen' nur setzen, wenn das Modell an echten Diktaten geprüft ist. 'ersetzt' nennt Modelle, deren Nutzer auf dieses hingewiesen werden sollen. Thinking-Modelle sind erlaubt: Fleech schickt lokal immer think:false.",
   "ollama": [
     {
@@ -7,7 +7,7 @@
       "groesse_gb": 3.3,
       "empfohlen": true,
       "gemessen": true,
-      "notiz": "An echten Diktaten gemessen: schnell und wortgetreu. Braucht rund 5 GB Grafikspeicher."
+      "notiz": "An echten Diktaten gemessen: schnell und wortgetreu. Braucht rund 4 GB Grafikspeicher."
     },
     {
       "modell": "gemma3:12b",
@@ -15,9 +15,15 @@
       "notiz": "Gründlicher, aber deutlich langsamer. Erst ab etwa 12 GB Grafikspeicher sinnvoll."
     },
     {
+      "modell": "qwen3.5:2b-q4_K_M",
+      "groesse_gb": 1.9,
+      "gemessen": true,
+      "notiz": "Für schwache Rechner: An 76 echten Diktaten gemessen fast so wortgetreu wie gemma3:4b und schneller, braucht aber nur rund 2,4 statt 4 GB. Baut gelegentlich einen Tippfehler ein."
+    },
+    {
       "modell": "gemma3:1b",
       "groesse_gb": 0.8,
-      "notiz": "Für schwache Rechner ohne Grafikkarte. Glättet merklich ungenauer."
+      "notiz": "Nicht empfohlen: An 76 echten Diktaten gemessen lässt es ganze Sätze weg und übersetzt teils ins Englische. Für schwache Rechner besser qwen3.5:2b-q4_K_M."
     },
     {
       "modell": "gemma4:e4b",

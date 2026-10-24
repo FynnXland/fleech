@@ -216,13 +216,29 @@ def ollama_pull(base_url: str, model: str, on_progress=None, timeout: float = 36
     return True
 
 
-def ensure_ollama_models(endpoints, on_progress=None) -> list:
+def ensure_ollama_models(endpoints, on_progress=None, on_hinweis=None,
+                         alle=None) -> list:
     """Fehlende Modelle der uebergebenen Endpoints nachladen. Gibt die geholten zurueck.
 
     Best-Effort: Ist Ollama nicht erreichbar, passiert nichts — die App startet
     trotzdem und meldet das Problem erst, wenn wirklich diktiert wird. Ein blockierter
     Start waere die schlechtere Antwort auf einen laufenden Ollama-Neustart.
+
+    Eine schlanke Fassung (`schlank.py`) baut Fleech selbst. Solange das dauert,
+    rechnen die Endpunkte mit dem Original, damit Diktate nicht ins Leere laufen;
+    scheitert der Umbau, bleibt es dabei. `alle`: saemtliche Endpunkte, die
+    mitumgestellt werden (der Aufrufer reicht oft nur einen je Modell herein).
+    `on_hinweis(satz)`: was passiert ist, in einem Satz fuer den Nutzer.
     """
+    from . import schlank
+
+    alle = list(alle or endpoints)
+
+    def stelle_um(von: str, nach: str) -> None:
+        for ep in alle:
+            if getattr(ep, "model", "") == von:
+                ep.model = nach
+
     lokal, geholt = None, []
     for endpoint in endpoints:
         base = getattr(endpoint, "base_url", "")
@@ -232,14 +248,48 @@ def ensure_ollama_models(endpoints, on_progress=None) -> list:
             lokal = ollama_installed_models(base)
             if not lokal:
                 return geholt             # Ollama laeuft nicht → nichts erzwingen
-        if endpoint.model in lokal:
+        ziel = endpoint.model
+        if ziel in lokal:
             continue
-        log.info("Sprachmodell %s fehlt — wird geladen.", endpoint.model)
-        if on_progress:
-            on_progress(f"Lade Sprachmodell {endpoint.model} …")
-        if ollama_pull(base, endpoint.model, on_progress):
-            geholt.append(endpoint.model)
-            lokal.add(endpoint.model)
+        quelle = schlank.quelle_von(ziel)
+        if quelle and quelle in lokal:
+            stelle_um(ziel, quelle)       # Uebergang: das Original rechnet weiter
+        if quelle and on_hinweis and not schlank.grund(ziel):
+            on_hinweis(schlank.ankuendigung(ziel, quelle in lokal))
+        log.info("Sprachmodell %s fehlt — wird %s.", ziel,
+                 "gebaut" if quelle else "geladen")
+
+        stand = {"text": "", "zuletzt": -10}
+
+        def phase(text: str, _ziel=ziel) -> None:
+            stand["text"], stand["zuletzt"] = text, -10
+            if on_progress:
+                on_progress(f"Sprachmodell {_ziel}: {text} …")
+
+        def prozent(wert: int, _ziel=ziel) -> None:
+            if on_progress and (wert >= stand["zuletzt"] + 5 or wert == 100):
+                stand["zuletzt"] = wert
+                on_progress(f"Sprachmodell {_ziel}: {stand['text']} … {wert} %")
+
+        def menge(fertig: int, gesamt: int) -> None:
+            if gesamt > 50 * 1024 * 1024:      # Vorlage, Lizenz, Parameter zaehlen nicht
+                prozent(int(fertig * 100 / gesamt))
+
+        ergebnis = schlank.besorge(base, ziel, on_phase=phase, on_bytes=menge,
+                                   on_prozent=prozent)
+        if ergebnis.modell:
+            stelle_um(quelle or ziel, ergebnis.modell)
+            stelle_um(ziel, ergebnis.modell)
+            lokal.add(ergebnis.modell)
+            geholt.append(ergebnis.modell)
+            if ergebnis.verschlankt and quelle in lokal:
+                # Das Original hat waehrend des Umbaus gerechnet und liegt noch im
+                # Speicher — sonst hielte keep_alive beide Fassungen 30 min lang.
+                from types import SimpleNamespace
+
+                ollama_unload(SimpleNamespace(base_url=base, model=quelle))
+        if ergebnis.hinweis and on_hinweis:
+            on_hinweis(ergebnis.hinweis)
     return geholt
 
 
@@ -277,6 +327,7 @@ class ChatClient:
     def __init__(self, endpoint):
         self.cfg = endpoint
         self.last_truncated = False
+        self._zeitlimit = getattr(endpoint, "timeout", 60.0)
 
     def _create(self, system_prompt: str, user_text: str) -> str:
         """Ein Chat-Aufruf — der Weg haengt am gewaehlten Anbieter."""
@@ -300,7 +351,7 @@ class ChatClient:
             url, data=json.dumps(body).encode("utf-8"),
             headers={"Content-Type": "application/json", **kopf},
         )
-        with urllib.request.urlopen(request, timeout=self.cfg.timeout) as response:
+        with urllib.request.urlopen(request, timeout=self._zeitlimit) as response:
             return json.loads(response.read())
 
     def _openai(self, system_prompt: str, user_text: str) -> str:
@@ -397,14 +448,30 @@ class ChatClient:
         aufwand = str(getattr(self.cfg, "reasoning_effort", "") or "").lower()
         if aufwand in ("", "none"):
             body["think"] = False
-        request = urllib.request.Request(
-            f"{ollama_root(self.cfg.base_url)}/api/chat",
-            data=json.dumps(body).encode("utf-8"),
-            headers={"Content-Type": "application/json"},
-        )
+        def senden():
+            request = urllib.request.Request(
+                f"{ollama_root(self.cfg.base_url)}/api/chat",
+                data=json.dumps(body).encode("utf-8"),
+                headers={"Content-Type": "application/json"},
+            )
+            with urllib.request.urlopen(request, timeout=self._zeitlimit) as response:
+                return json.loads(response.read())
+
         try:
-            with urllib.request.urlopen(request, timeout=self.cfg.timeout) as response:
-                data = json.loads(response.read())
+            try:
+                data = senden()
+            except urllib.error.HTTPError as exc:
+                # Die schlanke Fassung (`schlank.py`) ist noch nicht gebaut — etwa beim
+                # ersten Diktat nach dem Update, bevor das Warmhalten lief. Dann
+                # bereinigt das Original, statt dass Rohtext kommt.
+                from .schlank import quelle_von
+
+                quelle = quelle_von(body["model"])
+                if exc.code != 404 or not quelle:
+                    raise
+                log.info("%s fehlt noch — dieses Diktat bereinigt %s.", body["model"], quelle)
+                body["model"] = quelle
+                data = senden()
         except urllib.error.HTTPError as exc:
             # Ollama sagt im Rumpf, WARUM es scheiterte. Ohne den Satz stand im
             # Protokoll nur „HTTP Error 500" — die Ursache (am 2026-10-08 ein
@@ -419,5 +486,12 @@ class ChatClient:
             getattr(self.cfg, "reasoning_patterns", None),
         )
 
-    def complete(self, system_prompt: str, user_text: str) -> str:
+    def complete(self, system_prompt: str, user_text: str,
+                 timeout: float | None = None) -> str:
+        """timeout: Restzeit des Diktats (`frist.py`) — kuerzer als der
+        konfigurierte Wert, nie laenger. Laeuft sie ab, schliesst der Socket, und
+        Ollama hoert auf zu rechnen."""
+        self._zeitlimit = self.cfg.timeout
+        if timeout is not None:
+            self._zeitlimit = max(0.1, min(float(self.cfg.timeout), float(timeout)))
         return self._create(system_prompt, user_text)

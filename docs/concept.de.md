@@ -2410,7 +2410,7 @@ ihre normale Funktion aus.
 **Windows:**
 
 ```powershell
-.venv\Scripts\python -m pytest -q          # Testsuite (rund 1600 Tests)
+.venv\Scripts\python -m pytest -q          # Testsuite (rund 1800 Tests)
 .venv\Scripts\python packaging\build.py    # → dist\Fleech\Fleech.exe
 .venv\Scripts\python packaging\build.py --gpu --installer   # + CUDA + Setup
 ```

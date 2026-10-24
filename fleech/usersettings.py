@@ -485,6 +485,10 @@ class KiSettings:
     hinweis_modell: str = ""     # offener Vorschlag (leer = keiner)
     hinweis_text: str = ""       # ein Satz, warum
     ignoriert: list = field(default_factory=list)   # „nicht mehr zeigen"
+    # Cloud-Ausweiche bei lokaler Ueberlastung (`llm/frist.py`): Anbieter-Kennung,
+    # leer = aus (Standard — ohne diese Wahl verlaesst kein Text den Rechner).
+    ausweichen: str = ""
+    ausweichen_modell: str = ""  # vom Anbieter erfragt, leer = dessen Startmodell
 
 
 @dataclass
@@ -680,10 +684,16 @@ class UserSettings:
         config.stt.model_size = modell_fuer(self.advanced.stt_modell,
                                             config.stt.model_size)
         config.audio_focus.mode = self.audio_focus.mode
-        # Regelbare Restlautstaerke: greift fuer Soft- UND Hard-Duck (der Nutzer
-        # steuert genau einen Wert, statt zwei getrennte config-Konstanten).
+        # Ein Regler fuer beide Modi; „Stark absenken" geht auf ein Drittel davon.
+        # Frueher galt derselbe Wert fuer beide — die Auswahl versprach einen
+        # Unterschied, den es nicht gab.
         level = max(0.0, min(1.0, float(self.audio_focus.duck_level)))
         config.audio_focus.duck_level = level
-        config.audio_focus.hard_duck_level = level
+        config.audio_focus.hard_duck_level = stark_abgesenkt(level)
         if self.output.trigger_word.strip():
             config.command.trigger_word = self.output.trigger_word.strip()
+
+
+def stark_abgesenkt(restlautstaerke: float) -> float:
+    """Restlautstaerke fuer „Stark absenken": ein Drittel des Reglerwerts."""
+    return round(max(0.0, min(1.0, float(restlautstaerke))) / 3, 3)

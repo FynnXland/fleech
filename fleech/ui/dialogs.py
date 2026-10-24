@@ -138,7 +138,10 @@ class TranscriptDetailDialog(QDialog):
     Text in die Zwischenablage kopieren — z. B. um ein Diktat nachzuholen, das im
     Zielfeld nicht angekommen ist (Fokus verloren, versehentlich weggeklickt)."""
 
-    def __init__(self, entry: dict, parent=None, raw: str = ""):
+    # „KI-Austausch …" geklickt — die Seite oeffnet den Dialog dazu (`kiaustauschdialog`).
+    ki_gewuenscht = Signal()
+
+    def __init__(self, entry: dict, parent=None, raw: str = "", ki_anzahl: int = 0):
         # Bewusst NICHT modal: der Dialog soll sich schliessen, sobald man daneben
         # klickt (siehe event()) — statt den Klick zu blocken (Windows-Fehlerton).
         super().__init__(parent)
@@ -223,6 +226,12 @@ class TranscriptDetailDialog(QDialog):
         meta.setStyleSheet(f"color: {MUTED}; font-size: 8.5pt;")
         buttons.addWidget(meta)
         buttons.addStretch(1)
+        if ki_anzahl:
+            ki_btn = style_button(QPushButton("KI-Austausch …"), "ghost")
+            ki_btn.setToolTip(f"{ki_anzahl} KI-Aufruf{'' if ki_anzahl == 1 else 'e'}: "
+                              "Eingabe, System-Prompt und Antwort")
+            ki_btn.clicked.connect(self.ki_gewuenscht)
+            buttons.addWidget(ki_btn)
         self._copy_btn = style_button(QPushButton("Kopieren"))
         self._copy_btn.clicked.connect(self._copy)
         close_btn = style_button(QPushButton("Schließen"), "ghost")

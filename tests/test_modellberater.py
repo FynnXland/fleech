@@ -11,6 +11,8 @@ import urllib.error
 
 import pytest
 
+from fleech.llm.schlank import bevorzugt
+
 from fleech.llm import modellberater as berater
 
 
@@ -66,7 +68,10 @@ def test_mitgelieferter_katalog_hat_eine_gemessene_empfehlung():
     modelle = berater.ollama_modelle(daten)
     empfohlen = [m for m in modelle if m.empfohlen]
     assert len(empfohlen) == 1 and empfohlen[0].gemessen
-    assert berater.empfohlenes_modell("ollama", daten) == empfohlen[0].modell
+    # Gemeint ist die schlanke Fassung der Empfehlung (`schlank.py`); der Katalog
+    # nennt weiter das Original, weil aeltere Versionen ihn auch lesen.
+    assert berater.empfohlenes_modell("ollama", daten) == bevorzugt(empfohlen[0].modell)
+    assert berater.empfohlenes_modell("ollama", daten) == "gemma3:4b-text"
     assert berater.empfohlenes_modell("anthropic", daten)
 
 
@@ -108,22 +113,37 @@ def test_ollama_katalog_empfehlung_schlaegt_registry(monkeypatch):
 def test_ollama_gemessene_generation_nennt_den_messbefund(monkeypatch):
     """Steht die neue Generation gemessen im Katalog, nennt der Hinweis das
     konkrete Tag und das Messergebnis — nicht „noch nicht gemessen"."""
-    daten = berater.mitgelieferter_katalog()
+    daten = {"ollama": [{"modell": "gemma3:4b", "empfohlen": True, "groesse_gb": 3.3},
+                        {"modell": "gemma4:e2b", "groesse_gb": 3.0, "gemessen": True,
+                         "notiz": "An 40 echten Diktaten gemessen."}]}
+    monkeypatch.setattr(berater, "registry_groesse_gb",
+                        lambda name, timeout=6.0: 3.0 if name == "gemma4:latest" else None)
+    befund = berater.pruefe("ollama", "gemma3:4b-text", daten=daten)
+    assert befund.neuer == "gemma4:e2b" and befund.gemessen
+    assert "gemessen" in befund.grund
+
+
+def test_auch_gemessen_kein_vielfaches_der_schlanken_fassung(monkeypatch):
+    """gemma4:e4b (6,6 GB) ist gemessen, aber mehr als das 2,5-Fache der schlanken
+    Fassung (2,5 GB) — wer Speicher sparen will, bekommt es nicht vorgeschlagen."""
     monkeypatch.setattr(berater, "registry_groesse_gb",
                         lambda name, timeout=6.0: 6.6 if name == "gemma4:latest" else None)
-    befund = berater.pruefe("ollama", "gemma3:4b", daten=daten)
-    assert befund.neuer == "gemma4:e4b" and befund.gemessen
-    assert "gemessen" in befund.grund
+    assert berater.pruefe("ollama", "gemma3:4b-text",
+                          daten=berater.mitgelieferter_katalog()) is None
 
 
 def test_ollama_neue_generation_aus_der_registry(monkeypatch):
     daten = {"ollama": [{"modell": "gemma3:4b", "empfohlen": True, "groesse_gb": 3.3}]}
     monkeypatch.setattr(berater, "registry_groesse_gb",
-                        lambda name, timeout=6.0: 6.6 if name == "gemma4:latest" else None)
-    befund = berater.pruefe("ollama", "gemma3:4b", daten=daten)
+                        lambda name, timeout=6.0: 3.0 if name == "gemma4:latest" else None)
+    befund = berater.pruefe("ollama", "gemma3:4b-text", daten=daten)
     assert befund.neuer == "gemma4"
     assert not befund.gemessen
-    assert "6,6 GB statt 3,3 GB" in befund.grund
+    assert "3,0 GB statt 2,5 GB" in befund.grund   # Groesse der schlanken Fassung
+    # Mehr als das 2,5-Fache der schlanken Fassung ist eine andere Rechnerklasse.
+    monkeypatch.setattr(berater, "registry_groesse_gb",
+                        lambda name, timeout=6.0: 6.6 if name == "gemma4:latest" else None)
+    assert berater.pruefe("ollama", "gemma3:4b-text", daten=daten) is None
 
 
 def test_ollama_riesige_nachfolger_werden_nicht_vorgeschlagen(monkeypatch):
@@ -137,8 +157,18 @@ def test_ollama_riesige_nachfolger_werden_nicht_vorgeschlagen(monkeypatch):
 
 def test_ollama_nichts_neues(monkeypatch):
     monkeypatch.setattr(berater, "registry_groesse_gb", lambda name, timeout=6.0: None)
-    assert berater.pruefe("ollama", "gemma3:4b",
+    assert berater.pruefe("ollama", "gemma3:4b-text",
                           daten=berater.mitgelieferter_katalog()) is None
+    assert berater.pruefe("ollama", "", daten=berater.mitgelieferter_katalog()) is None
+
+
+def test_ollama_original_bekommt_die_schlanke_fassung_vorgeschlagen(monkeypatch):
+    """Wer gemma3:4b fest eingestellt hat, erfaehrt von der schlanken Fassung —
+    umgestellt wird nicht von selbst."""
+    monkeypatch.setattr(berater, "registry_groesse_gb", lambda *a, **k: pytest.fail("Netz"))
+    befund = berater.pruefe("ollama", "gemma3:4b", daten=berater.mitgelieferter_katalog())
+    assert befund.neuer == "gemma3:4b-text" and befund.gemessen
+    assert "ohne den Bildteil" in befund.grund and "0,8 GB" in befund.grund
 
 
 def test_cloud_neueres_und_abgeschaltetes_modell(monkeypatch):
@@ -170,10 +200,16 @@ def test_cloud_ohne_schluessel_oder_netz_kein_befund(monkeypatch):
 
 def test_lokale_auswahl_ohne_doppelte():
     daten = berater.mitgelieferter_katalog()
-    liste = berater.lokale_auswahl(daten, {"gemma3:4b", "llama3.2:3b", "nomic-embed-text"},
-                                   ("gemma4", 6.6))
+    liste = berater.lokale_auswahl(
+        daten, {"gemma3:4b", "gemma3:4b-text", "llama3.2:3b", "nomic-embed-text"},
+        ("gemma4", 6.6))
     namen = [w.modell for w in liste]
-    assert namen[0] == "gemma3:4b" and "installiert" in liste[0].label
+    # Die schlanke Fassung steht vorn, erbt die Empfehlung und sagt, was sie ist.
+    assert namen[:2] == ["gemma3:4b-text", "gemma3:4b"]
+    assert "empfohlen" in liste[0].label and "installiert" in liste[0].label
+    assert "2,5 GB" in liste[0].label and "Bildteil" in liste[0].notiz
+    assert "empfohlen" not in liste[1].label and "installiert" in liste[1].label
+    assert namen.count("gemma3:4b-text") == 1
     assert "llama3.2:3b" in namen
     assert "nomic-embed-text" not in namen          # kann keinen Text bereinigen
     assert "gemma4" not in namen                    # steht als gemma4:e4b schon drin

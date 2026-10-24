@@ -464,7 +464,14 @@ def test_overlay_buttons_emit_cancel_and_finish(qapp):
     o._finish_btn.click()
     assert events == ["cancel", "finish"]
     o.set_app_state(AppState.PROCESSING)
-    assert not o._cancel_btn.isEnabled() and not o._finish_btn.isEnabled()
+    # Verwerfen geht nicht mehr — der Haken aber schon: Er fuegt dann den
+    # erkannten Text ohne KI ein (6.4.0, `llm/frist.py`).
+    assert not o._cancel_btn.isEnabled() and o._finish_btn.isEnabled()
+    assert "Ohne KI" in o._finish_btn.toolTip()
+    o._finish_btn.click()
+    assert events == ["cancel", "finish", "finish"]
+    o.set_app_state(AppState.IDLE)
+    assert not o._finish_btn.isEnabled()
     o.close()
 
 def test_overlay_buttons_never_take_focus(qapp):

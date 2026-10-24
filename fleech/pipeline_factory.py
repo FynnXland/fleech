@@ -71,6 +71,14 @@ def build_pipeline(config: AppConfig, settings: UserSettings, injector=None,
         pipeline.trigger_word = ""
         pipeline.format_prompts = {}
     pipeline.status_callback = status
+    # Cloud-Ausweiche bei lokaler Ueberlastung — nur, wenn ausdruecklich gewaehlt.
+    from .llm.frist import ausweich_endpunkt
+
+    ausweiche = ausweich_endpunkt(settings.ki)
+    if ausweiche is not None:
+        ausweiche.temperature = config.llm_cleanup.temperature
+        pipeline.frist.ausweich_llm = ChatClient(ausweiche)
+        pipeline.frist.ausweich_name = anbieter(ausweiche.provider).name
     # Projekt-Gedaechtnis (fleech/kontext.py). Die Erstbefuellung aus dem Verlauf
     # laeuft im HINTERGRUND: An 1189 Diktaten gemessen 3,7 s — im Start waere das
     # eine spuerbare Verzoegerung fuer etwas, das erst beim naechsten Diktat zaehlt.

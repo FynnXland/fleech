@@ -1,7 +1,8 @@
 """Vorbereinigung: was ohne Sprachmodell sicher aus dem Rohtext heraus kann.
 
 Fuellwoerter („äh", „ähm", „öh", „öhm", auch gedehnt) entfernt diese Datei
-deterministisch, BEVOR das Modell den Text sieht. Der Anlass ist gemessen: Im
+deterministisch, und zwar NACH dem Modell (`Pipeline._cleanup`; warum danach,
+steht dort). Der Anlass ist gemessen: Im
 Verlauf standen 751 solcher Fuellwoerter in den Rohtexten, und seit dem 30.07.
 hat das Modell von 564 nur 14 entfernt — die Regel in `prompts/cleanup.md` wirkt
 schlicht nicht. Die Regel hier traf auf ALLEN 1926 Rohtexten jedes dieser Woerter

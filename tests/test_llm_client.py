@@ -163,8 +163,8 @@ def test_fehlendes_modell_wird_nachgeladen(monkeypatch):
     monkeypatch.setattr("fleech.llm.client.ollama_installed_models",
                         lambda base, timeout=10.0: {"anderes:7b"})
     monkeypatch.setattr("fleech.llm.client.ollama_pull",
-                        lambda base, model, on_progress=None, timeout=3600.0:
-                        (geholt.append(model), True)[1])
+                        lambda base, model, on_progress=None, timeout=3600.0,
+                        on_bytes=None: (geholt.append(model), True)[1])
 
     assert ensure_ollama_models([LLMEndpointConfig(model="gemma3:4b")]) == ["gemma3:4b"]
     assert geholt == ["gemma3:4b"]
@@ -184,8 +184,8 @@ def test_dasselbe_modell_wird_nur_einmal_geholt(monkeypatch):
     monkeypatch.setattr("fleech.llm.client.ollama_installed_models",
                         lambda base, timeout=10.0: {"alt:1b"})
     monkeypatch.setattr("fleech.llm.client.ollama_pull",
-                        lambda base, model, on_progress=None, timeout=3600.0:
-                        (geholt.append(model), True)[1])
+                        lambda base, model, on_progress=None, timeout=3600.0,
+                        on_bytes=None: (geholt.append(model), True)[1])
 
     ensure_ollama_models([LLMEndpointConfig(model="gemma3:4b"),
                           LLMEndpointConfig(model="gemma3:4b")])

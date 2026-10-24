@@ -349,7 +349,7 @@ class InsightsPage(QWidget):
         ignore = style_button(QPushButton("Ignorieren"))
         ignore.setToolTip(
             "Schlägt dieses Paar nicht mehr vor. Die Liste der ignorierten Paare "
-            "steht unter Einstellungen → Wörterbuch — dort löschen holt den "
+            "steht unter Einstellungen → Textersetzung — dort löschen holt den "
             "Vorschlag zurück."
         )
         ignore.setProperty("rule_wrong", wrong)
@@ -397,7 +397,7 @@ class InsightsPage(QWidget):
         ignore = style_button(QPushButton("Ignorieren"))
         ignore.setToolTip(
             "Fragt nie wieder nach diesem Paar — z. B. weil es zwei verschiedene "
-            "Wörter sind. Zurücknehmen: Einstellungen → Wörterbuch → Ignoriert."
+            "Wörter sind. Zurücknehmen: Einstellungen → Textersetzung → Ignoriert."
         )
         ignore.setProperty("rule_wrong", frage.haeufig)
         ignore.setProperty("rule_right", frage.selten)
@@ -428,7 +428,7 @@ class InsightsPage(QWidget):
         """„Ignorieren": Paar dauerhaft in die sichtbare Ignorier-Liste.
 
         Dieselbe Liste, die auch abgelehnte Woerterbuch-Rueckfragen traegt — sie
-        steht als Editor unter Einstellungen → Woerterbuch. Dauerhaft ist hier
+        steht als Editor unter Einstellungen → Textersetzung. Dauerhaft ist hier
         vertretbar, WEIL sie sichtbar ist: Ein Fehlklick laesst sich dort per
         Zeile-loeschen zuruecknehmen."""
         button = self.sender()

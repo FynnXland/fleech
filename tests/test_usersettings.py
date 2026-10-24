@@ -90,7 +90,7 @@ def test_apply_to_config(tmp_path):
     assert cfg.audio_focus.mode == "hard_focus"
     # Regelbare Restlautstaerke greift fuer Soft- UND Hard-Duck.
     assert cfg.audio_focus.duck_level == 0.4
-    assert cfg.audio_focus.hard_duck_level == 0.4
+    assert cfg.audio_focus.hard_duck_level == 0.133   # „Stark absenken": ein Drittel
 
 
 def test_prefer_gpu_default_and_apply_to(tmp_path):
