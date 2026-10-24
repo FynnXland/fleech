@@ -1,8 +1,8 @@
 {
   "_hinweis": "Erzeugt von make_media.py --beispiele: Rohtext = was gesprochen wurde (erfunden), Ausgabe = was Fleechs Pipeline mit dem lokalen Modell daraus gemacht hat (temperature 0). Nicht von Hand ändern.",
-  "_modell": "gemma3:4b",
-  "_fleech": "6.1.0",
-  "_erzeugt": "2026-10-08",
+  "_modell": "gemma3:4b-text",
+  "_fleech": "6.4.0",
+  "_erzeugt": "2026-10-24",
   "hero": {
     "de": {
       "raw": "Hallo zusammen, ähm, ich schicke euch die Präsentation bis Donnerstag, äh, nein, bis Freitagmittag, dann können wir sie am Montag durchgehen.",
@@ -10,7 +10,7 @@
       "status": "ok",
       "mode": "cleanup",
       "tier": "complex",
-      "llm_ms": 473,
+      "llm_ms": 434,
       "statuszeilen": [
         "Bereinige …",
         "Füge ein …"
@@ -22,7 +22,7 @@
       "status": "ok",
       "mode": "cleanup",
       "tier": "simple",
-      "llm_ms": 720,
+      "llm_ms": 627,
       "statuszeilen": [
         "Bereinige …",
         "Füge ein …"
@@ -34,11 +34,11 @@
       "raw": "Also, ähm, die neue Website soll nächste Woche online gehen, vorher müssen wir aber noch die Texte prüfen und, äh, die Bilder komprimieren.",
       "ergebnisse": {
         "Standard": {
-          "text": "Die neue Website soll nächste Woche online gehen, vorher müssen wir aber noch die Texte prüfen und die Bilder komprimieren.",
+          "text": "Also die neue Website soll nächste Woche online gehen, vorher müssen wir aber noch die Texte prüfen und die Bilder komprimieren.",
           "status": "ok",
           "mode": "cleanup",
           "tier": "simple",
-          "llm_ms": 450,
+          "llm_ms": 437,
           "statuszeilen": [
             "Bereinige …",
             "Füge ein …"
@@ -49,7 +49,7 @@
           "status": "ok",
           "mode": "email",
           "tier": "",
-          "llm_ms": 761,
+          "llm_ms": 693,
           "statuszeilen": [
             "E-Mail wird formuliert …",
             "Füge ein …"
@@ -60,18 +60,18 @@
           "status": "ok",
           "mode": "summary",
           "tier": "",
-          "llm_ms": 452,
+          "llm_ms": 446,
           "statuszeilen": [
             "Stichpunkte werden gebildet …",
             "Füge ein …"
           ]
         },
         "KI-Prompt": {
-          "text": "**Rolle:** Du bist ein Projektmanager mit Fokus auf Website-Launch-Prozesse.\n\n**Kontext:** Die neue Website soll nächste Woche online gehen. Vorher sind Texte und Bilder zu prüfen/komprimieren.\n\n**Aufgabe:** Plane die Aufgaben zur Vorbereitung des Website-Launches.\n\n**Anforderungen:**\n- Texte prüfen\n- Bilder komprimieren",
+          "text": "**Rolle:** Du bist ein Projektmanager mit Fokus auf Webentwicklung und Content-Management.\n\n**Kontext:** Eine neue Website soll nächste Woche online gehen. Vorher sind Texte und Bilder zu prüfen/optimieren.\n\n**Aufgabe:** Plane die Aufgaben zur Vorbereitung der Website-Veröffentlichung.\n\n**Anforderungen:**\n- Texte prüfen\n- Bilder komprimieren",
           "status": "ok",
           "mode": "prompt",
           "tier": "",
-          "llm_ms": 997,
+          "llm_ms": 996,
           "statuszeilen": [
             "Prompt wird strukturiert …",
             "Füge ein …"
@@ -81,7 +81,7 @@
     },
     "_en": {
       "raw": "Um, so the new website should go live next week, but before that we still need to check the copy and, uh, compress the images.",
-      "email": "Guten Tag,\n\ndie neue Website soll voraussichtlich nächste Woche online gehen.\n\nAllerdings müssen wir vor dem Launch noch die Inhalte überprüfen und die Bilder komprimieren.\n\nIch freue mich über Rückmeldung.\nViele Grüße,\nAlex",
+      "email": "Guten Tag,\n\ndie neue Website soll voraussichtlich nächste Woche online gehen.\n\nAllerdings müssen wir vor dem Launch noch die Texte überprüfen und die Bilder komprimieren.\n\nIch melde mich, sobald alles fertig ist.\n\nViele Grüße,\nAlex",
       "hinweis": "Die Format-Prompts antworten auf Deutsch — deshalb gibt es diese Szene nur auf Deutsch."
     }
   },
@@ -163,7 +163,7 @@
       "mode": "cleanup",
       "tier": "simple",
       "status": "ok",
-      "llm_ms": 290
+      "llm_ms": 442
     },
     {
       "tag": 16,
@@ -176,7 +176,7 @@
       "mode": "email",
       "tier": "",
       "status": "ok",
-      "llm_ms": 619
+      "llm_ms": 629
     },
     {
       "tag": 16,
@@ -202,7 +202,7 @@
       "mode": "cleanup",
       "tier": "simple",
       "status": "ok",
-      "llm_ms": 368
+      "llm_ms": 358
     },
     {
       "tag": 15,
@@ -215,7 +215,7 @@
       "mode": "cleanup",
       "tier": "complex",
       "status": "ok",
-      "llm_ms": 387
+      "llm_ms": 367
     },
     {
       "tag": 15,
@@ -228,7 +228,7 @@
       "mode": "cleanup",
       "tier": "simple",
       "status": "ok",
-      "llm_ms": 508
+      "llm_ms": 560
     },
     {
       "tag": 15,
@@ -241,7 +241,7 @@
       "mode": "cleanup",
       "tier": "simple",
       "status": "ok",
-      "llm_ms": 370
+      "llm_ms": 374
     },
     {
       "tag": 14,
@@ -254,7 +254,7 @@
       "mode": "email",
       "tier": "",
       "status": "ok",
-      "llm_ms": 672
+      "llm_ms": 703
     },
     {
       "tag": 14,
@@ -267,7 +267,7 @@
       "mode": "summary",
       "tier": "",
       "status": "ok",
-      "llm_ms": 447
+      "llm_ms": 604
     },
     {
       "tag": 14,
@@ -293,7 +293,7 @@
       "mode": "cleanup",
       "tier": "simple",
       "status": "ok",
-      "llm_ms": 458
+      "llm_ms": 429
     },
     {
       "tag": 13,
@@ -302,11 +302,11 @@
       "profil": "KI-Prompt",
       "sprache": "de",
       "raw": "Erklär mir, wie Indizes in SQLite funktionieren, am besten mit einem kurzen Beispiel.",
-      "text": "**Rolle:** Du bist ein Datenbankexperte mit fundierten Kenntnissen über SQL und SQLite.\n\n**Aufgabe:** Erkläre, wie Indizes in SQLite funktionieren, und liefere ein kurzes Beispiel.\n\n**Anforderungen:**\n- Das Beispiel sollte einfach und verständlich sein.\n- Die Erklärung sollte die Vorteile von Indizes hervorheben (z.B. schnellere Abfragen).",
+      "text": "**Rolle:** Du bist ein Experte für Datenbanken und SQL, insbesondere für SQLite.\n\n**Aufgabe:** Erkläre, wie Indizes in SQLite funktionieren, mit einem kurzen Beispiel.\n\n**Anforderungen:**\n- Das Beispiel sollte einfach und verständlich sein.\n- Die Erklärung sollte die Vorteile von Indizes hervorheben.",
       "mode": "prompt",
       "tier": "",
       "status": "ok",
-      "llm_ms": 1111
+      "llm_ms": 1294
     },
     {
       "tag": 13,
@@ -315,11 +315,11 @@
       "profil": "Geschäftlich",
       "sprache": "de",
       "raw": "Wir empfehlen, das Projekt in zwei Phasen umzusetzen, ähm, zuerst die Schnittstellen und danach die Oberfläche.",
-      "text": "Wir empfehlen, das Projekt in zwei Phasen umzusetzen: zuerst die Schnittstellen und danach die Oberfläche.",
+      "text": "Wir empfehlen, das Projekt in zwei Phasen umzusetzen, zuerst die Schnittstellen und danach die Oberfläche.",
       "mode": "cleanup",
       "tier": "complex",
       "status": "ok",
-      "llm_ms": 562
+      "llm_ms": 467
     },
     {
       "tag": 13,
@@ -332,7 +332,7 @@
       "mode": "cleanup",
       "tier": "simple",
       "status": "ok",
-      "llm_ms": 210
+      "llm_ms": 212
     },
     {
       "tag": 12,
@@ -345,7 +345,7 @@
       "mode": "email",
       "tier": "",
       "status": "ok",
-      "llm_ms": 568
+      "llm_ms": 749
     },
     {
       "tag": 12,
@@ -367,11 +367,11 @@
       "profil": "Standard",
       "sprache": "de",
       "raw": "Für den Release brauchen wir noch Screenshots, ähm, das Changelog und die neuen Übersetzungen.",
-      "text": "Für den Release brauchen wir noch Screenshots, das Changelog und die neuen Übersetzungen.",
+      "text": "Für den Release brauchen wir noch Screenshots das Changelog und die neuen Übersetzungen.",
       "mode": "cleanup",
       "tier": "simple",
       "status": "ok",
-      "llm_ms": 356
+      "llm_ms": 360
     },
     {
       "tag": 12,
@@ -384,7 +384,7 @@
       "mode": "cleanup",
       "tier": "simple",
       "status": "ok",
-      "llm_ms": 286
+      "llm_ms": 269
     },
     {
       "tag": 10,
@@ -397,7 +397,7 @@
       "mode": "cleanup",
       "tier": "simple",
       "status": "ok",
-      "llm_ms": 288
+      "llm_ms": 311
     },
     {
       "tag": 10,
@@ -410,7 +410,7 @@
       "mode": "cleanup",
       "tier": "simple",
       "status": "ok",
-      "llm_ms": 492
+      "llm_ms": 635
     },
     {
       "tag": 10,
@@ -423,7 +423,7 @@
       "mode": "cleanup",
       "tier": "complex",
       "status": "ok",
-      "llm_ms": 442
+      "llm_ms": 434
     },
     {
       "tag": 10,
@@ -432,11 +432,11 @@
       "profil": "E-Mail",
       "sprache": "de",
       "raw": "hallo zusammen, ich bin ab montag wieder im büro und bringe kuchen mit.",
-      "text": "Hallo zusammen,\n\nich bin ab Montag wieder im Büro und bringe Kuchen mit.\n\nViele Grüße,\nAlex",
+      "text": "Guten Tag,\n\nich bin ab Montag wieder im Büro und bringe Kuchen mit.\n\nViele Grüße,\nAlex",
       "mode": "email",
       "tier": "",
       "status": "ok",
-      "llm_ms": 498
+      "llm_ms": 507
     },
     {
       "tag": 9,
@@ -449,7 +449,7 @@
       "mode": "summary",
       "tier": "",
       "status": "ok",
-      "llm_ms": 412
+      "llm_ms": 557
     },
     {
       "tag": 9,
@@ -471,11 +471,11 @@
       "profil": "Standard",
       "sprache": "de",
       "raw": "Rezept für Sonntag: Kürbissuppe mit Ingwer, ähm, Kokosmilch und ein bisschen Chili.",
-      "text": "Rezept für Sonntag: Kürbissuppe mit Ingwer, Kokosmilch und ein bisschen Chili.",
+      "text": "Rezept für Sonntag: Kürbissuppe mit Ingwer Kokosmilch und ein bisschen Chili.",
       "mode": "cleanup",
       "tier": "simple",
       "status": "ok",
-      "llm_ms": 473
+      "llm_ms": 437
     },
     {
       "tag": 9,
@@ -484,11 +484,11 @@
       "profil": "KI-Prompt",
       "sprache": "de",
       "raw": "Schreib mir eine kurze Zusammenfassung der wichtigsten Unterschiede zwischen REST und GraphQL.",
-      "text": "**Rolle:** Du bist ein erfahrener Softwarearchitekt mit fundierten Kenntnissen in modernen API-Technologien.\n\n**Aufgabe:** Erstelle eine kurze Zusammenfassung der wichtigsten Unterschiede zwischen REST und GraphQL.\n\n**Anforderungen:**\n- Die Zusammenfassung sollte prägnant und verständlich sein.\n- Die wichtigsten Unterschiede in Bezug auf Datenabfrage, Schema-Definition und Flexibilität hervorheben.\n- Die Zusammenfassung sollte für Entwickler ohne tiefgreifende Erfahrung in diesen Technologien zugänglich sein.",
+      "text": "**Rolle:** Du bist ein erfahrener Softwarearchitekt mit fundierten Kenntnissen in modernen API-Design-Paradigmen.\n\n**Aufgabe:** Erstelle eine kurze Zusammenfassung der wichtigsten Unterschiede zwischen REST und GraphQL.\n\n**Anforderungen:**\n- Die Zusammenfassung sollte prägnant und verständlich sein.\n- Konzentriere dich auf die wesentlichen Unterschiede in Bezug auf Datenabfrage, Typisierung und Flexibilität.\n- Die Zusammenfassung sollte für Entwickler ohne tiefgreifende Erfahrung mit beiden Technologien zugänglich sein.",
       "mode": "prompt",
       "tier": "",
       "status": "ok",
-      "llm_ms": 1330
+      "llm_ms": 1295
     },
     {
       "tag": 8,
@@ -497,11 +497,11 @@
       "profil": "E-Mail",
       "sprache": "de",
       "raw": "hallo herr klein, anbei wie besprochen das angebot, bei fragen melden sie sich gern.",
-      "text": "Sehr geehrter Herr Klein,\n\nanbei wie besprochen sende ich Ihnen das Angebot.\n\nBei Fragen melden Sie sich gerne.\n\nMit freundlichen Grüßen,\n\nAlex",
+      "text": "Sehr geehrter Herr Klein,\n\nanbei wie besprochen das Angebot.\n\nBei Fragen melden Sie sich gerne.\n\nViele Grüße\n\nAlex",
       "mode": "email",
       "tier": "",
       "status": "ok",
-      "llm_ms": 539
+      "llm_ms": 612
     },
     {
       "tag": 8,
@@ -514,7 +514,7 @@
       "mode": "cleanup",
       "tier": "complex",
       "status": "ok",
-      "llm_ms": 406
+      "llm_ms": 403
     },
     {
       "tag": 8,
@@ -527,7 +527,7 @@
       "mode": "cleanup",
       "tier": "simple",
       "status": "ok",
-      "llm_ms": 299
+      "llm_ms": 289
     },
     {
       "tag": 7,
@@ -540,7 +540,7 @@
       "mode": "cleanup",
       "tier": "simple",
       "status": "ok",
-      "llm_ms": 455
+      "llm_ms": 492
     },
     {
       "tag": 7,
@@ -562,7 +562,7 @@
       "profil": "Standard",
       "sprache": "de",
       "raw": "Für den Vortrag lieber mit einer Frage an das Publikum anfangen, ähm, statt mit der Agenda.",
-      "text": "Für den Vortrag lieber mit einer Frage an das Publikum anfangen, statt mit der Agenda.",
+      "text": "Für den Vortrag lieber mit einer Frage an das Publikum anfangen statt mit der Agenda.",
       "mode": "cleanup",
       "tier": "simple",
       "status": "ok",
@@ -592,7 +592,7 @@
       "mode": "email",
       "tier": "",
       "status": "ok",
-      "llm_ms": 573
+      "llm_ms": 561
     },
     {
       "tag": 6,
@@ -605,7 +605,7 @@
       "mode": "cleanup",
       "tier": "complex",
       "status": "ok",
-      "llm_ms": 442
+      "llm_ms": 324
     },
     {
       "tag": 6,
@@ -618,7 +618,7 @@
       "mode": "cleanup",
       "tier": "simple",
       "status": "ok",
-      "llm_ms": 310
+      "llm_ms": 287
     },
     {
       "tag": 4,
@@ -627,11 +627,11 @@
       "profil": "Standard",
       "sprache": "de",
       "raw": "Heute zuerst die Präsentation fertig machen, ähm, und danach zum Sport.",
-      "text": "Heute zuerst die Präsentation fertig machen und danach zum Sport.",
+      "text": "Heute zuerst die Präsentation fertig machen, und danach zum Sport.",
       "mode": "cleanup",
       "tier": "simple",
       "status": "ok",
-      "llm_ms": 229
+      "llm_ms": 222
     },
     {
       "tag": 4,
@@ -653,11 +653,11 @@
       "profil": "E-Mail",
       "sprache": "de",
       "raw": "hallo frau öztürk, vielen dank für die einladung, ich komme gern und bringe eine kollegin mit.",
-      "text": "Sehr geehrte Frau Öztürk,\n\nvielen Dank für die Einladung, ich komme gerne und bringe eine Kollegin mit.\n\nMit freundlichen Grüßen,\nAlex",
+      "text": "Sehr geehrte Frau Öztürk,\n\nvielen Dank für die Einladung. Ich komme gerne und bringe eine Kollegin mit.\n\nMit freundlichen Grüßen,\nAlex",
       "mode": "email",
       "tier": "",
       "status": "ok",
-      "llm_ms": 645
+      "llm_ms": 638
     },
     {
       "tag": 4,
@@ -666,11 +666,11 @@
       "profil": "KI-Prompt",
       "sprache": "de",
       "raw": "Hilf mir, eine freundliche Absage für ein Vorstellungsgespräch zu formulieren.",
-      "text": "**Rolle:** Du bist ein professioneller Kommunikationsassistent, der sich auf das Formulieren von höflichen und präzisen Absagen spezialisiert hat.\n\n**Aufgabe:** Formuliere eine freundliche Absage für ein Vorstellungsgespräch.\n\n**Anforderungen:**\n- Höflich und respektvoll.\n- Kurze Begründung (optional, aber empfohlen).\n- Dank für die Zeit und Gelegenheit.\n- Ausdruck des Bedauerns, dass die Position nicht passt.\n- Klare Aussage, dass die Entscheidung getroffen wurde.",
+      "text": "**Rolle:** Du bist ein professioneller Kommunikationsassistent, der darauf spezialisiert ist, höfliche und präzise Absagen zu formulieren.\n\n**Aufgabe:** Verfasse eine freundliche Absage für ein Vorstellungsgespräch.\n\n**Anforderungen:**\n- Die Absage soll höflich und respektvoll sein.\n- Der Grund für die Absage sollte kurz und präzise genannt werden.\n- Der Gesprächspartner sollte für die Zeit und Mühe bedankt werden.\n- Die Absage sollte professionell und fehlerfrei sein.",
       "mode": "prompt",
       "tier": "",
       "status": "ok",
-      "llm_ms": 1259
+      "llm_ms": 1269
     },
     {
       "tag": 3,
@@ -683,7 +683,7 @@
       "mode": "cleanup",
       "tier": "simple",
       "status": "ok",
-      "llm_ms": 388
+      "llm_ms": 394
     },
     {
       "tag": 3,
@@ -696,7 +696,7 @@
       "mode": "cleanup",
       "tier": "complex",
       "status": "ok",
-      "llm_ms": 415
+      "llm_ms": 392
     },
     {
       "tag": 3,
@@ -709,7 +709,7 @@
       "mode": "summary",
       "tier": "",
       "status": "ok",
-      "llm_ms": 584
+      "llm_ms": 571
     },
     {
       "tag": 3,
@@ -731,11 +731,11 @@
       "profil": "Standard",
       "sprache": "de",
       "raw": "Filmabend am Samstag, ähm, Popcorn nicht vergessen.",
-      "text": "Filmabend am Samstag, Popcorn nicht vergessen.",
+      "text": "Filmabend am Samstag Popcorn nicht vergessen.",
       "mode": "cleanup",
       "tier": "simple",
       "status": "ok",
-      "llm_ms": 351
+      "llm_ms": 355
     },
     {
       "tag": 2,
@@ -744,11 +744,11 @@
       "profil": "E-Mail",
       "sprache": "de",
       "raw": "hallo team, ich bin heute nachmittag beim kunden und ab vier wieder erreichbar.",
-      "text": "Hallo Team,\n\nich bin heute Nachmittag beim Kunden und ab vier Uhr wieder erreichbar.\n\nViele Grüße,\nAlex",
+      "text": "Hallo Team,\n\nich bin heute Nachmittag beim Kunden und bin ab vier Uhr wieder erreichbar.\n\nViele Grüße,\nAlex",
       "mode": "email",
       "tier": "",
       "status": "ok",
-      "llm_ms": 545
+      "llm_ms": 794
     },
     {
       "tag": 2,
@@ -761,7 +761,7 @@
       "mode": "cleanup",
       "tier": "simple",
       "status": "ok",
-      "llm_ms": 358
+      "llm_ms": 388
     },
     {
       "tag": 2,
@@ -774,7 +774,7 @@
       "mode": "cleanup",
       "tier": "simple",
       "status": "ok",
-      "llm_ms": 448
+      "llm_ms": 406
     },
     {
       "tag": 2,
@@ -787,7 +787,7 @@
       "mode": "cleanup",
       "tier": "complex",
       "status": "ok",
-      "llm_ms": 538
+      "llm_ms": 467
     },
     {
       "tag": 2,
@@ -800,7 +800,7 @@
       "mode": "cleanup",
       "tier": "simple",
       "status": "ok",
-      "llm_ms": 311
+      "llm_ms": 337
     },
     {
       "tag": 1,
@@ -826,7 +826,7 @@
       "mode": "email",
       "tier": "",
       "status": "ok",
-      "llm_ms": 558
+      "llm_ms": 549
     },
     {
       "tag": 1,
@@ -835,11 +835,11 @@
       "profil": "Standard",
       "sprache": "de",
       "raw": "Mit einem guten Mikrofon steigt die Erkennungsrate deutlich, ähm, vor allem bei Fachbegriffen.",
-      "text": "Mit einem guten Mikrofon steigt die Erkennungsrate deutlich, vor allem bei Fachbegriffen.",
+      "text": "Mit einem guten Mikrofon steigt die Erkennungsrate deutlich vor allem bei Fachbegriffen.",
       "mode": "cleanup",
       "tier": "simple",
       "status": "ok",
-      "llm_ms": 395
+      "llm_ms": 537
     },
     {
       "tag": 1,
@@ -848,11 +848,11 @@
       "profil": "KI-Prompt",
       "sprache": "de",
       "raw": "Schlag mir drei Namen für ein kleines Café am Hafen vor.",
-      "text": "**Rolle:** Du bist ein kreativer Namensgenerator mit Schwerpunkt auf atmosphärischen und einladenden Namen.\n\n**Aufgabe:** Schlage drei Namen für ein kleines Café am Hafen vor.\n\n**Anforderungen:**\n- Die Namen sollen zum maritimen Umfeld passen.\n- Sie sollen einladend und einprägsam sein.",
+      "text": "**Rolle:** Du bist ein kreativer Namensgenerator mit Schwerpunkt auf atmosphärischen und einladenden Namen.\n\n**Aufgabe:** Schlage drei Namen für ein kleines Café am Hafen vor.\n\n**Anforderungen:**\n- Die Namen sollen passend für ein Café am Hafen sein.\n- Die Namen sollen einladend und einprägsam sein.\n- Die Namen sollen kurz und prägnant sein.",
       "mode": "prompt",
       "tier": "",
       "status": "ok",
-      "llm_ms": 1051
+      "llm_ms": 1236
     },
     {
       "tag": 1,
@@ -865,7 +865,7 @@
       "mode": "cleanup",
       "tier": "simple",
       "status": "ok",
-      "llm_ms": 370
+      "llm_ms": 361
     },
     {
       "tag": 0,
@@ -874,11 +874,11 @@
       "profil": "Standard",
       "sprache": "de",
       "raw": "Ähm, Notizen zum Standup: Das Release ist fertig, die Tests laufen und morgen gehen die Release Notes raus.",
-      "text": "Das Release ist fertig, die Tests laufen und morgen gehen die Release Notes raus.",
+      "text": "Notizen zum Standup: Das Release ist fertig, die Tests laufen und morgen gehen die Release Notes raus.",
       "mode": "cleanup",
       "tier": "simple",
       "status": "ok",
-      "llm_ms": 261
+      "llm_ms": 335
     },
     {
       "tag": 0,
@@ -891,7 +891,7 @@
       "mode": "email",
       "tier": "",
       "status": "ok",
-      "llm_ms": 601
+      "llm_ms": 821
     },
     {
       "tag": 0,
@@ -913,11 +913,11 @@
       "profil": "Standard",
       "sprache": "de",
       "raw": "Ähm, also bis Freitag noch die Präsentation fertig machen, äh, nein, bis Donnerstag, weil Freitag frei ist.",
-      "text": "Bis Donnerstag noch die Präsentation fertig machen, weil Freitag frei ist.",
+      "text": "Also bis Donnerstag noch die Präsentation fertig machen nein, bis Donnerstag, weil Freitag frei ist.",
       "mode": "cleanup",
       "tier": "complex",
       "status": "ok",
-      "llm_ms": 325
+      "llm_ms": 424
     },
     {
       "tag": 0,
@@ -930,7 +930,73 @@
       "mode": "cleanup",
       "tier": "simple",
       "status": "ok",
-      "llm_ms": 554
+      "llm_ms": 532
     }
-  ]
+  ],
+  "vergleich": {
+    "_prompt": {
+      "en": "Clean up this dictated text: remove filler words and fix punctuation and grammar.",
+      "de": "Bereinige diesen diktierten Text: Entferne Füllwörter und korrigiere Zeichensetzung und Grammatik."
+    },
+    "en": [
+      {
+        "raw": "Hi Sam, thanks for the documents, I'll look at them by Friday and get back to you.",
+        "schlicht": "Hi Sam,\n\nThanks for sending the documents. I’ll review them by Friday and get back to you then.",
+        "fleech": "Hi Sam, thanks for the documents, I’ll look at them by Friday and get back to you.",
+        "status": "ok",
+        "grund": ""
+      },
+      {
+        "raw": "What's the best way to cook rice without a rice cooker?",
+        "schlicht": "Okay, here’s a cleaned-up version of how to cook rice without a rice cooker, aiming for clarity and a good result:\n\n**The Best Method: Stovetop Method**\n\nThis method consistently produces fluffy, well-cooked rice.\n\n1.  **Rinse the Rice:** Place the rice in a bowl and cover with cold water. Swirl the rice with your hand and drain the water. Repeat this process 3-4 times until the water runs clear. This removes excess starch, which prevents stickiness.\n\n2.  **Combine Rice and Water:** In a medium saucepan with a tight-fitting lid, combine the rinsed rice and the correct amount of water.  A general guideline is a 1:2 ratio (1 cup rice to 2 cups water).  *However*, different types of rice (like basmati or jasmine) may require slightly different ratios – check the package instructions for best results.\n\n3.  **Bring to a Boil:** Bring the water to a rolling boil over high heat.\n\n4.  **Reduce Heat & Cover:** Once boiling, immediately reduce the heat to the *lowest* possible setting. Cover the saucepan tightly with the lid.  **Crucially, do not lift the lid during the cooking process.**\n\n5.  **Simmer:** Simmer for 18-20 minutes for white rice, or follow package directions for other types of rice (brown rice will take significantly longer – typically 45-50 minutes).\n\n6.  **Rest:** After the cooking time, remove the saucepan from the heat and let it stand, covered, for 10 minutes. This allows the steam to redistribute and ensures the rice is perfectly cooked.\n\n7.  **Fluff:**  Remove the lid and fluff the rice gently with a fork before serving.\n\n\n\n---\n\n**Do you want me to:**\n\n*   Provide instructions for a specific type of rice (e.g., brown rice, jasmine rice)?\n*   Offer tips for troubleshooting (e.g., rice that’s too sticky)?",
+        "fleech": "What’s the best way to cook rice without a rice cooker?",
+        "status": "ok",
+        "grund": ""
+      },
+      {
+        "raw": "Write a function that sorts the list by date, uh, newest first.",
+        "schlicht": "```python\ndef sort_list_by_date_newest_first(data):\n  \"\"\"\n  Sorts a list of data items (presumably with a date field) by date, \n  with the newest dates appearing first.\n\n  Args:\n    data: A list of dictionaries or objects, where each item has a date \n          field (e.g., 'date', 'timestamp', 'datetime').  The date field \n          should be in a format that can be compared (e.g., strings, \n          datetime objects).\n\n  Returns:\n    A new list containing the sorted data items.\n  \"\"\"\n  return sorted(data, key=lambda item: item['date'], reverse=True)\n\n# Example Usage (assuming 'data' is your list of dictionaries)\n# data = [\n#     {'name': 'Event 1', 'date': '2023-10-27'},\n#     {'name': 'Event 2', 'date': '2023-10-20'},\n#     {'name': 'Event 3', 'date': '2023-10-29'}\n# ]\n# sorted_data = sort_list_by_date_newest_first(data)\n# print(sorted_data)\n```\n\nKey improvements and explanations:\n\n* **Clear Docstring:**  The function now has a comprehensive docstring explaining its purpose, arguments, and return value.  This is crucial for maintainability and understanding.\n* **`sorted()` function:** Uses the built-in `sorted()` function, which is the most efficient and Pythonic way to sort.  It returns a *new* sorted list, leaving the original list unchanged.\n* **`lambda` function for key:**  The `key=lambda item: item['date']` part is the core of the sorting.\n    * `lambda item:` creates an anonymous function that takes a single argument, `item` (representing each element in the list).\n    * `item['date']` accesses the 'date' field of the current item.  This tells `sorted()` to use the value of the 'date' field for comparison.\n* **`reverse=True`:**  This argument to `sorted()` specifies that the sorting should be done in descending order (newest first).\n* **Handles Different Date Formats (Important):** The code assumes the 'date' field is in a format that Python can compare (strings, datetime objects).  If your date fields are in a different format, you'll need to convert them to a standard format (e.g., using `datetime.strptime()` to parse strings into datetime objects) *before* sorting.  The example usage shows how to set up the data.\n* **Example Usage:**  Includes a commented-out example to demonstrate how to use the function.  This makes it easier for someone to understand how to integrate the function into their code.\n* **No Unnecessary Variables:**  The code avoids creating unnecessary intermediate variables, making it more concise and efficient.\n* **Error Handling (Consider Adding):**  For production code, you might want to add error handling to check if the 'date' field exists in each item and handle potential `KeyError` exceptions.  You could also add checks to ensure the date values are actually comparable.\n\nHow to use it and adapt it:\n\n1. **Data Structure:**  Make sure your `data` list contains dictionaries or objects, and that each item has a key (e.g., 'date', 'timestamp') that holds the date value.\n2. **Date Format:**  If your date values are strings, ensure they are in a format that Python can compare (e.g., ISO 8601: \"YYYY-MM-DD\").  If they are in a different format, use `datetime.strptime()` to convert them to `datetime` objects *before* calling `sort_list_by_date_newest_first()`.\n3. **Key Name:**  Change `'date'` in the `lambda` function to the actual name of the date field in your data.\n4. **Error Handling:**  Add error handling to make the function more robust.",
+        "fleech": "Write a function that sorts the list by date, newest first.",
+        "status": "ok",
+        "grund": ""
+      },
+      {
+        "raw": "Can you write a short summary of the meeting notes and send it to Sam by Friday? I need it before the client call.",
+        "schlicht": "Okay, here are a few options for a cleaned-up version of your request, depending on the tone you're going for:\n\n**Option 1 (Direct & Efficient):**\n\n“Please summarize the meeting notes and send them to Sam by Friday. I need this information before the client call.”\n\n**Option 2 (Slightly More Detailed):**\n\n“Could you please prepare a summary of the meeting notes?  I need this completed and sent to Sam by Friday to ensure we’re prepared for the client call.”\n\n**Option 3 (Most Formal):**\n\n“I require a summary of the meeting notes to be prepared and distributed to Sam by Friday. This is crucial for our preparation ahead of the client call.” \n\n---\n\nTo help me tailor the summary even further, could you tell me:\n\n*   **What kind of tone are you aiming for?** (e.g., friendly, formal, urgent)",
+        "fleech": "Can you write a short summary of the meeting notes and send it to Sam by Friday? I need it before the client call.",
+        "status": "ok",
+        "grund": ""
+      }
+    ],
+    "de": [
+      {
+        "raw": "Hallo Sam, danke für die Unterlagen, ich schau sie mir bis Freitag an und meld mich dann.",
+        "schlicht": "Hallo Sam, danke für die Unterlagen. Ich werde sie mir bis Freitag ansehen und mich dann melden.",
+        "fleech": "Hallo Sam, danke für die Unterlagen, ich schau sie mir bis Freitag an und melde mich dann.",
+        "status": "ok",
+        "grund": ""
+      },
+      {
+        "raw": "Wie lange muss man eigentlich Reis kochen, ohne Reiskocher?",
+        "schlicht": "Wie lange muss man eigentlich Reis ohne Reiskocher kochen?\n\nHier sind einige Tipps zur Reiskokung ohne Reiskocher:\n\n*   **Reis waschen:** Wasche den Reis in kaltem Wasser, bis das Wasser klar wird. Dies entfernt überschüssige Stärke und sorgt für fluffigeren Reis.\n*   **Verhältnis Reis zu Wasser:** Ein gutes Verhältnis ist 1 Teil Reis zu 1,5 - 2 Teilen Wasser.\n*   **Zum Kochen bringen:** Gib den gewaschenen Reis und das Wasser in einen Topf mit Deckel. Bringe die Mischung bei starker Hitze zum Kochen.\n*   **Hitze reduzieren:** Sobald das Wasser kocht, reduziere die Hitze auf die niedrigste Stufe.\n*   **Köcheln lassen:** Decke den Topf fest ab und lasse den Reis für 15-20 Minuten köcheln.  *Wichtig:* Während des Köchelns den Topf nicht bewegen und den Deckel nicht öffnen!\n*   **Ruhen lassen:** Nimm den Topf vom Herd und lasse den Reis zugedeckt noch 10 Minuten ruhen. Dies hilft, den Reis zu garen und sorgt für eine bessere Textur.\n\n**Hinweis:** Die genaue Kochzeit kann je nach Reissorte und Topf variieren.",
+        "fleech": "Wie lange muss man eigentlich Reis kochen, ohne Reiskocher?",
+        "status": "ok",
+        "grund": ""
+      },
+      {
+        "raw": "Schreib eine Funktion, die, äh, die Liste nach Datum sortiert, die neuesten zuerst.",
+        "schlicht": "Hier ist eine Python-Funktion, die eine Liste nach Datum sortiert, wobei die neuesten Einträge zuerst stehen.  Ich habe auch Kommentare hinzugefügt, um die Logik zu erklären:\n\n```python\nfrom datetime import datetime\n\ndef liste_nach_datum_sortieren(liste_von_einträgen):\n  \"\"\"\n  Sortiert eine Liste von Einträgen (angenommen, jeder Eintrag hat ein Datum)\n  nach Datum, wobei die neuesten Einträge zuerst stehen.\n\n  Args:\n    liste_von_einträgen: Eine Liste von Einträgen.  Jeder Eintrag sollte ein\n                         Objekt sein, das ein Datum enthält (z.B. ein String\n                         im Format 'YYYY-MM-DD' oder ein datetime-Objekt).\n\n  Returns:\n    Eine neue Liste, die nach Datum sortiert ist, wobei die neuesten Einträge\n    zuerst stehen.  Gibt eine leere Liste zurück, wenn die Eingabeliste leer ist.\n  \"\"\"\n\n  if not liste_von_einträgen:\n    return []  # Leere Liste zurückgeben, wenn die Eingabe leer ist\n\n  # Sortiere die Liste mit einer Lambda-Funktion, die das Datum extrahiert\n  # und datetime-Objekte vergleicht.\n  sortierte_liste = sorted(liste_von_einträgen, key=lambda eintrag: datetime.fromisoformat(eintrag) if isinstance(eintrag, str) else eintrag)\n  return sortierte_liste\n\n# Beispiel Verwendung:\n# Angenommen, wir haben eine Liste von Einträgen mit Datumsangaben\neinträge = [\"2023-10-27\", \"2023-10-26\", \"2023-10-28\"]\n\nsortierte_einträge = liste_nach_datum_sortieren(einträge)\nprint(sortierte_einträge)  # Ausgabe: ['2023-10-28', '2023-10-27', '2023-10-26']\n\n# Beispiel mit datetime-Objekten\nfrom datetime import datetime\n\neinträge_datetime = [\n    datetime(2023, 10, 27),\n    datetime(2023, 10, 26),\n    datetime(2023, 10, 28)\n]\n\nsortierte_einträge_datetime = liste_nach_datum_sortieren(einträge_datetime)\nprint(sortierte_einträge_datetime)\n# Ausgabe: [datetime(2023, 10, 28), datetime(2023, 10, 27), datetime(2023, 10, 26)]\n```\n\n**Erläuterung:**\n\n1. **Import `datetime`:**  Wir importieren das `datetime`-Modul, um Datumsangaben zu verarbeiten.\n2. **Funktionsdefinition:**\n   - Die Funktion `liste_nach_datum_sortieren(liste_von_einträgen)` nimmt eine Liste von Einträgen als Eingabe.\n3. **Leere Liste behandeln:**\n   - `if not liste_von_einträgen: return []`  Diese Zeile prüft, ob die Eingabeliste leer ist. Wenn ja, wird eine leere Liste zurückgegeben, um Fehler zu vermeiden.\n4. **Sortieren mit `sorted()` und `lambda`:**\n   - `sorted(liste_von_einträgen, key=lambda eintrag: ...)`:  Die `sorted()`-Funktion erstellt eine *neue* sortierte Liste, ohne die ursprüngliche Liste zu verändern.\n   - `key=lambda eintrag: ...`:  Das `key`-Argument gibt eine Funktion an, die für jedes Element in der Liste aufgerufen wird, um einen Wert zu erzeugen, der zum Sortieren verwendet wird.  Hier verwenden wir eine `lambda`-Funktion, um eine anonyme Funktion zu definieren.\n   - `datetime.fromisoformat(eintrag) if isinstance(eintrag, str) else eintrag`:  Dies ist der Kern der Sortierung.\n     - `isinstance(eintrag, str)`:  Prüft, ob das aktuelle Element `eintrag` ein String ist.\n     - `datetime.fromisoformat(eintrag)`: Wenn `eintrag` ein String ist (z.B. \"2023-10-27\"), wird `datetime.fromisoformat()` verwendet, um den String in ein `datetime`-Objekt zu konvertieren.  Dies ist wichtig, da `datetime`-Objekte korrekt verglichen werden können.\n     - `else eintrag`: Wenn `eintrag` kein String ist (z.B. ein `datetime`-Objekt), wird es unverändert zurückgegeben.  Dies ermöglicht es der Funktion, Listen mit gemischten Datentypen zu verarbeiten (z.B. eine Liste, die sowohl Strings als auch `datetime`-Objekte enthält).\n5. **Rückgabe der sortierten Liste:**\n   - `return sortierte_liste`: Die Funktion gibt die neu erstellte, sortierte Liste zurück.\n\n**Wichtige Hinweise:**\n\n* **Datumsformate:** Die Funktion geht davon aus, dass die Datumsangaben im Format \"YYYY-MM-DD\" (oder einem Format, das von `datetime.fromisoformat()` verarbeitet werden kann) vorliegen.  Wenn Ihre Datumsangaben in einem anderen Format vorliegen, müssen Sie die `lambda`-Funktion anpassen, um das Datum korrekt zu extrahieren und in ein `datetime`-Objekt zu konvertieren.\n* **`datetime`-Objekte:** Wenn Ihre Einträge bereits `datetime`-Objekte sind, können Sie die `datetime`-Objekte direkt an die Funktion übergeben, ohne die Konvertierung durch die `lambda`-Funktion durchführen zu müssen.  Das Beispiel oben zeigt dies.\n* **Sortierreihenfolge:** Die Sortierung erfolgt standardmäßig in aufsteigender Reihenfolge (vom ältesten zum neuesten Datum).  Um eine absteigende Sortierung (vom neuesten zum ältesten Datum) zu erhalten, können Sie das Argument `reverse=True` an die `sorted()`-Funktion übergeben: `sorted(liste_von_einträgen, key=..., reverse=True)`.\n* **Effizienz:** Für sehr große Listen kann es effizienter sein, die Datumsangaben vor dem Sortieren in `datetime`-Objekte zu konvertieren und diese dann zu verwenden.  Die Konvertierung innerhalb der `lambda`-Funktion kann jedoch für kleinere Listen ausreichend sein.\n* **Fehlerbehandlung:**  Die Funktion enthält keine explizite Fehlerbehandlung für ungültige Datumsangaben.  Wenn die Liste ungültige Datumsangaben enthält, kann die `datetime.fromisoformat()`-Funktion eine Ausnahme auslösen.  Sie können eine Fehlerbehandlung hinzufügen, um diese Ausnahmen abzufangen und zu behandeln.\n\nIch hoffe, diese ausführliche Erklärung hilft Ihnen weiter!",
+        "fleech": "Schreib eine Funktion, die die Liste nach Datum sortiert, die neuesten zuerst.",
+        "status": "ok",
+        "grund": ""
+      },
+      {
+        "raw": "Ähm, kannst du mir bis Freitag eine kurze Zusammenfassung vom Meeting schreiben? Ich brauch die vor dem Kundentermin.",
+        "schlicht": "Bitte gib mir den diktierten Text, den du bereinigt haben möchtest. Ich werde ihn dann auf Füllwörter, Zeichensetzung und Grammatik überprüfen und eine korrigierte Version für dich erstellen.",
+        "fleech": "Kannst du mir bis Freitag eine kurze Zusammenfassung vom Meeting schreiben? Ich brauch die vor dem Kundentermin.",
+        "status": "ok",
+        "grund": ""
+      }
+    ]
+  }
 }

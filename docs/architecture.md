@@ -1,9 +1,10 @@
 # Fleech architecture
 
-Status: 6.1.0. This page is for contributors. It explains how a dictation travels through
+Status: 6.4.0. This page is for contributors. It explains how a dictation travels through
 the code, which thread does what, and where things live. The source code is the final
 authority. For every feature and setting in detail, read [concept.de.md](concept.de.md)
-(German); the deep dives linked below go further on single topics.
+(German); the deep dives linked below go further on single topics. What happens to a
+dictation, explained for users: [how-it-works.md](how-it-works.md).
 
 Fleech is a tray app built on PySide6. Global hotkeys come from pynput, speech recognition
 runs locally with faster-whisper, the AI cleanup runs on a local Ollama model by default,
@@ -78,13 +79,13 @@ imports the settings; `pipeline_factory.py` builds it from `AppConfig` and `User
 
    | Choice | Endpoint | Key |
    |---|---|---|
-   | Local Ollama (default, `gemma3:4b`) | `/api/chat` with `options.num_ctx` (8192) | none |
+   | Local Ollama (default, `gemma3:4b-text`) | `/api/chat` with `options.num_ctx` (8192) | none |
    | OpenAI, Gemini, Mistral, Groq, OpenRouter, custom server | `/chat/completions` | system keychain |
    | Anthropic | `/messages` | system keychain |
    | "Ohne KI" (no AI) | no call; the transcript goes straight to step 7 | none |
 
    Ollama loads models with a 4,096-token context, and its OpenAI-compatible layer ignores
-   `num_ctx`; the cleanup prompt alone takes about 3,000 tokens. Hence the native API. If
+   `num_ctx`; the format prompts get whole dictations at once. Hence the native API. If
    a reply stops at the limit (`last_truncated`), the raw transcript is pasted instead of
    half a sentence. The transcript travels between delimiter markers
    (`textutils.wrap_transcript`), and `prompts.py` re-adds the marker rule if a custom
@@ -187,10 +188,11 @@ The user folder (`%APPDATA%\Fleech` or `~/.config/Fleech`) holds:
 
 | File | Content |
 |---|---|
-| `settings.json`, `settings.json.bak` | all settings; the last good version, written before each save and used to heal a broken or reset file |
+| `settings.json`, `settings.json.bak` | all settings, encrypted with AES-256-GCM; the last good version, written before each save and used to heal a broken or reset file |
 | `sicherungen/` | dated copies on each version change and before a build, the last 12 kept |
-| `history.db`, `kontext.db` | dictation history; learned vocabulary per app and window |
-| `fleech.log` (+ `.1`–`.3`) | log, rotated at 20 MB. **Contains dictated text** — strip it before sharing. |
+| `history.db`, `kontext.db` | dictation history; learned vocabulary per app and window. Both encrypted with SQLCipher; open them only through `tresor.verbinde()` |
+| `schluessel.dpapi` | the data key, protected by DPAPI (Linux: Secret Service instead); `tresor/` |
+| `fleech.log` (+ `.1`–`.3`) | log, rotated at 20 MB. No dictated text or window titles (word counts instead, `protokolltext.py`) unless the user turns on *Diktattexte ins Protokoll* |
 | `prompts/` | the user's own prompt versions, which take precedence over the bundled ones |
 | `updates/` | downloaded installers |
 | `config.yaml`, `.env` | optional overrides |

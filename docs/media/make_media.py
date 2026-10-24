@@ -3,8 +3,10 @@
 Das Skript rendert die ECHTEN Qt-Widgets von Fleech (Pille, Hauptfenster,
 Einstellungen) Bild für Bild in doppelter Auflösung und setzt daraus mit ffmpeg
 GIFs zusammen. Die Beispieltexte sind echte Ausgaben von Fleechs Pipeline mit dem
-lokalen Modell (gemma3:4b über Ollama); sie liegen in `examples.json` neben diesem
-Skript, damit jeder Neubau nachprüfbar dieselben Texte zeigt.
+lokalen Modell (gemma3:4b-text über Ollama); sie liegen in `examples.json` neben
+diesem Skript, damit jeder Neubau nachprüfbar dieselben Texte zeigt. Dort steht auch
+der Vergleich für die README („Why not just Whisper + ChatGPT?“): dasselbe Modell
+einmal mit einem schlichten Ein-Satz-Prompt, einmal in Fleechs Pipeline.
 
 Aufruf aus dem Projektordner, mit dem Python der Fleech-Umgebung:
 
@@ -13,7 +15,7 @@ Aufruf aus dem Projektordner, mit dem Python der Fleech-Umgebung:
     python docs/media/make_media.py --beispiele     # examples.json neu erzeugen
     python docs/media/make_media.py --liste         # verfügbare Szenen
 
-`--beispiele` braucht ein laufendes Ollama mit gemma3:4b (Adresse aus config.yaml).
+`--beispiele` braucht ein laufendes Ollama mit gemma3:4b-text (Adresse aus config.yaml).
 ffmpeg kommt aus dem PATH oder aus der Umgebungsvariable FFMPEG.
 
 Sicherheit — alles hier landet in einem öffentlichen Repository:
@@ -34,6 +36,7 @@ from __future__ import annotations
 import argparse
 import atexit
 import datetime as dt
+import difflib
 import json
 import math
 import os
@@ -137,6 +140,34 @@ MATHE_ROH = (
     "Nach Pythagoras gilt a Quadrat plus b Quadrat gleich c Quadrat.",
     "Und das Ergebnis ist Wurzel aus x Quadrat plus c.",
 )
+
+# „Why not just Whisper + ChatGPT?“ — dasselbe Modell, einmal mit einem schlichten
+# Ein-Satz-Prompt (so baut man es sich schnell selbst), einmal in Fleechs Pipeline.
+# Die Sätze sind ausgesucht, um die typischen Fehler zu zeigen: umformulieren, eine
+# Frage beantworten, einen Auftrag ausführen. Die README-Tabelle zitiert examples.json.
+VERGLEICH_PROMPT = {
+    "en": "Clean up this dictated text: remove filler words and fix punctuation and "
+          "grammar.",
+    "de": "Bereinige diesen diktierten Text: Entferne Füllwörter und korrigiere "
+          "Zeichensetzung und Grammatik.",
+}
+VERGLEICH_ROH = {
+    "en": [
+        "Hi Sam, thanks for the documents, I'll look at them by Friday and get back to you.",
+        "What's the best way to cook rice without a rice cooker?",
+        "Write a function that sorts the list by date, uh, newest first.",
+        "Can you write a short summary of the meeting notes and send it to Sam by Friday? "
+        "I need it before the client call.",
+    ],
+    "de": [
+        "Hallo Sam, danke für die Unterlagen, ich schau sie mir bis Freitag an und meld "
+        "mich dann.",
+        "Wie lange muss man eigentlich Reis kochen, ohne Reiskocher?",
+        "Schreib eine Funktion, die, äh, die Liste nach Datum sortiert, die neuesten zuerst.",
+        "Ähm, kannst du mir bis Freitag eine kurze Zusammenfassung vom Meeting schreiben? "
+        "Ich brauch die vor dem Kundentermin.",
+    ],
+}
 
 # Erfundener Verlauf für Hauptfenster/Insights: (Tage zurück, Uhrzeit, App, Profil,
 # Sprache, Rohtext). Zwei Lücken (Tag 5 und 11) für eine glaubhafte Serie.
@@ -474,6 +505,24 @@ def erzeuge_beispiele() -> None:
         print(f"verlauf {tag:2d} {zeit} {profil:12s} {text[:60]!r}")
     daten["verlauf"] = verlauf
 
+    # 6) Vergleich für die README: schlichter Prompt gegen Fleech, dasselbe Modell
+    from fleech.config import load_config
+    from fleech.llm.client import ChatClient
+
+    schlicht = ChatClient(load_config().llm_cleanup)
+    daten["vergleich"] = {"_prompt": VERGLEICH_PROMPT}
+    for sprache, saetze in VERGLEICH_ROH.items():
+        daten["vergleich"][sprache] = []
+        for roh in saetze:
+            naiv = schlicht.complete(VERGLEICH_PROMPT[sprache], roh)
+            pipe, mit = _pipeline(sprache)
+            info = _diktiere(pipe, roh)
+            fleech = mit.log[-1][1] if mit.log else ""
+            daten["vergleich"][sprache].append({
+                "raw": roh, "schlicht": naiv, "fleech": fleech,
+                "status": info["status"], "grund": pipe.last_reason})
+            print(f"vergleich.{sprache}: {naiv[:60]!r} | {fleech!r}")
+
     BEISPIELE.write_text(json.dumps(daten, ensure_ascii=False, indent=2) + "\n",
                          encoding="utf-8")
     print(f"→ {BEISPIELE.relative_to(ROOT)}")
@@ -549,13 +598,12 @@ def schrift(px: float, gewicht: str = "normal"):
     return f
 
 
-def _bild(breite: int, hoehe: int, dpr: int = SKALIERUNG, transparent: bool = False):
-    from PySide6.QtCore import Qt
+def _bild(breite: int, hoehe: int, dpr: int = SKALIERUNG):
     from PySide6.QtGui import QImage
 
     img = QImage(breite * dpr, hoehe * dpr, QImage.Format_ARGB32_Premultiplied)
     img.setDevicePixelRatio(dpr)
-    img.fill(Qt.transparent if transparent else _farbe("#16181C"))
+    img.fill(_farbe("#16181C"))
     return img
 
 
@@ -672,26 +720,23 @@ class Pille:
     def blase_weg(self) -> None:
         self.ov._caption.hide()
 
-    def zeichne(self, p, pos, deckkraft: float = 1.0, nur_pille: bool = False,
-                fenster_transparenz: bool = True) -> None:
+    def zeichne(self, p, pos, deckkraft: float = 1.0) -> None:
         """Pille (mit ihrer Fenster-Transparenz) und sichtbare Blasen an `pos` malen.
 
         `grab()` kennt die Fenster-Transparenz (Vorgabe 0,9) nicht — sie wird hier
-        nachgebildet. Für das freigestellte pill.png bleibt sie aus: Ohne Hintergrund
-        dahinter sähe die Pille sonst je nach Seitenfarbe grau oder milchig aus."""
+        nachgebildet."""
         from PySide6.QtCore import QPointF
 
         ov = self.ov
         if not ov.isHidden():
-            fenster = self.settings.overlay.opacity if fenster_transparenz else 1.0
+            fenster = self.settings.overlay.opacity
             p.setOpacity(deckkraft * max(0.2, min(1.0, fenster)))
             p.drawPixmap(pos, ov.grab())
-        if not nur_pille:
-            for b in self.blasen:
-                if not b.isHidden():
-                    p.setOpacity(deckkraft)
-                    off = b.pos() - ov.pos()
-                    p.drawPixmap(pos + QPointF(off.x(), off.y()), b.grab())
+        for b in self.blasen:
+            if not b.isHidden():
+                p.setOpacity(deckkraft)
+                off = b.pos() - ov.pos()
+                p.drawPixmap(pos + QPointF(off.x(), off.y()), b.grab())
         p.setOpacity(1.0)
 
     def umriss(self):
@@ -936,10 +981,10 @@ def zeichne_zeiger(p, spitze, klick: float = 0.0) -> None:
 # -- Szenen-Bausteine -----------------------------------------------------------------
 
 TEXTE = {
-    "de": {"halten": "gedrückt halten", "loslassen": "loslassen",
+    "de": {"halten": "gedrückt halten", "loslassen": "loslassen", "gesagt": "Du sagst",
            "notiz": "Notizen — team-update.txt", "kopf": "Wochen-Update",
            "nachricht": "Notizen — antwort.txt", "betreff": "Re: Meeting morgen"},
-    "en": {"halten": "hold to talk", "loslassen": "release",
+    "en": {"halten": "hold to talk", "loslassen": "release", "gesagt": "You say",
            "notiz": "Notes — team-update.txt", "kopf": "Weekly update",
            "nachricht": "Notes — reply.txt", "betreff": "Re: Meeting tomorrow"},
 }
@@ -989,6 +1034,8 @@ def _lade_beispiele() -> dict:
                 *(t for s in BEFEHL_ROH for t in (bsp["command"][s]["diktat_raw"],
                                                  bsp["command"][s]["befehl_raw"])),
                 *(f["raw"] for f in bsp["math"]["de"]), *(e["raw"] for e in bsp["verlauf"])]
+    roh_jetzt += [r for s in VERGLEICH_ROH for r in VERGLEICH_ROH[s]]
+    roh_json += [e["raw"] for s in VERGLEICH_ROH for e in bsp.get("vergleich", {}).get(s, [])]
     if roh_jetzt != roh_json:
         raise SystemExit("examples.json passt nicht mehr zu den Rohtexten im Skript — "
                          "`make_media.py --beispiele` ausführen.")
@@ -999,34 +1046,112 @@ def _lade_beispiele() -> dict:
 # Szenen
 # =====================================================================================
 
+def _weggelassen(roh: str, text: str) -> set:
+    """Indizes der Rohwörter, die im Ergebnis fehlen (für die Durchstreichung)."""
+    def norm(w: str) -> str:
+        return re.sub(r"[^\w]", "", w.replace("’", "'").lower())
+
+    a, b = [norm(w) for w in roh.split()], [norm(w) for w in text.split()]
+    behalten = set()
+    for blk in difflib.SequenceMatcher(None, a, b, autojunk=False).get_matching_blocks():
+        behalten.update(range(blk.a, blk.a + blk.size))
+    return {i for i in range(len(a)) if i not in behalten}
+
+
+def zeichne_gesprochen(p, r, label: str, roh: str, sichtbar: int,
+                       weg: set | None = None) -> None:
+    """Demo-Element über dem Fenster: was gesprochen wird (stumme GIFs brauchen
+    sichtbaren Ton). `weg` streicht die Wörter durch, die Fleech weggelassen hat."""
+    from PySide6.QtCore import QRectF, Qt
+    from PySide6.QtGui import QTextCharFormat, QTextCursor, QTextDocument
+
+    p.setPen(_farbe("#8A9099"))
+    p.setFont(schrift(12, "halbfett"))
+    p.drawText(QRectF(r.x(), r.y(), r.width(), 18), Qt.AlignLeft | Qt.AlignVCenter,
+               label.upper())
+    woerter = roh.split()[:sichtbar]
+    if not woerter:
+        return
+    doc = QTextDocument()
+    doc.setDocumentMargin(0)
+    doc.setDefaultFont(schrift(15.5))
+    cur = QTextCursor(doc)
+    normal = QTextCharFormat()
+    normal.setFont(schrift(15.5))
+    normal.setForeground(_farbe("#D4D7DD"))
+    gestrichen = QTextCharFormat(normal)
+    gestrichen.setForeground(_farbe("#E2A04A"))
+    gestrichen.setFontStrikeOut(True)
+    for i, wort in enumerate(woerter):
+        if i:
+            # Leerzeichen nur dann gestrichen, wenn beide Nachbarn es sind
+            beide = bool(weg) and i in weg and i - 1 in weg
+            cur.insertText(" ", gestrichen if beide else normal)
+        cur.insertText(wort, gestrichen if weg and i in weg else normal)
+    doc.setTextWidth(r.width())
+    p.save()
+    p.translate(r.x(), r.y() + 22)
+    doc.drawContents(p, QRectF(0, 0, r.width(), r.height() - 22))
+    p.restore()
+
+
 def szene_hero(bsp: dict) -> None:
-    """„F9 halten, sprechen, loslassen“ — je Sprache ein GIF."""
+    """„F9 halten, sprechen, loslassen“ — je Sprache ein GIF.
+
+    Das erste Bild ist das Poster (GitHub zeigt es ohne Autoplay): oben das
+    Gesprochene, Weggelassenes durchgestrichen, darunter das eingefügte Ergebnis.
+    Dieselbe Szene steht am Ende, so schließt sich die Schleife ohne Sprung."""
     from PySide6.QtCore import QRectF
 
     for sprache in ("en", "de"):
         t = TEXTE[sprache]
         daten = bsp["hero"][sprache]
+        roh, text = daten["raw"], daten["text"]
+        weg = _weggelassen(roh, text)
         pille = Pille(_settings())
         pille.ov.set_profile_color(_profilfarbe("Standard"))
-        b = Buehne(760, 440, pille)
+        b = Buehne(760, 500, pille)
         kopf = [[(t["kopf"], "fett")], [("", None)]]
-        b.fenster = (QRectF(40, 26, 680, 236), t["notiz"], kopf + [[("", None)]], {})
+        rechteck = QRectF(40, 92, 680, 236)
+        oben = QRectF(44, 16, 672, 70)
         film = Film(f"hero-{sprache}")
         bild_nr = 0
+        gesprochen = {"n": 0, "weg": None}
 
         def bild(mal=1):
             nonlocal bild_nr
             b.caret_an = (bild_nr // 10) % 2 == 0      # Schreibmarke blinkt (1 s)
-            film.bild(b.bild(), mal)
+            img = b.bild()
+            p = _maler(img)
+            zeichne_gesprochen(p, oben, t["gesagt"], roh, gesprochen["n"],
+                               gesprochen["weg"])
+            p.end()
+            film.bild(img, mal)
             bild_nr += mal
 
-        # 1) Taste gehalten, Aufnahme läuft — schon das erste Bild erklärt die Szene
+        def ergebnis():
+            # Reihenfolge wie in der App: erst die Blase, dann IDLE.
+            pille.ov.show_transcript(text)
+            pille.zustand("IDLE")
+            b.fenster = (rechteck, t["notiz"], kopf + [[(text, None)]], {})
+            gesprochen.update(n=len(roh.split()), weg=weg)
+
+        # 0) Poster: das Ergebnis samt Gesprochenem — erklärt sich ohne Bewegung
+        ergebnis()
+        for _ in range(3):
+            bild(10)
+        # 1) harter Schnitt: Taste gehalten, Aufnahme läuft, Worte erscheinen
+        b.fenster = (rechteck, t["notiz"], kopf + [[("", None)]], {})
+        gesprochen.update(n=0, weg=None)
         pille.zustand("LISTENING")
         pille.sprich(14)                                 # Waveform vorab gefüllt
         b.taste = (t["halten"], True, 1.0)
-        for _ in range(64):
+        anzahl = len(roh.split())
+        for i in range(64):
+            gesprochen["n"] = min(anzahl, max(0, round((i - 4) / 56 * anzahl)))
             pille.sprich()
             bild()
+        gesprochen["n"] = anzahl
         # 2) losgelassen: Verarbeitung, dann Rohtext mit „Bereinige …“
         pille.zustand("PROCESSING")
         b.taste = (t["loslassen"], False, 1.0)
@@ -1043,15 +1168,11 @@ def szene_hero(bsp: dict) -> None:
             b.taste = (t["loslassen"], False, max(0.0, 1 - max(0, i - 14) / 8))
             bild()
         b.taste = None
-        # 3) fertig: Text kommt auf EINMAL (Fleech fügt ein, es tippt nicht)
-        pille.ov.show_transcript(daten["text"])
-        pille.zustand("IDLE")
-        b.fenster = (b.fenster[0], t["notiz"],
-                     kopf + [[(daten["text"], None)]], {})
-        for _ in range(7):
+        # 3) fertig: Text kommt auf EINMAL (Fleech fügt ein, es tippt nicht); dasselbe
+        #    Bild wie das Poster, die Schleife läuft nahtlos hinein
+        ergebnis()
+        for _ in range(4):
             bild(10)
-        pille.blase_weg()
-        bild(10)
         film.gif(HIER / f"hero.{sprache}.gif")
 
 
@@ -1231,17 +1352,8 @@ def _pille_aufnahme(seed: int = 3) -> Pille:
 
 
 def szene_pille(bsp: dict) -> None:
-    """pill.png (die Pille allein) und pill-states.en/.de.png (Zustände, beschriftet)."""
+    """pill-states.en/.de.png: die Pille in sechs Zuständen, beschriftet."""
     from PySide6.QtCore import QPointF, QRectF, Qt
-
-    # pill.png: transparent, 2x, mitten in der Aufnahme
-    pille = _pille_aufnahme()
-    img = _bild(pille.breite + 8, pille.hoehe + 8, transparent=True)
-    p = _maler(img)
-    pille.zeichne(p, QPointF(4, 4), nur_pille=True, fenster_transparenz=False)
-    p.end()
-    img.save(str(HIER / "pill.png"))
-    print("  docs/media/pill.png")
 
     roh = "Ähm, kurze Notiz: morgen um neun das Angebot an Frau Berger schicken."
 
