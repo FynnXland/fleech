@@ -1,7 +1,8 @@
-"""Aufnahme — Bedienmodus, Hotkeys, Mikrofon.
+"""Aufnahme-Zeilen der Seite „Allgemein": Bedienmodus, Hotkeys, Mikrofon.
 
-Baut die Seite in das uebergebene SettingsPanel; die Widget-Bauer
-(`panel._combo`, `panel._check`, ...) bleiben dort.
+Seit 6.5.0 keine eigene Seite mehr, sondern ein Baustein: Bedienmodus,
+Diktat-Taste und Mikrofon stehen oben, die uebrigen Tasten und die Sperrliste
+unter „Mehr Optionen". Die Widget-Bauer (`panel._combo`, ...) bleiben im Panel.
 
 Der Freihand-Block (Schalter, Startwoerter, Genauigkeit, Abbruchwort,
 Fehlersuche, Sperrliste) ist in 5.11.0 entfallen: Der Modus ist seit 5.10.1
@@ -14,15 +15,10 @@ er gehoert zu Anstupsen, nicht zu Freihand.
 
 from __future__ import annotations
 
-from .common import hint
 
-
-def build(panel) -> None:
+def zeilen(panel, form, mehr) -> None:
+    """Hauptzeilen nach `form`, der Rest nach `mehr` (zugeklappt)."""
     s = panel.settings
-    _, form = panel._page()
-    form.addRow("", hint(
-        "Wie du das Diktat auslöst — und welches Mikrofon genutzt wird."
-    ))
     # Der Sprechpause-Regler gehoert zum Anstupsen-Modus und wird mit ihm
     # ein- und ausgeblendet. Er entsteht aber erst NACH dem Combo (er steht
     # ja darunter) — deshalb der Umweg ueber diese Liste statt eines direkten
@@ -69,13 +65,19 @@ def build(panel) -> None:
     # Das Feld „Mathe-Umschalt" ist mit v3.7.2 entfallen: Den Modus gibt es seit
     # v3.0.0 nicht mehr (Formeln entstehen im lokalen Parser), die Taste war also
     # seit sieben Versionen wirkungslos einstellbar.
+    mics = [(None, "Systemstandard")] + [(name, name) for name in panel._list_microphones()]
+    panel._combo(
+        form, "Mikrofon", mics, s.recording.microphone, "microphone",
+        lambda v: setattr(s.recording, "microphone", v),
+        hint_text="Wirkt ab der nächsten Aufnahme.",
+    )
     panel._add_hotkey_field(
-        form, "KI-Prompting", "prompt_toggle_hotkey", "prompt_toggle", "ctrl+alt+p",
+        mehr, "KI-Prompting", "prompt_toggle_hotkey", "prompt_toggle", "ctrl+alt+p",
         hint_text="Nur WÄHREND einer Aufnahme: dieses Diktat wird als strukturierter "
                   "KI-Prompt formuliert. Dauerhaft: Profil „KI-Prompt“ wählen.",
     )
     panel._add_hotkey_field(
-        form, "Rohtext einsetzen", "undo_hotkey", "undo", "ctrl+alt+z",
+        mehr, "Rohtext einsetzen", "undo_hotkey", "undo", "ctrl+alt+z",
         # Befund A-12: Hier stand „solange der Cursor noch dort steht". Geprüft
         # wird aber allein der Fensterwechsel — eigenes Tippen sieht Fleech nicht.
         hint_text="Ersetzt die zuletzt eingefügte Fassung durch das wörtliche "
@@ -85,26 +87,20 @@ def build(panel) -> None:
                   "erkennen — dann lösche lieber von Hand.",
     )
     panel._add_hotkey_field(
-        form, "Profil wechseln", "profile_hotkey", "profile", "",
+        mehr, "Profil wechseln", "profile_hotkey", "profile", "",
         hint_text="Kurz drücken = nächstes Profil. GEDRÜCKT HALTEN = Liste aller "
                   "Profile am Mauszeiger, dort direkt anklicken. Sinnvoll auf "
                   "einer Maus-Zusatztaste (mouse4/mouse5) — deshalb ohne "
                   "Vorbelegung. Esc im Aufnahmefeld löscht eine Bindung.",
     )
     panel._add_hotkey_field(
-        form, "Pause", "pause_hotkey", "pause", "ctrl+alt+space",
+        mehr, "Pause", "pause_hotkey", "pause", "ctrl+alt+space",
         hint_text="Hält die laufende Aufnahme an — währenddessen wird nichts "
                   "aufgezeichnet, du kannst also frei sprechen. Nochmal drücken "
                   "setzt dasselbe Diktat fort. Auch als Knopf in der Pille.",
     )
-    mics = [(None, "Systemstandard")] + [(name, name) for name in panel._list_microphones()]
-    panel._combo(
-        form, "Mikrofon", mics, s.recording.microphone, "microphone",
-        lambda v: setattr(s.recording, "microphone", v),
-        hint_text="Wirkt ab der nächsten Aufnahme.",
-    )
     panel._lines_editor(
-        form, "Gesperrte Geräte", s.recording.blocked_devices, "microphone",
+        mehr, "Gesperrte Geräte", s.recording.blocked_devices, "microphone",
         lambda lines: setattr(s.recording, "blocked_devices", lines),
         placeholder="Stereomix\nCABLE Output\nAufnahmesumme",
         hint_text="Geräte, die nie als Mikrofon gelten sollen — ein Namensteil "

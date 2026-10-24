@@ -44,7 +44,7 @@ def build(dialog) -> QWidget:
     lay.addWidget(notiz(
         "Ohne Verlauf funktioniert das Diktieren genau gleich — nur Startseite und "
         "Auswertungen bleiben leer. Jederzeit änderbar unter Einstellungen → "
-        "Allgemein, samt Knopf zum Löschen des bisherigen Verlaufs."
+        "Datenschutz, samt Knopf zum Löschen des bisherigen Verlaufs."
     ))
     lay.addStretch(1)
     return page

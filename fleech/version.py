@@ -7,7 +7,7 @@
 
 from __future__ import annotations
 
-APP_VERSION = "6.4.1"  # 6.4.1: Kommas um entfernte Fuellwoerter, englische Fuellwoerter
+APP_VERSION = "6.5.0"  # 6.5.0: Einstellungen auf sechs Seiten mit „Mehr Optionen"
 
 
 def _read_build() -> str:

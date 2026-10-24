@@ -151,7 +151,7 @@ a signal.
 | `fleech/ui/desktopapp/` | `DesktopApp` mixins: `anstupsen`, `freihand`, `keinton`, `lebenszyklus`, `modelle`, `nachbereitung`, `profil`, `updatepruefung`, `vorerkennung`, `wachhund` |
 | `fleech/ui/overlay_qt.py`, `ui/overlaypille/` | the pill window; `konstanten`, `bausteine` (widgets), `geometrie`, `einblendungen`, `zustand` (mixins) |
 | `fleech/ui/main_window.py`, `ui/pages/` | window frame; pages `home`, `insights`, `apps`, `profiles` plus helpers |
-| `fleech/ui/settings_window.py`, `ui/settings/` | settings panel and widget builders; ten pages, each a module with `build(panel)` |
+| `fleech/ui/settings_window.py`, `ui/settings/` | settings panel and widget builders; six pages, each a module with `build(panel)` that shows the essentials and folds the rest under "Mehr Optionen" (`mehr.py`); topic modules (`aufnahme`, `ki`, `ausgabe`, `overlay`, …) add their rows via `zeilen(panel, form, mehr)` |
 | `fleech/ui/state.py`, `notifications.py`, `windowsfocus.py`, `focusrestore.py` | StateBus; notification policy; focus and fullscreen signals; cursor return |
 
 ## Platform seams

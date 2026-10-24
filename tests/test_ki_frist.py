@@ -272,7 +272,7 @@ def test_ausweiche_steht_nur_bei_lokaler_ki_und_ist_aus(qapp, tmp_path, monkeypa
     monkeypatch.setattr(ki_ausweichen, "modelle_abrufen", lambda *a, **k: [])
     geaendert = []
     panel = SettingsPanel(UserSettings(), geaendert.append, lambda: [])
-    seite = panel._pages.widget(SettingsPanel.PAGES.index("KI"))
+    seite = panel._pages.widget(SettingsPanel.PAGES.index("KI & Text"))
     boxen = seite.findChildren(QComboBox)
     haupt = next(b for b in boxen if b.findData("ollama") >= 0)
     ausweiche = next(b for b in boxen if b.itemData(0) == "" and b.findData("gemini") > 0)

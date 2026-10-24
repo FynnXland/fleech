@@ -99,12 +99,12 @@ def _combo_help_text(values, help_map, current) -> str:
 
 
 class SettingsPanel(WortprobeMixin, QWidget):
-    # „Oberfläche" ist entfallen: Die zwölf Sichtbarkeits-Checkboxen sind an die
-    # Karten selbst gewandert (Rechtsklick → Ausblenden). Zurueckholen sammelt der
-    # Knopf auf der Seite „Allgemein".
-    PAGES = ["Allgemein", "KI", "Aufnahme", "Audio-Fokus", "Overlay",
-             "Sounds", "Benachrichtigungen", "Ausgabe", "Textersetzung",
-             "Advanced"]
+    # Seit 6.5.0 sechs Seiten statt zehn; was selten gebraucht wird, steht je
+    # Seite unter „Mehr Optionen" (settings/mehr.py). „Oberfläche" ist schon
+    # frueher entfallen: Karten blendet man per Rechtsklick aus, zurueckholen
+    # sammelt der Knopf auf „Allgemein".
+    PAGES = ["Allgemein", "KI & Text", "Wörterbuch", "Pille & Töne", "Ruhe",
+             "Datenschutz"]
 
     def __init__(self, settings: UserSettings, on_changed, list_microphones,
                  test_hooks=None, hotkey_capture_guard=None, on_clear_history=None,
@@ -134,8 +134,8 @@ class SettingsPanel(WortprobeMixin, QWidget):
         content.setContentsMargins(0, 0, 0, 0)
         self._nav = QListWidget()
         self._nav.addItems(self.PAGES)
-        # Breit genug fuer den laengsten Eintrag („Benachrichtigungen") — nie abschneiden.
-        self._nav.setFixedWidth(178)
+        # Breit genug fuer den laengsten Eintrag („Pille & Töne") — nie abschneiden.
+        self._nav.setFixedWidth(150)
         self._nav.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
         self._pages = QStackedWidget()
         content.addWidget(self._nav)
@@ -600,7 +600,7 @@ class SettingsPanel(WortprobeMixin, QWidget):
     # ---------------------------------------------------------------------- Seiten --
 
     def _build_pages(self) -> None:
-        """Die zehn Seiten aufbauen — je Seite ein Modul in `ui/settings/`.
+        """Die sechs Seiten aufbauen — je Seite ein Modul in `ui/settings/`.
 
         Stand 5.4.0 war das EINE Funktion mit 674 Zeilen, danach neun Methoden in
         dieser Datei. Beides liess sich sauber trennen, weil jede Seite mit

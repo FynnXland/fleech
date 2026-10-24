@@ -598,7 +598,7 @@ class DesktopApp(
                 self.notifier.toast(
                     "provider_quota", "Fleech",
                     "Der KI-Dienst hat den API-Schlüssel abgelehnt — bitte unter "
-                    "Einstellungen → KI prüfen. Der Text kam unbereinigt an."
+                    "Einstellungen → KI & Text prüfen. Der Text kam unbereinigt an."
                     if self.pipeline.last_error_kind == "key" else
                     "Der KI-Dienst meldet ein erschöpftes Kontingent (429). Der "
                     "Text kam unbereinigt an.",

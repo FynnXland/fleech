@@ -1,4 +1,8 @@
-"""KI — wer bereinigt den Text: lokal, ein Cloud-Anbieter oder niemand.
+"""KI-Zeilen der Seite „KI & Text": wer bereinigt den Text — lokal, ein
+Cloud-Anbieter oder niemand.
+
+Seit 6.5.0 ein Baustein: Anbieter, Schluessel, Modell und Test stehen oben,
+„Neuere Modelle" und die Cloud-Ausweiche unter „Mehr Optionen".
 
 Lokal (Ollama) ist der Standard und bleibt oben in der Liste. Wer einen
 Cloud-Anbieter waehlt, traegt einen eigenen API-Schluessel ein; der landet im
@@ -24,8 +28,6 @@ from PySide6.QtWidgets import (
 from ...llm import apikeys
 from ...llm.providers import ANBIETER, AUS, EIGENER, OLLAMA, anbieter, modell_vorschlag, modelle_abrufen
 from . import ki_ausweichen
-from .common import hint
-
 log = logging.getLogger(__name__)
 
 _GRAU = "color: #808088; font-size: 8pt;"
@@ -73,13 +75,10 @@ def fehlertext(exc: Exception) -> str:
     return "Keine Verbindung — Internet oder Adresse prüfen."
 
 
-def build(panel) -> None:
+def zeilen(panel, form, mehr) -> None:
+    """Anbieter samt Schluessel/Modell nach `form`; Modell-Neuheiten und die
+    Cloud-Ausweiche nach `mehr`."""
     s = panel.settings
-    _, form = panel._page()
-    form.addRow("", hint(
-        "Wer bereinigt deinen Text? Lokal ist der Standard. Ein Cloud-Anbieter "
-        "braucht einen eigenen API-Schlüssel — ein Abo wie ChatGPT Plus oder "
-        "Claude Pro lässt sich dafür nicht verwenden."))
     bruecke = _Bruecke(panel)
     panel._ki_bruecke = bruecke
 
@@ -119,13 +118,13 @@ def build(panel) -> None:
     form.addRow("", test_w)
 
     neu_w, neu_zeigen = _neuheiten_zeile(panel, bruecke)
-    form.addRow(panel._row_label(
+    mehr.addRow(panel._row_label(
         "Neuere Modelle", "Einmal pro Woche fragt Fleech nach: beim Cloud-Anbieter "
                           "die Modellliste, für lokal die Ollama-Registry und den "
                           "Modellkatalog auf GitHub. Vorgeschlagen wird nur — "
                           "umgestellt wird nie von selbst.")[0], neu_w)
 
-    ausweiche_sichtbar = ki_ausweichen.build(panel, form, panel)
+    ausweiche_sichtbar = ki_ausweichen.build(panel, mehr, panel)
 
     def aktuell():
         return anbieter(box.currentData())
@@ -150,7 +149,7 @@ def build(panel) -> None:
         modell_box.blockSignals(False)
         modell_status.setText("")
         test_status.setText("")
-        form.setRowVisible(neu_w, eintrag.id not in (AUS, EIGENER))
+        mehr.setRowVisible(neu_w, eintrag.id not in (AUS, EIGENER))
         neu_zeigen()
         ausweiche_sichtbar(eintrag.id == OLLAMA)
 

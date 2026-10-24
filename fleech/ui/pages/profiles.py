@@ -103,7 +103,7 @@ class ProfilesPage(QWidget):
     # auch die Auswahlliste am Profil-Hotkey nimmt (`_set_profile`).
     profil_aktiv_gewaehlt = Signal(str)
 
-    _INTERVENTION_LABELS = [("", "Wie Einstellungen (Ausgabe)"),
+    _INTERVENTION_LABELS = [("", "Wie Einstellungen (KI & Text)"),
                             ("minimal", "Minimal (kein LLM-Eingriff)"),
                             ("standard", "Standard"),
                             ("strong", "Strong (starke Glättung)")]
@@ -453,7 +453,7 @@ class ProfilesPage(QWidget):
 
         adv.addWidget(_abschnitt(
             "Eingriff", "Wie stark die KI das Diktat glättet. „Wie Einstellungen“ = "
-            "globaler Wert aus Einstellungen → Ausgabe.",
+            "globaler Wert aus Einstellungen → KI & Text.",
         ))
         self._intervention_combo = QComboBox()
         self._intervention_combo.setStyleSheet(apply_chevrons(_COMBO_QSS))
@@ -489,7 +489,7 @@ class ProfilesPage(QWidget):
         ))
         self._profile_command_combo = QComboBox()
         self._profile_command_combo.setStyleSheet(apply_chevrons(_COMBO_QSS))
-        for value, label in (("", "Wie Einstellungen (Ausgabe)"),
+        for value, label in (("", "Wie Einstellungen (KI & Text)"),
                              ("on", "An — gesprochenes Safe-Word erlaubt"),
                              ("off", "Aus — nur über den »-Knopf")):
             self._profile_command_combo.addItem(label, value)

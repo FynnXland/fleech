@@ -92,7 +92,7 @@ def build(dialog, capture_guard=None) -> QWidget:
     lay.addWidget(notiz(
         "Während der Aufnahme erscheint eine kleine Pille am Bildschirmrand: x bricht "
         "ab, der Haken fügt ein. Weitere Tasten (Pause, Rohtext, Profile) findest du "
-        "unter Einstellungen → Aufnahme."
+        "unter Einstellungen → Allgemein → Mehr Optionen."
     ))
     lay.addStretch(1)
     return page

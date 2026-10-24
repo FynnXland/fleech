@@ -1,21 +1,13 @@
-"""Audio-Fokus — Ducking und Capture-Guard.
+"""Audio-Fokus-Zeilen der Seite „Ruhe": andere Apps beim Diktieren leiser stellen.
 
-Baut die Seite in das uebergebene SettingsPanel; die Widget-Bauer
-(`panel._combo`, `panel._check`, ...) bleiben dort.
+Seit 6.5.0 ein Baustein: der Modus oben, die Restlautstaerke unter „Mehr Optionen".
 """
 
 from __future__ import annotations
 
-from .common import hint
 
-
-def build(panel) -> None:
+def zeilen(panel, form, mehr) -> None:
     s = panel.settings
-    _, form = panel._page()
-    form.addRow("", hint(
-        "Macht andere Apps (Musik, Videos) während der Aufnahme leiser — für ein "
-        "sauberes Mikrofonsignal."
-    ))
     panel._combo(
         form, "Fokus-Modus",
         [("pure_mic", "Aus (fremde Apps unverändert)"),
@@ -29,7 +21,7 @@ def build(panel) -> None:
                           "Restlautstärke unten abgesenkt.",
         },
     )
-    panel._slider(form, "Restlautstärke anderer Apps", s.audio_focus.duck_level,
+    panel._slider(mehr, "Restlautstärke anderer Apps", s.audio_focus.duck_level,
                   "audio_focus", lambda v: setattr(s.audio_focus, "duck_level", v),
                   lo=0, hi=100,
                   hint_text="Wie laut andere Apps beim Aufnehmen bleiben. 0 % = stumm.")

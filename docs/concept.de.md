@@ -1362,6 +1362,19 @@ Alle Einstellungen greifen **sofort** und werden unmittelbar gespeichert. Die we
 Ausnahmen stehen jeweils dabei (Debug-Logging ab dem nächsten Start, ein neues Mikrofon
 ab der nächsten Aufnahme).
 
+**Seit 6.5.0 sechs Seiten statt zehn.** Jede Seite zeigt oben nur das Nötige (zusammen
+24 Zeilen); alles andere steht darunter hinter „Mehr Optionen“. Die Abschnitte unten
+sind noch nach den alten Themen geordnet — so verteilen sie sich heute:
+
+| Seite | oben | unter „Mehr Optionen“ |
+|---|---|---|
+| Allgemein | Sprache, Bedienmodus (+ Sprechpause), Diktat-Hotkey, Mikrofon, Autostart | übrige Hotkeys, gesperrte Geräte, Anzeigename, Einführung, Karten, Version und Updates |
+| KI & Text | Anbieter (+ Schlüssel, Adresse, Modell, Test), Eingriffsgrad | Neuere Modelle, Cloud-Ausweiche, Formel-Erkennung, Safe-Word, gesprochene Zeichen, Cursor-Rückkehr, Spracherkennung, GPU, Warmhaltung |
+| Wörterbuch | Wörterbuch, Einsprech-Test, Gedächtnis | Ignorier-Liste, gelernte Begriffe vergessen |
+| Pille & Töne | Sichtbarkeit (+ Auto-Hide), Größe, Position, Bearbeiten, Töne an/aus, Lautstärke | Pillen-Rand, Rand-Buttons, Transparenz, Pegel, Click-Through, Maus-Bildschirm, Live-Transkription, Transkript über der Pille, Klangstil, einzelne Töne |
+| Ruhe | Audio-Fokus, „Nicht stören“, Windows-Banner, Spiel-Erkennung | Restlautstärke, Töne bei „Nicht stören“, Akzent-Ton, Pille im Spiel, Töne im Spiel, Ausnahmen, Testen |
+| Datenschutz | Verlauf speichern, Aufbewahrung, Wiederherstellungscode, Verlauf löschen | Debug-Logging, Diktattexte ins Protokoll |
+
 ### Allgemein
 
 | Einstellung | Bedeutung | Standard |
@@ -2124,7 +2137,7 @@ fleech/
     │   ├── appsvorschlaege.py Zuordnungsvorschläge aus dem Verlauf, ohne Qt
     │   └── profiles.py      Format, Farbe, Sprache, Schnellwechsel, Export/Import
     ├── settings_window.py  Panel-Gerüst + Widget-Bauer
-    ├── settings/       die zehn Einstellungsseiten, je Seite ein build(panel)
+    ├── settings/       sechs Einstellungsseiten + Bausteine, „Mehr Optionen“ (mehr.py)
     │                   (allgemein, ki, aufnahme, audiofokus, overlay, sounds,
     │                    benachrichtigungen, ausgabe, textersetzung, advanced),
     │                   dazu common (geteilte Hilfetexte) und wortprobe (Einsprech-Probe)

@@ -26,7 +26,7 @@ def test_diktat_hotkey_hint_text_nennt_loeschen_nicht_abbrechen(qapp):
 
     from fleech.ui.settings import aufnahme
 
-    quelle = inspect.getsource(aufnahme.build)
+    quelle = inspect.getsource(aufnahme.zeilen)
     assert "Esc, Entf oder Backspace = Bindung löschen" in quelle
     assert "Esc = abbrechen" not in quelle
 
@@ -97,7 +97,7 @@ def test_sprechpause_bleibt_und_spricht_vom_anstupsen(qapp):
 
     panel, _ = _panel()
     assert getattr(panel, "_sprechpause_box", None) is not None
-    quelle = inspect.getsource(aufnahme.build)
+    quelle = inspect.getsource(aufnahme.zeilen)
     assert "Nur beim Anstupsen:" in quelle
     assert "Freihand" not in quelle
 
@@ -109,7 +109,7 @@ def test_click_through_hinweis_nennt_die_pillenknoepfe(qapp):
 
     from fleech.ui.settings import overlay
 
-    quelle = inspect.getsource(overlay.build)
+    quelle = inspect.getsource(overlay.zeilen)
     assert "Knöpfe der Pille" in quelle
     assert "✕" in quelle and "✓" in quelle and "Pause" in quelle
 
@@ -180,9 +180,9 @@ def test_es_gibt_keinen_schalter_fuer_adaptive_geschwindigkeit_mehr(qapp):
     from fleech.ui.settings import advanced
     from fleech.usersettings import AdvancedSettings
 
-    quelle = inspect.getsource(advanced.build)
+    quelle = inspect.getsource(advanced)
     # Kein Bedienelement mehr (der erklärende Kommentar im Code darf bleiben).
-    assert 'form, "Adaptive Geschwindigkeit' not in quelle
+    assert '"Adaptive Geschwindigkeit' not in quelle
     assert "kleines, schnelleres Modell" not in quelle
     assert "kurzen Weg" not in quelle
     assert not hasattr(AdvancedSettings(), "adaptive_cleanup")
@@ -195,7 +195,7 @@ def test_warmhaltung_zahlen_sind_aktuell(qapp):
 
     from fleech.ui.settings import advanced
 
-    quelle = inspect.getsource(advanced.build)
+    quelle = inspect.getsource(advanced)
     assert "~8 GB" not in quelle
     assert "3,3 GB" in quelle   # gemma3:4b-text, gemessen (CPU-Modus)
     assert "~8 s" not in quelle

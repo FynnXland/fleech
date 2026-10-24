@@ -1,7 +1,10 @@
-"""Datenschutz-Zeilen der Seite „Allgemein": Aufbewahrung, Verschluesselung, Code.
+"""Seite „Datenschutz" — was Fleech speichert, wie es geschuetzt ist, wie man es loescht.
 
-Eigener Baustein statt weiterer Zeilen in `allgemein.py`: Das Thema hat eigene
-Logik (Status des Tresors, der Code-Dialog), und die Seite soll Seite bleiben.
+Bis 6.4 standen diese Zeilen auf „Allgemein" (Verlauf, Aufbewahrung,
+Verschluesselung) und „Advanced" (Protokoll). Seit 6.5.0 eine eigene Seite: Wer
+wissen will, was auf der Platte liegt, soll an einer Stelle suchen. Oben Verlauf,
+Aufbewahrung, Wiederherstellungscode und Loeschen; das Protokoll unter
+„Mehr Optionen" (`advanced.protokoll`).
 """
 
 from __future__ import annotations
@@ -9,7 +12,9 @@ from __future__ import annotations
 from PySide6.QtWidgets import QPushButton
 
 from ..theme import style_button
+from . import advanced
 from .common import hint
+from .mehr import angleichen, bereich
 
 # 0 = unbegrenzt. Die Vorgabe (90) steht in GeneralSettings/history.
 AUFBEWAHRUNG = [(30, "30 Tage"), (90, "90 Tage"), (180, "180 Tage"),
@@ -27,7 +32,29 @@ def tresor_zeile() -> str:
         return "Verschlüsselung: Status nicht abrufbar."
 
 
-def baue(panel, form) -> None:
+def build(panel) -> None:
+    s = panel.settings
+    seite, form = panel._page()
+    form.addRow("", hint(
+        "Was Fleech speichert, wie es geschützt ist — und wie du es löschst."
+    ))
+    mehr = bereich(seite, form)
+    panel._check(form, "Diktat-Verlauf speichern", s.general.save_history, "general",
+                 lambda v: setattr(s.general, "save_history", v),
+                 "Speichert Diktate lokal für Home und Insights — keine Cloud, "
+                 "verschlüsselt auf der Platte.")
+    _verschluesselung(panel, form)
+    clear_btn = style_button(QPushButton("Verlauf löschen …"), "danger")
+    clear_btn.clicked.connect(lambda: (panel._on_clear_history or (lambda: None))())
+    label_w, _ = panel._row_label(
+        "Verlauf", "Löscht alle Diktate endgültig — dazu „Delete“ eintippen.")
+    form.addRow(label_w, clear_btn)
+    advanced.protokoll(panel, mehr)
+    angleichen(form, mehr)
+
+
+def _verschluesselung(panel, form) -> None:
+    """Aufbewahrung, Wiederherstellungscode und der Hinweis, solange er fehlt."""
     s = panel.settings
     panel._combo(
         form, "Verlauf aufbewahren", AUFBEWAHRUNG,

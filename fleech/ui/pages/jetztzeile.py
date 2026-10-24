@@ -72,7 +72,7 @@ def beschreibe_jetzt(settings, app: str, titel: str, fleech_selbst: bool = False
     """Ein Satz: Ziel-App, aufgeloestes Profil samt Grund, und was es bewirkt."""
     if not getattr(settings.profiles, "enabled", True):
         return ("Profile sind ausgeschaltet — für jedes Diktat gilt, was unter "
-                "Einstellungen → Ausgabe steht.")
+                "Einstellungen → KI & Text steht.")
 
     kopf = "Wenn du jetzt diktierst: "
     if fleech_selbst:

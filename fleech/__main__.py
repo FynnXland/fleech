@@ -145,14 +145,14 @@ def main() -> int:
         logging.getLogger().setLevel(logging.DEBUG)
         logging.getLogger(__name__).info(
             "Debug-Logging aus den Einstellungen aktiv — ausfuehrliches Protokoll. "
-            "Zum Abschalten: Einstellungen → Erweitert.")
+            "Zum Abschalten: Einstellungen → Datenschutz → Mehr Optionen.")
     if desktop_modus and _debug_logging_gewuenscht("protokoll_inhalte"):
         from .protokolltext import zeige_inhalte
 
         zeige_inhalte(True)
         logging.getLogger(__name__).warning(
             "Diktattexte werden ins Protokoll geschrieben (Fehlersuche) — "
-            "Zum Abschalten: Einstellungen → Erweitert.")
+            "Zum Abschalten: Einstellungen → Datenschutz → Mehr Optionen.")
 
     if args.list_devices:
         import sounddevice as sd

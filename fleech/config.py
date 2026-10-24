@@ -2,7 +2,7 @@
 
 Prioritaet: ENV-Variable > config.yaml > eingebaute Defaults.
 API-Schluessel stehen nie hier — sie liegen im Schluesselbund des Systems
-(fleech/llm/apikeys.py). Den KI-Anbieter waehlt man in den Einstellungen (Seite „KI").
+(fleech/llm/apikeys.py). Den KI-Anbieter waehlt man in den Einstellungen (Seite „KI & Text").
 """
 
 from __future__ import annotations
@@ -57,7 +57,7 @@ class STTConfig:
 class LLMEndpointConfig:
     """Ein Chat-Endpunkt: lokales Ollama oder ein Cloud-Anbieter (llm/providers.py).
 
-    Gewaehlt wird in den Einstellungen (Seite „KI"); `UserSettings.apply_to`
+    Gewaehlt wird in den Einstellungen (Seite „KI & Text"); `UserSettings.apply_to`
     ueberschreibt dann Anbieter, Adresse und Modell. Der Schluessel steht nie hier,
     sondern im Schluesselbund des Systems (llm/apikeys.py).
     """

@@ -21,7 +21,7 @@ def build(dialog) -> QWidget:
         ("Befehle", f"sprich „{trigger}“ mitten im Diktat, dann die Anweisung — "
                     f"z. B. „{trigger}, mach den letzten Satz formeller.“"),
         ("Formeln", "Werden automatisch im Fließtext erkannt und als LaTeX "
-                    "geschrieben — abschaltbar unter Einstellungen → Ausgabe."),
+                    "geschrieben — abschaltbar unter Einstellungen → KI & Text."),
         ("KI-Prompting", "Strg+Alt+P: dein Diktat wird zu einem strukturierten "
                          "Prompt für eine KI ausformuliert."),
     ]

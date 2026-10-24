@@ -349,7 +349,7 @@ class InsightsPage(QWidget):
         ignore = style_button(QPushButton("Ignorieren"))
         ignore.setToolTip(
             "Schlägt dieses Paar nicht mehr vor. Die Liste der ignorierten Paare "
-            "steht unter Einstellungen → Textersetzung — dort löschen holt den "
+            "steht unter Einstellungen → Wörterbuch → Mehr Optionen — dort löschen holt den "
             "Vorschlag zurück."
         )
         ignore.setProperty("rule_wrong", wrong)
@@ -397,7 +397,7 @@ class InsightsPage(QWidget):
         ignore = style_button(QPushButton("Ignorieren"))
         ignore.setToolTip(
             "Fragt nie wieder nach diesem Paar — z. B. weil es zwei verschiedene "
-            "Wörter sind. Zurücknehmen: Einstellungen → Textersetzung → Ignoriert."
+            "Wörter sind. Zurücknehmen: Einstellungen → Wörterbuch → Mehr Optionen → Ignoriert."
         )
         ignore.setProperty("rule_wrong", frage.haeufig)
         ignore.setProperty("rule_right", frage.selten)

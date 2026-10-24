@@ -111,7 +111,7 @@ class OnboardingDialog(QDialog):
         self._skip_btn = QPushButton("Überspringen")
         self._skip_btn.setToolTip("Einführung beenden — sie kommt nicht wieder von "
                                   "selbst. Erneut aufrufbar unter Einstellungen → "
-                                  "Allgemein.")
+                                  "Allgemein → Mehr Optionen.")
         self._skip_btn.setStyleSheet(
             f"QPushButton {{ color: {MUTED}; background: transparent; border: none;"
             f"  font-size: 9pt; }} QPushButton:hover {{ color: {TEXT}; }}"

@@ -101,7 +101,7 @@ def _entschaerfe_formel_format(items: list) -> None:
         if not str(item.get("color", "") or "").strip():
             item["color"] = _FORMAT_FARBEN["math"]
         log.info("Profil %r: Ausgabeformat „Formeln“ entfernt — es hat nie gewirkt "
-                 "(Formeln laufen global ueber Einstellungen → Ausgabe).",
+                 "(Formeln laufen global ueber Einstellungen → KI & Text).",
                  item.get("name", ""))
 
 

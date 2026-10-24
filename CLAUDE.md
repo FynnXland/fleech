@@ -110,7 +110,11 @@ Provider/Modelle/Prompts sind in `config.yaml` + `prompts/` konfigurierbar
   von GitHub `main` gelesen — **Empfehlungen dort pflegen**, erreicht alle ohne Update).
 - `fleech/ui/onboarding.py` (Rahmen, Navigation, Mikrofon) + `fleech/ui/onboardingseiten/`
   (je Seite ein Modul: willkommen/Sprache, ki, taste, modi, verlauf, probediktat).
-- `fleech/ui/settings/` — die zehn Einstellungsseiten (inkl. `ki`: Anbieter, Schlüssel, Modell), je Seite ein `build(panel)`.
+- `fleech/ui/settings/` — seit 6.5.0 sechs Seiten (`allgemein`, `ki_text`, `woerterbuch`, `pille_toene`,
+  `ruhe`, `datenschutz`), je Seite ein `build(panel)`, oben das Nötige, der Rest unter „Mehr Optionen“
+  (`mehr.py`). Die alten Seitenmodule (`aufnahme`, `ki`, `ausgabe`, `overlay`, `sounds`, `audiofokus`,
+  `benachrichtigungen`, `advanced`) sind Bausteine mit `zeilen(panel, form, mehr)`. Neue Einstellung =
+  im Zweifel unter „Mehr Optionen“ (`tests/test_ui_settings_mehr.py` deckelt die sichtbaren Zeilen).
 - `fleech/ui/desktopapp/` — die Teilgebiete von `DesktopApp` als **Mixins**: `profil`,
   `freihand`, `anstupsen` (Stille-Wache des Nudge-Modus), `keinton` (Wache: Mikrofon
   liefert nichts), `modelle`, `modellpruefung` (Wochen-Check auf neuere Modelle), `nachbereitung`,

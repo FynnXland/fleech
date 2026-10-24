@@ -1,28 +1,25 @@
-"""Die zehn Seiten des Einstellungs-Panels — je Seite ein Modul.
+"""Die sechs Seiten des Einstellungs-Panels — je Seite ein Modul.
 
 Stand 5.4.0 war das EINE Methode mit 674 Zeilen, danach neun Methoden in einer
-1379-Zeilen-Datei. Beides liess sich sauber trennen, weil jede Seite mit
-`panel._page()` neu anfaengt und keine lokale Variable ueber eine Seitengrenze
-hinweg lebt.
+1379-Zeilen-Datei, ab 5.5.1 zehn Seitenmodule. Seit 6.5.0 sind es sechs Seiten:
+Jede zeigt oben nur das Noetige und klappt den Rest unter „Mehr Optionen" auf
+(`mehr.py`). Die frueheren Seitenmodule sind Bausteine geblieben (`aufnahme`,
+`audiofokus`, `overlay`, `sounds`, `benachrichtigungen`, `ausgabe`, `ki`,
+`advanced`) und liefern ihre Zeilen per `zeilen(panel, form, mehr)` an die Seite,
+zu der ihr Thema gehoert.
 
 Aufteilung wie bei `ui/pages/`: Das Panel (`settings_window.py`) haelt die
-Widget-Bauer (`_combo`, `_check`, `_spin`, ...) und den Zustand; die Seitenmodule
-rufen sie nur auf. Die Reihenfolge hier ist die Reihenfolge in der Navigation und
-muss zu `SettingsPanel.PAGES` passen.
+Widget-Bauer (`_combo`, `_check`, `_spin`, ...) und den Zustand; die Module rufen
+sie nur auf. Die Reihenfolge hier ist die Reihenfolge in der Navigation und muss
+zu `SettingsPanel.PAGES` passen.
 """
 
 from __future__ import annotations
 
-from . import (
-    advanced, allgemein, audiofokus, aufnahme, ausgabe, benachrichtigungen, ki,
-    overlay, sounds, textersetzung,
-)
+from . import allgemein, datenschutz, ki_text, pille_toene, ruhe, woerterbuch
 
 # Reihenfolge = Reihenfolge der Eintraege in SettingsPanel.PAGES.
-SEITEN = (
-    allgemein, ki, aufnahme, audiofokus, overlay, sounds, benachrichtigungen, ausgabe,
-    textersetzung, advanced,
-)
+SEITEN = (allgemein, ki_text, woerterbuch, pille_toene, ruhe, datenschutz)
 
 
 def build_all(panel) -> None:

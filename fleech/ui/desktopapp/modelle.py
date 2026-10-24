@@ -119,7 +119,7 @@ class ModelleMixin:
                              name="fleech-sttnachladen", daemon=True).start()
         else:
             self.bus.set_state(AppState.ERROR, "Spracherkennung fehlt — Einstellungen → "
-                               "Allgemein → „Einführung erneut zeigen“")
+                               "Allgemein → Mehr Optionen → „Einführung erneut zeigen“")
         return True
 
     def _warm_up_stt(self) -> None:
@@ -348,7 +348,7 @@ class ModelleMixin:
         if getattr(self, "_ki_offline_gemeldet", False):
             return
         self._ki_offline_gemeldet = True
-        text = ("Lokale KI läuft nicht — Einstellungen → Allgemein → "
+        text = ("Lokale KI läuft nicht — Einstellungen → Allgemein → Mehr Optionen → "
                 "„Einführung erneut zeigen“")
         log.error("%s", text)
         try:

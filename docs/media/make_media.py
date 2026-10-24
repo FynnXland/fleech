@@ -1489,7 +1489,8 @@ def _fenster_seite(win, panel, schluessel: str):
     """Seite wählen und so vorbereiten, wie man sie im Alltag sähe."""
     if schluessel.startswith("settings"):
         win.show_page("settings")
-        panel._nav.setCurrentRow({"settings-ai": 1, "settings-recording": 2}[schluessel])
+        seite = {"settings-ai": "KI & Text", "settings-recording": "Allgemein"}[schluessel]
+        panel._nav.setCurrentRow(panel.PAGES.index(seite))
     else:
         win.show_page(schluessel)
     if schluessel == "profiles":

@@ -1,7 +1,8 @@
-"""Textersetzung — Woerterbuch, Ignorier-Liste, Projekt-Gedaechtnis.
+"""Seite „Wörterbuch" — eigene Begriffe, Ignorier-Liste, Projekt-Gedaechtnis.
 
-Baut die Seite in das uebergebene SettingsPanel; die Widget-Bauer
-(`panel._combo`, `panel._check`, ...) bleiben dort.
+Hiess bis 6.4 „Textersetzung". Oben Woerterbuch, Einsprech-Test und Gedaechtnis;
+Ignorier-Liste und das Vergessen einzelner Begriffe unter „Mehr Optionen".
+Die Widget-Bauer (`panel._combo`, ...) bleiben im Panel.
 """
 
 from __future__ import annotations
@@ -10,14 +11,16 @@ from PySide6.QtWidgets import QComboBox, QHBoxLayout, QPushButton
 
 from ..theme import style_button
 from .common import hint
+from .mehr import angleichen, bereich
 
 
 def build(panel) -> None:
     s = panel.settings
-    _, form = panel._page()
+    seite, form = panel._page()
     form.addRow("", hint(
         "Eigene Begriffe, die die Spracherkennung kennen soll — eine Zeile pro Eintrag."
     ))
+    mehr = bereich(seite, form)
     panel._dictionary_editor = panel._lines_editor(
         form, "Wörterbuch", s.output.dictionary, "dictionary",
         lambda lines: setattr(s.output, "dictionary", lines),
@@ -45,7 +48,7 @@ def build(panel) -> None:
     # Sichtbar und editierbar, DAMIT „Ignorieren" dauerhaft sein darf — Zeile
     # loeschen holt den Vorschlag bzw. die Rueckfrage zurueck.
     panel._ignores_editor = panel._lines_editor(
-        form, "Ignoriert", s.output.dictionary_ignores, "dictionary",
+        mehr, "Ignoriert", s.output.dictionary_ignores, "dictionary",
         lambda lines: setattr(s.output, "dictionary_ignores", lines),
         placeholder="kimano => kimono",
         hint_text="Paare, die nie mehr vorgeschlagen werden — aus abgelehnten "
@@ -88,11 +91,14 @@ def build(panel) -> None:
     einzeln_btn = style_button(QPushButton("Begriff vergessen"), "ghost")
     einzeln_btn.clicked.connect(panel._kontext_begriff_vergessen)
     einzeln.addWidget(einzeln_btn)
-    form.addRow("", einzeln)
+    label_w, _ = panel._row_label(
+        "Gelerntes", "Einzelne falsch gelernte Schreibweisen vergessen — oder alles.")
+    mehr.addRow(label_w, einzeln)
     vergessen = style_button(QPushButton("Gelerntes vergessen"), "ghost")
     vergessen.clicked.connect(panel._kontext_vergessen)
-    form.addRow("", vergessen)
+    mehr.addRow("", vergessen)
     panel._refresh_kontext_zeile()
+    angleichen(form, mehr)
     # Der Abschnitt „Bausteine" (gesprochenes Kuerzel → fester Textblock) stand bis
     # 5.10.x hier. Entfernt in 5.11.0: In 1399 Diktaten war kein einziger Baustein
     # angelegt, und im gesamten Verlauf gab es keinen wiederkehrenden Text, der

@@ -52,7 +52,7 @@ def build(dialog) -> QWidget:
     lay.addWidget(dialog._probe_status)
     lay.addStretch(1)
     lay.addWidget(notiz("Diese Einführung findest du jederzeit wieder unter "
-                        "Einstellungen → Allgemein."))
+                        "Einstellungen → Allgemein → Mehr Optionen."))
     return page
 
 

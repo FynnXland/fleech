@@ -33,9 +33,10 @@ def test_die_teile_existieren():
         assert (UI / name).exists(), f"{name} fehlt"
     for name in ("home.py", "insights.py", "apps.py", "profiles.py"):
         assert (UI / "pages" / name).exists(), f"pages/{name} fehlt"
-    for name in ("allgemein.py", "aufnahme.py", "audiofokus.py", "overlay.py",
-                 "sounds.py", "benachrichtigungen.py", "ausgabe.py",
-                 "textersetzung.py", "advanced.py", "common.py"):
+    for name in ("allgemein.py", "ki_text.py", "woerterbuch.py", "pille_toene.py",
+                 "ruhe.py", "datenschutz.py", "aufnahme.py", "audiofokus.py",
+                 "overlay.py", "sounds.py", "benachrichtigungen.py", "ausgabe.py",
+                 "advanced.py", "common.py", "mehr.py"):
         assert (UI / "settings" / name).exists(), f"settings/{name} fehlt"
     for name in ("profil.py", "freihand.py", "modelle.py", "nachbereitung.py",
                  "updatepruefung.py", "lebenszyklus.py", "modellpruefung.py"):
@@ -251,7 +252,7 @@ def test_die_einstellungsseiten_sind_je_ein_modul():
     assert not ohne_build, f"Seitenmodule ohne build(panel): {ohne_build}"
 
 
-def test_alle_neun_seiten_werden_wirklich_gebaut(qapp, tmp_path, monkeypatch):
+def test_alle_seiten_werden_wirklich_gebaut(qapp, tmp_path, monkeypatch):
     """Die Zerlegung darf keine Seite verschlucken — eine vergessene Zeile in
     `_build_pages` faellt sonst erst auf, wenn jemand die Seite sucht."""
     import fleech.usersettings as us

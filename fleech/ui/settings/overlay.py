@@ -1,7 +1,7 @@
-"""Overlay — Groesse, Position, Verhalten der Pille.
+"""Pillen-Zeilen der Seite „Pille & Töne": Sichtbarkeit, Groesse, Position.
 
-Baut die Seite in das uebergebene SettingsPanel; die Widget-Bauer
-(`panel._combo`, `panel._check`, ...) bleiben dort.
+Seit 6.5.0 ein Baustein: Sichtbarkeit, Groesse und Position oben, Optik und
+Verhalten im Detail unter „Mehr Optionen".
 """
 
 from __future__ import annotations
@@ -14,15 +14,9 @@ from ...usersettings import (
     apply_overlay_compactness,
     overlay_compactness,
 )
-from .common import hint
 
-
-def build(panel) -> None:
+def zeilen(panel, form, mehr) -> None:
     s = panel.settings
-    _, form = panel._page()
-    form.addRow("", hint(
-        "Die kleine Pille am Bildschirmrand: Sichtbarkeit, Größe, Ränder und Position."
-    ))
     # „Auto-Hide nach" wirkt nur bei Sichtbarkeit „auto_hide" (E-15) — dieselbe
     # Verzoegerungs-Liste wie beim Sprechpause-Regler auf der Aufnahme-Seite: Die
     # Zeile entsteht ERST unten, der Setter braucht sie aber schon beim Bau des
@@ -67,14 +61,14 @@ def build(panel) -> None:
     # Werte setzt. Wer es genauer will, kann sie in der settings.json weiterhin
     # frei setzen; `overlay_compactness` waehlt dann die naechstliegende Stufe.
     panel._combo(
-        form, "Pillen-Rand",
+        mehr, "Pillen-Rand",
         list(OVERLAY_COMPACTNESS),
         overlay_compactness(s.overlay), "overlay",
         lambda v: apply_overlay_compactness(s.overlay, v),
         hint_text="Innenabstand des Pillen-Hintergrunds — enger wirkt kompakter.",
     )
     panel._combo(
-        form, "Rand-Buttons",
+        mehr, "Rand-Buttons",
         [(True, "Eigener Hintergrund (getrennte Inseln)"),
          (False, "In einer durchgehenden Pille")],
         s.overlay.separate_islands, "overlay",
@@ -84,26 +78,26 @@ def build(panel) -> None:
             False: "Alles in einem durchgehenden Hintergrund.",
         },
     )
-    panel._slider(form, "Transparenz", s.overlay.opacity, "overlay",
+    panel._slider(mehr, "Transparenz", s.overlay.opacity, "overlay",
                   lambda v: setattr(s.overlay, "opacity", v), lo=20, hi=100,
                   hint_text="Deckkraft der Pille.")
-    panel._slider(form, "Pegel-Empfindlichkeit", s.overlay.level_gain, "overlay",
+    panel._slider(mehr, "Pegel-Empfindlichkeit", s.overlay.level_gain, "overlay",
                   lambda v: setattr(s.overlay, "level_gain", v), lo=20, hi=300,
                   hint_text="Wie stark die Waveform ausschlägt — rein optisch, hilft "
                            "bei leisen Mikrofonen.")
-    panel._check(form, "Click-Through", s.overlay.click_through, "overlay",
+    panel._check(mehr, "Click-Through", s.overlay.click_through, "overlay",
                  lambda v: setattr(s.overlay, "click_through", v),
                  "Mausklicks gehen durch die Pille hindurch — auch auf die "
                  "Knöpfe der Pille: ✕, ✓, Pause und Ziehen sind dann nicht mehr "
-                 "bedienbar. Rückweg: „Overlay bearbeiten“ unten.")
-    panel._check(form, "Folgt dem Maus-Bildschirm", s.overlay.follow_mouse_screen,
+                 "bedienbar. Rückweg: „Overlay bearbeiten“ weiter oben.")
+    panel._check(mehr, "Folgt dem Maus-Bildschirm", s.overlay.follow_mouse_screen,
                  "overlay", lambda v: setattr(s.overlay, "follow_mouse_screen", v),
                  "Die Pille erscheint auf dem Monitor des Mauszeigers.")
-    panel._check(form, "Live-Transkription (experimentell)", s.overlay.live_preview,
+    panel._check(mehr, "Live-Transkription (experimentell)", s.overlay.live_preview,
                  "overlay", lambda v: setattr(s.overlay, "live_preview", v),
                  "Grobe Echtzeit-Vorschau beim Sprechen (zusätzliches Modell, "
                  "~0,5 GB VRAM).")
-    panel._check(form, "Erkannten Text über Overlay zeigen", s.overlay.show_transcript,
+    panel._check(mehr, "Erkannten Text über Overlay zeigen", s.overlay.show_transcript,
                  "overlay", lambda v: setattr(s.overlay, "show_transcript", v),
                  "Zeigt den fertigen Text kurz über der Pille.")
 

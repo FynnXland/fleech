@@ -11,6 +11,33 @@ GitHub-Release-Notizen (`packaging/release.py`).
 
 ---
 
+## 6.5.0 — in Arbeit, noch nicht veröffentlicht
+
+**Einstellungen auf sechs Seiten statt zehn.** Die Einstellungen heißen jetzt
+*Allgemein*, *KI & Text*, *Wörterbuch*, *Pille & Töne*, *Ruhe* und
+*Datenschutz*. Jede Seite zeigt oben nur, was du zum Diktieren wirklich
+entscheidest — zusammen 24 Zeilen statt rund 80. Alles Weitere ist nicht weg,
+sondern steht darunter hinter **Mehr Optionen**, ein Klick klappt es auf.
+
+Wo du was findest:
+
+- **Allgemein:** Sprache, Bedienmodus, Diktat-Taste, Mikrofon, Autostart. Unter
+  *Mehr Optionen* die übrigen Tasten (KI-Prompt, Rohtext, Profil, Pause),
+  gesperrte Geräte, Anzeigename, Einführung, Karten und Updates.
+- **KI & Text:** Anbieter, Schlüssel, Modell und Eingriffsgrad. Unter *Mehr
+  Optionen* neuere Modelle, die Cloud-Ausweiche, Formeln, Safe-Word, gesprochene
+  Zeichen, Cursor-Rückkehr, Spracherkennung, GPU und das Warmhalten der lokalen KI
+  (vorher auf *Ausgabe* und *Advanced*).
+- **Wörterbuch** (vorher *Textersetzung*): Wörterbuch und Gedächtnis; die
+  Ignorier-Liste und das Vergessen gelernter Begriffe unter *Mehr Optionen*.
+- **Pille & Töne** (vorher *Overlay* und *Sounds*).
+- **Ruhe** (vorher *Audio-Fokus* und *Benachrichtigungen*): andere Apps leiser
+  stellen, Windows-Banner, „Nicht stören“ und Spiele.
+- **Datenschutz:** Verlauf, Aufbewahrung, Wiederherstellungscode und Löschen —
+  vorher auf *Allgemein*; das Protokoll unter *Mehr Optionen*.
+
+Deine Einstellungen bleiben, wie sie sind; nur ihr Platz hat sich geändert.
+
 ## 6.4.1 — 2026-10-25 · nicht einzeln veröffentlicht
 
 **Kommas bleiben, wo sie hingehören.** Lässt die KI ein „äh" oder „ähm" stehen,

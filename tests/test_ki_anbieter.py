@@ -323,7 +323,7 @@ def test_seite_zeigt_schluesselfeld_nur_bei_cloud(qapp, tmp_path, monkeypatch):
     monkeypatch.setattr(us, "SETTINGS_PATH", tmp_path / "settings.json")
     geaendert = []
     panel = SettingsPanel(UserSettings(), geaendert.append, lambda: [])
-    seite = panel._pages.widget(SettingsPanel.PAGES.index("KI"))
+    seite = panel._pages.widget(SettingsPanel.PAGES.index("KI & Text"))
     from PySide6.QtWidgets import QComboBox, QLineEdit
 
     anbieter_box = next(b for b in seite.findChildren(QComboBox) if b.count() > 5)
