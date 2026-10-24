@@ -7,7 +7,7 @@
 
 from __future__ import annotations
 
-APP_VERSION = "6.4.0"  # 6.4.0: Zeitgrenze fuer die KI, Haken ueberspringt, Cloud-Ausweiche
+APP_VERSION = "6.4.1"  # 6.4.1: Kommas um entfernte Fuellwoerter, englische Fuellwoerter
 
 
 def _read_build() -> str:

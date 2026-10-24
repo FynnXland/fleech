@@ -527,7 +527,7 @@ class Pipeline:
         text, fallback = self._cleanup_kern(raw, intervention_override, style_hints,
                                             force_big)
         if self._eingriff(intervention_override) != "minimal":
-            ohne, anzahl = entferne_fuellwoerter(text)
+            ohne, anzahl = entferne_fuellwoerter(text, self.sprache)
             if anzahl and ohne.strip():
                 log.info("Fuellwoerter entfernt: %d.", anzahl)
                 text = ohne

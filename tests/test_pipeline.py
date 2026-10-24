@@ -306,3 +306,27 @@ def test_minimal_behaelt_die_fuellwoerter():
     p, _, injector = make_pipeline(RAW_NONTRIVIAL)
     p.process(AUDIO, 16000, intervention_override="minimal")
     assert injector.injected == [RAW_NONTRIVIAL]
+
+
+def test_englisch_entfernt_um_und_uh_nach_dem_modell():
+    """gemma3:4b-text ließ „um"/„uh" in 3 von 10 englischen Testsätzen stehen.
+    Bei Diktiersprache Englisch entfernt Fleech sie danach — samt Kommas."""
+    roh = "the report is um almost done and i will send it to you tomorrow"
+    llm = FakeLLM(reply="The report is, um, almost done and I will send it to you tomorrow.")
+    p, _, injector = make_pipeline(roh, llm=llm)
+    p.sprache = "en"
+    p.process(AUDIO, 16000)
+    assert injector.injected[0] == ("The report is almost done and I will send it "
+                                    "to you tomorrow.")
+
+
+def test_deutsch_laesst_die_praeposition_um_stehen():
+    """„um" ist im Deutschen eine Präposition — die englische Regel gilt nur bei
+    Diktiersprache Englisch, nicht bei Deutsch oder automatischer Erkennung."""
+    roh = "wir treffen uns morgen um vierzehn uhr im büro und besprechen das"
+    llm = FakeLLM(reply="Wir treffen uns morgen um vierzehn Uhr im Büro und besprechen das.")
+    for sprache in ("de", ""):
+        p, _, injector = make_pipeline(roh, llm=llm)
+        p.sprache = sprache
+        p.process(AUDIO, 16000)
+        assert " um vierzehn" in injector.injected[0]

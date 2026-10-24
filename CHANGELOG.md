@@ -11,6 +11,21 @@ GitHub-Release-Notizen (`packaging/release.py`).
 
 ---
 
+## 6.4.1 — 2026-10-25 · nicht einzeln veröffentlicht
+
+**Kommas bleiben, wo sie hingehören.** Lässt die KI ein „äh" oder „ähm" stehen,
+entfernt Fleech es danach selbst — bisher aber samt beider Kommas drumherum. Aus
+„Hallo zusammen, ähm, ich schicke euch das." wurde so „Hallo zusammen ich schicke
+euch das.", aus „Ja, äh, das passt." wurde „Ja das passt.". Jetzt bleibt das
+Komma nach einer Anrede, nach „Ja", „Okay" und Ähnlichem und hinter einem
+abgeschlossenen Nebensatz stehen. „Das ist, äh, gut." wird wie bisher zu „Das ist
+gut.".
+
+**Englische Füllwörter verschwinden zuverlässig.** Diktierst du auf Englisch,
+entfernt Fleech „um", „uh", „uhm" und „erm" jetzt auch dann, wenn die KI sie
+übersehen hat — im Test passierte das bei 4 von 10 Sätzen. „like" und „so"
+bleiben stehen, denn meist sind das echte Wörter.
+
 ## 6.4.0 — 2026-10-19
 
 **Die KI bleibt näher an deinen Worten.** Die Anweisung an die lokale KI ist neu
