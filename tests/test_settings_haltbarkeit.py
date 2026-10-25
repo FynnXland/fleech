@@ -137,51 +137,32 @@ def test_unserialisierbares_feld_zerstoert_die_datei_nicht(pfad, monkeypatch):
 
 # --- D-2: zwei Threads im Schreibpfad -----------------------------------------
 
-def test_gleichzeitiges_speichern_zerstoert_die_datei_nicht(pfad):
+def test_gleichzeitiges_speichern_zerstoert_die_datei_nicht(tmp_path):
     """Befund D-2: `save()` laeuft auch aus dem Pipeline-Worker (Woerterbuch-
     Zaehlung am Diktatende), waehrend die Oberflaeche speichert. Ohne Schloss und
     mit festem Temp-Namen schrieben beide in dieselbe Nebendatei — nachgestellt
-    hinterliess das in 6 % der Kollisionen eine unlesbare settings.json."""
-    kaputt = []
+    hinterliess das in 6 % der Kollisionen eine unlesbare settings.json.
 
-    def schreiber(schluessel: str):
-        s = UserSettings()
-        s.general.display_name = schluessel
-        for _ in range(200):
-            s.save(pfad)
+    Laeuft als eigener Prozess (`stress_speichern.py`): Im pytest-Prozess brach
+    er auf dem GitHub-Runner sporadisch die ganze Suite nativ ab."""
+    import subprocess
+    import sys
+    from pathlib import Path
 
-    def leser(stop: threading.Event):
-        while not stop.is_set():
-            try:
-                roh = lies_text(pfad)
-            except OSError:
-                continue                     # Datei gerade ersetzt — kein Fehler
-            except Exception as fehler:      # Umschlag unlesbar = halb geschrieben
-                kaputt.append(f"{fehler}")
-                continue
-            if not roh.strip():
-                continue
-            try:
-                json.loads(roh)
-            except ValueError as fehler:
-                kaputt.append(f"{fehler} — {len(roh)} Zeichen")
+    tests = Path(__file__).parent
+    umgebung = {**os.environ, "APPDATA": str(tmp_path / "appdata"),
+                "PYTHONPATH": os.pathsep.join([str(tests.parent), str(tests)])}
+    lauf = subprocess.run(
+        [sys.executable, str(tests / "stress_speichern.py"), str(tmp_path)],
+        capture_output=True, text=True, timeout=120, env=umgebung,
+        cwd=tests.parent)
+    assert lauf.returncode == 0, (
+        f"Stresstest-Prozess endete mit {lauf.returncode}: {lauf.stderr[-3000:]}")
+    befund = json.loads(lauf.stdout.strip().splitlines()[-1])
 
-    stop = threading.Event()
-    beobachter = threading.Thread(target=leser, args=(stop,), daemon=True)
-    beobachter.start()
-    threads = [threading.Thread(target=schreiber, args=(f"Name-{i}",))
-               for i in range(2)]
-    for t in threads:
-        t.start()
-    for t in threads:
-        t.join()
-    stop.set()
-    beobachter.join(timeout=5)
-
-    assert kaputt == []
-    assert json.loads(lies_text(pfad))["general"]["display_name"] \
-        in {"Name-0", "Name-1"}
-    assert not _temp_reste(pfad)
+    assert befund["kaputt"] == []
+    assert befund["name"] in {"Name-0", "Name-1"}
+    assert befund["reste"] == []
 
 
 def test_zwei_schreiber_kommen_sich_nie_ins_gehege(pfad, monkeypatch):
