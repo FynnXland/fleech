@@ -131,6 +131,9 @@ class ProfileOverrides:
     # Erkennung, den sprachgebundenen Teil der Guards und die Zielsprache der
     # umformulierenden Formate.
     sprache: str = ""
+    # Zielsprache ("" = keine Uebersetzung): Der fertige Text wird nach der
+    # Bereinigung uebersetzt (`fleech/uebersetzung.py`).
+    zielsprache: str = ""
 
     def command_allowed(self, global_enabled: bool) -> bool:
         """Darf in diesem Kontext ein GESPROCHENES Safe-Word Befehle ausloesen?
@@ -194,6 +197,14 @@ def profile_sprache(item: dict) -> str:
     """Diktiersprache eines Profils: "" (wie Einstellungen) | "de" | "en" | "auto"."""
     wert = str((item or {}).get("sprache", "") or "").lower()
     return wert if wert in {"de", "en", "auto"} else ""
+
+
+def profile_zielsprache(item: dict) -> str:
+    """Zielsprache eines Profils: "" (keine Uebersetzung) oder ein Code aus
+    `uebersetzung.ZIELSPRACHEN`."""
+    from .uebersetzung import gueltig
+
+    return gueltig((item or {}).get("zielsprache", ""))
 
 
 def profile_command_mode(item: dict) -> str:
@@ -299,6 +310,13 @@ PROFILE_SPRACHEN = [
     ("en", "Englisch"),
     ("auto", "Automatisch erkennen"),
 ]
+
+
+def profile_zielsprachen() -> list[tuple[str, str]]:
+    """Auswahl „Übersetzen in" — erst „nicht übersetzen", dann die Sprachen."""
+    from .uebersetzung import ZIELSPRACHEN
+
+    return [("", "Nicht übersetzen")] + [(c, n) for c, (n, _e) in ZIELSPRACHEN.items()]
 
 
 # „Formeln" stand hier bis 5.10.2 mit drin und war das einzige Format ohne jeden

@@ -248,7 +248,8 @@ def _settings_mit_zuordnung():
         {"name": "Standard", "default": True, "intervention": "", "apps": []},
         {"name": "KI-Prompt", "intervention": "standard", "mode": "prompt",
          "apps": ["claude.exe"], "sprache": "en", "auto_send": True},
-        {"name": "Notizen", "intervention": "strong", "apps": ["obsidian.exe :: Tagebuch"]},
+        {"name": "Notizen", "intervention": "strong", "apps": ["obsidian.exe :: Tagebuch"],
+         "zielsprache": "fr"},
     ]
     return settings
 
@@ -270,6 +271,7 @@ def test_jetzt_zeile_nennt_regel_und_wirkung():
     # Titelregel: derselbe Prozess, anderer Kontext.
     text = beschreibe_jetzt(settings, "obsidian.exe", "2026-08-18 — Tagebuch")
     assert "Profil Notizen" in text and "Regel: obsidian.exe :: Tagebuch" in text
+    assert "übersetzt in: Französisch" in text
     text = beschreibe_jetzt(settings, "obsidian.exe", "Projektplan")
     assert "Profil Standard (Standardprofil)" in text
 

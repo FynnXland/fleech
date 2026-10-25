@@ -823,6 +823,7 @@ Ein Profil bündelt diese Dinge und gilt entweder **von Hand gewählt** oder fü
 | **Schnellwechsel** | ob das Profil im Zyklus des Pillen-Punkts und des Profil-Hotkeys erscheint |
 | **Eingriffsgrad** | `Wie Einstellungen` / `Minimal` / `Standard` / `Strong` |
 | **Sprache** | `Wie Einstellungen` / `Deutsch` / `Englisch` / `Automatisch erkennen` (seit 5.4.0, seit 5.10.5 auch auf der Profilseite einstellbar, nicht nur in der `settings.json`) |
+| **Übersetzen in** | `Nicht übersetzen` oder eine Zielsprache (seit 6.5.0): Der fertige Text wird nach der Bereinigung übersetzt, siehe [22](#22-sprachen-seit-540) |
 | **Safe-Word** | gesprochene Befehle in diesem Profil erlauben oder abschalten |
 | **Automatisch senden** | nach dem Einfügen zusätzlich Enter („Diktat direkt abschicken“) — greift bei `Diktat` / `KI-Prompt` / `Stichpunkte`, bewusst NICHT bei `E-Mail` (eine Mail, die sich selbst abschickt, ist der eine Fall, in dem ein Versehen echte Folgen hat) und nie nach einem Befehl oder Rohtext-Rückfall; bewusst je Profil und bewusst aus als Vorgabe |
 | **App-Zuordnung** | Prozessnamen, für die das Profil automatisch greift — optional auf einen Fenstertitel eingegrenzt; eingestellt auf der Seite „Apps“ |
@@ -2829,6 +2830,40 @@ falsch geratener Guard schneidet lieber nichts als zu viel.
 
 Die **Oberfläche bleibt deutsch**. Sie zu übersetzen würde die Pflege jeder künftigen
 Zeile verdoppeln, ohne dass ein Diktat dadurch besser wird.
+
+### Zielsprache (seit 6.5.0)
+
+Ein Profil kann den fertigen Text übersetzen („Übersetzen in“, `zielsprache` in der
+`settings.json`): Englisch, Französisch, Spanisch, Italienisch, Niederländisch,
+Portugiesisch, Polnisch, Deutsch. Diktiersprache und Zielsprache sind getrennt, die
+Erkennung bleibt bei der Sprache, die gesprochen wird.
+
+**Ein eigener Schritt nach der Bereinigung**, nicht ein Zusatz im Cleanup-Prompt
+(`fleech/uebersetzung.py`, `prompts/translate.md`). Die Guards der Bereinigung
+vergleichen Wörter mit dem Gesprochenen. Eine korrekte Übersetzung teilt kaum noch
+Wörter mit dem Original, und jeder dieser Guards schlüge an. Erst bereinigen und
+prüfen, dann übersetzen, hält sie scharf. Dazu kommt der Befund von oben: Gegen den
+langen deutschen Prompt setzt sich ein Sprachzusatz nicht durch. Ausgabeformate
+(E-Mail, Stichpunkte, KI-Prompt) werden auf Deutsch formuliert und danach übersetzt.
+Textbausteine laufen an beidem vorbei.
+
+**Eigene Prüfungen, sprachunabhängig:** Jede Zahl des Originals muss in der
+Übersetzung stehen (nur die Ziffern verglichen, denn Trenner wechseln: 12.500 /
+12,500), Formeln reisen als `[[F1]]`-Platzhalter mit und müssen vollständig
+zurückkommen. Das Wortverhältnis muss zwischen 0,45 und 2,2 liegen (ab sechs
+Wörtern), keine fremde Schrift. Scheitert eine Prüfung oder die KI, kommt der
+bereinigte Text in der Diktiersprache, mit Grund im Verlauf, und `auto_send` drückt
+kein Enter. Ein Text in der falschen Sprache fällt sofort auf, eine falsche
+Übersetzung nicht.
+
+Die Übersetzung bekommt einen eigenen Zuschlag auf die KI-Zeitgrenze, aber nur,
+solange die Grenze nicht schon gerissen ist. Live gegen `gemma3:4b-text` gemessen:
+0,15–0,35 s je Diktat bei warmem Modell, acht von acht Testsätzen bestanden, darunter
+eine als Bitte formulierte Anweisung (übersetzt, nicht ausgeführt). Englisch,
+Spanisch und Deutsch waren sauber, im Französischen erfand das Modell ein Wort.
+Steht die Diktiersprache schon auf der Zielsprache, entfällt der Aufruf; bei
+„Automatisch erkennen“ läuft er immer. „Neu bereinigen als …“ im Verlauf
+bleibt in der Diktiersprache.
 
 ---
 

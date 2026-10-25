@@ -122,6 +122,15 @@ class KiFrist:
         self._ende = time.monotonic() + frist_s(woerter, self.laden)
         self.mitschnitt.neu()      # auch ohne `neues_diktat()` (direkter process-Aufruf)
 
+    def zuschlag(self, woerter: int) -> None:
+        """Mehr Zeit fuer einen weiteren Aufruf desselben Diktats (Uebersetzung).
+
+        Nur, solange die Grenze nicht gerissen ist: War die KI fuer die
+        Bereinigung zu langsam, ist sie es fuer die Uebersetzung auch."""
+        rest = self.rest()
+        if rest is not None and rest > 0:
+            self._ende += frist_s(woerter)
+
     def ueberspringen(self) -> None:
         self._skip.set()
 

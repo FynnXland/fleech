@@ -64,6 +64,12 @@ def build_pipeline(config: AppConfig, settings: UserSettings, injector=None,
         log.debug("prompts/cleanup-en.md fehlt — englische Diktate laufen ueber "
                   "den deutschen Prompt.")
     pipeline.sprache = settings.general.language or "de"
+    # Zielsprache je Profil (`uebersetzung.py`): fehlt der Prompt, bleibt der Text
+    # in der Diktiersprache und der Verlauf nennt den Grund.
+    try:
+        pipeline.translate_prompt = load_prompt(config.prompts_dir, "translate")
+    except FileNotFoundError:
+        log.info("prompts/translate.md fehlt — Zielsprachen der Profile ruhen.")
     # „Ohne KI": Transkript ohne Modell. Befehle und Ausgabeformate brauchen eines —
     # sie ruhen dann, statt bei jedem Diktat als Fehler aufzufallen.
     from .llm.providers import AUS, anbieter

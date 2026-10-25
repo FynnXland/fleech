@@ -450,6 +450,7 @@ class DesktopApp(
             # die Erkennung, den sprachgebundenen Teil der Guards und die
             # Zielsprache der umformulierenden Formate.
             self._setze_sprache(prof.sprache or self.settings.general.language)
+            self.pipeline.zielsprache = prof.zielsprache   # "" = nicht uebersetzen
             # Schon beim Sprechen Erkanntes (nur wenn es das gibt — aeltere
             # Pipeline-Attrappen kennen das Argument nicht).
             vorab = abschnitte_ergebnis(abschnitte)
@@ -928,6 +929,7 @@ class DesktopApp(
         except Exception:
             log.debug("STT-Sprache nicht setzbar.", exc_info=True)
         self.pipeline.sprache = "de" if sprache == "auto" else sprache
+        self.pipeline.sprache_auto = sprache == "auto"
 
     def _finish_recording(self) -> None:
         """Overlay-Haken: fertig — je nachdem, welcher Weg gerade aufnimmt."""

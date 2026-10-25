@@ -15,7 +15,10 @@ from __future__ import annotations
 import sys
 from pathlib import Path
 
-from ...profiles import PROFILE_FORMATS, profil_fuer_app, profile_mode, profile_sprache
+from ...profiles import (
+    PROFILE_FORMATS, profil_fuer_app, profile_mode, profile_sprache, profile_zielsprache,
+)
+from ...uebersetzung import anzeigename
 
 # Fenstertitel werden lang (ganze Dateipfade, ganze Chat-Eingaben). Fuer die Zeile
 # reicht der Anfang — sie soll eine Zeile bleiben und nicht die halbe Seite fuellen.
@@ -99,6 +102,9 @@ def beschreibe_jetzt(settings, app: str, titel: str, fleech_selbst: bool = False
         str(getattr(settings.general, "language", "") or ""), "Deutsch")
     teile.append("Sprache: " + (_SPRACHEN.get(sprache)
                                 or f"wie Einstellungen ({global_sprache})"))
+    ziel = profile_zielsprache(profil)
+    if ziel:
+        teile.append(f"übersetzt in: {anzeigename(ziel)}")
     if profil.get("auto_send"):
         # Das Ueberraschendste, was ein Profil tun kann — es drueckt Enter.
         teile.append("schickt direkt ab")

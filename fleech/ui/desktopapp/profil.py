@@ -39,6 +39,7 @@ def overrides_from(item: dict):
         profile_command_mode,
         profile_mode,
         profile_sprache,
+        profile_zielsprache,
     )
 
     mode = str(item.get("intervention", "")).lower()
@@ -51,6 +52,7 @@ def overrides_from(item: dict):
         command=profile_command_mode(item),
         auto_send=bool(item.get("auto_send", False)),
         sprache=profile_sprache(item),
+        zielsprache=profile_zielsprache(item),
     )
 
 

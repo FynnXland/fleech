@@ -47,6 +47,22 @@ du sonst nie sagst, damit nichts aus Versehen auslöst. Bausteine gelten im
 normalen Diktat, noch nicht in den Profilen *E-Mail*, *Stichpunkte* und
 *KI-Prompt*.
 
+**Übersetzen je Profil.** Im Profil gibt es unter *Ausgabeformat* jetzt
+**Übersetzen in**: Englisch, Französisch, Spanisch, Italienisch,
+Niederländisch, Portugiesisch, Polnisch oder Deutsch. Du diktierst weiter in
+deiner Sprache, im Feld landet der Text in der Zielsprache, etwa im Slack-Profil
+für das internationale Team. Fleech bereinigt erst wie gewohnt und übersetzt
+danach; das kostet mit der lokalen KI rund eine Drittelsekunde mehr. Das klappt
+auch mit *E-Mail*, *Stichpunkte* und *KI-Prompt*. Textbausteine bleiben, wie du
+sie eingetragen hast.
+
+Fleech prüft jede Übersetzung: Fehlt eine Zahl, ist eine Formel verloren gegangen
+oder ist der Text auffällig kürzer oder länger als das Diktat, kommt er
+unübersetzt in deiner Sprache, und der Verlauf sagt, warum. „Diktat direkt
+abschicken“ drückt dann kein Enter. Nach Englisch, Spanisch und Deutsch
+übersetzt die lokale KI gut; im Französischen erfindet sie gelegentlich ein Wort.
+Mit „Ohne KI“ gibt es keine Übersetzung.
+
 ## 6.4.1 — 2026-10-25 · nicht einzeln veröffentlicht
 
 **Kommas bleiben, wo sie hingehören.** Lässt die KI ein „äh" oder „ähm" stehen,

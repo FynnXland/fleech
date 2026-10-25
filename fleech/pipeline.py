@@ -15,7 +15,7 @@ from .commands import (
     sounds_like_deletion,
 )
 from .document import DocumentTracker
-from . import gruende
+from . import gruende, uebersetzung
 from .formula import apply_formulas, restore_formulas
 from .formula import markers_survived as formula_markers_survived
 from .routing import (
@@ -25,7 +25,8 @@ from .routing import (
 from .textutils import TRANSCRIPT_CLOSE, TRANSCRIPT_OPEN, strip_wrapping_quotes, wrap_transcript
 from .bloecke import beispielsaetze, bereinige_in_bloecken
 from .textbausteine import mit_bausteinen
-from .llm.frist import FristAbgelaufen, KiFrist, Uebersprungen
+from .llm.ausfall import ausfall
+from .llm.frist import KiFrist, Uebersprungen
 from .stt.abschnitte import erkenne_mit_vorab
 from .vorbereinigung import entferne_fuellwoerter
 from .protokolltext import inhalt
@@ -129,35 +130,6 @@ _FORMEL_MARKER_HINWEIS = (
 )
 
 
-def _lokaler_endpunkt_nicht_erreichbar(llm, exc: Exception) -> bool:
-    """Ist der Cleanup gescheitert, WEIL der lokale Ollama-Dienst nicht laeuft?
-
-    Befund E-13: Wer die Einfuehrung ueberspringt, hat keinen Ollama-Dienst. Jedes
-    Diktat kommt dann als Roh-Transkript an, und der einzige Klartext dazu stand in
-    der Logdatei. Damit die Oberflaeche das sagen kann, muss die Pipeline die zwei
-    Faelle unterscheiden: Server antwortet schlecht (HTTP-Fehler, Timeout beim
-    Rechnen) — oder es ist gar keiner da.
-    """
-    import urllib.error
-
-    from .llm.providers import ist_lokales_ollama
-
-    if not ist_lokales_ollama(getattr(llm, "cfg", None)):
-        return False
-    if isinstance(exc, urllib.error.HTTPError):
-        return False                     # der Dienst laeuft, er mag nur die Anfrage nicht
-    grund = exc.reason if isinstance(exc, urllib.error.URLError) else exc
-    if isinstance(grund, TimeoutError):
-        # Er laeuft, rechnet aber zu lange — genau der Fall „Timeout beim Rechnen"
-        # aus dem Docstring. Stand frueher mit in der Offline-Liste (TimeoutError
-        # ist eine Unterklasse von OSError) und meldete dann „Lokale KI laeuft
-        # nicht", waehrend das Warmhalten Sekunden davor erfolgreich war (Log vom
-        # 25.09., 03:52 und 11:38). Ein nicht laufender Dienst lehnt die
-        # Verbindung sofort ab, er laeuft nicht in eine Zeitueberschreitung.
-        return False
-    return isinstance(grund, (ConnectionError, OSError))
-
-
 class Pipeline:
     def __init__(
         self,
@@ -231,6 +203,10 @@ class Pipeline:
         self.sprache = "de"
         self.ki_aus = False   # „Ohne KI": Transkript ohne Modell, gewaehlt — kein Rueckfall
         self.bausteine = []   # [(Kuerzel, Text)] aus `textbausteine.lies`
+        # Zielsprache des aktiven Profils ("" = keine Uebersetzung, `uebersetzung.py`).
+        self.zielsprache = ""
+        self.sprache_auto = False      # Profil/Einstellung „Automatisch erkennen"
+        self.translate_prompt = ""     # prompts/translate.md
         # Was die Pille waehrend der Bereinigung zeigt. Die App setzt es je Diktat,
         # wenn das Modell erst noch geladen wird — sonst ueberschrieb „Bereinige …"
         # deren Hinweis sofort, und das Warten aufs Laden sah aus wie Rechnen.
@@ -453,7 +429,9 @@ class Pipeline:
             fmt = output_format if output_format in REWRITING_FORMATS else "prompt"
             self.last_mode = Mode.PROMPT.value if fmt == "prompt" else fmt
             if self._handle_format(raw, fmt):
-                return "ok"
+                # Format gelungen, Uebersetzung nicht: der Text kam, aber nicht so.
+                return ("fallback" if gruende.NICHT_UEBERSETZT in self.last_reason
+                        else "ok")
             self._merke_grund(gruende.FORMAT_GESCHEITERT)
             fallback = True
         else:
@@ -526,7 +504,45 @@ class Pipeline:
             if anzahl and ohne.strip():
                 log.info("Fuellwoerter entfernt: %d.", anzahl)
                 text = ohne
-        return text, fallback
+        return self._uebersetzt(text, fallback)
+
+    def _uebersetzt(self, text: str, fallback: bool) -> tuple[str, bool]:
+        """Zielsprache des Profils (`uebersetzung.py`). (Text, Rueckfall?)
+
+        Scheitert die Uebersetzung, bleibt der bereinigte Text in der
+        Diktiersprache — sichtbar falsch statt unbemerkt falsch uebersetzt."""
+        if not text.strip() or not uebersetzung.noetig(
+                self.zielsprache, self.sprache, self.sprache_auto):
+            return text, fallback
+        if self.ki_aus or not self.translate_prompt:
+            # „Ohne KI" ist eine Wahl, kein Fehler: Grund im Verlauf, kein Rueckfall.
+            self._merke_grund(gruende.mit_detail(
+                gruende.NICHT_UEBERSETZT,
+                "ohne KI" if self.ki_aus else "prompts/translate.md fehlt"))
+            return text, fallback
+        self._status("Übersetze …")
+        self.frist.zuschlag(len(text.split()))
+        t0 = time.perf_counter()
+        try:
+            neu, grund = uebersetzung.uebersetze(
+                text, self.zielsprache, self.translate_prompt,
+                lambda system, user: self._frage(self.cleanup_llm, system, user))
+        except Uebersprungen:
+            self._merke_grund(gruende.UEBERSPRUNGEN)   # Nutzerwahl, kein Fehler
+            return text, fallback
+        except Exception as exc:
+            log.warning("Uebersetzung fehlgeschlagen (%s) — Text bleibt unuebersetzt.", exc)
+            self._merke_llm_ausfall(self.cleanup_llm, exc)
+            self._merke_grund(gruende.NICHT_UEBERSETZT)
+            return text, True
+        if not grund and getattr(self.cleanup_llm, "last_truncated", False)                 and not self.frist.ausgewichen:
+            grund = gruende.mit_detail(gruende.NICHT_UEBERSETZT, "Kontextfenster voll")
+        if grund:
+            self._merke_grund(grund)
+            return text, True
+        self.last_llm_ms += int((time.perf_counter() - t0) * 1000)
+        log.info("Uebersetzt nach %s (%.2f s).", self.zielsprache, time.perf_counter() - t0)
+        return neu, fallback
 
     def _cleanup_kern(self, raw: str, intervention_override: str | None = None,
                       style_hints: list | None = None,
@@ -718,34 +734,11 @@ class Pipeline:
         return self._enforce_verbatim(raw, cleaned, system, llm, intervention)
 
     def _merke_llm_ausfall(self, llm, exc: Exception) -> None:
-        """Grund des Rueckfalls festhalten, damit die Oberflaeche ihn benennen kann.
-
-        "llm_offline" heisst: der lokale Ollama-Dienst laeuft nicht (Befund E-13) —
-        das ist etwas anderes als ein Modell, das schlecht antwortet. Bei einem
-        Cloud-Anbieter zaehlt der HTTP-Status: 401/403 = Schluessel, 429 = Kontingent.
-        """
-        from .llm.providers import OLLAMA
-
-        if isinstance(exc, (FristAbgelaufen, Uebersprungen)):
-            self._merke_grund(gruende.KI_FRIST if isinstance(exc, FristAbgelaufen)
-                              else gruende.UEBERSPRUNGEN)
-            return
-        code = getattr(exc, "code", None)
-        if (getattr(getattr(llm, "cfg", None), "provider", OLLAMA) or OLLAMA) == OLLAMA:
-            # 5xx: Ollama lief und ist beim Laden/Rechnen gescheitert — kein Ausfall
-            # des Dienstes, sondern etwa Grafikspeicher voll.
-            abbruch = isinstance(code, int) and code >= 500
-            self._merke_grund(gruende.OLLAMA_FEHLER if abbruch else gruende.OLLAMA)
-        elif code in (401, 403):
-            self._merke_grund(gruende.KI_SCHLUESSEL)
-            self.last_error_kind = "key"
-        elif code == 429:
-            self._merke_grund(gruende.KI_KONTINGENT)
-            self.last_error_kind = "quota"
-        else:
-            self._merke_grund(gruende.KI_DIENST)
-        if _lokaler_endpunkt_nicht_erreichbar(llm, exc):
-            self.last_error_kind = "llm_offline"
+        """Grund des Rueckfalls festhalten (Einordnung in `llm/ausfall.py`)."""
+        grund, art = ausfall(llm, exc)
+        self._merke_grund(grund)
+        if art:
+            self.last_error_kind = art
 
     def _frage(self, llm, system: str, user: str) -> str:
         """Jeder Bereinigungs-Aufruf laeuft ueber die Zeitgrenze des Diktats."""
@@ -1089,7 +1082,7 @@ class Pipeline:
         self.last_llm_ms = int((time.perf_counter() - t0) * 1000)
         log.info("Ausgabeformat %s (%.2f s): %d Zeichen.",
                  fmt, time.perf_counter() - t0, len(text))
-        return text
+        return self._uebersetzt(text, False)[0]
 
     # -- Befehls-Modus (M5) -------------------------------------------------------
 
@@ -1214,6 +1207,9 @@ class Pipeline:
         if not raw:
             return ""
         self.frist.neues_diktat()     # keine Zeitgrenze: hier wartet kein Cursor
+        # Neu bereinigt wird in der Diktiersprache. Die App setzt die Zielsprache
+        # vor jedem Diktat neu, hier bleibt nichts haengen.
+        self.zielsprache = ""
         try:
             if output_format in REWRITING_FORMATS:
                 text = self._format_text(raw, output_format)

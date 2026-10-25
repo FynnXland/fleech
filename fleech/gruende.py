@@ -44,6 +44,9 @@ AUSLASSUNG = "KI ließ zu viel vom Gesagten weg"
 # waren sie nie.
 BEFEHL_GESCHEITERT = "Befehl nicht ausführbar"
 FORMAT_GESCHEITERT = "Ausgabeformat lieferte nichts"
+# Zielsprache je Profil (6.5.0, `fleech/uebersetzung.py`): Der Text kam in der
+# Diktiersprache, weil die Uebersetzung eine Pruefung nicht bestand (+ Detail).
+NICHT_UEBERSETZT = "Nicht übersetzt"
 # Zeitgrenze und Ueberspringen (6.4.0, `fleech/llm/frist.py`): Die KI war zu
 # langsam — meist, weil andere Programme Grafikkarte oder Speicher belegten.
 KI_FRIST = "KI zu langsam — Zeitgrenze erreicht"
@@ -84,6 +87,7 @@ KURZFORM = {
     AUSLASSUNG: "Auslassung",
     BEFEHL_GESCHEITERT: "Befehl",
     FORMAT_GESCHEITERT: "Ausgabeformat",
+    NICHT_UEBERSETZT: "Übersetzung",
     KI_FRIST: "Zeitgrenze",
     UEBERSPRUNGEN: "übersprungen",
     AUSGEWICHEN: "Cloud-Ausweiche",

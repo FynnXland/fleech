@@ -20,7 +20,8 @@ from ...history import HistoryStore
 from ...profiles import (
     APP_STANDARD, PROFILE_FORMATS, PROFILE_SPRACHEN, PROFIL_FARBEN,
     ensure_default_profile, profile_color, profile_command_mode,
-    profile_in_quickswitch, profile_mode, profile_sprache,
+    profile_in_quickswitch, profile_mode, profile_sprache, profile_zielsprache,
+    profile_zielsprachen,
 )
 from ...usersettings import UserSettings
 from ..chevron import apply_chevrons
@@ -405,6 +406,21 @@ class ProfilesPage(QWidget):
         self._prompt_btn.clicked.connect(self._prompt_bearbeiten)
         box.addWidget(self._prompt_btn)
 
+        # Zielsprache (6.5.0): oben bei den Grundeinstellungen und nicht im
+        # erweiterten Block — wer ein Profil fuer Englisch anlegt, sucht genau das.
+        box.addWidget(_abschnitt(
+            "Übersetzen in", "Der fertige Text wird nach der Bereinigung in diese "
+            "Sprache übersetzt — du diktierst weiter in deiner Sprache. Braucht "
+            "ein KI-Modell; klappt die Übersetzung nicht, kommt der Text "
+            "unübersetzt und der Verlauf sagt, warum.",
+        ))
+        self._zielsprache_combo = QComboBox()
+        self._zielsprache_combo.setStyleSheet(apply_chevrons(_COMBO_QSS))
+        for value, label in profile_zielsprachen():
+            self._zielsprache_combo.addItem(label, value)
+        self._zielsprache_combo.currentIndexChanged.connect(self._on_zielsprache_changed)
+        box.addWidget(self._zielsprache_combo)
+
         # Farbe des Profils — die Wiedererkennung in der Liste UND am Punkt der
         # Pille. Eine Reihe zum Antippen statt eines Aufklappmenues: Es sind acht
         # Werte, und die Farbe selbst IST die Beschriftung.
@@ -655,6 +671,7 @@ class ProfilesPage(QWidget):
             self._detail_title.setEnabled(False)
             self._profile_command_combo.setCurrentIndex(0)
             self._profile_sprache_combo.setCurrentIndex(0)
+            self._zielsprache_combo.setCurrentIndex(0)
             self._refresh_farb_reihe(None)
             self._loading = False
             return
@@ -668,6 +685,8 @@ class ProfilesPage(QWidget):
         self._profile_sprache_combo.setCurrentIndex(
             sprachen.index(profile_sprache(profile))
         )
+        ziele = [v for v, _l in profile_zielsprachen()]
+        self._zielsprache_combo.setCurrentIndex(ziele.index(profile_zielsprache(profile)))
         self._autosend_cb.setChecked(bool(profile.get("auto_send", False)))
         values = [v for v, _l in self._INTERVENTION_LABELS]
         current = profile.get("intervention", "")
@@ -730,6 +749,15 @@ class ProfilesPage(QWidget):
         profile = self._current_profile()
         if profile is not None:
             profile["sprache"] = self._profile_sprache_combo.currentData()
+            self._save()
+
+    def _on_zielsprache_changed(self, _index: int) -> None:
+        """Zielsprache des Profils. "" = nicht uebersetzen."""
+        if self._loading:
+            return
+        profile = self._current_profile()
+        if profile is not None:
+            profile["zielsprache"] = self._zielsprache_combo.currentData()
             self._save()
 
     def _on_profile_command_changed(self, _index: int) -> None:
