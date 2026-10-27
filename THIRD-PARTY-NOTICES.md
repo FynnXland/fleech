@@ -30,5 +30,22 @@ The LGPL-licensed libraries are shipped as separate, unmodified shared libraries
 Python packages. You may replace them with your own builds of the same version; their
 complete source code is available at the links above.
 
-Speech and language models (Whisper weights, Ollama models, cloud models) are not part
-of Fleech. They are downloaded at runtime under their publishers' own licenses.
+## Models
+
+Speech and language models are not part of Fleech's installer or source. The setup
+downloads them onto your computer; they keep their publishers' own licenses and terms.
+
+| Model | Used for | License / terms | Source |
+|---|---|---|---|
+| Whisper large-v3-turbo (CTranslate2 conversion) | Speech recognition (default) | MIT | https://huggingface.co/openai/whisper-large-v3-turbo, conversion: https://huggingface.co/mobiuslabsgmbh/faster-whisper-large-v3-turbo |
+| Whisper large-v3-turbo German (primeline, CTranslate2 conversion) | Speech recognition, optional German model | Apache-2.0 | https://huggingface.co/primeline/whisper-large-v3-turbo-german, conversion: https://huggingface.co/jimmymeister/whisper-large-v3-turbo-german-ct2 |
+| Gemma 3 (`gemma3:4b`, default AI model) | Clean-up, output formats, translation | [Gemma Terms of Use](https://ai.google.dev/gemma/terms) and [Gemma Prohibited Use Policy](https://ai.google.dev/gemma/prohibited_use_policy) | https://ollama.com/library/gemma3 |
+| Ollama | Runs the local AI model | MIT | https://github.com/ollama/ollama |
+
+Gemma is provided under and subject to the Gemma Terms of Use found at
+https://ai.google.dev/gemma/terms. Fleech builds `gemma3:4b-text` on your computer from
+the downloaded `gemma3:4b` by leaving out its image part; the text weights are unchanged
+and nothing is redistributed. Using Gemma through Fleech means accepting these terms.
+
+Other local models you pick in the settings and cloud models you use with your own key
+are under their publishers' licenses and terms.
