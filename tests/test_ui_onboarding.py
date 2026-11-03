@@ -568,3 +568,18 @@ def test_setup_page_plant_neu_und_meldet_den_stand(qapp, monkeypatch):
     assert staende == ["Erkennungsmodell large-v3-turbo: 800 MB von etwa 1,6 GB · "
                        "noch ca. 1 Min."]
     page.deleteLater()
+
+
+def test_verlauf_seite_nennt_die_verschluesselung_richtig(qapp, monkeypatch):
+    """Seit 6.3.0 liegt der Verlauf verschlüsselt (tresor/). Die Einführung
+    behauptete bis 6.5.0 trotzdem „unverschlüsselt"."""
+    from PySide6.QtWidgets import QLabel
+
+    from fleech.usersettings import UserSettings
+
+    monkeypatch.setattr(UserSettings, "save", lambda self, path=None: None)
+    dlg, _ = _onboarding()
+    seite = dlg._verlauf_cb.parentWidget()
+    texte = " ".join(l.text() for l in seite.findChildren(QLabel))
+    assert "unverschlüsselt" not in texte
+    assert "verschlüsselt" in texte

@@ -350,11 +350,23 @@ class MainWindow(QMainWindow):
             self.apps.refresh()
 
     def open_page(self, key: str) -> None:
-        """Fenster anzeigen + Seite waehlen (Tray-Aktionen)."""
+        """Fenster anzeigen + Seite waehlen (Tray-Klick, Zweitstart).
+
+        Ein minimiertes Fenster holen show() und raise_() nicht zurueck — es blieb
+        unsichtbar in der Taskleiste, und der Klick wirkte wie ins Leere (gemeldet:
+        „öffnet sich oft nicht"). Das Minimiert-Bit allein zu loeschen laesst ein
+        vorher maximiertes Fenster maximiert. Danach bittet `restore_foreground`
+        Windows ausdruecklich um den Vordergrund: Ohne das blinkt das Fenster nur
+        in der Taskleiste, wenn der Wunsch aus einem Hintergrundprozess kommt."""
+        from .focusrestore import restore_foreground
+
         self.show_page(key)
+        if self.isMinimized():
+            self.setWindowState(self.windowState() & ~Qt.WindowMinimized)
         self.show()
         self.raise_()
         self.activateWindow()
+        restore_foreground(int(self.winId()))
 
     def melde_nachbearbeitung(self, text: str, grund: str) -> None:
         """Ergebnis der Nachbearbeitung an die Startseite durchreichen.

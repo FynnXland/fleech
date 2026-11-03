@@ -958,6 +958,9 @@ def _wake_running_instance() -> bool:
         sock.connectToServer(IPC_NAME)
         if not sock.waitForConnected(1500):
             return False
+        from .focusrestore import erlaube_fremden_vordergrund
+
+        erlaube_fremden_vordergrund()
         sock.write(b"show")
         sock.flush()
         sock.waitForBytesWritten(500)

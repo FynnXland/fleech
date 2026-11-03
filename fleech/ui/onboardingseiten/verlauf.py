@@ -3,9 +3,10 @@
 Der Verlauf war immer schon abschaltbar, aber standardmaessig AN und nur unter
 Einstellungen → Allgemein zu finden. Ein externes Gutachten hat das als Opt-out
 bei sensiblen Inhalten benannt, und der Punkt traegt: Der vollstaendige Wortlaut
-jedes Diktats landet unverschluesselt in einer SQLite-Datei. Wer Gesundheitliches,
-Finanzielles oder versehentlich ein Passwort diktiert, sollte das entschieden
-haben und nicht entdecken.
+jedes Diktats bleibt auf der Platte stehen. Seit 6.3.0 verschluesselt (`tresor/`),
+aber wer Gesundheitliches, Finanzielles oder versehentlich ein Passwort diktiert,
+sollte trotzdem entschieden haben, ob es aufgehoben wird, und es nicht entdecken.
+Bis 6.5.0 stand hier noch „unverschlüsselt" — eine falsche Angabe seit dem Tresor.
 
 Der Standardwert bleibt AN — Home und Insights leben davon. Also: die Frage.
 Sie steht VOR dem Probediktat: Wer gleich etwas diktiert, soll vorher entschieden
@@ -31,8 +32,9 @@ def build(dialog) -> QWidget:
         "Wörterbuch-Vorschläge."
     ))
     lay.addWidget(text(
-        "Gespeichert wird lokal in einer Datei auf diesem Rechner, unverschlüsselt. "
-        "Nichts davon wird gesendet — aber es steht danach dort."
+        "Gespeichert wird nur auf diesem Rechner, verschlüsselt und an deine "
+        "Anmeldung gebunden. Nichts davon wird gesendet — aber es steht danach "
+        "dort, standardmäßig 90 Tage lang."
     ))
     box = QCheckBox("Diktate im Verlauf aufheben")
     box.setChecked(bool(dialog.settings.general.save_history))
