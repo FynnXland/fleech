@@ -63,6 +63,14 @@ abschicken“ drückt dann kein Enter. Nach Englisch, Spanisch und Deutsch
 übersetzt die lokale KI gut; im Französischen erfindet sie gelegentlich ein Wort.
 Mit „Ohne KI“ gibt es keine Übersetzung.
 
+**Die lokale KI bleibt bei Videos und Alt+Tab geladen.** Fleech gibt den
+Grafikspeicher frei, sobald ein Spiel im Vollbild läuft. Bisher galt dafür jedes
+Vollbild: ein YouTube-Video im Browser, Discord, die Alt+Tab-Ansicht oder das
+Aufnahme-Overlay von FlowShare. Danach musste das nächste Diktat die KI erst neu
+laden und dauerte spürbar länger. Jetzt zählen Browser- und Electron-Fenster,
+Overlays, maximierte Fenster, Sperrbildschirm, Remotedesktop und Videoplayer nicht
+mehr als Spiel. Echte Spiele im Vollbild, auch randlose, geben den Speicher weiter frei.
+
 ## 6.4.1 — 2026-10-25 · nicht einzeln veröffentlicht
 
 **Kommas bleiben, wo sie hingehören.** Lässt die KI ein „äh" oder „ähm" stehen,

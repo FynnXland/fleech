@@ -70,12 +70,16 @@ class NotificationPolicy:
         2026-10-08 reichte ein YouTube-Vollbild in Comet auf dem einen Monitor,
         waehrend in Claude auf dem anderen diktiert wurde — das Modell wurde nach
         fast jedem Diktat entladen, das naechste wartete bis zu 10 s aufs Laden.
-        Fuer Toasts und Toene bleibt das Signal richtig, fuers Entladen nicht."""
+        Fuer Toasts und Toene bleibt das Signal richtig, fuers Entladen nicht.
+
+        Aus demselben Grund zaehlt nur ein Vollbild, das nach Spiel aussieht
+        (`spiel_vollbild`): YouTube im Browser, Discord, Alt+Tab und Overlays
+        entluden vor 6.5.0 das Modell hunderte Male."""
         if not self.settings.gaming_detection or self._ausgenommen(ctx):
             return ""
         if ctx.d3d_fullscreen:
             return "D3D-Vollbild"
-        if ctx.fullscreen:
+        if ctx.spiel_vollbild:
             return "Vollbild im Vordergrund"
         return ""
 

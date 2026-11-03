@@ -201,16 +201,29 @@ def test_systemweites_vollbild_entlaedt_das_modell_nicht():
     assert p.spiel_zum_entladen(busy) == ""
 
 
+def spielvollbild(proc="game.exe"):
+    return FocusContext(fullscreen=True, spiel_vollbild=True, foreground_process=proc)
+
+
 def test_spiel_im_vordergrund_entlaedt_mit_grund():
     p = policy()
-    assert p.spiel_zum_entladen(ctx(fullscreen=True, proc="game.exe")) == \
-        "Vollbild im Vordergrund"
+    assert p.spiel_zum_entladen(spielvollbild()) == "Vollbild im Vordergrund"
     assert p.spiel_zum_entladen(ctx(d3d=True, proc="game.exe")) == "D3D-Vollbild"
     assert p.spiel_zum_entladen(ctx(proc="game.exe")) == ""
 
 
+def test_vollbild_ohne_spiel_entlaedt_nicht_bleibt_aber_fuer_toene():
+    """2026-11-03: YouTube im Browser, Discord, Alt+Tab und FlowShares Overlay
+    entluden das Modell 470-mal in drei Wochen. Fuers Entladen zaehlt nur ein
+    Vollbild, das nach Spiel aussieht; Toene und Toasts bleiben beim breiten Signal."""
+    p = policy()
+    video = ctx(fullscreen=True, proc="comet.exe")
+    assert p.spiel_zum_entladen(video) == ""
+    assert p.gaming_active(video)
+
+
 def test_entladen_respektiert_ausnahmen_und_schalter():
     assert policy(gaming_exceptions=["Game.exe"]).spiel_zum_entladen(
-        ctx(fullscreen=True, proc="game.exe")) == ""
+        spielvollbild()) == ""
     assert policy(gaming_detection=False).spiel_zum_entladen(
         ctx(d3d=True, proc="game.exe")) == ""
