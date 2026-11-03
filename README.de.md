@@ -113,6 +113,11 @@ formulieren vorerst nur auf Deutsch.
 
 - **Acht Profile.** Standard, Geschäftlich, Privat, Coding, Mathe, E-Mail, KI-Prompt und Stichpunkte.
 - **Persönliches Wörterbuch.** Namen und Fachbegriffe so, wie du sie schreibst, und ein Hinweis für Whisper.
+- **Textbausteine.** Ein gesprochenes Kürzel setzt einen festen Text ein, etwa deine
+  Signatur; keine KI fasst ihn an (Einstellungen → *Wörterbuch*).
+- **Übersetzen je Profil.** Du diktierst in deiner Sprache, im Feld landet Englisch,
+  Französisch, Spanisch und mehr, etwa im Slack-Profil. Fleech prüft jede Übersetzung und
+  behält deinen Text, wenn Zahlen oder Formeln verloren gehen.
 - **Verlauf und Insights.** Frühere Diktate durchsuchen, filtern und neu bereinigen; Wörter
   pro Minute, App-Nutzung und Serien.
 - **Deutsch und Englisch.** Die Sprache gilt global oder je Profil.
@@ -120,7 +125,7 @@ formulieren vorerst nur auf Deutsch.
 <details>
 <summary><b>Weitere Funktionen</b></summary>
 
-- **Formeln als LaTeX** (einschaltbar unter Einstellungen → *Ausgabe*, nur Deutsch): Gesprochene Mathematik wird ohne Modell übersetzt, Mehrdeutiges als „geraten“ markiert.
+- **Formeln als LaTeX** (einschaltbar unter Einstellungen → *KI & Text* → *Mehr Optionen*, nur Deutsch): Gesprochene Mathematik wird ohne Modell übersetzt, Mehrdeutiges als „geraten“ markiert.
   <p align="center"><img src="docs/media/math.gif" width="760" alt="Gesprochene Formeln werden zu LaTeX, mehrdeutige als „geraten“ markiert"></p>
 - **Anstupsen:** einmal drücken und reden; das Diktat endet von selbst, sobald du eine Pause machst.
 - **Cursor-Rückkehr:** Der Text landet in dem Feld, in dem du angefangen hast, auch wenn du zwischendurch woanders geklickt hast.
@@ -172,10 +177,11 @@ korrigiert hat, dazu Wörterbuch-Vorschläge für Wörter, die immer wieder fals
 **Profile:** Ton, Format, Sprache und Safe-Word je Profil.
 <p align="center"><img src="docs/media/profiles.png" width="838" alt="Profilseite, E-Mail-Profil ausgewählt"></p>
 
-**Einstellungen → *Aufnahme*:** Hotkeys, Bedienmodus und Mikrofon.
-<p align="center"><img src="docs/media/settings-recording.png" width="838" alt="Aufnahme-Einstellungen mit F9 als Diktat-Taste"></p>
+**Einstellungen → *Allgemein*:** Sprache, Bedienmodus, Diktat-Taste und Mikrofon; alles Weitere
+steht auf jeder der sechs Seiten unter *Mehr Optionen*.
+<p align="center"><img src="docs/media/settings-recording.png" width="838" alt="Allgemeine Einstellungen mit F9 als Diktat-Taste"></p>
 
-**Einstellungen → *KI*:** lokal, eigener Schlüssel oder ohne KI.
+**Einstellungen → *KI & Text*:** lokal, eigener Schlüssel oder ohne KI.
 <p align="center"><img src="docs/media/settings-ai.png" width="838" alt="KI-Einstellungen: lokal über Ollama (Standard)"></p>
 
 </details>
@@ -193,7 +199,7 @@ korrigiert hat, dazu Wörterbuch-Vorschläge für Wörter, die immer wieder fals
 **Voraussetzungen**
 
 - Windows 10 oder 11, 64 Bit (getestet unter 11), oder Linux mit X11 (Wayland: Einschränkungen
-  stehen unter Einstellungen → *Advanced*). Ein Mikrofon; Internet für die Einrichtung.
+  stehen unter Einstellungen → *Allgemein*). Ein Mikrofon; Internet für die Einrichtung.
 - Rund **10 GB** freier Speicherplatz: Programm 2,2 GB, Ollama 3,1 GB, Sprachmodell 2,5 GB,
   Spracherkennung 1,6 GB (rund 6,5 GB, wenn Ollama schon installiert ist). Während der
   Einrichtung braucht das Originalmodell kurz weitere 3,3 GB; Fleech entfernt es wieder.
@@ -248,16 +254,16 @@ erste Diktat nach dem Start dauert ein paar Sekunden länger, weil die Modelle l
 | <kbd>Strg</kbd>+<kbd>Alt</kbd>+<kbd>Z</kbd> | Rohtext statt der bereinigten Fassung einfügen (einmal, innerhalb von 120 s, im selben Fenster) |
 | *Profil wechseln* | ohne Vorbelegung: Tippen = nächstes Profil, Halten = Auswahlliste |
 
-Alle Hotkeys stellst du unter Einstellungen → *Aufnahme* um; auch die Maustasten 4, 5 und
+Alle Hotkeys stellst du unter Einstellungen → *Allgemein* → *Mehr Optionen* um; auch die Maustasten 4, 5 und
 Mitte lassen sich belegen.
 
 - **Bedienmodi:** *Hold-to-talk* (Standard), *Toggle* (drücken = Start, noch mal drücken =
   fertig) oder *Anstupsen*: einmal drücken, und nach 1–4 s Stille ist das Diktat fertig.
 - **Safe-Word:** „Kimono, mach das formeller“ wirkt auf das gerade Diktierte; ändern unter
-  Einstellungen → *Ausgabe*. Aus in Geschäftlich und den umformenden Profilen.
+  Einstellungen → *KI & Text* → *Mehr Optionen*. Aus in Geschäftlich und den umformenden Profilen.
 - **Profile:** Während einer Aufnahme schaltet ein Tippen auf den Punkt links an der Pille
   weiter. Die Seite *Apps* legt fest, was wo gilt; umformende Profile sind anfangs keinem Programm zugeordnet.
-- **Wörterbuch:** Einstellungen → *Textersetzung*. Namen, Fachbegriffe und Abkürzungen, die
+- **Wörterbuch:** Einstellungen → *Wörterbuch*. Namen, Fachbegriffe und Abkürzungen, die
   du oft brauchst: der wirksamste Handgriff überhaupt.
 - **Tray:** Fenster schließen beendet Fleech nicht; beenden über das Tray-Symbol → *Beenden*.
 - **Updates (Windows):** im Hintergrund geladen, SHA-256 geprüft, installiert erst auf
@@ -272,21 +278,21 @@ ins Netz:
 - **Ersteinrichtung:** Ollama (per `winget`), `gemma3:4b` aus der Ollama-Bibliothek (wird auf
   deinem Rechner zu `gemma3:4b-text`) und das Whisper-Modell von Hugging Face.
 - **Update-Prüfung:** fragt GitHub nach dem neuesten Release. Abschaltbar, ebenso der
-  Download im Hintergrund, unter Einstellungen → *Advanced*.
+  Download im Hintergrund, unter Einstellungen → *Allgemein* → *Mehr Optionen*.
 - **Modellprüfung:** Einmal pro Woche sieht Fleech nach, ob es für deine Wahl ein neueres
   Modell gibt, in seiner Modellliste auf GitHub und der Ollama-Bibliothek oder in der Liste
-  deines Cloud-Anbieters. Es schlägt nur vor; abschaltbar unter Einstellungen → *KI*.
+  deines Cloud-Anbieters. Es schlägt nur vor; abschaltbar unter Einstellungen → *KI & Text* → *Mehr Optionen*.
 - **Optionale Modelle** von Hugging Face, nur wenn du sie wählst: die für Deutsch nachtrainierte
   Spracherkennung und das kleine Modell der experimentellen Live-Vorschau. **Dein Cloud-Anbieter**, falls gewählt.
-- **Cloud-Ausweiche** (Standard: aus): Wählst du unter Einstellungen → *KI* → *Wenn die lokale
-  KI hängt* einen Anbieter, bereinigt er nur die Diktate, mit denen die lokale KI nicht
+- **Cloud-Ausweiche** (Standard: aus): Wählst du unter Einstellungen → *KI & Text* → *Mehr Optionen* →
+  *Wenn die lokale KI hängt* einen Anbieter, bereinigt er nur die Diktate, mit denen die lokale KI nicht
   rechtzeitig fertig wird oder an denen sie scheitert. Der Verlauf kennzeichnet sie.
 
 Alle Daten liegen in einem Ordner: `%APPDATA%\Fleech` unter Windows, `~/.config/Fleech`
 unter Linux. Verlauf, Gedächtnis und Einstellungen sind **verschlüsselt** (SQLCipher mit
 AES-256 für die ganzen Datenbankdateien, AES-256-GCM für die Einstellungen). Der Schlüssel
 hängt per DPAPI an deinem Windows-Konto (Linux: Secret Service) und öffnet sich mit deiner
-Anmeldung; ein Wiederherstellungscode (Einstellungen → *Allgemein* → *Verschlüsselung*)
+Anmeldung; ein Wiederherstellungscode (Einstellungen → *Datenschutz*)
 öffnet die Daten nach einer Windows-Neuinstallation. Das schützt vor einer gestohlenen oder
 kopierten Platte, anderen Konten und Sicherungen, nicht vor Schadsoftware in deinem eigenen
 Konto, während Fleech läuft.
@@ -294,7 +300,7 @@ Konto, während Fleech läuft.
 | Datei | Inhalt |
 |---|---|
 | `settings.json` | Einstellungen, Profile und Wörterbuch (verschlüsselt); abgesichert durch `settings.json.bak` und datierte Sicherungen in `sicherungen/` |
-| `history.db` | Diktat-Verlauf (Roh- und bereinigter Text, verschlüsselt); standardmäßig nach 90 Tagen gelöscht, unter Einstellungen → *Allgemein* abschaltbar und löschbar |
+| `history.db` | Diktat-Verlauf (Roh- und bereinigter Text, verschlüsselt); standardmäßig nach 90 Tagen gelöscht, unter Einstellungen → *Datenschutz* abschaltbar und löschbar |
 | `kontext.db` | Gedächtnis (verschlüsselt): je Programm gelernte Begriffe, nur für die lokale Spracherkennung |
 | `schluessel.dpapi` | Der Datenschlüssel, von Windows geschützt (DPAPI); auf einem anderen Konto oder PC nutzlos |
 | `fleech.log` | Protokoll (rotiert bei 20 MB). Enthält keinen Diktattext, nur Wortzahlen, außer du schaltest zur Fehlersuche *Diktattexte ins Protokoll* ein |
@@ -312,9 +318,9 @@ siehe [SECURITY.md](SECURITY.md).
 
 | Problem | Was hilft |
 |---|---|
-| **Es wird nichts erkannt** | Einstellungen → *Aufnahme*: Stimmt das Mikrofon? Der Pegel in der Pille muss sich beim Sprechen bewegen; liefert das Mikrofon nichts, sagt die Pille das. |
+| **Es wird nichts erkannt** | Einstellungen → *Allgemein*: Stimmt das Mikrofon? Der Pegel in der Pille muss sich beim Sprechen bewegen; liefert das Mikrofon nichts, sagt die Pille das. |
 | **Text kommt roh, ohne Bereinigung** | Entweder hat das Modell nicht geantwortet (Ollama läuft nicht, oder ein Cloud-Schlüssel wurde abgelehnt), oder eine Prüfung hat deinen Wortlaut absichtlich behalten. Der Verlaufseintrag auf der Seite *Home* nennt den Grund. Bei Ollama: Fleech neu starten, die Einrichtungsseite zeigt, was fehlt. |
-| **Text landet im falschen Fenster oder nur in der Zwischenablage** | Die *Cursor-Rückkehr* (Einstellungen → *Ausgabe*, standardmäßig an) bringt den Text in das Feld zurück, in dem du angefangen hast. Ist ein Ergebnis erst mehr als 30 s nach der Aufnahme fertig und bist du dann in einem anderen Fenster, landet es in der Zwischenablage, und die Pille sagt dir das. |
+| **Text landet im falschen Fenster oder nur in der Zwischenablage** | Die *Cursor-Rückkehr* (Einstellungen → *KI & Text* → *Mehr Optionen*, standardmäßig an) bringt den Text in das Feld zurück, in dem du angefangen hast. Ist ein Ergebnis erst mehr als 30 s nach der Aufnahme fertig und bist du dann in einem anderen Fenster, landet es in der Zwischenablage, und die Pille sagt dir das. |
 | **Windows Defender oder SmartScreen schlägt an** | Mit PyInstaller gepackte Programme werden manchmal fälschlich gemeldet. Vergleiche den SHA-256-Wert des Setups mit den Release-Notizen. Stimmt er, stellst du die Datei unter *Windows-Sicherheit → Schutzverlauf* wieder her, meldest den Fehlalarm unter [microsoft.com/wdsi/filesubmission](https://www.microsoft.com/wdsi/filesubmission) und gibst uns in einem [Issue](https://github.com/FynnXland/fleech/issues) Bescheid. |
 | **Es hängt oder stürzt ab** | Das Protokoll liegt unter `%APPDATA%\Fleech\fleech.log` (Linux: `~/.config/Fleech/fleech.log`). Es enthält keinen Diktattext, außer du hast *Diktattexte ins Protokoll* eingeschaltet; entferne deinen Benutzernamen aus Pfaden, bevor du ein [Issue eröffnest](https://github.com/FynnXland/fleech/issues/new/choose). |
 
@@ -327,7 +333,7 @@ git clone https://github.com/FynnXland/fleech.git; cd fleech
 python -m venv .venv
 .venv\Scripts\pip install -r requirements-dev.txt
 .venv\Scripts\python -m fleech                  # aus dem Quellcode starten
-.venv\Scripts\python -m pytest -q               # rund 1800 Tests, LLM und STT gemockt
+.venv\Scripts\python -m pytest -q               # rund 1900 Tests, LLM und STT gemockt
 .venv\Scripts\python packaging\build.py         # → dist\Fleech\Fleech.exe (--gpu für CUDA)
 ```
 

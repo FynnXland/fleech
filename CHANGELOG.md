@@ -11,7 +11,7 @@ GitHub-Release-Notizen (`packaging/release.py`).
 
 ---
 
-## 6.5.0 — in Arbeit, noch nicht veröffentlicht
+## 6.5.0 — 2026-11-03
 
 **Einstellungen auf sechs Seiten statt zehn.** Die Einstellungen heißen jetzt
 *Allgemein*, *KI & Text*, *Wörterbuch*, *Pille & Töne*, *Ruhe* und
@@ -62,6 +62,15 @@ unübersetzt in deiner Sprache, und der Verlauf sagt, warum. „Diktat direkt
 abschicken“ drückt dann kein Enter. Nach Englisch, Spanisch und Deutsch
 übersetzt die lokale KI gut; im Französischen erfindet sie gelegentlich ein Wort.
 Mit „Ohne KI“ gibt es keine Übersetzung.
+
+**Fleech öffnet sich wieder beim ersten Klick.** War das Fenster minimiert, tat
+ein Klick auf das Fleech-Symbol im Infobereich oder ein erneuter Start über das
+Startmenü scheinbar nichts: Das Fenster blieb unten in der Taskleiste liegen.
+Jetzt kommt es zurück, ein vorher maximiertes Fenster wieder maximiert, und
+landet vorn statt hinter dem Fenster, in dem du gerade warst.
+
+Die Einführung sagt jetzt richtig, dass der Verlauf verschlüsselt auf deinem Rechner
+liegt; dort stand seit 6.3.0 fälschlich noch „unverschlüsselt“.
 
 ## 6.4.1 — 2026-10-25 · nicht einzeln veröffentlicht
 

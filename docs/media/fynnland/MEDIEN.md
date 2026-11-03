@@ -2,7 +2,7 @@
 
 All pictures show invented example data: the sentences are made up, the sender is
 „Alex“, the address is `team@example.com`. The texts in the windows are real output
-of Fleech's pipeline (version 6.4.x, local model `gemma3:4b-text`) for these invented
+of Fleech's pipeline (version 6.4.x/6.5.0, local model `gemma3:4b-text`) for these invented
 sentences, stored in `docs/media/examples.json`. No real dictation, no real user data.
 
 The windows (notes, mail, AI chat) are neutral mock-ups drawn by the script, not
@@ -14,6 +14,7 @@ rendered offscreen.
 | `Worum es geht` | 1 | `media/diktat.webm`, `media/diktat.mp4`, poster `media/diktat-poster.webp` |
 | `So läuft ein Diktat` | 1 | grid: `media/vorher.webp`, `media/nachher.webp` |
 | `Profile` | 1 | grid: `media/profil-standard.webp`, `media/profil-email.webp`, `media/profil-stichpunkte.webp`, `media/profil-ki-prompt.webp` |
+| `Was ins Netz geht` | 2 | `media/einstellungen.webp` |
 
 ## Worum es geht, after paragraph 1
 
@@ -73,3 +74,14 @@ as Fleech shows it when the profile changes.
 - Visible: AI chat window with a structured prompt (role, context, task, requirements)
   in the input field; capsule „KI-Prompt“.
 - Caption: „KI-Prompt: als Auftrag für eine KI gegliedert.“
+
+## Was ins Netz geht, after paragraph 2
+
+**`media/einstellungen.webp`** (1600 × 1000, 39 KB, since 6.5.0)
+- Visible: Fleech's settings window, page „KI & Text“. On the left the main navigation
+  (Home, Insights, Profile, Apps, Einstellungen), next to it the six settings pages
+  (Allgemein, KI & Text, Wörterbuch, Pille & Töne, Ruhe, Datenschutz). On the right:
+  „Anbieter: Lokal (Ollama) — empfohlen“ with the green line „Alles bleibt auf diesem
+  Rechner — kein Konto, keine Kosten.“, the model `gemma3:4b-text`, „Eingriffsgrad:
+  Standard (empfohlen)“ and the collapsed „Mehr Optionen“.
+- Caption: „Lokal ist die Vorgabe: Ein Cloud-Anbieter ist eine bewusste Wahl.“

@@ -306,12 +306,30 @@ def teil_profile() -> None:
         _still(b.bild(), MEDIEN / f"profil-{datei}.webp")
 
 
+def teil_einstellungen() -> None:
+    """media/einstellungen.webp (1600 × 1000): die Seite „KI & Text“ der Einstellungen.
+
+    Dasselbe Fenster wie `settings-ai.png` im README, nur im 16:10-Format der
+    Lieferung: 1000 × 625 logisch, doppelt gerendert, auf 1600 px verkleinert."""
+    from PySide6.QtGui import QImage
+
+    win, panel = mm._hauptfenster(mm._lade_beispiele(), breite=1000, hoehe=625)
+    mm._fenster_seite(win, panel, "settings-ai")
+    png = mm._SANDBOX / "einstellungen-2x.png"
+    mm._fenster_bild(win).convertToFormat(QImage.Format_RGB32).save(str(png))
+    ziel = MEDIEN / "einstellungen.webp"
+    _ffmpeg("-i", str(png), "-vf", "scale=1600:1000:flags=lanczos", "-c:v", "libwebp",
+            "-quality", "86", "-compression_level", "6", str(ziel))
+    print(f"  {ziel.relative_to(mm.ROOT)}: {ziel.stat().st_size // 1024} KB")
+
+
 TEILE = {
     "kachel": teil_kachel,
     "hintergrund": teil_hintergrund,
     "diktat": teil_diktat,
     "vorher-nachher": teil_vorher_nachher,
     "profile": teil_profile,
+    "einstellungen": teil_einstellungen,
 }
 
 

@@ -1,6 +1,6 @@
 # Spracherkennung: Modellvergleich und Safe-Word
 
-Stand: 6.1.0 · Messungen vom Juli 2026 auf einer RTX 4070 mit Computerstimmen-Aufnahmen
+Stand: 6.5.0 · Messungen vom Juli 2026 auf einer RTX 4070 mit Computerstimmen-Aufnahmen
 (Microsoft Hedda, de-DE), sofern nicht anders angegeben. Code: `fleech/stt/`.
 
 ## large-v3-turbo gegen large-v3
@@ -17,8 +17,8 @@ Stand: 6.1.0 · Messungen vom Juli 2026 auf einer RTX 4070 mit Computerstimmen-A
 zeigt sich erst bei schwierigem Material (echte Stimme, Nebengeräusche, Eigennamen);
 large-v3 war im Test minimal robuster (Fall „Melone“). Auch seine 0,41 s sind für Diktat
 unkritisch. Umstellen geht über eine eigene `config.yaml` im Benutzerordner
-(`stt.model_size: large-v3`) und wirkt, solange unter Einstellungen → Advanced →
-Spracherkennung „Standard“ gewählt ist. Ob es sich lohnt, zeigt nur echtes Diktat mit der
+(`stt.model_size: large-v3`) und wirkt, solange unter Einstellungen → KI & Text →
+Mehr Optionen → Spracherkennung „Standard“ gewählt ist. Ob es sich lohnt, zeigt nur echtes Diktat mit der
 eigenen Stimme. Das Safe-Word-Problem löst large-v3 **nicht** (s. u.) — das war ein
 Wort-Problem, kein Modell-Problem.
 
@@ -30,7 +30,8 @@ Prozessor.
 
 ## Deutsch nachtrainiertes Modell
 
-Seit 5.15.0 bietet Einstellungen → Advanced → Spracherkennung „Deutsch-optimiert“:
+Seit 5.15.0 bietet die Spracherkennung „Deutsch-optimiert“ (seit 6.5.0 unter Einstellungen
+→ KI & Text → Mehr Optionen):
 `jimmymeister/whisper-large-v3-turbo-german-ct2`, dasselbe Turbo-Modell auf deutsche
 Sprachdaten nachtrainiert (`fleech/stt/modellwahl.py`). An TTS-Aufnahmen von 5 bis 120 s
 (Oktober 2026) machte es zusammen 4 statt 11 Fehler und erfand bei Rauschen hinter dem letzten
@@ -55,7 +56,7 @@ Modellen:
 „Kimono“ ist Vorgabe, weil es im echten Diktat am unwahrscheinlichsten vorkommt; „Ananas“
 und „Salami“ sind gleich robust. Zusätzlich gibt Fleech der Erkennung das Safe-Word als
 Hinweis mit (`initial_prompt`, „Signalwort: Kimono.“). Umstellen lässt es sich unter
-Einstellungen → Ausgabe → „Safe-Word (Befehle)“, ohne Neustart. Die TTS-Stimme ist nicht
+Einstellungen → KI & Text → Mehr Optionen → „Safe-Word (Befehle)“, ohne Neustart. Die TTS-Stimme ist nicht
 die eigene — die endgültige Wahl trifft das eigene Mikrofon.
 
 ## Historie: zwei Bereinigungsmodelle

@@ -1,6 +1,6 @@
 # Fleech — Gesamtkonzept, Funktionen und technische Umsetzung
 
-> Stand: Version 6.1.0 · Diese Datei ist die Gesamtdarstellung des Projekts: Idee,
+> Stand: Version 6.5.0 · Diese Datei ist die Gesamtdarstellung des Projekts: Idee,
 > Bedienung, jede Funktion, jede Einstellung und die technische Umsetzung dahinter.
 > Was sich von Version zu Version geändert hat, steht im
 > [CHANGELOG](../CHANGELOG.md); bei Verhaltensfragen ist der Quellcode maßgeblich.
@@ -71,7 +71,7 @@ Absätze nach Bedeutung gesetzt.
 2. **Befehlen** — mitten im Redefluss ein Safe-Word sagen und den gerade diktierten
    Text umformulieren lassen („… *Kimono*, mach das formeller“).
 3. **Formeln** — gesprochene Mathematik landet als LaTeX im Text, auch mitten im Satz
-   (zuschaltbar unter Einstellungen → Ausgabe).
+   (zuschaltbar unter Einstellungen → KI & Text → Mehr Optionen).
 4. **Umformen** — ein unstrukturiert hingesprochener Auftrag wird zu einem sauber
    gegliederten KI-Prompt, zu einer E-Mail oder zu Stichpunkten.
 5. **Anstupsen** — einmal drücken, reden, aufhören: das Diktat endet von selbst.
@@ -84,7 +84,7 @@ Im Auslieferungszustand läuft alles auf dem eigenen Rechner: Spracherkennung ü
 lokales Sprachmodell via [Ollama](https://ollama.com), Formeln über einen Parser ohne
 Modell (siehe [4.3](#43-formel-erkennung-mathematik-als-latex)). **Kein Diktat verlässt
 den Rechner**, solange man das nicht ausdrücklich ändert: Seit 6.1.0 lässt sich unter
-*Einstellungen → KI* stattdessen ein Cloud-Anbieter mit eigenem API-Schlüssel wählen
+*Einstellungen → KI & Text* stattdessen ein Cloud-Anbieter mit eigenem API-Schlüssel wählen
 (siehe [13.2](#132-der-llm-zugang)) — oder „Ohne KI“, dann wird nur erkannt.
 
 ---
@@ -327,7 +327,7 @@ Bereinigung als ein halluziniertes Ergebnis im Textfeld.
 eingefügt — Safe-Word und Anweisung tauchen niemals im Zieltext auf.
 
 **Wann Befehle ruhen.** Das gesprochene Safe-Word lässt sich global (Einstellungen →
-Ausgabe) und je Profil abschalten; in den mitgelieferten Profilen Geschäftlich,
+KI & Text → Mehr Optionen) und je Profil abschalten; in den mitgelieferten Profilen Geschäftlich,
 E-Mail, KI-Prompt und Stichpunkte ist es von Haus aus aus. Bei „Ohne KI“ ruhen
 Befehle ganz, weil sie ein Modell brauchen. Einen Knopf für eine reine
 Befehls-Aufnahme (»-Knopf in der Pille) gab es früher; er wurde nie benutzt und ist
@@ -340,7 +340,7 @@ Umschalten: „die Lösung ist x hoch zwei plus zwei x plus eins“ wird zu „D
 $x^{2} + 2x + 1$.“
 
 **Zuschaltbar, nicht Standard.** Die Formel-Erkennung steht unter *Einstellungen →
-Ausgabe* und ist im Auslieferungszustand **aus** (`math.auto_latex = False`). Gedacht
+KI & Text → Mehr Optionen* und ist im Auslieferungszustand **aus** (`math.auto_latex = False`). Gedacht
 ist sie für gemischte Arbeit — Text und Mathematik im selben Programm. Wer nie Formeln
 diktiert, soll nicht riskieren, dass eine Alltagszahl plötzlich in Dollarzeichen steht.
 Das Vokabular des Parsers ist deutsch.
@@ -434,7 +434,7 @@ bei leerer oder kaputter Ausgabe auf die normale Bereinigung zurückzufallen.
 System-Prompt, Transkript als abgegrenzter Datenblock, Rückfall auf die Bereinigung —
 laufen die beiden anderen umformulierenden Formate: **E-Mail** (`prompts/email.md`;
 Anrede, Absätze, Grußformel, unterschrieben mit dem Anzeigenamen aus Einstellungen →
-Allgemein) und **Stichpunkte** (`prompts/summary.md`; destilliert, ohne Rolle und
+Allgemein → Mehr Optionen) und **Stichpunkte** (`prompts/summary.md`; destilliert, ohne Rolle und
 Kontext zu erfinden). Welches Format gilt, bestimmt das Profil (Kapitel 7).
 
 ### 4.5 Formeln und Ausgabeformate
@@ -841,7 +841,8 @@ stark* geglättet wird. Seit 4.x entscheidet es, *was* aus dem Diktat wird: Dies
 das verhindert. Die anderen Schutzschichten laufen weiter.
 
 Ein „Formeln“-Ausgabeformat gab es bis 5.10.2 in der Liste, aber ohne jeden Codepfad —
-Formeln laufen seit 3.0.0 ausschließlich global über Einstellungen → Ausgabe, nie über
+Formeln laufen seit 3.0.0 ausschließlich global über die Einstellungen (seit 6.5.0
+*KI & Text → Mehr Optionen*), nie über
 ein Profil. Es ist entfallen; das Profil **Mathe** bleibt als reines
 Eingriffsgrad-Profil mit fester violetter Farbe erhalten.
 
@@ -1139,7 +1140,7 @@ taucht der Vorschlag zu Recht erneut auf.
 
 **Ignorieren** trägt das Paar dauerhaft in die Ignorier-Liste ein — dieselbe Liste, in
 der auch abgelehnte Wörterbuch-Rückfragen landen. Dauerhaft ist vertretbar, *weil* die
-Liste sichtbar ist: Sie steht als Editor unter **Einstellungen → Textersetzung**
+Liste sichtbar ist: Sie steht als Editor unter **Einstellungen → Wörterbuch → Mehr Optionen**
 („Ignoriert“), und eine Zeile dort zu löschen holt den Vorschlag zurück. Ein Fehlklick
 ist damit jederzeit korrigierbar, ohne dass die Vorschläge je von selbst wiederkommen.
 Bei einer Schreibvarianten-Frage gilt „Ignorieren“ für **beide** Richtungen — es steht
@@ -1308,8 +1309,9 @@ Titel-Bedingung.
 
 ![Einstellungen](media/settings-recording.png)
 
-Zehn Seiten links (Allgemein, KI, Aufnahme, Audio-Fokus, Overlay, Sounds,
-Benachrichtigungen, Ausgabe, Textersetzung, Advanced), das Formular rechts. Das Bedienmuster ist überall gleich:
+Sechs Seiten links (Allgemein, KI & Text, Wörterbuch, Pille & Töne, Ruhe,
+Datenschutz), das Formular rechts; jede Seite zeigt oben das Nötige, der Rest liegt
+hinter dem aufklappbaren Bereich „Mehr Optionen“ (Kapitel 11). Das Bedienmuster ist überall gleich:
 **Beschriftung links, Steuerelement rechts, dahinter ein „?“-Badge**, dessen Erklärung
 beim Überfahren als Blase *unterhalb* erscheint. Bei Auswahllisten erklärt das Badge
 **alle** Optionen, nicht nur die gerade gewählte — vorher musste man einen Bedienmodus
@@ -1342,11 +1344,11 @@ verbindlich übernimmt und kurz „Gespeichert ✓“ zurückmeldet.
   Einrichtung (Ollama und Modelle laden, mit Fortschritt), Mikrofon (mit
   Live-Pegelbalken), Bedienung (Halten/Umschalten/Anstupsen, wirkt sofort), die Modi
   samt Safe-Word, „Was Fleech sich merkt“ (Verlauf an oder aus — eine bewusste
-  Entscheidung, weil der Wortlaut unverschlüsselt gespeichert wird) und ein
+  Entscheidung, weil der volle Wortlaut auf der Platte bleibt, seit 6.3.0 verschlüsselt) und ein
   Probediktat. Bei einem Cloud-Anbieter oder „Ohne KI“ richtet sie nur die
   Spracherkennung ein. Jederzeit abbrechbar; jeder Weg hinaus (auch das X)
   merkt sich das dauerhaft — der Wizard wird nie zum Wiedergänger. Erneut aufrufbar
-  unter Einstellungen → Allgemein. Bewusst eine Abkürzung, kein zweiter
+  unter Einstellungen → Allgemein → Mehr Optionen. Bewusst eine Abkürzung, kein zweiter
   Einstellungs-Dialog: alles darin ist auch regulär änderbar.
 
 ### 10.5 Design-Sprache
@@ -1380,59 +1382,38 @@ ab der nächsten Aufnahme).
 
 **Seit 6.5.0 sechs Seiten statt zehn.** Jede Seite zeigt oben nur das Nötige (zusammen
 24 Zeilen); alles andere steht darunter hinter „Mehr Optionen“. Die Abschnitte unten
-sind noch nach den alten Themen geordnet — so verteilen sie sich heute:
+folgen diesen sechs Seiten:
 
 | Seite | oben | unter „Mehr Optionen“ |
 |---|---|---|
-| Allgemein | Sprache, Bedienmodus (+ Sprechpause), Diktat-Hotkey, Mikrofon, Autostart | übrige Hotkeys, gesperrte Geräte, Anzeigename, Einführung, Karten, Version und Updates |
+| Allgemein | Sprache, Bedienmodus (+ Sprechpause), Diktat-Hotkey, Mikrofon, Autostart, unter Wayland ein Hinweis | übrige Hotkeys, gesperrte Geräte, Anzeigename, Einführung, Karten, Version und Updates |
 | KI & Text | Anbieter (+ Schlüssel, Adresse, Modell, Test), Eingriffsgrad | Neuere Modelle, Cloud-Ausweiche, Formel-Erkennung, Safe-Word, gesprochene Zeichen, Cursor-Rückkehr, Spracherkennung, GPU, Warmhaltung |
-| Wörterbuch | Wörterbuch, Einsprech-Test, Gedächtnis | Ignorier-Liste, gelernte Begriffe vergessen |
+| Wörterbuch | Wörterbuch, Einsprech-Test, Textbausteine, Gedächtnis | Ignorier-Liste, gelernte Begriffe vergessen |
 | Pille & Töne | Sichtbarkeit (+ Auto-Hide), Größe, Position, Bearbeiten, Töne an/aus, Lautstärke | Pillen-Rand, Rand-Buttons, Transparenz, Pegel, Click-Through, Maus-Bildschirm, Live-Transkription, Transkript über der Pille, Klangstil, einzelne Töne |
 | Ruhe | Audio-Fokus, „Nicht stören“, Windows-Banner, Spiel-Erkennung | Restlautstärke, Töne bei „Nicht stören“, Akzent-Ton, Pille im Spiel, Töne im Spiel, Ausnahmen, Testen |
 | Datenschutz | Verlauf speichern, Aufbewahrung, Wiederherstellungscode, Verlauf löschen | Debug-Logging, Diktattexte ins Protokoll |
 
 ### Allgemein
 
+#### Sprache, Autostart, Anzeigename
+
+Oben Sprache und Autostart (dazu die Aufnahme-Zeilen unten); Anzeigename, Einführung
+und Karten stehen unter „Mehr Optionen“. Verlauf speichern und löschen liegen seit
+6.5.0 auf **Datenschutz**.
+
 | Einstellung | Bedeutung | Standard |
 |---|---|---|
 | Autostart mit Windows | startet Fleech beim Anmelden im Tray | aus |
 | Sprache | Erkennungssprache: Deutsch, Englisch oder automatisch (mehrsprachig) | Deutsch |
 | Anzeigename | Name in der Begrüßung auf Home — und die Unterschrift unter Diktaten im Profil „E-Mail“; leer = Systembenutzername in der Begrüßung, Mail ohne Namen | leer |
-| Diktat-Verlauf speichern | lokale Historie für Home und Insights | an |
-| Verlauf löschen | endgültiges Löschen, bestätigt durch getipptes „Delete“ | — |
 | Einführung | den Erststart-Rundgang erneut zeigen | — |
 | Karten | „Alle Karten wieder einblenden“ (siehe unten) | — |
 
-### Karten ein- und ausblenden
+#### Aufnahme und Hotkeys
 
-Seit v2.2.0 gibt es dafür **keine eigene Seite** mehr. Jede Karte auf Home und
-Insights lässt sich per **Rechtsklick → Ausblenden** entfernen — dort, wo man sie
-gerade sieht, statt in einer Liste mit einem Dutzend Checkboxen. Zurückholen sammelt
-der Knopf „Alle Karten wieder einblenden“ unter **Allgemein**.
-
-### KI
-
-Seit 6.1.0: Wer bereinigt den Text? (`fleech/ui/settings/ki.py`, Anbieterliste in
-`fleech/llm/providers.py`, Schlüsselablage in `fleech/llm/apikeys.py`.)
-
-| Einstellung | Bedeutung | Standard |
-|---|---|---|
-| Anbieter | **Lokal (Ollama) — empfohlen** · OpenAI · Anthropic (Claude) · Google Gemini · Mistral · Groq · OpenRouter · Eigener Server (OpenAI-kompatibel) · **Ohne KI — nur Spracherkennung** | Lokal (Ollama) |
-| API-Schlüssel | nur bei Cloud-Anbietern sichtbar: einfügen, Enter — der Schlüssel landet im Schlüsselbund des Systems, angezeigt wird danach nur eine Maske (Anfang und Ende); ohne Schlüssel ein Link „Schlüssel bei … anlegen“ | — |
-| Server-Adresse | nur bei „Eigener Server“: Basis-Adresse eines OpenAI-kompatiblen Servers (LM Studio, vLLM, llama.cpp …), meist mit `/v1` am Ende | leer |
-| Modell | frei eintragbar; leer = Vorschlag des Anbieters. „Liste laden“ fragt den Anbieter, welche Modelle der Schlüssel nutzen darf (bei Ollama: die installierten) | leer |
-| Verbindung testen | ein Testaufruf mit der aktuellen Wahl; meldet Modell und Antwortzeit oder den Grund (Schlüssel abgelehnt, Kontingent erschöpft, nicht gefunden, keine Verbindung) | — |
-
-Unter der Auswahl steht bei jeder Wahl **ein Satz, wohin der Text geht** — eine
-Datenschutz-Entscheidung gehört nicht in einen Tooltip: lokal „Alles bleibt auf diesem
-Rechner“, bei einem Cloud-Anbieter, dass der diktierte Text (nicht die Tonaufnahme)
-dorthin geht und über den eigenen Schlüssel abgerechnet wird, bei „Ohne KI“, dass
-Füllwörter weiterhin entfernt werden, Befehle und Formate aber ruhen. Der Wechsel
-greift ohne Neustart; wer auf einen Cloud-Anbieter umstellt, bekommt den Grafikspeicher
-des lokalen Modells sofort zurück. Netzwerkaufrufe (Modellliste, Test) laufen im
-Hintergrund. Details zum Zugang in [13.2](#132-der-llm-zugang).
-
-### Aufnahme
+Bis 6.4 eine eigene Seite „Aufnahme“. Bedienmodus, Sprechpause, Diktat-Hotkey und
+Mikrofon stehen oben auf *Allgemein*; die übrigen Hotkeys (KI-Prompting, Rohtext,
+Profil, Pause) und „Gesperrte Geräte“ unter „Mehr Optionen“.
 
 | Einstellung | Bedeutung | Standard |
 |---|---|---|
@@ -1474,61 +1455,60 @@ Der KI-Prompting-Hotkey wirkt bewusst **nur während einer laufenden Aufnahme** 
 außerhalb bleibt die Taste für andere Programme frei nutzbar. Das ist besonders für
 Makro-/G-Tasten relevant.
 
-### Audio-Fokus
+#### Version und Updates
+
+Bis 6.4 auf „Advanced“. Alles unter „Mehr Optionen“ — bis auf den Wayland-Hinweis
+(„Sitzung“), der oben auf *Allgemein* steht.
 
 | Einstellung | Bedeutung | Standard |
 |---|---|---|
-| Fokus-Modus | *Aus* / *Leiser stellen* / *Stark absenken* | Leiser stellen |
-| Restlautstärke anderer Apps | 0 % = stumm bis 100 % = unverändert | 25 % |
+| Version | aktuelle Version und Build-Stempel | — |
+| Updates | „Nach Updates suchen“ — manuelle Prüfung | — |
+| Automatisch nach Updates suchen | beim Start und danach täglich; installiert wird nie ohne Klick | an |
+| Updates im Hintergrund laden | lädt eine gefundene Version gleich herunter (mit Prüfsummen-Kontrolle) | an |
+| Update-Quelle | leer = GitHub-Releases des Projekts; sonst die HTTPS-Adresse eines JSON-Feeds mit `version`, `url`, `sha256` | leer |
+| Sitzung | nur unter Wayland: welche Funktionen dort eingeschränkt sind (Kapitel 17) | — |
 
-Der Regler gilt für **beide** Absenk-Modi: Die Oberfläche legt seinen Wert auf
-`duck_level` und `hard_duck_level` zugleich. Die getrennten Werte aus `config.yaml`
-(25 % / 8 %) wirken nur ohne Oberfläche (CLI) — in der Desktop-App unterscheiden sich
-„Leiser stellen“ und „Stark absenken“ derzeit nicht.
+#### Karten ein- und ausblenden
 
-### Overlay
+Seit v2.2.0 gibt es dafür **keine eigene Seite** mehr. Jede Karte auf Home und
+Insights lässt sich per **Rechtsklick → Ausblenden** entfernen — dort, wo man sie
+gerade sieht, statt in einer Liste mit einem Dutzend Checkboxen. Zurückholen sammelt
+der Knopf „Alle Karten wieder einblenden“ unter **Allgemein → Mehr Optionen**.
 
-| Einstellung | Bedeutung | Standard |
-|---|---|---|
-| Sichtbarkeit | *Nur während Aufnahme/Verarbeitung* / *Immer sichtbar* / *Automatisch ausblenden* / *Deaktiviert* | Nur während Aufnahme/Verarbeitung |
-| Auto-Hide nach | nur bei Sichtbarkeit „Automatisch ausblenden“ sichtbar: Wartezeit vor dem Ausblenden (0,5–60 s) | 4 s |
-| Größe | Kompakt / Standard / Groß | Standard |
-| Pillen-Rand | *Eng* / *Standard* / *Luftig* — Innenabstand des Pillen-Hintergrunds | Standard |
-| Rand-Buttons | Profil-Punkt und Pause-Knopf als getrennte Inseln oder alles in einer durchgehenden Pille | getrennte Inseln |
-| Transparenz | Deckkraft (20–100 %) | 90 % |
-| Pegel-Empfindlichkeit | wie stark die Wellenform ausschlägt (20–300 %) | 100 % |
-| Click-Through | Mausklicks gehen durch die Pille hindurch — dabei auch durch ihre eigenen Knöpfe (✕, ✓, Pause, Ziehen); Rückweg über „Overlay bearbeiten“ | aus |
-| Folgt dem Maus-Bildschirm | Pille erscheint auf dem Monitor des Zeigers | an |
-| Live-Transkription (experimentell) | Echtzeit-Vorschau beim Sprechen über ein eigenes kleines Whisper-Modell (~0,5 GB VRAM extra); Voraussetzung für die cyan „Befehl erkannt“-Optik | aus |
-| Erkannten Text über Overlay zeigen | fertigen Text kurz über der Pille einblenden | an |
-| Position | vier Presets, freies Ziehen im Bearbeiten-Modus („Overlay bearbeiten“), Zurücksetzen | rechts |
+### KI & Text
 
-### Sounds
+#### Anbieter und Modell
 
-An/Aus, Lautstärke, Klangstil (**Soft** = weiche Zwei-Ton-Chimes, **Click** = trockene
-Ticks) sowie vier Einzelschalter für Start, Stopp, „Text eingefügt“ und Fehler. Alle
-Töne werden synthetisiert, es gibt keine Audiodateien.
+Oben auf *KI & Text*; der Hinweis auf neuere Modelle und die Cloud-Ausweiche stehen
+unter „Mehr Optionen“. Bis 6.4 die Seite „KI“.
 
-### Benachrichtigungen
+Seit 6.1.0: Wer bereinigt den Text? (`fleech/ui/settings/ki.py`, Anbieterliste in
+`fleech/llm/providers.py`, Schlüsselablage in `fleech/llm/apikeys.py`.)
 
 | Einstellung | Bedeutung | Standard |
 |---|---|---|
-| „Nicht stören“ respektieren | keine unwichtigen Banner bei aktivem DND | an |
-| Sounds bei DND stumm | zusätzlich alle Fleech-Töne stumm | aus |
-| Windows-Banner | *Nichts* / *Wichtiges* / *Alles* — „Wichtiges“ meldet nur Probleme (kritische Fehler, Anbieter-Quota), „Alles“ zusätzlich Statusmeldungen | Alles |
-| Akzent-Sound bei kritischen Toasts | eigener Ton | aus |
-| Gaming-/Fullscreen-Erkennung | erkennt Spiele und Vollbild-Apps | an |
-| Overlay im Gaming-Modus | *Nur bei Aufnahme* / *Compact* / *Versteckt* / *Unverändert* | Nur bei Aufnahme |
-| Fleech-Töne im Spiel | Lautstärkefaktor, 0 % = stumm | 50 % |
-| Ausnahmen (Prozesse) | Programme, die nicht als Spiel gelten | leer |
+| Anbieter | **Lokal (Ollama) — empfohlen** · OpenAI · Anthropic (Claude) · Google Gemini · Mistral · Groq · OpenRouter · Eigener Server (OpenAI-kompatibel) · **Ohne KI — nur Spracherkennung** | Lokal (Ollama) |
+| API-Schlüssel | nur bei Cloud-Anbietern sichtbar: einfügen, Enter — der Schlüssel landet im Schlüsselbund des Systems, angezeigt wird danach nur eine Maske (Anfang und Ende); ohne Schlüssel ein Link „Schlüssel bei … anlegen“ | — |
+| Server-Adresse | nur bei „Eigener Server“: Basis-Adresse eines OpenAI-kompatiblen Servers (LM Studio, vLLM, llama.cpp …), meist mit `/v1` am Ende | leer |
+| Modell | frei eintragbar; leer = Vorschlag des Anbieters. „Liste laden“ fragt den Anbieter, welche Modelle der Schlüssel nutzen darf (bei Ollama: die installierten) | leer |
+| Verbindung testen | ein Testaufruf mit der aktuellen Wahl; meldet Modell und Antwortzeit oder den Grund (Schlüssel abgelehnt, Kontingent erschöpft, nicht gefunden, keine Verbindung) | — |
 
-Die Grundhaltung ist „so wenig Banner wie möglich“: Es gibt einen 90-Sekunden-Cooldown
-je Banner-Art, und im Spiel oder bei „Nicht stören“ bleiben unkritische Meldungen ganz
-aus.
+Unter der Auswahl steht bei jeder Wahl **ein Satz, wohin der Text geht** — eine
+Datenschutz-Entscheidung gehört nicht in einen Tooltip: lokal „Alles bleibt auf diesem
+Rechner“, bei einem Cloud-Anbieter, dass der diktierte Text (nicht die Tonaufnahme)
+dorthin geht und über den eigenen Schlüssel abgerechnet wird, bei „Ohne KI“, dass
+Füllwörter weiterhin entfernt werden, Befehle und Formate aber ruhen. Der Wechsel
+greift ohne Neustart; wer auf einen Cloud-Anbieter umstellt, bekommt den Grafikspeicher
+des lokalen Modells sofort zurück. Netzwerkaufrufe (Modellliste, Test) laufen im
+Hintergrund. Details zum Zugang in [13.2](#132-der-llm-zugang).
 
-### Ausgabe
+#### Ausgabe
 
-Seit dem Wegfall der eigenen Mathe-Seite sitzt die Formel-Erkennung hier, **eine**
+Bis 6.4 die Seite „Ausgabe“. Der Eingriffsgrad steht oben auf *KI & Text*,
+Formel-Erkennung, Safe-Word, gesprochene Zeichen und Cursor-Rückkehr unter „Mehr Optionen“.
+
+Seit dem Wegfall der eigenen Mathe-Seite sitzt die Formel-Erkennung bei der Ausgabe, **eine**
 Auswahl statt der frühere drei Schalter:
 
 | Stufe | Bedeutung |
@@ -1549,9 +1529,22 @@ gesprochene Delimiter gibt es seit v3.0.0 nicht mehr.
 | Cursor-Rückkehr | fügt den Text dort ein, wo das Diktat begann | an |
 | Safe-Word | Auslösewort für Befehle; leeres Feld zeigt als Platzhalter den tatsächlich wirksamen Wert aus `config.yaml` (statt nur „leer = Wert aus config.yaml“ zu behaupten, ohne ihn zu nennen) | Kimono |
 
-### Textersetzung
+#### Spracherkennung und Modelle
 
-Drei Blöcke auf einer Seite:
+Bis 6.4 auf „Advanced“, seit 6.5.0 unter „Mehr Optionen“ von *KI & Text*.
+
+| Einstellung | Bedeutung | Standard |
+|---|---|---|
+| GPU-Beschleunigung bevorzugen (STT) | Erkennung auf der Grafikkarte; aus = CPU erzwingen | an |
+| Spracherkennung | *Standard* (Whisper turbo) / *Deutsch-optimiert* (dasselbe Modell, auf Deutsch nachtrainiert; einmaliger Download, 1,6 GB) — siehe 13.1 | Standard |
+| Modell-Warmhaltung | nur bei lokaler KI: *Nach Nutzung* / *Dauerhaft* (~3,5 GB dauerhaft belegt) / *Aus* | Nach Nutzung |
+| Im Leerlauf entladen nach | 3 / 10 / 30 / 45 Minuten | 10 Minuten |
+
+### Wörterbuch
+
+Hieß bis 6.4 „Textersetzung“. Oben Wörterbuch (mit dem Einsprech-Test), Textbausteine
+(Kapitel 8a) und Gedächtnis; die Ignorier-Liste und das Vergessen gelernter Begriffe
+stehen unter „Mehr Optionen“:
 
 - **Wörterbuch** (Format siehe [Kapitel 8](#8-das-persönliche-wörterbuch)) und
   **Ignoriert** — zwei mehrzeilige Editoren, je eine Zeile pro Eintrag, automatisch
@@ -1566,21 +1559,82 @@ Drei Blöcke auf einer Seite:
   Hörfehler im Gedächtnis (`Cloud-Code`, `FLEACH`) bedeutete also entweder ihn zu
   behalten oder das gesamte gelernte Vokabular zu verlieren.
 
-### Advanced
+### Pille & Töne
+
+Bis 6.4 die Seiten „Overlay“ und „Sounds“. Oben Sichtbarkeit (samt Auto-Hide), Größe,
+Position und Bearbeiten, dazu Töne an/aus und Lautstärke; alles andere unter „Mehr Optionen“.
+
+#### Pille
 
 | Einstellung | Bedeutung | Standard |
 |---|---|---|
-| Version | aktuelle Version und Build-Stempel | — |
-| Updates | „Nach Updates suchen“ — manuelle Prüfung | — |
-| Automatisch nach Updates suchen | beim Start und danach täglich; installiert wird nie ohne Klick | an |
-| Updates im Hintergrund laden | lädt eine gefundene Version gleich herunter (mit Prüfsummen-Kontrolle) | an |
-| Update-Quelle | leer = GitHub-Releases des Projekts; sonst die HTTPS-Adresse eines JSON-Feeds mit `version`, `url`, `sha256` | leer |
-| Sitzung | nur unter Wayland: welche Funktionen dort eingeschränkt sind (Kapitel 17) | — |
-| GPU-Beschleunigung bevorzugen (STT) | Erkennung auf der Grafikkarte; aus = CPU erzwingen | an |
-| Spracherkennung | *Standard* (Whisper turbo) / *Deutsch-optimiert* (dasselbe Modell, auf Deutsch nachtrainiert; einmaliger Download, 1,6 GB) — siehe 13.1 | Standard |
-| Modell-Warmhaltung | nur bei lokaler KI: *Nach Nutzung* / *Dauerhaft* (~3,5 GB dauerhaft belegt) / *Aus* | Nach Nutzung |
-| Im Leerlauf entladen nach | 3 / 10 / 30 / 45 Minuten | 10 Minuten |
+| Sichtbarkeit | *Nur während Aufnahme/Verarbeitung* / *Immer sichtbar* / *Automatisch ausblenden* / *Deaktiviert* | Nur während Aufnahme/Verarbeitung |
+| Auto-Hide nach | nur bei Sichtbarkeit „Automatisch ausblenden“ sichtbar: Wartezeit vor dem Ausblenden (0,5–60 s) | 4 s |
+| Größe | Kompakt / Standard / Groß | Standard |
+| Pillen-Rand | *Eng* / *Standard* / *Luftig* — Innenabstand des Pillen-Hintergrunds | Standard |
+| Rand-Buttons | Profil-Punkt und Pause-Knopf als getrennte Inseln oder alles in einer durchgehenden Pille | getrennte Inseln |
+| Transparenz | Deckkraft (20–100 %) | 90 % |
+| Pegel-Empfindlichkeit | wie stark die Wellenform ausschlägt (20–300 %) | 100 % |
+| Click-Through | Mausklicks gehen durch die Pille hindurch — dabei auch durch ihre eigenen Knöpfe (✕, ✓, Pause, Ziehen); Rückweg über „Overlay bearbeiten“ | aus |
+| Folgt dem Maus-Bildschirm | Pille erscheint auf dem Monitor des Zeigers | an |
+| Live-Transkription (experimentell) | Echtzeit-Vorschau beim Sprechen über ein eigenes kleines Whisper-Modell (~0,5 GB VRAM extra); Voraussetzung für die cyan „Befehl erkannt“-Optik | aus |
+| Erkannten Text über Overlay zeigen | fertigen Text kurz über der Pille einblenden | an |
+| Position | vier Presets, freies Ziehen im Bearbeiten-Modus („Overlay bearbeiten“), Zurücksetzen | rechts |
+
+#### Töne
+
+An/Aus, Lautstärke, Klangstil (**Soft** = weiche Zwei-Ton-Chimes, **Click** = trockene
+Ticks) sowie vier Einzelschalter für Start, Stopp, „Text eingefügt“ und Fehler. Alle
+Töne werden synthetisiert, es gibt keine Audiodateien.
+
+### Ruhe
+
+Bis 6.4 die Seiten „Audio-Fokus“ und „Benachrichtigungen“. Oben Fokus-Modus,
+„Nicht stören“ respektieren, Windows-Banner und Spiel-Erkennung; die Feineinstellungen
+unter „Mehr Optionen“.
+
+#### Audio-Fokus
+
+| Einstellung | Bedeutung | Standard |
+|---|---|---|
+| Fokus-Modus | *Aus* / *Leiser stellen* / *Stark absenken* | Leiser stellen |
+| Restlautstärke anderer Apps | 0 % = stumm bis 100 % = unverändert | 25 % |
+
+Der Regler gilt für **beide** Absenk-Modi: Die Oberfläche legt seinen Wert auf
+`duck_level` und `hard_duck_level` zugleich. Die getrennten Werte aus `config.yaml`
+(25 % / 8 %) wirken nur ohne Oberfläche (CLI) — in der Desktop-App unterscheiden sich
+„Leiser stellen“ und „Stark absenken“ derzeit nicht.
+
+#### Benachrichtigungen und Spiele
+
+| Einstellung | Bedeutung | Standard |
+|---|---|---|
+| „Nicht stören“ respektieren | keine unwichtigen Banner bei aktivem DND | an |
+| Sounds bei DND stumm | zusätzlich alle Fleech-Töne stumm | aus |
+| Windows-Banner | *Nichts* / *Wichtiges* / *Alles* — „Wichtiges“ meldet nur Probleme (kritische Fehler, Anbieter-Quota), „Alles“ zusätzlich Statusmeldungen | Alles |
+| Akzent-Sound bei kritischen Toasts | eigener Ton | aus |
+| Gaming-/Fullscreen-Erkennung | erkennt Spiele und Vollbild-Apps | an |
+| Overlay im Gaming-Modus | *Nur bei Aufnahme* / *Compact* / *Versteckt* / *Unverändert* | Nur bei Aufnahme |
+| Fleech-Töne im Spiel | Lautstärkefaktor, 0 % = stumm | 50 % |
+| Ausnahmen (Prozesse) | Programme, die nicht als Spiel gelten | leer |
+
+Die Grundhaltung ist „so wenig Banner wie möglich“: Es gibt einen 90-Sekunden-Cooldown
+je Banner-Art, und im Spiel oder bei „Nicht stören“ bleiben unkritische Meldungen ganz
+aus.
+
+### Datenschutz
+
+Seit 6.5.0 eine eigene Seite; bis 6.4 standen diese Zeilen auf „Allgemein“ und
+„Advanced“. Debug-Logging und „Diktattexte ins Protokoll“ stehen unter „Mehr Optionen“.
+
+| Einstellung | Bedeutung | Standard |
+|---|---|---|
+| Diktat-Verlauf speichern | lokale Historie für Home und Insights | an |
+| Verlauf löschen | endgültiges Löschen, bestätigt durch getipptes „Delete“ | — |
+| Verlauf aufbewahren | ältere Diktate löscht Fleech automatisch; die Zahlen für Insights bleiben | 90 Tage |
+| Verschlüsselung | „Wiederherstellungscode …“ — öffnet die Daten, falls das Windows-Konto verloren geht | — |
 | Debug-Logging | wirkt **ab dem nächsten Start** (Log-Level DEBUG statt INFO) — bis 5.10.2 wurde der Haken zwar gespeichert, aber von nichts gelesen | aus |
+| Diktattexte ins Protokoll | nur zur Fehlersuche: erkannter und eingefügter Text unverschlüsselt in `fleech.log` | aus |
 
 ---
 
@@ -1748,7 +1802,7 @@ Transkription mischt. Das Ducking betrifft nur die *Wiedergabe* fremder Programm
 Drei Modi: **Aus**, **Leiser stellen** und **Stark absenken**. Wie leise, bestimmt der
 Regler „Restlautstärke anderer Apps“ (Standard 25 % der jeweiligen
 Originallautstärke); er gilt in der Desktop-App für beide Absenk-Modi (siehe Kapitel
-11, Audio-Fokus). Die Absenkung ist **relativ** — leise Apps bleiben leise. Der
+11, Ruhe → Audio-Fokus). Die Absenkung ist **relativ** — leise Apps bleiben leise. Der
 Übergang läuft als weiche Rampe in 8 Schritten über 250 ms, kein harter Schnitt. Beim
 Beenden fährt Fleech vom aktuellen Ist-Pegel zurück auf die gemerkten Originalwerte.
 
@@ -1843,7 +1897,7 @@ Für die Diagnose-Modi (`--cli`, Selbsttests) gilt die Sperre bewusst nicht.
 - **„Lokale KI läuft nicht.“** Wer die Einführung übersprungen und damit auch Ollama
   nie eingerichtet hat, bekam bisher nur „eingefügt (Fallback — Log prüfen)“ zu jedem
   einzelnen Diktat. Einmal je Sitzung meldet die Pille jetzt den eigentlichen Grund
-  und den Weg zurück (Einstellungen → Allgemein → „Einführung erneut zeigen“). Gemeldet
+  und den Weg zurück (Einstellungen → Allgemein → Mehr Optionen → „Einführung erneut zeigen“). Gemeldet
   wird das nur, wenn der lokale Dienst die Verbindung wirklich ablehnt — eine
   Zeitüberschreitung heißt „läuft, war nur zu langsam“ und zählt seit 5.13.0 nicht mehr
   dazu. Bei einem Cloud-Anbieter nennen ein Windows-Banner (Stufe „Wichtiges“) und der
@@ -1871,7 +1925,7 @@ erste Diktat nicht auf das Laden wartet. Auf der Grafikkarte rechnet es seit 5.1
 schnell, nicht mehr Fehler — ein Gigabyte mehr Luft neben einem Spiel oder
 Stimmwandler, und eine volle Karte macht die Erkennung um ein Vielfaches langsamer.
 
-**Deutsch-optimiert (seit 5.15.0, wählbar).** Unter *Einstellungen → Advanced →
+**Deutsch-optimiert (seit 5.15.0, wählbar).** Unter *Einstellungen → KI & Text → Mehr Optionen →
 Spracherkennung* gibt es neben „Standard“ ein auf deutsche Sprache nachtrainiertes
 Turbo-Modell (`jimmymeister/whisper-large-v3-turbo-german-ct2`, eine CTranslate2-Fassung
 von `primeline/whisper-large-v3-turbo-german`). An den Test-Aufnahmen (5–120 s,
@@ -1898,7 +1952,7 @@ Robustheit über zwei Stufen: Schlägt die GPU-Initialisierung fehl, wird automa
 CPU mit int8-Quantisierung umgeschaltet. Tritt ein CUDA-Fehler erst *während* der
 Transkription auf (das passiert, weil die Erkennung intern erst beim Auslesen läuft),
 wird ebenfalls auf CPU gewechselt und der Lauf **wiederholt**. Die GPU-Nutzung lässt
-sich in den Einstellungen ganz abschalten — praktisch, um Grafikspeicher fürs Spielen
+sich in den Einstellungen (*KI & Text → Mehr Optionen*) ganz abschalten — praktisch, um Grafikspeicher fürs Spielen
 freizuhalten.
 
 Die CUDA-Bibliotheken kommen aus Python-Paketen und liegen an Orten, die die
@@ -1920,7 +1974,7 @@ sondern lässt sich pro Profil festlegen; siehe [22](#22-sprachen-seit-540).
 ### 13.2 Der LLM-Zugang
 
 Standard ist ein **lokales Ollama** — kein Konto, keine Kosten, kein Text verlässt den
-Rechner. Seit 6.1.0 lässt sich unter *Einstellungen → KI* stattdessen ein
+Rechner. Seit 6.1.0 lässt sich unter *Einstellungen → KI & Text* stattdessen ein
 Cloud-Anbieter mit **eigenem API-Schlüssel** wählen (OpenAI, Anthropic, Google Gemini,
 Mistral, Groq, OpenRouter oder ein eigener OpenAI-kompatibler Server) — oder „Ohne
 KI“, dann wird nur erkannt und nicht bereinigt. Ein Abo (ChatGPT Plus, Claude Pro)
@@ -2331,12 +2385,12 @@ einigen Megabyte nur noch über Zeilennummern durchsuchbar.
 | Freihand-Lauscher | **nichts** — beide Stufen laufen lokal (ohnehin stillgelegt) |
 | Projekt-Gedächtnis | **nichts** — `kontext.db` bleibt auf dem Rechner und geht auch nie an ein Sprachmodell |
 | Einrichtung | Ollama-Installation per `winget` (nur auf Klick), Download des Sprachmodells über Ollama und des Erkennungsmodells (beim Umschalten auch des deutsch-optimierten) |
-| KI-Seite | „Liste laden“ und „Verbindung testen“ — nur auf Klick, nur an den gewählten Anbieter |
-| Update-Prüfung | GitHub-Releases des Projekts (oder der eigene Feed): 45 s nach dem Start und danach täglich, eine gefundene Version wird im Hintergrund geladen — beides abschaltbar unter *Advanced*; installiert wird nur auf Klick |
+| Seite KI & Text | „Liste laden“ und „Verbindung testen“ — nur auf Klick, nur an den gewählten Anbieter |
+| Update-Prüfung | GitHub-Releases des Projekts (oder der eigene Feed): 45 s nach dem Start und danach täglich, eine gefundene Version wird im Hintergrund geladen — beides abschaltbar unter *Allgemein → Mehr Optionen*; installiert wird nur auf Klick |
 
 Im Auslieferungszustand verlässt damit **kein diktierter Inhalt** den Rechner. Der
 Netzverkehr beschränkt sich auf Einrichtung und Update-Prüfung. Das ändert sich nur,
-wenn man unter *Einstellungen → KI* bewusst einen Cloud-Anbieter wählt — und auch dann
+wenn man unter *Einstellungen → KI & Text* bewusst einen Cloud-Anbieter wählt — und auch dann
 nur für die Bereinigung, nie für den Ton.
 
 **Zum Freihand-Lauscher im Besonderen:** Im Speicher liegen immer nur die letzten zwei
@@ -2385,7 +2439,7 @@ anderen Ollama-Server um, etwa einen zweiten Rechner im Netz.
 > `num_ctx` setzen, und ohne das brechen lange Diktate mitten im Satz ab (siehe
 > [13.2](#132-der-llm-zugang)).
 
-**Anbieter wechseln** geht seit 6.1.0 über *Einstellungen → KI*, ohne Neustart und
+**Anbieter wechseln** geht seit 6.1.0 über *Einstellungen → KI & Text*, ohne Neustart und
 ohne Datei. Beispiel DeepSeek statt lokalem Ollama: Anbieter „Eigener Server
 (OpenAI-kompatibel)“, Server-Adresse `https://api.deepseek.com/v1`, Modell
 `deepseek-chat`, Schlüssel einfügen und Enter — er landet im Schlüsselbund.
@@ -2427,7 +2481,7 @@ verstreute Plattform-Abfragen im ganzen Code.
 
 Fehlt eine Fähigkeit (etwa X11 unter Wayland), liefern die betroffenen Funktionen
 neutrale Werte — die App läuft weiter, nur die jeweilige Zusatzfunktion entfällt.
-Unter einer Wayland-Sitzung nennt *Einstellungen → Advanced* die Einschränkungen
+Unter einer Wayland-Sitzung nennt *Einstellungen → Allgemein* oben die Einschränkungen
 ausdrücklich: Die Cursor-Rückkehr springt nur zum Fenster, nicht ins genaue Textfeld;
 die Vollbild- und Spielerkennung greift nicht; gebundene Maustasten lösen zusätzlich
 ihre normale Funktion aus.
@@ -2439,7 +2493,7 @@ ihre normale Funktion aus.
 **Windows:**
 
 ```powershell
-.venv\Scripts\python -m pytest -q          # Testsuite (rund 1800 Tests)
+.venv\Scripts\python -m pytest -q          # Testsuite (rund 1900 Tests)
 .venv\Scripts\python packaging\build.py    # → dist\Fleech\Fleech.exe
 .venv\Scripts\python packaging\build.py --gpu --installer   # + CUDA + Setup
 ```
@@ -2462,7 +2516,7 @@ Die Installation legt zusätzlich einen Menüeintrag und ein Symbol an.
 
 **Version und Build-Stempel** stehen an einer Stelle (`fleech/version.py`); der
 Build-Stempel wird beim Bauen erzeugt und ins Paket gelegt. Die Oberfläche zeigt beides
-unter *Advanced*.
+unter *Allgemein → Mehr Optionen*.
 
 Veröffentlicht wird mit `packaging/release.py`: Es baut EXE und Setup, bildet die
 SHA-256 und legt ein GitHub-Release mit den Notizen aus dem CHANGELOG an. Wie die App
@@ -2595,7 +2649,7 @@ Die Kontexte entstehen aus App **und** Fenstertitel: Derselbe Editor trägt mal 
 mal das andere Projekt. Gespeichert wird in `kontext.db` neben dem Verlauf — kein
 Diktattext, nur die Begriffe und wie oft sie vorkamen. Löschen lässt sich das wie der
 Verlauf — komplett, oder seit 5.10.5 auch **ein einzelner Begriff** (Einstellungen →
-Textersetzung → „Begriff vergessen“): In `kontext.db` stehen auch echte Hörfehler
+Wörterbuch → Mehr Optionen → „Begriff vergessen“): In `kontext.db` stehen auch echte Hörfehler
 (`Cloud-Code`, `FLEACH`), die sich über den `initial_prompt` selbst weiter primen; bis
 5.10.5 ließ sich dagegen nur alles auf einmal löschen. Dieselbe Funktion nutzt die
 Schreibvarianten-Vorschlagskarte ([9](#9-verlauf-und-statistiken)): Übernimmt man dort
@@ -2616,8 +2670,8 @@ eine Regel, vergisst Fleech die als falsch erkannte Form auch hier.
 > Oberfläche dazu müsste dann neu entstehen). Der **Nachfolger** ist der Bedienmodus
 > **Anstupsen** (Kapitel 4a): einmal drücken, reden, es hört von selbst auf —
 > auslösen kann dort nur, wer die Taste drückt. Sein Regler „Sprechpause bis Ende“
-> teilt sich das Settings-Feld `freihand.stille_s` und steht deshalb weiter auf der
-> Aufnahme-Seite, beim Bedienmodus.
+> teilt sich das Settings-Feld `freihand.stille_s` und steht deshalb weiter beim
+> Bedienmodus (seit 6.5.0 auf der Seite *Allgemein*).
 
 Startwort sagen, sprechen, aufhören. Kommt **zusätzlich** zum Hotkey und ist
 standardmäßig **aus**: Eine App, die ungefragt dauerhaft mithört, wäre ein
@@ -2922,7 +2976,7 @@ ist beides entfallen: Es gibt nur noch das eine, öffentliche Repository
 Start und danach täglich nach (abschaltbar), lädt im Hintergrund und **installiert nur
 auf Klick**. Die SHA-256 aus den Release-Notizen muss zur Datei passen, geladen wird nur
 über HTTPS von GitHub-Hosts — auch nach Weiterleitungen. Zugangsdaten braucht die
-Prüfung keine; ein eigener JSON-Feed lässt sich unter *Advanced* eintragen.
+Prüfung keine; ein eigener JSON-Feed lässt sich unter *Allgemein → Mehr Optionen* eintragen.
 
 **Nutzerdaten bleiben grundsätzlich draußen.** Verlauf, Transkripte, `settings.json`,
 `kontext.db` und Logs sind nicht versioniert. Ein Wächter-Test prüft bei jedem Lauf,
@@ -3015,7 +3069,7 @@ Hintergrund vor, aber der Installer startet erst auf Klick. Bewusst: Bei einer A
 tief in Hotkeys, Fokus und Zwischenablage eingreift — und für die Installation neu
 starten muss —, soll ein Update eine bewusste Handlung bleiben.
 
-**Ein Cloud-Anbieter sieht den Text.** Wer unter *Einstellungen → KI* einen Anbieter
+**Ein Cloud-Anbieter sieht den Text.** Wer unter *Einstellungen → KI & Text* einen Anbieter
 wählt, schickt jedes Diktat (als Text, nicht als Ton) dorthin, wo es nach dessen
 Bedingungen verarbeitet wird — auch Verlaufseinträge, die man über „Neu bereinigen als
 …“ erneut bereinigt. Fleech sagt das auf der Seite in einem Satz, kann es aber nicht

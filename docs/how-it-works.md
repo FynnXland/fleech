@@ -1,6 +1,6 @@
 # How Fleech handles a dictation
 
-Status: 6.4.0. This page is for anyone who wants to know what happens between pressing the
+Status: 6.5.0. This page is for anyone who wants to know what happens between pressing the
 key and the text appearing, and why Fleech checks the AI instead of trusting it. It
 describes the default settings. For the code behind each step, read
 [architecture.md](architecture.md); the complete German description is
@@ -120,7 +120,7 @@ When Fleech detects a self-correction ("Donnerstag, äh, nein, Freitag"; the cor
 words it knows are German), the limits for missing and new words are relaxed and the
 number and negation check is skipped, because the withdrawn part disappears on purpose.
 
-**Intervention level** (*Eingriffsgrad*). Settings → *Ausgabe* (Output) sets how much the cleanup may
+**Intervention level** (*Eingriffsgrad*). Settings → *KI & Text* sets how much the cleanup may
 change. *Minimal* skips the model entirely; the *Privat* and *Coding* profiles use it.
 *Strong* allows more smoothing; the *Geschäftlich* (business) profile uses it. With
 *Strong*, the checks for new and missing words are off, but numbers and negations are
@@ -131,9 +131,13 @@ bereinigt" (the AI rephrased instead of cleaning up). The log records the reason
 
 ## 6. Finishing touches
 
-- German fillers ("äh", "ähm", "öh") are removed by fixed rules *after* the model, because
-  the model left some of them in. In English, removing "um" and "uh" is up to the model,
-  and it sometimes keeps one.
+- Fillers are removed by fixed rules *after* the model, because the model left some of
+  them in: "äh", "ähm" and "öh" in German, "um", "uh", "uhm" and "erm" when the dictation
+  language is English (not with automatic language detection, where "um" may be the German
+  word). A comma that belongs to the sentence stays. Not with *Minimal*.
+- If the profile has a target language (*Übersetzen in*), the cleaned text is translated
+  now. A translation that loses a number or formula, or comes out much shorter or longer,
+  is dropped: you get the cleaned text in your language, and the history says why.
 - Your dictionary's replacement rules are applied.
 - Spoken symbols such as "Slash" or "Hashtag" become characters.
 
