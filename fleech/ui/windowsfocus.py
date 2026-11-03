@@ -8,7 +8,8 @@ Drei Quellen, klar nach Verlaesslichkeit getrennt:
    WNF-Abfrage lesbar (NtQueryWnfStateData). Best-Effort: liefert True/False oder
    None = unbekannt. Ein Fehler hier darf nie Folgen haben.
 3. Fullscreen-Heuristik: Vordergrundfenster deckt seinen Monitor exakt ab und ist
-   nicht Desktop/Shell. Ergaenzt das D3D-Signal um randlose Fullscreen-Apps.
+   nicht Desktop/Shell. Ergaenzt das D3D-Signal um randlose Fullscreen-Apps;
+   `kein_spiel_grund` trennt davon die Vollbilder, die kein Spiel sind.
 
 Alle Abfragen sind billig (µs-Bereich) und werden von der App im Sekundentakt gepollt.
 """
@@ -39,6 +40,49 @@ _SUPPRESSING_STATES = {QUNS_BUSY, QUNS_RUNNING_D3D_FULL_SCREEN, QUNS_PRESENTATIO
 _WNF_QUIET_HOURS = (ctypes.c_ulonglong * 1)(0xD83063EA3BF1C75)
 
 _SHELL_WINDOW_CLASSES = {"Progman", "WorkerW"}
+
+# Fuers Modell-Entladen zaehlt nicht jedes Vollbild. Im Log vom 09.10. bis 03.11.2026
+# loesten 492 Entladungen aus, 22 davon durch ein Spiel (VALORANT, randloses
+# Vollbild). Der Rest: Video-Vollbild im Browser (comet 272x), Discord- und
+# Claude-Fenster, Alt+Tab (explorer, immer genau ein Poll), FlowShares
+# Aufnahme-Overlay, Sperrbildschirm, Remotedesktop. Jedes Mal musste das naechste
+# Diktat das Modell neu laden.
+_CHROMIUM_KLASSE = "Chrome_WidgetWin_"  # Chrome, Edge, Comet, alle Electron-Apps
+_KEIN_SPIEL_PROZESSE = {
+    # Windows-Oberflaeche: Alt+Tab, Taskansicht, Startmenue, Suche, Sperrbildschirm
+    "explorer.exe", "lockapp.exe", "shellexperiencehost.exe",
+    "startmenuexperiencehost.exe", "searchhost.exe", "textinputhost.exe",
+    # Remotedesktop: gerechnet wird auf dem anderen Rechner
+    "mstsc.exe", "msrdc.exe",
+    # Browser ohne Chromium-Fensterklasse und Videoplayer
+    "firefox.exe", "librewolf.exe", "waterfox.exe", "floorp.exe", "zen.exe",
+    "vlc.exe", "mpv.exe", "mpc-hc64.exe", "mpc-be64.exe", "potplayermini64.exe",
+    "microsoft.media.player.exe",
+}
+_WS_EX_TOOLWINDOW = 0x00000080
+_WS_CAPTION = 0x00C00000
+
+
+def kein_spiel_grund(klasse: str, prozess: str, maximiert: bool, exstil: int) -> str:
+    """Warum ein monitorfuellendes Vordergrundfenster KEIN Spiel ist — "" heisst:
+    kann eines sein. Reine Logik ohne Win32, damit sie ohne Fenster pruefbar ist.
+
+    Spiele laufen als eigene Fensterklasse (UnrealWindow, UnityWndClass, GLFW30 …),
+    nicht als maximiertes Fenster mit Titelleiste (`maximiert` meint genau das)
+    und nie als Werkzeugfenster ohne Taskleisten-Knopf."""
+    if maximiert:
+        # Maximiert MIT Titelleiste: Bei automatisch ausgeblendeter Taskleiste
+        # deckt so ein Fenster den ganzen Monitor ab (es ragt sogar ein paar Pixel
+        # darueber hinaus). Ohne Titelleiste zaehlt das nicht: Chromium bleibt im
+        # Video-Vollbild "maximiert", ein randloses Spiel womoeglich auch.
+        return "maximiertes Fenster"
+    if exstil & _WS_EX_TOOLWINDOW:
+        return "Overlay"
+    if klasse.startswith(_CHROMIUM_KLASSE):
+        return "Browser/Electron"
+    if prozess.lower() in _KEIN_SPIEL_PROZESSE:
+        return "kein Spielprozess"
+    return ""
 
 # Fenstertitel koennen sehr lang werden (ganze Dateipfade). Fuer den Zweck
 # (Teilstring-Vergleich in Profil-Regeln) reicht ein Ausschnitt; die Grenze haelt
@@ -74,6 +118,10 @@ class FocusContext:
     # Profil-Zuordnung: derselbe Prozess kann sehr verschiedene Kontexte tragen
     # (ein Editor-Fenster mit Code vs. eines mit Notizen).
     foreground_title: str = ""
+    # Enger als `fullscreen`: das Vollbild sieht nach Spiel aus (siehe
+    # `kein_spiel_grund`). Nur dieses Signal entlaedt das lokale Modell; Toasts,
+    # Toene und Pille bleiben beim breiten `fullscreen`.
+    spiel_vollbild: bool = False
 
     @property
     def gaming_or_fullscreen(self) -> bool:
@@ -128,6 +176,9 @@ class FocusProbe:
         # Prozessname-Cache: der 3-s-Poll trifft meist dasselbe Vordergrundfenster —
         # psutil.Process(...).name() (Syscalls) nur bei (hwnd, pid)-Wechsel neu holen.
         self._proc_cache: tuple[int, int, str] | None = None
+        # (Prozess, Grund) einmal je Sitzung ins Log: genug, um spaeter zu sehen,
+        # welches Vollbild bewusst nicht entladen hat, ohne bei jedem Alt+Tab.
+        self._ignoriert_gemeldet: set[tuple[str, str]] = set()
 
     def query(self) -> FocusContext:
         ctx = FocusContext()
@@ -140,6 +191,9 @@ class FocusProbe:
 
                 (ctx.fullscreen, ctx.foreground_process,
                  ctx.foreground_title) = x11tools.active_window_state()
+                # X11 liefert keine Fensterklasse — nur der Prozessname filtert.
+                ctx.spiel_vollbild = ctx.fullscreen and not kein_spiel_grund(
+                    "", ctx.foreground_process, False, 0)
             except Exception:
                 log.debug("X11-Fokus-Abfrage fehlgeschlagen.", exc_info=True)
             return ctx
@@ -155,8 +209,8 @@ class FocusProbe:
             log.debug("Focus-Assist-Abfrage fehlgeschlagen.", exc_info=True)
             ctx.dnd = None
         try:
-            (ctx.fullscreen, ctx.foreground_process,
-             ctx.foreground_title) = self._foreground_fullscreen()
+            (ctx.fullscreen, ctx.foreground_process, ctx.foreground_title,
+             ctx.spiel_vollbild) = self._foreground_fullscreen()
         except Exception:
             log.debug("Fullscreen-Heuristik fehlgeschlagen.", exc_info=True)
         return ctx
@@ -191,23 +245,23 @@ class FocusProbe:
 
     # -- 3: Heuristik -----------------------------------------------------------------
 
-    def _foreground_fullscreen(self) -> tuple[bool, str, str]:
-        """(deckt den Monitor ab?, Prozessname, Fenstertitel)."""
+    def _foreground_fullscreen(self) -> tuple[bool, str, str, bool]:
+        """(deckt den Monitor ab?, Prozessname, Fenstertitel, sieht nach Spiel aus?)."""
         user32 = ctypes.windll.user32
         hwnd = user32.GetForegroundWindow()
         if not hwnd:
-            return False, "", ""
+            return False, "", "", False
 
         class_buf = ctypes.create_unicode_buffer(256)
         user32.GetClassNameW(hwnd, class_buf, 256)
         if class_buf.value in _SHELL_WINDOW_CLASSES:
-            return False, "", ""
+            return False, "", "", False
 
         title = _window_title(hwnd)
 
         rect = wt.RECT()
         if not user32.GetWindowRect(hwnd, ctypes.byref(rect)):
-            return False, "", title
+            return False, "", title, False
 
         monitor = user32.MonitorFromWindow(hwnd, 2)  # MONITOR_DEFAULTTONEAREST
 
@@ -218,7 +272,7 @@ class FocusProbe:
         info = MONITORINFO()
         info.cbSize = ctypes.sizeof(MONITORINFO)
         if not user32.GetMonitorInfoW(monitor, ctypes.byref(info)):
-            return False, "", title
+            return False, "", title, False
         m = info.rcMonitor
         covers_monitor = (
             rect.left <= m.left and rect.top <= m.top
@@ -243,7 +297,19 @@ class FocusProbe:
                     self._proc_cache = (hwnd, pid.value, name)
         except Exception:
             pass
-        return covers_monitor, name, title
+        spiel = False
+        if covers_monitor:
+            stil = user32.GetWindowLongW(hwnd, -16) & 0xFFFFFFFF      # GWL_STYLE
+            exstil = user32.GetWindowLongW(hwnd, -20) & 0xFFFFFFFF    # GWL_EXSTYLE
+            maximiert = (bool(user32.IsZoomed(hwnd))
+                         and stil & _WS_CAPTION == _WS_CAPTION)
+            grund = kein_spiel_grund(class_buf.value, name, maximiert, exstil)
+            spiel = not grund
+            if grund and (name, grund) not in self._ignoriert_gemeldet:
+                self._ignoriert_gemeldet.add((name, grund))
+                log.info("Vollbild von %s zaehlt nicht als Spiel (%s) — das Modell "
+                         "bleibt geladen.", name or "?", grund)
+        return covers_monitor, name, title, spiel
 
 
 # Prozessname-Cache fuer die Sofort-Abfrage unten. Getrennt vom Cache der
