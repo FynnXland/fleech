@@ -1583,9 +1583,11 @@ Position und Bearbeiten, dazu Töne an/aus und Lautstärke; alles andere unter �
 
 #### Töne
 
-An/Aus, Lautstärke, Klangstil (**Soft** = weiche Zwei-Ton-Chimes, **Click** = trockene
-Ticks) sowie vier Einzelschalter für Start, Stopp, „Text eingefügt“ und Fehler. Alle
-Töne werden synthetisiert, es gibt keine Audiodateien.
+An/Aus, Lautstärke, Klangstil (**Warm** = Standard seit 6.6.0, weiche Wischer und ein
+runder Doppelton aus Kenneys „Interface Sounds“, CC0, in `assets/sounds/warm/`;
+**Klassisch** = die früheren synthetischen Zwei-Ton-Chimes; **Click** = trockene,
+synthetische Ticks) sowie vier Einzelschalter für Start, Stopp, „Text eingefügt“ und
+Fehler. Fehlen die Klangdateien, spielt Fleech die Chimes.
 
 ### Ruhe
 

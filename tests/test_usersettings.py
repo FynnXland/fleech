@@ -77,6 +77,21 @@ def test_unknown_keys_are_ignored(tmp_path):
     assert s.recording.mode == "toggle"
 
 
+def test_alter_klangstil_soft_wird_warm_chimes_bleibt(tmp_path):
+    """6.6.0: „soft" war die geerbte Vorgabe und wird zu den neuen Klaengen;
+    wer danach bewusst „chimes" waehlt, behaelt sie ueber den Neustart."""
+    p = tmp_path / "settings.json"
+    p.write_text('{"sounds": {"preset": "soft", "volume": 0.3}}', encoding="utf-8")
+    s = UserSettings.load(p)
+    assert s.sounds.preset == "warm"
+    assert s.sounds.volume == 0.3
+
+    s.sounds.preset = "chimes"
+    s.save(p)
+    assert UserSettings.load(p).sounds.preset == "chimes"
+    assert UserSettings().sounds.preset == "warm"
+
+
 def test_apply_to_config(tmp_path):
     cfg = load_config(tmp_path / "leer.yaml")
     s = UserSettings()

@@ -11,6 +11,16 @@ GitHub-Release-Notizen (`packaging/release.py`).
 
 ---
 
+## 6.6.0 — in Arbeit, noch nicht veröffentlicht
+
+**Neue Töne.** Start, Stopp, „Text eingefügt“ und Fehler klingen jetzt weicher und
+leiser: ein kurzer, tiefer Wischer beim Start, derselbe rückwärts beim Stopp und ein
+runder Doppelton, wenn der Text eingefügt ist. Die Töne stammen aus Kenneys
+„Interface Sounds“ und sind gemeinfrei (CC0). Wer die alten Pieptöne lieber mag,
+findet sie unter Einstellungen → Pille & Töne → Mehr Optionen → Klangstil
+„Klassisch (Chimes)“. Hattest du den Klangstil nie geändert, bekommst du die neuen
+Töne automatisch.
+
 ## 6.5.0 — 2026-11-03
 
 **Einstellungen auf sechs Seiten statt zehn.** Die Einstellungen heißen jetzt

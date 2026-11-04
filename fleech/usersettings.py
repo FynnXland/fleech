@@ -275,7 +275,7 @@ class OverlaySettings:
 class SoundSettings:
     enabled: bool = True
     volume: float = 0.4
-    preset: str = "soft"        # soft | click
+    preset: str = "warm"        # warm | chimes | click (bis 6.5: soft = chimes)
     start: bool = True
     stop: bool = True
     commit: bool = True
@@ -655,6 +655,8 @@ class UserSettings:
             settings.freihand.modell = "diktat"
             log.info("Freihand-Pruefmodell von 'base' auf 'diktat' umgestellt "
                      "(alte Vorgabe, siehe FreihandSettings).")
+        if settings.sounds.preset == "soft":  # 6.6: geerbte Chimes-Vorgabe → neue Toene
+            settings.sounds.preset = "warm"
         # Netz gegen Datenverlust (`einstellungssicherung`): eine datierte Kopie
         # beim Versionswechsel, angelegt VOR dem ersten Schreiben.
         from .version import APP_VERSION

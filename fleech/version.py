@@ -7,7 +7,7 @@
 
 from __future__ import annotations
 
-APP_VERSION = "6.5.0"  # 6.5.0: Einstellungen auf sechs Seiten mit „Mehr Optionen"
+APP_VERSION = "6.6.0"  # 6.6.0 (in Arbeit): neue Töne
 
 
 def _read_build() -> str:

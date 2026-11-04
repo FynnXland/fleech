@@ -30,6 +30,15 @@ The LGPL-licensed libraries are shipped as separate, unmodified shared libraries
 Python packages. You may replace them with your own builds of the same version; their
 complete source code is available at the links above.
 
+## Sounds
+
+| Files | Used for | License | Source |
+|---|---|---|---|
+| `assets/sounds/warm/*.wav` (from `maximize_008`, `minimize_008`, `confirmation_001`, `error_006`) | Default sound style „Warm“: start, stop, text inserted, error | CC0 1.0 (public domain) | Kenney, „Interface Sounds“ 1.0, https://kenney.nl/assets/interface-sounds |
+
+The files were converted from OGG to 16-bit mono WAV, trimmed and leveled; otherwise
+unchanged. Credit is not required by CC0. Fleech gives it anyway: thanks, Kenney.
+
 ## Models
 
 Speech and language models are not part of Fleech's installer or source. The setup

@@ -15,7 +15,9 @@ def zeilen(panel, form, mehr) -> None:
     panel._slider(form, "Lautstärke", s.sounds.volume, "sounds",
                   lambda v: setattr(s.sounds, "volume", v),
                   hint_text="Lautstärke der Fleech-Töne.")
-    panel._combo(mehr, "Preset", [("soft", "Soft (Chimes)"), ("click", "Click (Ticks)")],
+    panel._combo(mehr, "Klangstil", [("warm", "Warm (Standard)"),
+                                     ("chimes", "Klassisch (Chimes)"),
+                                     ("click", "Click (Ticks)")],
                  s.sounds.preset, "sounds", lambda v: setattr(s.sounds, "preset", v),
                  hint_text="Klangstil der Töne.")
     for key, label, tip in (
