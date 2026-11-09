@@ -16,6 +16,7 @@
 
 <p align="center">
   <a href="https://github.com/FynnXland/fleech/releases/latest"><b>Download für Windows</b></a> &nbsp;·&nbsp;
+  <a href="https://fynn.land/fleech/">Website</a> &nbsp;·&nbsp;
   <a href="#linux-x11">Linux</a> &nbsp;·&nbsp; <a href="README.md">English</a> &nbsp;·&nbsp; <a href="docs/">Dokumentation</a>
 </p>
 
