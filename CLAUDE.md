@@ -247,5 +247,4 @@ halten (`platformpaths`, `clipboard`, `audiofocus.default_playback_sessions`,
 
 - StateBus-Signale (`fleech/ui/state.py`) übertragen Worker-Thread → UI thread-sicher.
 - Der Nutzer erledigt echte Mikrofon-/Hotkey-Tests selbst; Fixture-Tests nutzen TTS-WAVs.
-- Der lange Sitzungs-Verlauf (Entscheidungen, gelöste Bugs) steht in der Auto-Memory
-  (`memory/fleech-projekt-stand.md`) — dort nachsehen, statt Vergangenes neu herzuleiten.
+- Entscheidungen und gelöste Bugs stehen in `CHANGELOG.md` und in den Commit-Nachrichten: dort nachsehen, statt Vergangenes neu herzuleiten.
