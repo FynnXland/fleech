@@ -25,6 +25,7 @@ from PySide6.QtWidgets import (
 )
 
 from .. import __version__
+from ..i18n import tr
 from ..history import HistoryStore
 from ..usersettings import UserSettings
 from .theme import ACCENT, CARD, MUTED, SIDEBAR, TEXT
@@ -222,13 +223,13 @@ class MainWindow(QMainWindow):
             self._nav_buttons[key] = btn
             return btn
 
-        side.addWidget(nav_button("home", "Home", "home"))
+        side.addWidget(nav_button("home", tr("Home"), "home"))
         side.addSpacing(2)
-        side.addWidget(nav_button("insights", "Insights", "chart"))
+        side.addWidget(nav_button("insights", tr("Insights"), "chart"))
         side.addSpacing(2)
-        side.addWidget(nav_button("profiles", "Profile", "profile"))
+        side.addWidget(nav_button("profiles", tr("Profile"), "profile"))
         side.addSpacing(2)
-        side.addWidget(nav_button("apps", "Apps", "apps"))
+        side.addWidget(nav_button("apps", tr("Apps"), "apps"))
         side.addStretch(1)
         # Einstellungen unten, mit Hairline-Trenner abgesetzt (Design-System).
         divider = QFrame()
@@ -236,7 +237,7 @@ class MainWindow(QMainWindow):
         divider.setStyleSheet(f"background: {BORDER_HAIRLINE}; border: none;")
         side.addWidget(divider)
         side.addSpacing(8)
-        side.addWidget(nav_button("settings", "Einstellungen", "sliders"))
+        side.addWidget(nav_button("settings", tr("Einstellungen"), "sliders"))
         layout.addWidget(sidebar)
 
         # -- Seiten ----------------------------------------------------------------

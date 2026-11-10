@@ -12,6 +12,7 @@ import logging
 from PySide6.QtWidgets import QRadioButton, QVBoxLayout, QWidget
 
 from ...hotkey import HotkeySpec
+from ...i18n import N_, tr
 from ..hotkey_recorder import HotkeyField
 from ..theme import style_button
 from .bausteine import notiz, text, titel
@@ -19,8 +20,9 @@ from .bausteine import notiz, text, titel
 log = logging.getLogger(__name__)
 
 # Die anderen Bindungen — fuer den Hinweis auf Doppelbelegung.
-_ANDERE = (("prompt_toggle_hotkey", "KI-Prompting"), ("undo_hotkey", "Rohtext einsetzen"),
-           ("pause_hotkey", "Pause"), ("profile_hotkey", "Profil wechseln"))
+_ANDERE = (("prompt_toggle_hotkey", N_("KI-Prompting")),
+           ("undo_hotkey", N_("Rohtext einsetzen")),
+           ("pause_hotkey", N_("Pause")), ("profile_hotkey", N_("Profil wechseln")))
 
 
 def tasten_name(settings) -> str:
@@ -43,7 +45,7 @@ def _andere_bindungen(settings):
             if not roh:
                 continue
             try:
-                raus[name] = HotkeySpec.parse(roh)
+                raus[tr(name)] = HotkeySpec.parse(roh)
             except ValueError:
                 log.debug("Bindung %s unlesbar: %r", attr, roh)
         return raus
@@ -56,10 +58,10 @@ def build(dialog, capture_guard=None) -> QWidget:
     page = QWidget()
     lay = QVBoxLayout(page)
     lay.setSpacing(10)
-    lay.addWidget(titel("Taste und Bedienung"))
-    lay.addWidget(text("Mit welcher Taste willst du diktieren? Klick auf „Aufnehmen“ "
-                       "und drück die Taste oder Kombination — auch eine "
-                       "Maus-Daumentaste geht."))
+    lay.addWidget(titel(tr("Taste und Bedienung")))
+    lay.addWidget(text(tr("Mit welcher Taste willst du diktieren? Klick auf "
+                          "„Aufnehmen“ und drück die Taste oder Kombination — auch "
+                          "eine Maus-Daumentaste geht.")))
     try:
         spec = HotkeySpec.parse(settings.recording.hotkey or "f9")
     except ValueError:
@@ -89,11 +91,11 @@ def build(dialog, capture_guard=None) -> QWidget:
         lay.addWidget(radio)
     beschrifte(dialog)
     lay.addSpacing(6)
-    lay.addWidget(notiz(
+    lay.addWidget(notiz(tr(
         "Während der Aufnahme erscheint eine kleine Pille am Bildschirmrand: x bricht "
         "ab, der Haken fügt ein. Weitere Tasten (Pause, Rohtext, Profile) findest du "
         "unter Einstellungen → Allgemein → Mehr Optionen."
-    ))
+    )))
     lay.addStretch(1)
     return page
 
@@ -101,11 +103,12 @@ def build(dialog, capture_guard=None) -> QWidget:
 def beschrifte(dialog) -> None:
     """Texte an die gewaehlte Taste anpassen."""
     taste = tasten_name(dialog.settings)
-    dialog._taste_satz.setText(f"Aufgenommen wird über {taste} — auf drei Arten:")
-    dialog._hold_radio.setText(
-        f"Halten:  {taste} gedrückt halten = aufnehmen, loslassen = fertig")
-    dialog._toggle_radio.setText(
-        f"Umschalten:  {taste} einmal drücken = Start, nochmal = fertig")
-    dialog._nudge_radio.setText(
-        f"Anstupsen:  {taste} einmal drücken, reden — endet von selbst, sobald du "
-        f"aufhörst")
+    dialog._taste_satz.setText(tr("Aufgenommen wird über {taste} — auf drei Arten:",
+                                  taste=taste))
+    dialog._hold_radio.setText(tr(
+        "Halten:  {taste} gedrückt halten = aufnehmen, loslassen = fertig", taste=taste))
+    dialog._toggle_radio.setText(tr(
+        "Umschalten:  {taste} einmal drücken = Start, nochmal = fertig", taste=taste))
+    dialog._nudge_radio.setText(tr(
+        "Anstupsen:  {taste} einmal drücken, reden — endet von selbst, sobald du "
+        "aufhörst", taste=taste))

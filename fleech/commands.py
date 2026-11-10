@@ -7,6 +7,8 @@ import logging
 import re
 from dataclasses import dataclass
 
+from .i18n import N_
+
 # Die Wort-Ueberlappungs-Helfer gehoeren zu den Cleanup-Guards und liegen deshalb in
 # textfilter; hier re-exportiert, weil Aufrufer sie historisch von commands importieren.
 from .textfilter import content_words, replacement_overlap  # noqa: F401
@@ -85,9 +87,9 @@ def sounds_like_deletion(utterance: str) -> bool:
 # davon, was eine Loesch-/Uebersetzungs-/Kuerzungs-Anweisung ist. Waeren es zwei,
 # koennte die Statistik etwas anderes zaehlen, als der Guard tatsaechlich tut.
 _COMMAND_KINDS = (
-    ("Löschen", _DELETION_INSTRUCTION),
-    ("Übersetzen", _TRANSLATION_INSTRUCTION),
-    ("Kürzen", _COMPRESSION_INSTRUCTION),
+    (N_("Löschen"), _DELETION_INSTRUCTION),
+    (N_("Übersetzen"), _TRANSLATION_INSTRUCTION),
+    (N_("Kürzen"), _COMPRESSION_INSTRUCTION),
 )
 
 
@@ -95,11 +97,12 @@ def classify_command(utterance: str) -> str:
     """Art einer Befehls-Aeusserung fuer die Insights-Statistik.
 
     „Umformulieren" ist der Sammelbegriff fuer alles ohne eindeutigen Marker —
-    das ist der Normalfall des Befehls-Modus, kein Rest-Eimer."""
+    das ist der Normalfall des Befehls-Modus, kein Rest-Eimer. Der Name ist der
+    deutsche Zaehlschluessel; die Anzeige uebersetzt ihn mit tr()."""
     for name, pattern in _COMMAND_KINDS:
         if pattern.search(utterance or ""):
             return name
-    return "Umformulieren"
+    return N_("Umformulieren")
 
 
 def overlap_threshold_for(utterance: str) -> float | None:

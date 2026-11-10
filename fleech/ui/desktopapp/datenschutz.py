@@ -8,6 +8,7 @@ sagen, dass umgestellt wurde, samt dem Wiederherstellungscode.
 from __future__ import annotations
 
 import logging
+from ...i18n import tr
 
 log = logging.getLogger(__name__)
 
@@ -29,9 +30,9 @@ class DatenschutzMixin:
         if bericht is None:
             return
         if bericht.fehlgeschlagen:
-            self.tray.notify("Fleech", "Die Verschlüsselung deiner Daten konnte nicht "
-                                       "abgeschlossen werden. Fleech versucht es beim "
-                                       "nächsten Start erneut.")
+            self.tray.notify("Fleech", tr("Die Verschlüsselung deiner Daten konnte nicht "
+                                          "abgeschlossen werden. Fleech versucht es beim "
+                                          "nächsten Start erneut."))
             return
         if bericht.etwas_getan and not self.settings.general.wiederherstellung_notiert:
             self.zeige_wiederherstellungscode(nach_umstellung=True)

@@ -16,6 +16,8 @@ from PySide6.QtWidgets import (
 )
 
 from ...history import HistoryStore
+from ...i18n import N_, tr
+from ...profiles import anzeigename as profilname
 from ...usersettings import UserSettings
 from ..theme import (
     ACCENT, ACCENT_DIM, BORDER_HAIRLINE, CARD, MUTED, NAV_ACTIVE_BG, PAGE_MARGINS,
@@ -47,7 +49,7 @@ class AppsPage(QWidget):
     nur die Blickrichtung dreht sich. Keine Migration.
     """
 
-    KEIN_PROFIL = "— kein Profil (Standard)"
+    KEIN_PROFIL = N_("— kein Profil (Standard)")
 
     def __init__(self, settings: UserSettings, store: HistoryStore, on_changed=None,
                  kontext_fn=None):
@@ -72,13 +74,13 @@ class AppsPage(QWidget):
         # Umschalten sprang dadurch sichtbar das ganze Layout.
         layout.setContentsMargins(*PAGE_MARGINS)
         layout.setSpacing(PAGE_SPACING)
-        titel = QLabel("Apps")
+        titel = QLabel(tr("Apps"))
         titel.setStyleSheet(page_title_qss())
         layout.addWidget(titel)
-        unter = QLabel("Anwendung links wählen. In der Mitte, welches Profil "
-                       "Fleech dort automatisch nimmt — rechts, zwischen welchen "
-                       "der Profil-Hotkey dort wechselt. Ohne Zuordnung gilt das "
-                       "Standardprofil oder das, was du von Hand gewählt hast.")
+        unter = QLabel(tr("Anwendung links wählen. In der Mitte, welches Profil "
+                          "Fleech dort automatisch nimmt — rechts, zwischen welchen "
+                          "der Profil-Hotkey dort wechselt. Ohne Zuordnung gilt das "
+                          "Standardprofil oder das, was du von Hand gewählt hast."))
         unter.setWordWrap(True)
         unter.setStyleSheet(f"color: {MUTED}; font-size: 9pt;")
         layout.addWidget(unter)
@@ -96,8 +98,8 @@ class AppsPage(QWidget):
             f"QListWidget::item:hover {{ background: {ROW_HOVER}; }}"
             f"QListWidget::item:selected {{ background: {NAV_ACTIVE_BG}; color: {ACCENT}; }}"
         )
-        links, links_box = _card("Anwendungen")
-        self._app_suche = _suchfeld("Anwendung suchen …")
+        links, links_box = _card(tr("Anwendungen"))
+        self._app_suche = _suchfeld(tr("Anwendung suchen …"))
         self._app_suche.textChanged.connect(lambda _t: self._filter_apps())
         links_box.addWidget(self._app_suche)
         self._apps = QListWidget()
@@ -107,13 +109,13 @@ class AppsPage(QWidget):
         links_box.addWidget(self._apps, 1)
         body.addWidget(links, 5)
 
-        rechts, rechts_box = _card("Zuordnung")
+        rechts, rechts_box = _card(tr("Zuordnung"))
         self._app_titel = QLabel("")
         self._app_titel.setStyleSheet(
             f"color: {TEXT}; font-size: 11pt; font-weight: 600;")
         rechts_box.addWidget(self._app_titel)
 
-        hinweis = QLabel("Profil für diese Anwendung")
+        hinweis = QLabel(tr("Profil für diese Anwendung"))
         hinweis.setStyleSheet(f"color: {MUTED}; font-size: 9pt;")
         rechts_box.addWidget(hinweis)
         self._profil_combo = QComboBox()
@@ -135,14 +137,14 @@ class AppsPage(QWidget):
         # zeigten drei Zeilen mit Scrollbalken — man sah nicht einmal, welche
         # angehakt sind. Und es ist ohnehin eine andere Frage: „welches Profil gilt
         # hier" (Mitte) gegen „zwischen welchen kann ich hier wechseln" (rechts).
-        dritte, dritte_box = _card("Schnellwechsel")
+        dritte, dritte_box = _card(tr("Schnellwechsel"))
         self._app_titel2 = QLabel("")
         self._app_titel2.setStyleSheet(
             f"color: {TEXT}; font-size: 11pt; font-weight: 600;")
         dritte_box.addWidget(self._app_titel2)
-        schnell_hinweis = QLabel(
+        schnell_hinweis = QLabel(tr(
             "Was der Profil-Hotkey in dieser Anwendung durchtippt — und beim "
-            "Halten zur Auswahl stellt. Alles angehakt = keine Einschränkung.")
+            "Halten zur Auswahl stellt. Alles angehakt = keine Einschränkung."))
         schnell_hinweis.setWordWrap(True)
         schnell_hinweis.setStyleSheet(f"color: {MUTED}; font-size: 8.5pt;")
         dritte_box.addWidget(schnell_hinweis)
@@ -163,10 +165,10 @@ class AppsPage(QWidget):
         dritte_box.addWidget(self._schnell, 1)
 
         rechts_box.addSpacing(8)
-        regel_hinweis = QLabel(
+        regel_hinweis = QLabel(tr(
             "Ausnahmen nach Fenstertitel — derselbe Prozess trägt oft sehr "
             "verschiedene Kontexte (ein Editor mit Code, einer mit Notizen). "
-            "Eine Ausnahme gewinnt gegen das Profil oben. Doppelklick entfernt sie.")
+            "Eine Ausnahme gewinnt gegen das Profil oben. Doppelklick entfernt sie."))
         regel_hinweis.setWordWrap(True)
         regel_hinweis.setStyleSheet(f"color: {MUTED}; font-size: 8.5pt;")
         rechts_box.addWidget(regel_hinweis)
@@ -182,7 +184,7 @@ class AppsPage(QWidget):
         neu_row = QHBoxLayout()
         neu_row.setSpacing(6)
         self._regel_titel = QLineEdit()
-        self._regel_titel.setPlaceholderText("Titel …")
+        self._regel_titel.setPlaceholderText(tr("Titel …"))
         self._regel_titel.setStyleSheet(
             f"QLineEdit {{ background: {CARD}; color: {TEXT};"
             f"  border: 1px solid {BORDER_HAIRLINE}; border-radius: 8px;"
@@ -193,7 +195,7 @@ class AppsPage(QWidget):
         self._regel_profil = QComboBox()
         self._regel_profil.setStyleSheet(self._profil_combo.styleSheet())
         neu_row.addWidget(self._regel_profil, 2)
-        plus = style_button(QPushButton("Hinzufügen"), "ghost")
+        plus = style_button(QPushButton(tr("Hinzufügen")), "ghost")
         plus.clicked.connect(self._regel_hinzufuegen)
         neu_row.addWidget(plus)
         rechts_box.addLayout(neu_row)
@@ -259,26 +261,28 @@ class AppsPage(QWidget):
                           (vorschlag.alternative, "ghost")):
             if not name:
                 continue
-            knopf = style_button(
-                QPushButton(f"{name} zuweisen" if art == "primary" else name), art)
+            anzeige = profilname(name)
+            knopf = style_button(QPushButton(
+                tr("{name} zuweisen", name=anzeige) if art == "primary" else anzeige), art)
             knopf.setProperty("app", vorschlag.app)
             knopf.setProperty("profil", name)
-            knopf.setToolTip(f"Trägt {vorschlag.app} beim Profil „{name}“ ein — "
-                             f"dieselbe Regel, die du unten von Hand anlegen "
-                             f"würdest. Zugewiesen wird nur auf Klick.")
+            knopf.setToolTip(tr("Trägt {app} beim Profil „{name}“ ein — dieselbe "
+                                "Regel, die du unten von Hand anlegen würdest. "
+                                "Zugewiesen wird nur auf Klick.",
+                                app=vorschlag.app, name=anzeige))
             # Werte am Knopf, gebundene Methode am Signal (CLAUDE.md,
             # Referenzzyklus): kein Lambda, das `self` in ein Kind-Widget zieht.
             knopf.clicked.connect(self._vorschlag_geklickt)
             knopfreihe.addWidget(knopf)
-        weg = style_button(QPushButton("Nicht mehr fragen"), "ghost")
+        weg = style_button(QPushButton(tr("Nicht mehr fragen")), "ghost")
         weg.setProperty("app", vorschlag.app)
         # Ehrlich, wo es weh tut: Die Liste hat (noch) keinen Editor. Ein Tooltip,
         # der auf eine Seite verweist, die es nicht gibt, ist genau die Sorte
         # Anzeige-ohne-Wirkung, gegen die diese ganze Karte gebaut ist.
-        weg.setToolTip("Diese Anwendung nicht mehr vorschlagen. Gilt dauerhaft; "
-                       "zurückholen lässt es sich nur in der settings.json "
-                       "(profiles.vorschlag_ignores). Ein Profil kannst du ihr "
-                       "trotzdem jederzeit unten von Hand geben.")
+        weg.setToolTip(tr("Diese Anwendung nicht mehr vorschlagen. Gilt dauerhaft; "
+                          "zurückholen lässt es sich nur in der settings.json "
+                          "(profiles.vorschlag_ignores). Ein Profil kannst du ihr "
+                          "trotzdem jederzeit unten von Hand geben."))
         weg.clicked.connect(self._vorschlag_ignoriert)
         knopfreihe.addWidget(weg)
         knopfreihe.addStretch(1)
@@ -339,11 +343,11 @@ class AppsPage(QWidget):
             f"color: {TEXT}; font-size: 8.5pt; background: {CARD};"
             f"  border: 1px solid {BORDER_HAIRLINE}; border-radius: 8px;"
             f"  padding: 7px 10px;")
-        self._jetzt.setToolTip(
+        self._jetzt.setToolTip(tr(
             "Führt die Zuordnung vor, statt sie zu behaupten: Vordergrund-App, "
             "das daraus aufgelöste Profil samt Regel, und was es am Diktat ändert. "
             "Ein Tippfehler in einer Titel-Regel fällt sonst nie auf — sie greift "
-            "einfach stumm nie.")
+            "einfach stumm nie."))
         layout.addWidget(self._jetzt)
         # Gebundene Methode statt Lambda (CLAUDE.md, Referenzzyklus): ein Lambda mit
         # `self` als Attribut eines Kind-Objekts baut einen Zyklus.
@@ -396,11 +400,11 @@ class AppsPage(QWidget):
         zeile = QHBoxLayout()
         zeile.setSpacing(6)
         self._titel_knopf = style_button(
-            QPushButton("Aktuellen Titel übernehmen"), "ghost")
-        self._titel_knopf.setToolTip(
+            QPushButton(tr("Aktuellen Titel übernehmen")), "ghost")
+        self._titel_knopf.setToolTip(tr(
             "Trägt den Fenstertitel der zuletzt im Vordergrund gewesenen fremden "
             "Anwendung unten ein — Fleech selbst zählt nicht. Der Titel bleibt "
-            "danach änderbar; meist will man nur den stabilen Teil davon.")
+            "danach änderbar; meist will man nur den stabilen Teil davon."))
         self._titel_knopf.clicked.connect(self._titel_uebernehmen)
         zeile.addWidget(self._titel_knopf)
         self._titel_hinweis = QLabel("")
@@ -430,11 +434,12 @@ class AppsPage(QWidget):
         self._titel_knopf.setEnabled(bool(app) and bool(titel))
         if not titel:
             self._titel_hinweis.setText(
-                "Noch kein fremdes Fenster gesehen — wechsle einmal hinüber.")
+                tr("Noch kein fremdes Fenster gesehen — wechsle einmal hinüber."))
         elif app and herkunft.lower() != app.lower():
-            self._titel_hinweis.setText(f"aus {herkunft}: „{titel}“")
+            self._titel_hinweis.setText(
+                tr("aus {app}: „{titel}“", app=herkunft, titel=titel))
         else:
-            self._titel_hinweis.setText(f"„{titel}“")
+            self._titel_hinweis.setText(tr("„{titel}“", titel=titel))
         self._zeige_segmente(segmente(getattr(self, "_titel_puffer", []), app,
                                       self._gelernte_segmente(app)))
 
@@ -484,8 +489,8 @@ class AppsPage(QWidget):
         for segment in segmente:
             knopf = style_button(QPushButton(segment), "ghost")
             knopf.setProperty("segment", segment)
-            knopf.setToolTip("Nur diesen Teil des Titels als Bedingung nehmen — "
-                             "er bleibt stehen, wenn der Rest wechselt.")
+            knopf.setToolTip(tr("Nur diesen Teil des Titels als Bedingung nehmen — "
+                                "er bleibt stehen, wenn der Rest wechselt."))
             # Bewusst kein Lambda mit `self` (CLAUDE.md, Referenzzyklus): der Wert
             # haengt am Knopf, die gebundene Methode holt ihn ueber sender().
             knopf.clicked.connect(self._segment_uebernehmen)
@@ -563,11 +568,11 @@ class AppsPage(QWidget):
                 gesehen.add(schluessel)
                 tage = stale.get(schluessel)
                 if tage is None:
-                    zusatz = "zugewiesen"
+                    zusatz = tr("zugewiesen")
                 elif tage:
-                    zusatz = f"seit {tage} Tagen nicht gesehen"
+                    zusatz = tr("seit {n} Tagen nicht gesehen", n=tage)
                 else:
-                    zusatz = "noch nie gesehen"
+                    zusatz = tr("noch nie gesehen")
                 self._eintrag(prozess, [zusatz], hinweis=True)
 
         # 2. Apps mit Verlauf, die meistbenutzte zuerst. „laeuft" ist hier ein
@@ -578,8 +583,8 @@ class AppsPage(QWidget):
             if app.lower() in gesehen:
                 continue
             gesehen.add(app.lower())
-            zusaetze = (["läuft"] if app.lower() in laeuft else []) + \
-                       [f"{words} Wörter diktiert"]
+            zusaetze = ([tr("läuft")] if app.lower() in laeuft else []) + \
+                       [tr("{n} Wörter diktiert", n=words)]
             self._eintrag(app, zusaetze)
             if not self._vorgabe_app:
                 self._vorgabe_app = app
@@ -589,7 +594,7 @@ class AppsPage(QWidget):
             if app.lower() in gesehen:
                 continue
             gesehen.add(app.lower())
-            self._eintrag(app, ["läuft"])
+            self._eintrag(app, [tr("läuft")])
         self._loading = False
         self._zeige_apps(vorher)
         # Nach der Liste, weil die Karte dieselben Zuordnungen liest: Ein gerade
@@ -655,9 +660,9 @@ class AppsPage(QWidget):
         zusatz = "   ·  ".join(zusaetze)
         text = f"{app}   ·  {zusatz}"
         if profil:
-            text += f"   →  {profil}"
+            text += f"   →  {profilname(profil)}"
         if ausnahmen:
-            text += f"   (+{ausnahmen} nach Titel)"
+            text += "   " + tr("(+{n} nach Titel)", n=ausnahmen)
         self._erhoben.append((app, zusatz, text, hinweis))
 
     def _refresh_detail(self) -> None:
@@ -668,7 +673,7 @@ class AppsPage(QWidget):
         self._regeln.clear()
         self._profil_combo.clear()
         self._regel_profil.clear()
-        self._profil_combo.addItem(self.KEIN_PROFIL, "")
+        self._profil_combo.addItem(tr(self.KEIN_PROFIL), "")
         # Bei den TITEL-Ausnahmen steht das Standardprofil bewusst zur Wahl und
         # bewusst vorn (Befund G-B8): „in diesem einen Fenster gilt wieder das
         # Normale" liess sich sonst gar nicht ausdruecken, und die Vorgabe war das
@@ -677,13 +682,13 @@ class AppsPage(QWidget):
         for p in self._items():
             if p.get("default"):
                 name = str(p.get("name", ""))
-                self._regel_profil.addItem(name, name)
+                self._regel_profil.addItem(profilname(name), name)
         for p in self._items():
             if not p.get("default"):
                 name = str(p.get("name", ""))
-                self._profil_combo.addItem(name, name)
-                self._regel_profil.addItem(name, name)
-        self._app_titel.setText(app or "Keine Anwendung gewählt")
+                self._profil_combo.addItem(profilname(name), name)
+                self._regel_profil.addItem(profilname(name), name)
+        self._app_titel.setText(app or tr("Keine Anwendung gewählt"))
         self._app_titel2.setText(app or "—")
         self._profil_combo.setEnabled(bool(app))
         for w in (self._regel_titel, self._regel_profil):
@@ -702,8 +707,9 @@ class AppsPage(QWidget):
                 if prozess.lower() != app.lower():
                     continue
                 if titel:
-                    zeile = QListWidgetItem(
-                        f"Titel enthält „{titel}“   →  {p.get('name', '')}")
+                    zeile = QListWidgetItem(tr(
+                        "Titel enthält „{titel}“   →  {profil}", titel=titel,
+                        profil=profilname(str(p.get("name", "")))))
                     zeile.setData(Qt.UserRole, (str(p.get("name", "")), eintrag))
                     self._regeln.addItem(zeile)
                 else:
@@ -776,7 +782,7 @@ class AppsPage(QWidget):
         erlaubt = {str(n).lower()
                    for n in (self._app_quick().get((app or "").lower()) or [])}
         for name in namen:
-            item = QListWidgetItem(name)
+            item = QListWidgetItem(profilname(name))
             item.setFlags(item.flags() | Qt.ItemIsUserCheckable)
             # Ohne Eintrag ist ALLES erlaubt — dann alle Haken setzen, sonst saehe
             # eine unkonfigurierte App aus, als waere der Schnellwechsel dort leer.

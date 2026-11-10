@@ -17,6 +17,7 @@ from __future__ import annotations
 import datetime
 import logging
 import threading
+from ...i18n import tr
 
 log = logging.getLogger(__name__)
 
@@ -81,5 +82,6 @@ class ModellpruefungMixin:
         self.settings.save()
         log.info("Modellpruefung: %s → %s vorgeschlagen.", befund.aktuell, befund.neuer)
         if neu:
-            self.tray.notify("Fleech — Vorschlag zum KI-Modell",
-                             f"{befund.grund} Übernehmen unter Einstellungen → KI & Text.")
+            self.tray.notify(tr("Fleech — Vorschlag zum KI-Modell"),
+                             tr("{grund} Übernehmen unter Einstellungen → KI & Text.",
+                                grund=befund.grund))

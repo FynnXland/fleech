@@ -14,6 +14,7 @@ from __future__ import annotations
 import logging
 import re
 
+from ..i18n import tr
 from .providers import ANTHROPIC_VERSION, anbieter, ist_lokales_ollama
 
 log = logging.getLogger(__name__)
@@ -208,7 +209,8 @@ def ollama_pull(base_url: str, model: str, on_progress=None, timeout: float = 36
                     prozent = int(fertig * 100 / gesamt)
                     if prozent >= zuletzt + 5:     # nicht bei jedem Chunk melden
                         zuletzt = prozent
-                        on_progress(f"Lade Sprachmodell {model} … {prozent} %")
+                        on_progress(tr("Lade Sprachmodell {model} … {prozent} %",
+                                       model=model, prozent=prozent))
     except Exception as exc:
         log.warning("Ollama-Download von %s fehlgeschlagen: %s", model, exc)
         return False
@@ -264,12 +266,13 @@ def ensure_ollama_models(endpoints, on_progress=None, on_hinweis=None,
         def phase(text: str, _ziel=ziel) -> None:
             stand["text"], stand["zuletzt"] = text, -10
             if on_progress:
-                on_progress(f"Sprachmodell {_ziel}: {text} …")
+                on_progress(tr("Sprachmodell {ziel}: {text} …", ziel=_ziel, text=text))
 
         def prozent(wert: int, _ziel=ziel) -> None:
             if on_progress and (wert >= stand["zuletzt"] + 5 or wert == 100):
                 stand["zuletzt"] = wert
-                on_progress(f"Sprachmodell {_ziel}: {stand['text']} … {wert} %")
+                on_progress(tr("Sprachmodell {ziel}: {text} … {wert} %",
+                               ziel=_ziel, text=stand["text"], wert=wert))
 
         def menge(fertig: int, gesamt: int) -> None:
             if gesamt > 50 * 1024 * 1024:      # Vorlage, Lizenz, Parameter zaehlen nicht

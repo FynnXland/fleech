@@ -118,11 +118,12 @@ def test_statusmeldungen_haengen_an_echten_stufen():
     # Bereinigung und Einfügen melden sich; die Formate haben eigene Meldungen.
     # Der Text der Bereinigung ist ein Attribut (die App setzt ihn, solange das
     # Modell erst geladen wird), gemeldet wird er unmittelbar vor dem Bereinigen.
-    assert '_status(self.status_bereinigen)' in quelle
+    # Seit 6.6.0 geht der Text beim Melden durch tr() (Sprache der Oberflaeche).
+    assert '_status(tr(self.status_bereinigen))' in quelle
     assert Pipeline(stt=None, cleanup_llm=None, injector=None,
                     cleanup_prompt="S").status_bereinigen == "Bereinige …"
-    assert '_status("Füge ein …")' in quelle
+    assert '_status(tr("Füge ein …"))' in quelle
     # Die Meldung fürs Einfügen steht IN _inject_append — also erst, wenn
     # tatsächlich eingefügt wird, nicht vorher irgendwo im Ablauf.
     rumpf = inspect.getsource(Pipeline._inject_append)
-    assert '_status("Füge ein …")' in rumpf
+    assert '_status(tr("Füge ein …"))' in rumpf

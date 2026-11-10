@@ -18,7 +18,7 @@ import threading
 from dataclasses import asdict, dataclass, field
 from pathlib import Path
 
-from . import einstellungssicherung, tresor
+from . import einstellungssicherung, i18n, tresor
 from .platformpaths import user_data_dir
 from .profiles import ProfilesSettings
 from .settingsheilung import (
@@ -68,7 +68,8 @@ def _lies_json(path: Path):
 @dataclass
 class GeneralSettings:
     autostart: bool = False
-    language: str = "de"
+    language: str = "de"                # Sprache der Erkennung (Whisper)
+    ui_language: str = "auto"           # Oberfläche: auto (Systemsprache) | de | en
     # Diktat-Historie fuer Home/Insights (lokal, %APPDATA%/Fleech/history.db).
     save_history: bool = True
     verlauf_tage: int = 90              # Aufbewahrungsfrist, 0 = unbegrenzt (history)
@@ -79,10 +80,9 @@ class GeneralSettings:
     # „Überspringen" — nicht vom X: Wer mitten in der Einrichtung schliesst, sieht
     # sie beim naechsten Start wieder (seit 6.2.0).
     onboarding_done: bool = False
-    # Welche Fleech-Version zuletzt in diese Datei geschrieben hat. Einziger Zweck:
-    # Der Start erkennt einen Versionswechsel und legt VOR dem ersten Schreiben
-    # eine datierte Sicherung an (fleech/einstellungssicherung.py). Leer =
-    # Bestandsdatei aus der Zeit vor 5.11.4; das zaehlt als Wechsel und sichert.
+    # Zuletzt schreibende Fleech-Version: Ein Versionswechsel legt VOR dem ersten
+    # Schreiben eine datierte Sicherung an (fleech/einstellungssicherung.py).
+    # Leer = Bestandsdatei von vor 5.11.4; das zaehlt als Wechsel und sichert.
     last_version: str = ""
 
 
@@ -301,11 +301,11 @@ class FocusSettings:
 
 
 # --- Abgeleitete Stufen (wie math_level): EIN Regler statt vieler Einzelfelder. ---
-# Bewusst KEINE neuen Felder — die technischen Werte bleiben die Quelle der Wahrheit,
-# alte settings.json laufen ohne Migration weiter, und wer will, kann sie weiterhin
-# von Hand feiner einstellen, als die Oberflaeche es anbietet.
+# Bewusst KEINE neuen Felder: Die technischen Werte bleiben die Quelle der Wahrheit
+# (alte settings.json laufen ohne Migration, von Hand feiner einstellbar).
 
-OVERLAY_COMPACTNESS = (("tight", "Eng"), ("normal", "Standard"), ("roomy", "Luftig"))
+OVERLAY_COMPACTNESS = (("tight", i18n.N_("Eng")), ("normal", i18n.N_("Standard")),
+                       ("roomy", i18n.N_("Luftig")))
 
 # Stufe → (links, rechts, oben, unten) in px vor Skalierung.
 _COMPACTNESS_EDGES = {
@@ -338,14 +338,14 @@ def apply_overlay_compactness(o: OverlaySettings, level: str) -> None:
     o.edge_left, o.edge_right, o.edge_top, o.edge_bottom = preset
 
 
-TOAST_LEVELS = (("none", "Nichts"), ("important", "Wichtiges"), ("all", "Alles"))
+TOAST_LEVELS = (("none", i18n.N_("Nichts")), ("important", i18n.N_("Wichtiges")),
+                ("all", i18n.N_("Alles")))
 
 _TOAST_FIELDS = ("toasts_enabled", "toast_critical_always", "toast_background_info",
                  "toast_provider_quota", "toast_long_processing")
 
-# "Wichtiges" = nur was auf ein PROBLEM hinweist (kritische Fehler, Anbieter-Quota).
-# Reine Statusmeldungen ("laeuft im Hintergrund", "Verarbeitung fertig") sind Komfort
-# und gehoeren zu "Alles".
+# "Wichtiges" = nur was auf ein PROBLEM hinweist (kritische Fehler, Anbieter-Quota);
+# reine Statusmeldungen ("laeuft im Hintergrund", "fertig") gehoeren zu "Alles".
 _TOAST_PRESETS = {
     "none": (False, False, False, False, False),
     "important": (True, True, False, True, False),

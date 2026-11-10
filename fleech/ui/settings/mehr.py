@@ -15,10 +15,11 @@ from __future__ import annotations
 from PySide6.QtCore import Qt
 from PySide6.QtWidgets import QFormLayout, QPushButton, QVBoxLayout, QWidget
 
+from ...i18n import N_, tr
 from ..theme import MUTED, TEXT
 
-ZU = "Mehr Optionen ▸"
-AUF = "Weniger Optionen ▾"
+ZU = N_("Mehr Optionen ▸")
+AUF = N_("Weniger Optionen ▾")
 
 
 def bereich(seite, form: QFormLayout) -> QFormLayout:
@@ -26,7 +27,7 @@ def bereich(seite, form: QFormLayout) -> QFormLayout:
     dessen eigenes Formular zurueckgeben. `seite` ist die QScrollArea aus
     `panel._page()`."""
     aussen: QVBoxLayout = seite.widget().layout()
-    knopf = QPushButton(ZU)
+    knopf = QPushButton(tr(ZU))
     knopf.setObjectName("mehrOptionen")
     knopf.setCursor(Qt.PointingHandCursor)
     knopf.setFlat(True)
@@ -50,7 +51,7 @@ def bereich(seite, form: QFormLayout) -> QFormLayout:
     def umschalten(_=False, _b=behaelter, _k=knopf):
         auf = _b.isHidden()
         _b.setHidden(not auf)
-        _k.setText(AUF if auf else ZU)
+        _k.setText(tr(AUF if auf else ZU))
 
     knopf.clicked.connect(umschalten)
     # Vor dem Stretch am Ende einfuegen, damit alles oben buendig bleibt.

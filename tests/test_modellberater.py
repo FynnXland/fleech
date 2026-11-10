@@ -276,3 +276,33 @@ def test_ignorierter_vorschlag_bleibt_still():
     app.settings.ki.ignoriert = ["gpt-5-mini"]
     app._on(berater.Befund("openai", "gpt-4o-mini", "gpt-5-mini", "x"))
     assert app.gemeldet == [] and app.settings.ki.hinweis_modell == ""
+
+
+# -- Englische Oberflaeche (6.6.0) --------------------------------------------------------
+
+
+def test_jede_katalognotiz_ist_uebersetzbar():
+    """Die Notizen in modelle.json werden angezeigt (Modellwahl, Vorschlag). Der
+    Katalog bleibt deutsch und formatgleich; uebersetzt wird ueber die Liste
+    `KATALOG_NOTIZEN`. Wer eine Notiz aendert, traegt sie dort mit ein."""
+    daten = berater.mitgelieferter_katalog()
+    fehlen = [m.notiz for m in berater.ollama_modelle(daten)
+              if m.notiz and m.notiz not in berater.KATALOG_NOTIZEN]
+    assert not fehlen, fehlen
+
+
+def test_auswahl_und_vorschlag_auf_englisch():
+    import fleech.i18n as i18n
+
+    i18n.setze("en")
+    try:
+        wahl = berater.lokale_auswahl(berater.mitgelieferter_katalog(), {"gemma3:4b"})
+        texte = " ".join(f"{w.label} {w.notiz}" for w in wahl)
+        assert "recommended" in texte and "installed" in texte
+        assert "empfohlen" not in texte and "Diktaten" not in texte
+        assert "2.5\xa0GB" in texte or "2.5 GB" in texte
+        eintraege, _, _ = berater.cloud_auswahl("openai", ["gpt-4o-mini", "gpt-5-mini"], {})
+        assert eintraege[0].label == "gpt-4o-mini · recommended"
+        assert eintraege[1].label == "gpt-5-mini · newer"
+    finally:
+        i18n.setze("de")

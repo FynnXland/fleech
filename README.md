@@ -33,8 +33,9 @@ no subscription, and your audio never leaves your PC. Fleech is a local, open-so
 alternative to cloud tools like Wispr Flow.
 
 > [!NOTE]
-> The interface is German for now; an English version is planned. Dictation works in
-> **German and English** (Settings → *Allgemein* (General), or per profile).
+> The interface comes in **English and German** and follows your Windows display language
+> (Settings → *General* → *Interface language*). Dictation works in **German and English**
+> (Settings → *General* → *Dictation language*, or per profile).
 
 ## Why not just Whisper + ChatGPT?
 
@@ -108,11 +109,11 @@ optionally by window title. The three rewriting formats are German only for now.
   <img src="docs/media/profiles.gif" width="760" alt="One dictation, four profiles: plain text, an email, bullet points and an AI prompt">
 </p>
 
-- **Eight profiles.** Standard, *Geschäftlich* (business), *Privat* (private), Coding,
-  *Mathe* (maths), *E-Mail*, *KI-Prompt* (AI prompt) and *Stichpunkte* (bullet points).
+- **Eight profiles.** Standard, Business, Personal, Coding, Math, Email, AI prompt and
+  Bullet points.
 - **Personal dictionary.** Names and jargon spelled your way, and a hint for Whisper.
 - **Text snippets.** Say a short code word and a fixed block of text appears, such as your
-  signature, untouched by the AI (Settings → *Wörterbuch*).
+  signature, untouched by the AI (Settings → *Dictionary*).
 - **Translate per profile.** Dictate in your language and paste in English, French, Spanish
   and more, for example in a Slack profile. Fleech checks each translation and keeps your
   words if numbers or formulas get lost.
@@ -123,10 +124,10 @@ optionally by window title. The three rewriting formats are German only for now.
 <details>
 <summary><b>More features</b></summary>
 
-- **Formulas to LaTeX** (opt-in under Settings → *KI & Text* → *Mehr Optionen*, German only): spoken maths is parsed without a model, and anything ambiguous is flagged as a guess.
+- **Formulas to LaTeX** (opt-in under Settings → *AI & Text* → *More options*, German only): spoken maths is parsed without a model, and anything ambiguous is flagged as a guess.
   <p align="center"><img src="docs/media/math.gif" width="760" alt="Spoken formulas become LaTeX; an ambiguous one is flagged as a guess"></p>
-- **Nudge mode** (*Anstupsen*): press once and talk; the dictation ends on its own when you pause.
-- **Cursor return** (*Cursor-Rückkehr*): the text goes into the field where you started, even if you clicked elsewhere meanwhile.
+- **Nudge mode:** press once and talk; the dictation ends on its own when you pause.
+- **Return to cursor:** the text goes into the field where you started, even if you clicked elsewhere meanwhile.
 - **Audio ducking:** music and videos get quieter while you dictate.
 - **Game and fullscreen detection:** frees GPU memory by unloading the language model, and respects Do Not Disturb.
 - **Keep-warm control:** keep the language model loaded for 3–45 min after a dictation, permanently, or not at all.
@@ -175,17 +176,17 @@ plus dictionary suggestions for words that keep being misheard.
 **Profiles:** tone, format, language and safe word per profile.
 <p align="center"><img src="docs/media/profiles.png" width="838" alt="Profile page with the E-Mail profile selected"></p>
 
-**Settings → *Allgemein* (General):** language, recording mode, hotkey and microphone; everything
-else sits under *Mehr Optionen* (more options) on each of the six pages.
+**Settings → *General*:** dictation language, recording mode, hotkey and microphone; everything
+else sits under *More options* on each of the six pages.
 <p align="center"><img src="docs/media/settings-recording.png" width="838" alt="General settings with F9 as push-to-talk key"></p>
 
-**Settings → *KI & Text* (AI & text):** local, your own key, or no AI.
+**Settings → *AI & Text*:** local, your own key, or no AI.
 <p align="center"><img src="docs/media/settings-ai.png" width="838" alt="AI settings: local Ollama selected by default"></p>
 
 </details>
 
 <sub>All screenshots and GIFs show invented sample data and real output of gemma3:4b-text.
-The interface is German, so the English GIFs show German labels too.</sub>
+They were recorded with the German interface, so they show German labels.</sub>
 
 ## Installation
 
@@ -198,7 +199,7 @@ The interface is German, so the English GIFs show German labels too.</sub>
 **Requirements**
 
 - Windows 10 or 11, 64-bit (tested on 11), or Linux with X11 (under Wayland some features
-  are limited; Settings → *Allgemein* lists them). A microphone; internet for the setup.
+  are limited; Settings → *General* lists them). A microphone; internet for the setup.
 - About **10 GB** of free disk space: app 2.2 GB, Ollama 3.1 GB, language model 2.5 GB,
   speech model 1.6 GB (about 6.5 GB if Ollama is already installed). During setup another
   3.3 GB are needed briefly for the original model, which Fleech removes again.
@@ -253,16 +254,16 @@ after a start takes a few seconds longer while the models load.
 | <kbd>Ctrl</kbd>+<kbd>Alt</kbd>+<kbd>Z</kbd> | Insert the raw transcript instead of the cleaned text (once, within 120 s, same window) |
 | *Profil wechseln* (switch profile) | Unbound by default: tap for the next profile, hold to pick from a list |
 
-You can change every hotkey under Settings → *Allgemein* → *Mehr Optionen* and also bind mouse
+You can change every hotkey under Settings → *General* → *More options* and also bind mouse
 buttons 4, 5 and middle.
 
 - **Recording modes:** *Hold-to-talk* (default), *Toggle* (press to start, press again to
-  finish) or *Anstupsen* (nudge): press once, and the dictation ends after 1–4 s of silence.
+  finish) or *Nudge*: press once, and the dictation ends after 1–4 s of silence.
 - **Safe word:** "Kimono, make that more formal" acts on what you just dictated; change it
-  under Settings → *KI & Text* → *Mehr Optionen*. Off in *Geschäftlich* and the rewriting profiles.
+  under Settings → *AI & Text* → *More options*. Off in *Business* and the rewriting profiles.
 - **Profiles:** during a recording, tap the dot on the left of the pill to cycle. The *Apps*
   page sets which profile applies where; rewriting profiles are assigned to no app at first.
-- **Dictionary:** Settings → *Wörterbuch* (dictionary). Names, jargon and
+- **Dictionary:** Settings → *Dictionary*. Names, jargon and
   abbreviations you use a lot: the most effective tweak there is.
 - **Tray:** closing the window keeps Fleech running; quit via the tray icon → *Beenden*.
 - **Updates (Windows):** downloaded in the background, SHA-256 verified, installed only
@@ -276,28 +277,28 @@ on the [mode you choose](#choose-how-it-runs). Besides that, Fleech only goes on
 - **First-run setup:** Ollama (via `winget`), `gemma3:4b` from the Ollama library (turned
   into `gemma3:4b-text` on your machine) and the Whisper model from Hugging Face.
 - **Update check:** asks GitHub for the latest release. You can turn the check off, or just
-  the background download, under Settings → *Allgemein* → *Mehr Optionen*.
+  the background download, under Settings → *General* → *More options*.
 - **Model check:** once a week Fleech looks for a newer model for your choice, in its model
   list on GitHub and the Ollama library, or in your cloud provider's model list. It only
-  suggests, never switches by itself; turn it off under Settings → *KI & Text* → *Mehr Optionen*.
+  suggests, never switches by itself; turn it off under Settings → *AI & Text* → *More options*.
 - **Optional models** from Hugging Face, only if you choose them: the German speech model
   and the small model of the experimental live preview. **Your cloud provider**, if chosen.
-- **Cloud fallback** (off by default): if you pick a provider under Settings → *KI & Text* →
-  *Mehr Optionen* → *Wenn die lokale KI hängt* (if the local AI stalls), only the dictations the local model
+- **Cloud fallback** (off by default): if you pick a provider under Settings → *AI & Text* →
+  *More options* → *When the local AI hangs*, only the dictations the local model
   doesn't finish in time or fails on are cleaned up there. The history marks them.
 
 All data lives in one folder: `%APPDATA%\Fleech` on Windows, `~/.config/Fleech` on Linux.
-History, project memory (*Gedächtnis*) and settings are **encrypted at rest** (SQLCipher with AES-256 for
+History, project memory and settings are **encrypted at rest** (SQLCipher with AES-256 for
 the whole database files, AES-256-GCM for the settings). The key is bound to your Windows
 account via DPAPI (Linux: Secret Service) and unlocks when you sign in; a recovery code
-(Settings → *Datenschutz*) reopens your data after a Windows reinstall.
+(Settings → *Privacy*) reopens your data after a Windows reinstall.
 This protects against a stolen or copied disk, other accounts and backups, not against
 malware in your own account while Fleech is open.
 
 | File | What it holds |
 |---|---|
 | `settings.json` | Settings, profiles and dictionary (encrypted); protected by `settings.json.bak` and dated backups in `sicherungen/` |
-| `history.db` | Dictation history (raw and cleaned text, encrypted); deleted after 90 days by default, can be switched off and cleared under Settings → *Datenschutz* (privacy) |
+| `history.db` | Dictation history (raw and cleaned text, encrypted); deleted after 90 days by default, can be switched off and cleared under Settings → *Privacy* |
 | `kontext.db` | Project memory (encrypted): terms learned per app, used only to prime local speech recognition |
 | `schluessel.dpapi` | The data key, protected by Windows (DPAPI); useless on another account or PC |
 | `fleech.log` | Log (rotates at 20 MB). Contains no dictated text, only word counts, unless you turn on *Diktattexte ins Protokoll* for troubleshooting |
@@ -314,9 +315,9 @@ everything. Security issues: see [SECURITY.md](SECURITY.md).
 
 | Problem | What to do |
 |---|---|
-| **Nothing is recognised** | Settings → *Allgemein*: is the right microphone selected? The level in the pill must move when you speak; if the microphone delivers nothing, the pill says so. |
+| **Nothing is recognised** | Settings → *General*: is the right microphone selected? The level in the pill must move when you speak; if the microphone delivers nothing, the pill says so. |
 | **Text arrives raw, not cleaned up** | Either the model did not answer (Ollama not running, or a cloud key rejected) or a quality check kept your words on purpose. The history entry on the *Home* page names the reason. For Ollama, restart Fleech: the setup page shows what is missing. |
-| **Text lands in the wrong window or only in the clipboard** | *Cursor-Rückkehr* (cursor return, under Settings → *KI & Text* → *Mehr Optionen*, on by default) brings the text back to the field where you started. If a result is ready more than 30 s after the recording and you are in another window by then, it goes to the clipboard and the pill tells you. |
+| **Text lands in the wrong window or only in the clipboard** | *Return to cursor* (under Settings → *AI & Text* → *More options*, on by default) brings the text back to the field where you started. If a result is ready more than 30 s after the recording and you are in another window by then, it goes to the clipboard and the pill tells you. |
 | **Windows Defender or SmartScreen flags Fleech** | Apps packaged with PyInstaller are sometimes flagged by mistake. Compare the installer's SHA-256 with the release notes. If it matches, restore the file under *Windows Security → Protection history*, report the false positive at [microsoft.com/wdsi/filesubmission](https://www.microsoft.com/wdsi/filesubmission) and let us know in an [issue](https://github.com/FynnXland/fleech/issues). |
 | **It hangs or crashes** | The log is at `%APPDATA%\Fleech\fleech.log` (Linux: `~/.config/Fleech/fleech.log`). It contains no dictated text unless you turned on *Diktattexte ins Protokoll*; remove your user name from paths before you [open an issue](https://github.com/FynnXland/fleech/issues/new/choose). |
 

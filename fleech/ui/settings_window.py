@@ -20,6 +20,7 @@ from PySide6.QtWidgets import (
     QScrollArea, QSlider, QStackedWidget, QVBoxLayout, QWidget,
 )
 
+from ..i18n import N_, tr
 from ..usersettings import UserSettings
 from . import autostart
 from .theme import (
@@ -103,8 +104,10 @@ class SettingsPanel(WortprobeMixin, QWidget):
     # Seite unter „Mehr Optionen" (settings/mehr.py). „Oberfläche" ist schon
     # frueher entfallen: Karten blendet man per Rechtsklick aus, zurueckholen
     # sammelt der Knopf auf „Allgemein".
-    PAGES = ["Allgemein", "KI & Text", "Wörterbuch", "Pille & Töne", "Ruhe",
-             "Datenschutz"]
+    # Die Namen sind zugleich die Schlüssel (Tests, Medien-Skripte); angezeigt
+    # werden sie übersetzt (`tr(name)` beim Füllen der Navigation).
+    PAGES = [N_("Allgemein"), N_("KI & Text"), N_("Wörterbuch"), N_("Pille & Töne"),
+             N_("Ruhe"), N_("Datenschutz")]
 
     def __init__(self, settings: UserSettings, on_changed, list_microphones,
                  test_hooks=None, hotkey_capture_guard=None, on_clear_history=None,
@@ -133,7 +136,7 @@ class SettingsPanel(WortprobeMixin, QWidget):
         content = QHBoxLayout()
         content.setContentsMargins(0, 0, 0, 0)
         self._nav = QListWidget()
-        self._nav.addItems(self.PAGES)
+        self._nav.addItems([tr(name) for name in self.PAGES])
         # Breit genug fuer den laengsten Eintrag („Pille & Töne") — nie abschneiden.
         self._nav.setFixedWidth(150)
         self._nav.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
@@ -153,11 +156,11 @@ class SettingsPanel(WortprobeMixin, QWidget):
         outer.addWidget(divider)
         footer = QHBoxLayout()
         footer.setContentsMargins(8, 2, 4, 0)
-        hint = QLabel("Änderungen werden sofort übernommen · „?“ erklärt die Einstellung.")
+        hint = QLabel(tr("Änderungen werden sofort übernommen · „?“ erklärt die Einstellung."))
         hint.setStyleSheet(f"color: {MUTED}; font-size: 8pt;")
         self._save_status = QLabel("")
         self._save_status.setStyleSheet(f"color: {ACCENT}; font-size: 9pt; font-weight: 600;")
-        save_btn = style_button(QPushButton("Speichern"), "primary")
+        save_btn = style_button(QPushButton(tr("Speichern")), "primary")
         save_btn.clicked.connect(self._save_now)
         footer.addWidget(hint)
         footer.addStretch(1)
@@ -260,14 +263,14 @@ class SettingsPanel(WortprobeMixin, QWidget):
         # Wer gerade alles vergessen hat, darf dort keine Begriffe mehr stehen sehen.
         self._refresh_kontext_begriffe(speicher)
         if not an:
-            label.setText("Aus — es wird nichts gelernt und nichts verwendet.")
+            label.setText(tr("Aus — es wird nichts gelernt und nichts verwendet."))
             return
         if speicher is None:
             label.setText("")
             return
         kontexte = speicher.kontexte()
         if not kontexte:
-            label.setText("Noch nichts gelernt — das kommt mit den ersten Diktaten.")
+            label.setText(tr("Noch nichts gelernt — das kommt mit den ersten Diktaten."))
             return
         apps = {a for a, _seg, _n in kontexte}
         begriffe = sum(n for _a, seg, n in kontexte if seg == "")
@@ -278,7 +281,7 @@ class SettingsPanel(WortprobeMixin, QWidget):
             beispiele = speicher.priming_begriffe(app, limit=4)
             if beispiele:
                 zeilen.append(f"{app}: {', '.join(beispiele)}")
-        text = f"{begriffe} Begriffe in {len(apps)} Programmen"
+        text = tr("{begriffe} Begriffe in {apps} Programmen", begriffe=begriffe, apps=len(apps))
         if zeilen:
             text += " — " + " · ".join(zeilen)
         label.setText(text)
@@ -336,11 +339,11 @@ class SettingsPanel(WortprobeMixin, QWidget):
         if len(terms) <= active:
             label.setText("")
             return
-        label.setText(
-            f"{active} von {len(terms)} Begriffen werden der Erkennung vorab genannt — "
-            f"bevorzugt die, die du tatsächlich benutzt. Ersetzungsregeln "
-            f"(„falsch => richtig“) greifen immer, unabhängig davon."
-        )
+        label.setText(tr(
+            "{active} von {total} Begriffen werden der Erkennung vorab genannt — "
+            "bevorzugt die, die du tatsächlich benutzt. Ersetzungsregeln "
+            "(„falsch => richtig“) greifen immer, unabhängig davon.",
+            active=active, total=len(terms)))
 
     def _restore_cards(self) -> None:
         """Alle ausgeblendeten Home-/Insights-Karten zurueckholen."""
@@ -356,8 +359,8 @@ class SettingsPanel(WortprobeMixin, QWidget):
             setattr(ui, name, True)
         self.settings.save()
         self._cards_hint.setText(
-            f"{len(hidden)} Karte(n) wieder eingeblendet." if hidden
-            else "Es war keine Karte ausgeblendet."
+            tr("{n} Karte(n) wieder eingeblendet.", n=len(hidden)) if hidden
+            else tr("Es war keine Karte ausgeblendet.")
         )
         self._on_changed("interface")
 
@@ -388,19 +391,19 @@ class SettingsPanel(WortprobeMixin, QWidget):
         autostart.set_autostart(enabled)
         actual = autostart.is_autostart_enabled()
         if enabled and not actual:
-            self._autostart_warn.setText(
+            self._autostart_warn.setText(tr(
                 "Eintrag ließ sich nicht schreiben — vermutlich blockiert ein "
                 "Antivirus den Windows-Autostart. Die Einstellung bleibt gemerkt; "
                 "Fleech versucht es bei jedem Start erneut."
-            )
+            ))
             self._autostart_warn.show()
         elif enabled and autostart.blocked_by_system():
             # Eintrag da, aber im Task-Manager deaktiviert — Windows ignoriert ihn.
-            self._autostart_warn.setText(
+            self._autostart_warn.setText(tr(
                 "Der Eintrag existiert, ist aber im Task-Manager unter „Autostart“ "
                 "deaktiviert — deshalb startet Fleech nicht mit. Dort wieder "
                 "aktivieren."
-            )
+            ))
             self._autostart_warn.show()
         else:
             self._autostart_warn.hide()
@@ -428,7 +431,7 @@ class SettingsPanel(WortprobeMixin, QWidget):
         if autostart.is_autostart_enabled() != self.settings.general.autostart:
             self._apply_autostart(self.settings.general.autostart)
         self.settings.save()
-        self._save_status.setText("Gespeichert ✓")
+        self._save_status.setText(tr("Gespeichert ✓"))
         self._save_status.show()
         self._save_timer.start(2500)
 
@@ -551,9 +554,9 @@ class SettingsPanel(WortprobeMixin, QWidget):
     # „Mathe-Umschalt" stand hier bis 5.10.2 mit drin, obwohl es das Feld und den
     # Modus seit v3.0.0 nicht mehr gibt — ein Eintrag, der nur die Erinnerung an
     # eine Bedienung wachhielt, die ins Leere geht.
-    _HOTKEY_FRIENDLY = {"dictate": "Diktat",
-                        "prompt_toggle": "KI-Prompting", "undo": "Rohtext einsetzen",
-                        "pause": "Pause", "profile": "Profil wechseln"}
+    _HOTKEY_FRIENDLY = {"dictate": N_("Diktat"),
+                        "prompt_toggle": N_("KI-Prompting"), "undo": N_("Rohtext einsetzen"),
+                        "pause": N_("Pause"), "profile": N_("Profil wechseln")}
 
     def _add_hotkey_field(self, form, label, settings_attr, kind, default, hint_text=""):
         from ..hotkey import HotkeySpec
@@ -577,7 +580,7 @@ class SettingsPanel(WortprobeMixin, QWidget):
 
         def others():
             return {
-                self._HOTKEY_FRIENDLY[k]: fld.spec()
+                tr(self._HOTKEY_FRIENDLY[k]): fld.spec()
                 for k, fld in self._hotkey_fields.items()
                 if k != kind and fld.spec() is not None
             }
@@ -624,23 +627,24 @@ class SettingsPanel(WortprobeMixin, QWidget):
     def set_overlay_editing(self, editing: bool) -> None:
         """Beschriftung des Bearbeiten-Buttons mit dem Overlay-Zustand synchron halten."""
         self._overlay_edit_btn.setText(
-            "Fertig – Position speichern" if editing else "Overlay bearbeiten"
+            tr("Fertig – Position speichern") if editing else tr("Overlay bearbeiten")
         )
 
     def _check_updates(self) -> None:
         from .updates import check_for_updates
 
-        self._update_status.setText("Suche …")
+        self._update_status.setText(tr("Suche …"))
         result = check_for_updates(self.settings.advanced.update_feed_url or None)
         status = result["status"]
         if status == "update_available":
-            self._update_status.setText(f"Update {result['latest']} verfügbar.")
+            self._update_status.setText(tr("Update {version} verfügbar.", version=result["latest"]))
             hook = (self._test_hooks or {}).get("open_update")
             if hook is not None:
                 hook()                       # Dialog mit Notizen und Download oeffnen
         elif status == "up_to_date":
-            self._update_status.setText("Aktuell.")
+            self._update_status.setText(tr("Aktuell."))
         elif status == "no_release":
-            self._update_status.setText("Noch keine Veröffentlichung vorhanden.")
+            self._update_status.setText(tr("Noch keine Veröffentlichung vorhanden."))
         else:
-            self._update_status.setText(f"Fehlgeschlagen: {result.get('message', '')[:60]}")
+            self._update_status.setText(tr("Fehlgeschlagen: {meldung}",
+                                           meldung=result.get("message", "")[:60]))

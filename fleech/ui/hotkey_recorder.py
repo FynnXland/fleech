@@ -17,6 +17,7 @@ from PySide6.QtWidgets import (
 )
 
 from ..hotkey import HotkeySpec
+from ..i18n import tr
 
 log = logging.getLogger(__name__)
 
@@ -96,9 +97,9 @@ def collision_warning(spec: HotkeySpec, others: dict) -> str:
     serial = spec.serialize()
     for name, other in others.items():
         if other is not None and other.serialize() == serial:
-            return f"⚠ Bereits belegt für „{name}“."
+            return tr("⚠ Bereits belegt für „{name}“.", name=name)
     if serial in _WINDOWS_RESERVED:
-        return "⚠ Von Windows reserviert — funktioniert evtl. nicht zuverlässig."
+        return tr("⚠ Von Windows reserviert — funktioniert evtl. nicht zuverlässig.")
     return ""
 
 
@@ -108,7 +109,7 @@ class HotkeyRecorderDialog(QDialog):
 
     def __init__(self, parent=None):
         super().__init__(parent)
-        self.setWindowTitle("Hotkey aufnehmen")
+        self.setWindowTitle(tr("Hotkey aufnehmen"))
         self.setModal(True)
         self.result_spec: HotkeySpec | None = None
         self.cleared = False
@@ -117,15 +118,15 @@ class HotkeyRecorderDialog(QDialog):
         self._pynput_mods: set[str] = set()
 
         layout = QVBoxLayout(self)
-        self._title = QLabel("Drücke jetzt die gewünschte Tastenkombination")
+        self._title = QLabel(tr("Drücke jetzt die gewünschte Tastenkombination"))
         self._title.setStyleSheet("font: 600 11pt 'Segoe UI';")
         self._live = QLabel("…")
         self._live.setAlignment(Qt.AlignCenter)
         self._live.setStyleSheet("font: 14pt 'Segoe UI'; color: #4a90d9; padding: 12px;")
-        hint = QLabel("Auch Maustaste 4/5 oder Mitte: einfach hier im Dialog klicken.\n"
-                      "G-/Makrotasten (Corsair, Logitech …) funktionieren, wenn sie in\n"
-                      "iCUE/G HUB eine Taste senden (z. B. F13–F24).\n"
-                      "Esc, Entf oder Backspace = Bindung löschen")
+        hint = QLabel(tr("Auch Maustaste 4/5 oder Mitte: einfach hier im Dialog klicken.\n"
+                         "G-/Makrotasten (Corsair, Logitech …) funktionieren, wenn sie in\n"
+                         "iCUE/G HUB eine Taste senden (z. B. F13–F24).\n"
+                         "Esc, Entf oder Backspace = Bindung löschen"))
         hint.setStyleSheet("color: #808088; font-size: 8pt;")
         layout.addWidget(self._title)
         layout.addWidget(self._live)
@@ -135,7 +136,7 @@ class HotkeyRecorderDialog(QDialog):
         # (das bleibt Esc vorbehalten — dokumentiertes Verhalten, siehe oben).
         cancel_row = QHBoxLayout()
         cancel_row.addStretch(1)
-        self._cancel_btn = QPushButton("Abbrechen")
+        self._cancel_btn = QPushButton(tr("Abbrechen"))
         self._cancel_btn.clicked.connect(lambda: self._finish(cancel=True))
         cancel_row.addWidget(self._cancel_btn)
         layout.addLayout(cancel_row)
@@ -277,7 +278,7 @@ class HotkeyField(QWidget):
             " border: 1px solid rgba(255,255,255,0.06); border-radius: 8px;"
             " min-width: 140px;"
         )
-        self._button = QPushButton("Aufnehmen")
+        self._button = QPushButton(tr("Aufnehmen"))
         self._button.clicked.connect(self._record)
         row.addWidget(self._display, 1)
         row.addWidget(self._button)
@@ -292,7 +293,7 @@ class HotkeyField(QWidget):
         return self._spec
 
     def _refresh(self) -> None:
-        self._display.setText(self._spec.display() if self._spec else "— keine —")
+        self._display.setText(self._spec.display() if self._spec else tr("— keine —"))
         warn = collision_warning(self._spec, self._others_provider()) if self._spec else ""
         self._warning.setText(warn)
         self._warning.setVisible(bool(warn))

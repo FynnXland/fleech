@@ -29,6 +29,8 @@ import struct
 from dataclasses import dataclass
 from pathlib import Path
 
+from ..i18n import dezimal, tr
+
 log = logging.getLogger(__name__)
 
 # Schlanke Fassung → Original. Nur gemessene Paare: Ein anderes Modell kann seinen
@@ -74,31 +76,32 @@ def bevorzugt(modell: str) -> str:
 
 def _gb(wert: float) -> str:
     # Geschuetztes Leerzeichen: Die Hinweis-Blase bricht sonst „0,8 | GB" um.
-    return f"{wert:.1f}".replace(".", ",") + " GB"
+    return dezimal(wert, 1) + " GB"
 
 
 def erklaerung(schlank: str) -> str:
     """Der Satz, der dem Nutzer sagt, was diese Fassung ist."""
     quelle = quelle_von(schlank)
     ersparnis = ERSPARNIS_GB.get(schlank)
-    weniger = f"rund {_gb(ersparnis)} weniger Speicher" if ersparnis else "weniger Speicher"
-    return (f"Dieselbe KI wie {quelle}, nur ohne den Bildteil, den Fleech nie braucht: "
-            f"{weniger}, an echten Diktaten gemessen gleich wortgetreu. Fleech baut "
-            f"sie auf diesem Rechner aus "
-            f"{quelle}.")
+    weniger = (tr("rund {gb} weniger Speicher", gb=_gb(ersparnis)) if ersparnis
+               else tr("weniger Speicher"))
+    return tr("Dieselbe KI wie {quelle}, nur ohne den Bildteil, den Fleech nie braucht: "
+              "{weniger}, an echten Diktaten gemessen gleich wortgetreu. Fleech baut "
+              "sie auf diesem Rechner aus {quelle}.", quelle=quelle, weniger=weniger)
 
 
 def ankuendigung(schlank: str, quelle_da: bool) -> str:
     """Was gleich passiert — bevor es passiert, nicht erst hinterher."""
     quelle = quelle_von(schlank)
     ersparnis = ERSPARNIS_GB.get(schlank)
-    warum = f", spart rund {_gb(ersparnis)} Speicher" if ersparnis else ""
+    warum = ", " + tr("spart rund {gb} Speicher", gb=_gb(ersparnis)) if ersparnis else ""
     if quelle_da:
-        return (f"Fleech verschlankt das Sprachmodell: {quelle} ohne den Bildteil, den es "
-                f"nie braucht{warum}. Dauert etwa 20 Sekunden, ohne Download; bis dahin "
-                f"bereinigt {quelle} weiter.")
-    return (f"Fleech lädt {quelle} und baut daraus die schlanke Fassung {schlank} "
-            f"(ohne Bildteil{warum}). Das Original wird danach wieder entfernt.")
+        return tr("Fleech verschlankt das Sprachmodell: {quelle} ohne den Bildteil, den es "
+                  "nie braucht{warum}. Dauert etwa 20 Sekunden, ohne Download; bis dahin "
+                  "bereinigt {quelle} weiter.", quelle=quelle, warum=warum)
+    return tr("Fleech lädt {quelle} und baut daraus die schlanke Fassung {schlank} "
+              "(ohne Bildteil{warum}). Das Original wird danach wieder entfernt.",
+              quelle=quelle, schlank=schlank, warum=warum)
 
 
 # -- Ollamas Modellablage ---------------------------------------------------------------
@@ -132,8 +135,9 @@ def finde_ablage(name: str) -> tuple:
             if datei.is_file():
                 return ordner, json.loads(datei.read_text(encoding="utf-8"))
         except (OSError, ValueError) as exc:
-            raise SchlankFehler(f"Ollamas Modellordner ist nicht lesbar ({exc})") from exc
-    raise SchlankFehler(f"Ollamas Ablage von {name} wurde nicht gefunden")
+            raise SchlankFehler(tr("Ollamas Modellordner ist nicht lesbar ({fehler})",
+                                    fehler=exc)) from exc
+    raise SchlankFehler(tr("Ollamas Ablage von {name} wurde nicht gefunden", name=name))
 
 
 def _schicht(ordner: Path, manifest: dict, art: str) -> Path | None:
@@ -180,7 +184,7 @@ def lies_kopf(pfad: Path) -> dict:
     with open(pfad, "rb") as datei:
         lies = _Leser(datei)
         if datei.read(4) != b"GGUF":
-            raise SchlankFehler("die Modelldatei ist kein GGUF")
+            raise SchlankFehler(tr("die Modelldatei ist kein GGUF"))
         version, n_tensoren, n_schluessel = lies.u32(), lies.u64(), lies.u64()
         schluessel = []
         for _ in range(n_schluessel):
@@ -222,7 +226,7 @@ def ohne_bildteil(kopf: dict) -> tuple:
     schluessel = [s for s in kopf["schluessel"]
                   if not _ist_bildschluessel(s[0], architektur)]
     if len(tensoren) == len(kopf["tensoren"]):
-        raise SchlankFehler("das Modell hat keinen Bildteil, den man entfernen könnte")
+        raise SchlankFehler(tr("das Modell hat keinen Bildteil, den man entfernen könnte"))
 
     def text(t: str) -> bytes:
         roh = t.encode("utf-8")
@@ -252,7 +256,7 @@ def datenstrom(pfad: Path, kopf: bytes, abschnitte: list, stueck: int = 8 << 20)
             while laenge > 0:
                 teil = datei.read(min(laenge, stueck))
                 if not teil:
-                    raise SchlankFehler("die Modelldatei endet zu früh")
+                    raise SchlankFehler(tr("die Modelldatei endet zu früh"))
                 laenge -= len(teil)
                 yield teil
 
@@ -277,11 +281,11 @@ def baue(base_url: str, schlank: str, on_prozent=None) -> None:
 
     quelle = quelle_von(schlank)
     if not quelle:
-        raise SchlankFehler(f"für {schlank} kennt Fleech keine schlanke Fassung")
+        raise SchlankFehler(tr("für {schlank} kennt Fleech keine schlanke Fassung", schlank=schlank))
     ordner, manifest = finde_ablage(quelle)
     modelldatei = _schicht(ordner, manifest, "image.model")
     if modelldatei is None or not modelldatei.is_file():
-        raise SchlankFehler(f"die Modelldatei von {quelle} fehlt")
+        raise SchlankFehler(tr("die Modelldatei von {quelle} fehlt", quelle=quelle))
     kopf, abschnitte = ohne_bildteil(lies_kopf(modelldatei))
     gesamt = len(kopf) + sum(laenge for _, laenge in abschnitte)
     try:
@@ -289,8 +293,8 @@ def baue(base_url: str, schlank: str, on_prozent=None) -> None:
     except OSError:
         frei = None
     if frei is not None and frei < gesamt + (512 << 20):
-        raise SchlankFehler(f"auf der Platte sind nur {_gb(frei / 1e9)} frei, "
-                            f"gebraucht werden {_gb(gesamt / 1e9)}")
+        raise SchlankFehler(tr("auf der Platte sind nur {frei} frei, gebraucht werden {noetig}",
+                               frei=_gb(frei / 1e9), noetig=_gb(gesamt / 1e9)))
 
     def melde(fertig: int, phase: int) -> None:
         if on_prozent:
@@ -334,8 +338,8 @@ def baue(base_url: str, schlank: str, on_prozent=None) -> None:
     with _anfrage(f"{wurzel}/api/create", json.dumps(auftrag).encode("utf-8")) as antwort:
         ergebnis = json.loads(antwort.read() or b"{}")
     if ergebnis.get("status") != "success":
-        raise SchlankFehler(f"Ollama hat das Modell nicht angelegt "
-                            f"({ergebnis.get('error') or ergebnis})")
+        raise SchlankFehler(tr("Ollama hat das Modell nicht angelegt ({fehler})",
+                               fehler=ergebnis.get("error") or ergebnis))
     if on_prozent:
         on_prozent(100)
     log.info("Schlanke Fassung %s aus %s gebaut (%.1f GB).", schlank, quelle, gesamt / 1e9)
@@ -382,33 +386,39 @@ def besorge(base_url: str, modell: str, on_phase=None, on_bytes=None,
 
     quelle = quelle_von(modell)
     if not quelle:
-        phase("wird geladen")
+        phase(tr("wird geladen"))
         return Ergebnis(modell if ollama_pull(base_url, modell, on_bytes=on_bytes) else "")
     if modell in _GESCHEITERT:
         return Ergebnis(quelle)
     geholt = False
     if quelle not in ollama_installed_models(base_url):
-        phase(f"lädt {quelle}")
+        phase(tr("lädt {quelle}", quelle=quelle))
         if not ollama_pull(base_url, quelle, on_bytes=on_bytes):
             return Ergebnis("")
         geholt = True
-    phase("entfernt den Bildteil")
+    phase(tr("entfernt den Bildteil"))
     try:
         baue(base_url, modell, on_prozent=on_prozent)
     except Exception as exc:
-        grund = str(exc) if isinstance(exc, SchlankFehler) else f"Fehler: {exc}"
+        grund = str(exc) if isinstance(exc, SchlankFehler) else tr("Fehler: {fehler}", fehler=exc)
         _GESCHEITERT[modell] = grund
         log.warning("Schlanke Fassung %s nicht gebaut (%s) — nutze %s.", modell, grund, quelle)
-        return Ergebnis(quelle, f"Fleech konnte die schlanke Fassung {modell} nicht bauen "
-                                f"({grund}). Es nutzt deshalb {quelle} — gleich gut, "
-                                f"braucht aber mehr Speicher.")
+        return Ergebnis(quelle, tr("Fleech konnte die schlanke Fassung {modell} nicht bauen "
+                                   "({grund}). Es nutzt deshalb {quelle} — gleich gut, "
+                                   "braucht aber mehr Speicher.",
+                                   modell=modell, grund=grund, quelle=quelle))
     ersparnis = ERSPARNIS_GB.get(modell)
-    satz = (f"Sprachmodell verschlankt: Fleech nutzt jetzt {modell}, dieselbe KI wie "
-            f"{quelle} ohne den Bildteil, den Fleech nie braucht"
-            + (f" — rund {_gb(ersparnis)} weniger Speicher." if ersparnis else "."))
+    if ersparnis:
+        satz = tr("Sprachmodell verschlankt: Fleech nutzt jetzt {modell}, dieselbe KI wie "
+                  "{quelle} ohne den Bildteil, den Fleech nie braucht — rund {gb} weniger "
+                  "Speicher.", modell=modell, quelle=quelle, gb=_gb(ersparnis))
+    else:
+        satz = tr("Sprachmodell verschlankt: Fleech nutzt jetzt {modell}, dieselbe KI wie "
+                  "{quelle} ohne den Bildteil, den Fleech nie braucht.",
+                  modell=modell, quelle=quelle)
     if geholt and entferne(base_url, quelle):
-        satz += f" Das dafür geladene {quelle} ist wieder entfernt."
+        satz += " " + tr("Das dafür geladene {quelle} ist wieder entfernt.", quelle=quelle)
     elif not geholt:
-        satz += (f" Das Original {quelle} bleibt installiert; brauchst du es nicht, "
-                 f"entfernst du es mit „ollama rm {quelle}“.")
+        satz += " " + tr("Das Original {quelle} bleibt installiert; brauchst du es nicht, "
+                         "entfernst du es mit „ollama rm {quelle}“.", quelle=quelle)
     return Ergebnis(modell, satz, verschlankt=True)

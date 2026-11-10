@@ -24,7 +24,8 @@ from ..profiles import AUTO_SEND_MODES, REWRITING_FORMATS
 from ..recording_control import RecordingController
 from ..stt import create_stt
 from ..usersettings import UserSettings
-from .. import gruende
+from .. import gruende, i18n
+from ..i18n import tr
 from ..history import DictationRecord, HistoryStore
 from ..llm.mitschnitt import aufrufe_von
 from .main_window import MainWindow
@@ -64,6 +65,7 @@ class DesktopApp(
 
     def __init__(self):
         self.settings = UserSettings.load()
+        _qt_sprache(i18n.setze(self.settings.general.ui_language))
         self.config = load_config()
         # Basiswert VOR apply_to merken: leeres Settings-Feld = zurueck zu config.yaml.
         self._base_trigger_word = self.config.command.trigger_word
@@ -93,7 +95,7 @@ class DesktopApp(
             self.settings, self._on_setting_changed, list_input_devices,
             test_hooks={
                 "toast": lambda: self.notifier.toast(
-                    "background_info", "Fleech", "Test-Toast — Kanal funktioniert.",
+                    "background_info", "Fleech", tr("Test-Toast — Kanal funktioniert."),
                     bypass_cooldown=True,
                 ),
                 "sound": lambda: self.notifier.sound("commit"),
@@ -288,7 +290,7 @@ class DesktopApp(
             self.recorder.start()
         except Exception:
             log.exception("Mikrofon-Start fehlgeschlagen.")
-            self.bus.set_state(AppState.ERROR, "Mikrofon-Start fehlgeschlagen")
+            self.bus.set_state(AppState.ERROR, tr("Mikrofon-Start fehlgeschlagen"))
             self.sounds.play("error")
             self.controller.cancel()   # kein Geister-Diktat (Befund D-10)
             return
@@ -410,13 +412,13 @@ class DesktopApp(
         self._letzte_aufnahme = audio
         if self._process_lock.locked():
             log.info("Vorheriges Diktat laeuft noch — Verarbeitung wird eingereiht.")
-            self.bus.progress.emit("Vorheriges Diktat wird noch verarbeitet …")
+            self.bus.progress.emit(tr("Vorheriges Diktat wird noch verarbeitet …"))
         with self._process_lock:
             if self._llms_unloaded:
                 # Modelle wurden entladen (Leerlauf/Spiel) → der erste Aufruf zahlt
                 # die Ladezeit (~13 s statt ~5 s). Das sichtbar machen, sonst wirkt
                 # die App haengengeblieben.
-                self.bus.progress.emit("KI-Modell wird geladen …")
+                self.bus.progress.emit(tr("KI-Modell wird geladen …"))
             self._process_locked(audio, force_command,
                                  prompt_oneshot, abschnitte)
 
@@ -460,7 +462,7 @@ class DesktopApp(
             # 2026-10-08 wartete ein Diktat so 8,6 s, scheinbar beim Rechnen.
             laden = bool(getattr(self, "_llms_unloaded", False))
             self.pipeline.status_bereinigen = (
-                "KI-Modell wird geladen, dann bereinigt …" if laden else "Bereinige …")
+                tr("KI-Modell wird geladen, dann bereinigt …") if laden else tr("Bereinige …"))
             # Zeitgrenze neu, Haken-Klick zurueck; Laden bekommt einen Zuschlag.
             frist = getattr(self.pipeline, "frist", None)
             if frist is not None:
@@ -562,35 +564,38 @@ class DesktopApp(
             unbereinigt = result == "fallback"
             if unbereinigt:
                 self.notifier.sound("error")
-            self.bus.set_state(AppState.IDLE, "in der Zwischenablage (unbereinigt)"
-                               if unbereinigt else "in der Zwischenablage")
+            self.bus.set_state(AppState.IDLE, tr("in der Zwischenablage (unbereinigt)")
+                               if unbereinigt else tr("in der Zwischenablage"))
             # Zuerst die Blase an der Pille — sie haengt an keiner Benachrichtigungs-
             # Einstellung. Der Toast bleibt als zusaetzlicher Weg fuer alle, die
             # Benachrichtigungen an haben (am 2026-10-02 war er abgeschaltet).
             self.bus.in_ablage.emit(getattr(self.pipeline, "in_ablage_text", ""))
             self.notifier.toast(
                 "critical_error", "Fleech",
-                "Das Diktat wurde erst spät fertig — damit du nicht aus deinem "
-                "Fenster gerissen wirst, liegt der Text "
-                + ("ohne KI-Bereinigung " if unbereinigt else "")
-                + "in der Zwischenablage. Strg+V zum Einfügen.", bypass_cooldown=True)
+                tr("Das Diktat wurde erst spät fertig — damit du nicht aus deinem "
+                   "Fenster gerissen wirst, liegt der Text ohne KI-Bereinigung "
+                   "in der Zwischenablage. Strg+V zum Einfügen.") if unbereinigt else
+                tr("Das Diktat wurde erst spät fertig — damit du nicht aus deinem "
+                   "Fenster gerissen wirst, liegt der Text "
+                   "in der Zwischenablage. Strg+V zum Einfügen."),
+                bypass_cooldown=True)
         elif result == "ok":
             self.notifier.sound("commit")
-            self.bus.set_state(AppState.IDLE, "eingefügt")
+            self.bus.set_state(AppState.IDLE, tr("eingefügt"))
             if _time.monotonic() - t0 > 15:
-                self.notifier.toast("long_processing", "Fleech", "Verarbeitung abgeschlossen.")
+                self.notifier.toast("long_processing", "Fleech", tr("Verarbeitung abgeschlossen."))
         elif result == "fallback":
             self.notifier.sound("error")
-            self.bus.set_state(AppState.IDLE, "eingefügt (Fallback — Log prüfen)")
+            self.bus.set_state(AppState.IDLE, tr("eingefügt (Fallback — Log prüfen)"))
         elif result in ("empty", "too_short"):
-            self.bus.set_state(AppState.IDLE, "nichts erkannt")
+            self.bus.set_state(AppState.IDLE, tr("nichts erkannt"))
         else:
             self.notifier.sound("error")
             if self._stt_fehlt_beim_diktat():
                 return
-            self.bus.set_state(AppState.ERROR, "Verarbeitung fehlgeschlagen — Log prüfen")
+            self.bus.set_state(AppState.ERROR, tr("Verarbeitung fehlgeschlagen — Log prüfen"))
             self.notifier.toast("critical_error", "Fleech",
-                                "Verarbeitung fehlgeschlagen — Details im Log.")
+                                tr("Verarbeitung fehlgeschlagen — Details im Log."))
         # Warum die KI ausfiel, gilt unabhaengig davon, wo der Text landete.
         if result == "fallback":
             if self.pipeline.last_error_kind == "llm_offline":
@@ -598,11 +603,11 @@ class DesktopApp(
             if self.pipeline.last_error_kind in ("quota", "key"):
                 self.notifier.toast(
                     "provider_quota", "Fleech",
-                    "Der KI-Dienst hat den API-Schlüssel abgelehnt — bitte unter "
-                    "Einstellungen → KI & Text prüfen. Der Text kam unbereinigt an."
+                    tr("Der KI-Dienst hat den API-Schlüssel abgelehnt — bitte unter "
+                       "Einstellungen → KI & Text prüfen. Der Text kam unbereinigt an.")
                     if self.pipeline.last_error_kind == "key" else
-                    "Der KI-Dienst meldet ein erschöpftes Kontingent (429). Der "
-                    "Text kam unbereinigt an.",
+                    tr("Der KI-Dienst meldet ein erschöpftes Kontingent (429). Der "
+                       "Text kam unbereinigt an."),
                 )
 
     def _tray_aktionen(self) -> dict:
@@ -758,6 +763,8 @@ class DesktopApp(
             self.pipeline.bausteine = lies(self.settings.output.textbausteine)
         elif section == "onboarding":
             self.show_onboarding()
+        elif section == "neustart":
+            self._reload()  # Sprache der Oberflaeche (6.6.0) wirkt beim Neustart
         elif section == "datenschutz":
             self._wende_datenschutz_an()
         # Der Abschnitt „adaptive" ist mit dem Schalter „Adaptive Geschwindigkeit"
@@ -809,9 +816,10 @@ class DesktopApp(
     def _update_mode_line(self) -> None:
         s = self.settings
         self.overlay.set_mode_line(
-            f"{ {'hold': 'Hold', 'toggle': 'Toggle'}.get(s.recording.mode, 'Anstupsen') } | "
-            f"Fokus: {s.audio_focus.mode} | "
-            f"Eingriff: {s.output.intervention}"
+            tr("{modus} | Fokus: {fokus} | Eingriff: {eingriff}",
+               modus={'hold': 'Hold', 'toggle': 'Toggle'}.get(
+                   s.recording.mode) or tr("Anstupsen"),
+               fokus=s.audio_focus.mode, eingriff=s.output.intervention)
         )
 
     # ------------------------------------------------------------------ Tray/Fenster --
@@ -944,7 +952,7 @@ class DesktopApp(
             if frist is not None and not frist.uebersprungen:
                 log.info("KI per Haken uebersprungen — Text kommt ohne Bereinigung.")
                 frist.ueberspringen()
-                self.bus.progress.emit("Füge ohne KI ein …")
+                self.bus.progress.emit(tr("Füge ohne KI ein …"))
             return
         self.controller.stop_if_active()
 
@@ -969,6 +977,30 @@ def _wake_running_instance() -> bool:
     except Exception:
         log.debug("Wake der laufenden Instanz fehlgeschlagen.", exc_info=True)
         return False
+
+
+def _qt_sprache(sprache: str) -> None:
+    """Qt-eigene Texte (Ja/Nein in QMessageBox, Kontextmenue der Textfelder) in der
+    Oberflaechensprache. Ohne Uebersetzer spricht Qt Englisch — auch in der
+    deutschen Oberflaeche war das bis 6.6.0 so."""
+    from PySide6.QtCore import QLibraryInfo, QTranslator
+
+    app = QApplication.instance()
+    if app is None:
+        return
+    alt = getattr(app, "_fleech_qt_uebersetzer", None)
+    if alt is not None:
+        app.removeTranslator(alt)
+        app._fleech_qt_uebersetzer = None
+    if sprache == "en":
+        return
+    uebersetzer = QTranslator(app)
+    pfad = QLibraryInfo.path(QLibraryInfo.LibraryPath.TranslationsPath)
+    if uebersetzer.load(f"qtbase_{sprache}", pfad):
+        app.installTranslator(uebersetzer)
+        app._fleech_qt_uebersetzer = uebersetzer  # lebt so lange wie die App
+    else:
+        log.info("Qt-Uebersetzung qtbase_%s nicht gefunden (%s).", sprache, pfad)
 
 
 def _apply_dark_theme(app) -> None:
@@ -1052,6 +1084,9 @@ def run_desktop() -> int:
     app.setApplicationDisplayName("Fleech")
     app.setOrganizationName("Fleech")
     _apply_dark_theme(app)
+
+    # Bis die Einstellungen gelesen sind (erst nach dem Tresor), gilt die Systemsprache.
+    _qt_sprache(i18n.setze("auto"))
 
     from ..singleinstance import SingleInstanceLock
 

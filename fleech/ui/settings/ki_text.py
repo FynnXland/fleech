@@ -7,6 +7,7 @@ Seit 6.5.0 aus drei Bausteinen: `ki` (Anbieter, Schluessel, Modell), `ausgabe`
 
 from __future__ import annotations
 
+from ...i18n import tr
 from . import advanced, ausgabe, ki
 from .common import hint
 from .mehr import angleichen, bereich
@@ -15,9 +16,9 @@ from .mehr import angleichen, bereich
 def build(panel) -> None:
     seite, form = panel._page()
     form.addRow("", hint(
-        "Wer deinen Text bereinigt und wie stark. Ein Cloud-Anbieter braucht einen "
-        "eigenen API-Schlüssel — ein Abo wie ChatGPT Plus oder Claude Pro gilt "
-        "dafür nicht."))
+        tr("Wer deinen Text bereinigt und wie stark. Ein Cloud-Anbieter braucht einen "
+           "eigenen API-Schlüssel — ein Abo wie ChatGPT Plus oder Claude Pro gilt "
+           "dafür nicht.")))
     mehr = bereich(seite, form)
     ki.zeilen(panel, form, mehr)
     ausgabe.zeilen(panel, form, mehr)

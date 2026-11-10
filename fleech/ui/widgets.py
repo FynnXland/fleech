@@ -21,6 +21,7 @@ from PySide6.QtWidgets import (
     QFrame, QHBoxLayout, QLabel, QPushButton, QVBoxLayout, QWidget,
 )
 
+from ..i18n import dezimal, tr
 from .theme import (
     _STREAK_SHADES, ACCENT, ACCENT_DIM, BORDER_CARD, BORDER_HAIRLINE, CARD,
     MUTED, NAV_ACTIVE_BG, TEXT, TRACK,
@@ -182,7 +183,7 @@ class WpmGauge(QWidget):
         p.setFont(label_font)
         p.setPen(QColor(MUTED))
         p.drawText(QRectF(0, base - 4, self.width(), 16),
-                   Qt.AlignHCenter | Qt.AlignTop, "Wörter / Minute")
+                   Qt.AlignHCenter | Qt.AlignTop, tr("Wörter / Minute"))
 
 
 class StreakCalendar(QWidget):
@@ -304,7 +305,8 @@ def enable_card_hiding(frame: QFrame, title: str, attr: str, settings, on_change
 
     def _menu(pos, _frame=frame, _settings=settings, _changed=on_changed):
         menu = QMenu(_frame)
-        action = menu.addAction(f"„{_frame.property('hide_title')}“ ausblenden")
+        action = menu.addAction(
+            tr("„{titel}“ ausblenden", titel=_frame.property("hide_title")))
         if menu.exec(_frame.mapToGlobal(pos)) is action and action is not None:
             setattr(_settings.interface, _frame.property("hide_attr"), False)
             _settings.save()
@@ -415,7 +417,7 @@ def _dauer(sekunden: float) -> str:
     stunden, rest = int(minuten // 60), int(minuten) % 60
     if stunden < 10:
         return f"{stunden} h {rest} min" if rest else f"{stunden} h"
-    return f"{minuten / 60.0:.1f} Stunden".replace(".", ",")
+    return tr("{n} Stunden", n=dezimal(minuten / 60.0, 1))
 
 
 def _diktierzeit_text(stats) -> str:
@@ -423,8 +425,8 @@ def _diktierzeit_text(stats) -> str:
     gesamt = getattr(stats, "total_audio_seconds", 0.0) or 0.0
     anzahl = getattr(stats, "total_dictations", 0) or 0
     if gesamt <= 0:
-        return "Noch keine Sprechzeit aufgezeichnet."
-    text = f"{_dauer(gesamt)} gesprochen"
+        return tr("Noch keine Sprechzeit aufgezeichnet.")
     if anzahl:
-        text += f" · Ø {_dauer(gesamt / anzahl)} je Diktat"
-    return text
+        return tr("{gesamt} gesprochen · Ø {schnitt} je Diktat",
+                  gesamt=_dauer(gesamt), schnitt=_dauer(gesamt / anzahl))
+    return tr("{gesamt} gesprochen", gesamt=_dauer(gesamt))

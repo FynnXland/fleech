@@ -30,6 +30,7 @@ from PySide6.QtWidgets import (
     QVBoxLayout, QWidget,
 )
 
+from ..i18n import tr
 from .onboardingseiten import modi, probediktat, taste, verlauf, willkommen
 from .onboardingseiten.bausteine import NOTIZ_STIL, auswahl, notiz, text, titel
 from .theme import ACCENT, BORDER_HAIRLINE, CARD, MUTED, TEXT, style_button
@@ -54,7 +55,7 @@ class OnboardingDialog(QDialog):
                  einrichtung=None, hotkey_capture_guard=None, netz: bool | None = None,
                  cache_ordner=None):
         super().__init__(parent)
-        self.setWindowTitle("Willkommen bei Fleech")
+        self.setWindowTitle(tr("Willkommen bei Fleech"))
         self.setMinimumSize(600, 560)
         self.setStyleSheet(
             f"QDialog {{ background: {CARD}; }}"
@@ -106,12 +107,12 @@ class OnboardingDialog(QDialog):
         outer.addWidget(self._download_zeile)
 
         nav = QHBoxLayout()
-        self._back_btn = style_button(QPushButton("Zurück"))
-        self._next_btn = style_button(QPushButton("Weiter"), "primary")
-        self._skip_btn = QPushButton("Überspringen")
-        self._skip_btn.setToolTip("Einführung beenden — sie kommt nicht wieder von "
-                                  "selbst. Erneut aufrufbar unter Einstellungen → "
-                                  "Allgemein → Mehr Optionen.")
+        self._back_btn = style_button(QPushButton(tr("Zurück")))
+        self._next_btn = style_button(QPushButton(tr("Weiter")), "primary")
+        self._skip_btn = QPushButton(tr("Überspringen"))
+        self._skip_btn.setToolTip(tr("Einführung beenden — sie kommt nicht wieder von "
+                                     "selbst. Erneut aufrufbar unter Einstellungen → "
+                                     "Allgemein → Mehr Optionen."))
         self._skip_btn.setStyleSheet(
             f"QPushButton {{ color: {MUTED}; background: transparent; border: none;"
             f"  font-size: 9pt; }} QPushButton:hover {{ color: {TEXT}; }}"
@@ -178,10 +179,10 @@ class OnboardingDialog(QDialog):
         page = QWidget()
         lay = QVBoxLayout(page)
         lay.setSpacing(12)
-        lay.addWidget(titel("Mikrofon"))
-        lay.addWidget(text("Welches Mikrofon soll Fleech verwenden?"))
+        lay.addWidget(titel(tr("Mikrofon")))
+        lay.addWidget(text(tr("Welches Mikrofon soll Fleech verwenden?")))
         combo = auswahl()
-        combo.addItem("Systemstandard", None)
+        combo.addItem(tr("Systemstandard"), None)
         try:
             names = list_microphones() or []
         except Exception:
@@ -198,8 +199,8 @@ class OnboardingDialog(QDialog):
         lay.addWidget(combo)
 
         lay.addSpacing(6)
-        lay.addWidget(notiz("Sprich einen Satz — der Balken soll sich deutlich "
-                            "bewegen, ohne dauerhaft am Anschlag zu sein."))
+        lay.addWidget(notiz(tr("Sprich einen Satz — der Balken soll sich deutlich "
+                               "bewegen, ohne dauerhaft am Anschlag zu sein.")))
         bar = QProgressBar()
         bar.setRange(0, 100)
         bar.setValue(0)
@@ -266,9 +267,10 @@ class OnboardingDialog(QDialog):
         sichtbar = [i for i in range(self._stack.count()) if not self._uebersprungen(i)]
         nummer = sichtbar.index(index) + 1 if index in sichtbar else index + 1
         letzte = self._nachbar(index, +1) >= self._stack.count()
-        self._steps.setText(f"Schritt {nummer} von {len(sichtbar)}")
+        self._steps.setText(tr("Schritt {nummer} von {gesamt}", nummer=nummer,
+                               gesamt=len(sichtbar)))
         self._back_btn.setEnabled(index > 0)
-        self._next_btn.setText("Los geht's" if letzte else "Weiter")
+        self._next_btn.setText(tr("Los geht's") if letzte else tr("Weiter"))
         self._skip_btn.setVisible(not letzte)
         self._download_zeile.setVisible(
             bool(self._download_zeile.text()) and index != self._pages.get("setup"))
@@ -363,7 +365,7 @@ class OnboardingDialog(QDialog):
         probediktat.angekommen(self)
 
     def _on_download_stand(self, stand: str) -> None:
-        self._download_zeile.setText(f"Im Hintergrund — {stand}")
+        self._download_zeile.setText(tr("Im Hintergrund — {stand}", stand=stand))
         self._download_zeile.setVisible(
             self._stack.currentIndex() != self._pages.get("setup"))
 
@@ -414,10 +416,10 @@ class OnboardingDialog(QDialog):
         except Exception as exc:
             log.warning("Pegel-Anzeige nicht verfuegbar (%s).", exc)
             self._level_stream = None
-            self._level_hint.setText(
+            self._level_hint.setText(tr(
                 "Pegel-Anzeige nicht verfügbar — das Mikrofon lässt sich trotzdem "
                 "auswählen und beim Probediktat testen."
-            )
+            ))
 
     def _stop_level_stream(self) -> None:
         self._level_timer.stop()

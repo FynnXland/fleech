@@ -24,6 +24,8 @@ import os
 import sys
 from pathlib import Path
 
+from ..i18n import N_
+
 log = logging.getLogger(__name__)
 
 DATEINAME_DPAPI = "schluessel.dpapi"
@@ -55,7 +57,7 @@ class DpapiAblage:
         self.pfad = Path(ordner) / DATEINAME_DPAPI
 
     def beschreibung(self) -> str:
-        return "an dein Windows-Konto gebunden (DPAPI)"
+        return N_("an dein Windows-Konto gebunden (DPAPI)")
 
     def lies(self) -> bytes | None:
         if not self.pfad.is_file():
@@ -87,8 +89,8 @@ class SchluesselbundAblage:
 
     def beschreibung(self) -> str:
         if self._bund() is not None:
-            return "im Schlüsselbund deines Benutzerkontos abgelegt"
-        return "in einer Datei nur für dein Konto abgelegt (kein Schlüsselbund gefunden)"
+            return N_("im Schlüsselbund deines Benutzerkontos abgelegt")
+        return N_("in einer Datei nur für dein Konto abgelegt (kein Schlüsselbund gefunden)")
 
     def lies(self) -> bytes | None:
         bund = self._bund()

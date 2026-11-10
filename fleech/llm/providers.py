@@ -24,6 +24,8 @@ import logging
 import urllib.request
 from dataclasses import dataclass, field
 
+from ..i18n import N_
+
 log = logging.getLogger(__name__)
 
 OLLAMA = "ollama"
@@ -34,7 +36,7 @@ EIGENER = "custom"
 @dataclass(frozen=True)
 class Anbieter:
     id: str
-    name: str
+    name: str                      # Anzeige erst mit tr(name) — deutsche Namen sind N_()
     api: str                       # "ollama" | "openai" | "anthropic" | ""
     base_url: str = ""
     modell: str = ""               # Startwert, bis die Liste vom Anbieter da ist
@@ -50,7 +52,7 @@ class Anbieter:
 
 
 ANBIETER = (
-    Anbieter(OLLAMA, "Lokal (Ollama) — empfohlen", "ollama",
+    Anbieter(OLLAMA, N_("Lokal (Ollama) — empfohlen"), "ollama",
              "http://127.0.0.1:11434", "gemma3:4b-text", lokal=True),
     Anbieter("openai", "OpenAI", "openai", "https://api.openai.com/v1",
              "gpt-4o-mini", True, schluessel_url="https://platform.openai.com/api-keys",
@@ -77,8 +79,8 @@ ANBIETER = (
              schluessel_url="https://openrouter.ai/keys",
              umgebung="OPENROUTER_API_KEY", bevorzugt=("mini", "flash")),
     # Jeder Server mit OpenAI-Form: LM Studio, vLLM, llama.cpp, ein Firmen-Proxy …
-    Anbieter(EIGENER, "Eigener Server (OpenAI-kompatibel)", "openai", "", ""),
-    Anbieter(AUS, "Ohne KI — nur Spracherkennung", ""),
+    Anbieter(EIGENER, N_("Eigener Server (OpenAI-kompatibel)"), "openai", "", ""),
+    Anbieter(AUS, N_("Ohne KI — nur Spracherkennung"), ""),
 )
 
 _NACH_ID = {a.id: a for a in ANBIETER}

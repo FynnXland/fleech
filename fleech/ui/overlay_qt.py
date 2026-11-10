@@ -26,6 +26,7 @@ from PySide6.QtCore import QEvent, QRectF, Qt, QTimer, Signal
 from PySide6.QtGui import QColor, QPainter, QPen
 from PySide6.QtWidgets import QHBoxLayout, QWidget
 
+from ..i18n import tr
 from ..usersettings import OverlaySettings
 from .overlaypille.bausteine import (  # noqa: F401  (WaveformWidget: Tests holen es hier)
     TranscriptCaption, WaveformWidget, _round_button, _StatusDot,
@@ -114,8 +115,8 @@ class OverlayWindow(GeometrieMixin, EinblendungenMixin, ZustandMixin, QWidget):
         # Ganz links (eigene Insel, ausserhalb der Waveform): Mathe-Status-Kreis —
         # leuchtet bei aktivem Mathe-Modus. Nur sichtbar, wenn Mathe aktiv ist.
         self._math_dot = _StatusDot()
-        self._cancel_btn = _round_button("x", "Aufnahme verwerfen")
-        self._finish_btn = _round_button("check", "Fertig — Text einfügen")
+        self._cancel_btn = _round_button("x", tr("Aufnahme verwerfen"))
+        self._finish_btn = _round_button("check", tr("Fertig — Text einfügen"))
         # Ganz rechts (eigene Insel): Aufnahme anhalten/fortsetzen.
         # Ohne Tooltip (siehe set_paused): die Blase landete unter der Pille,
         # auf demselben Platz wie die Profil-Kapsel.
@@ -149,9 +150,9 @@ class OverlayWindow(GeometrieMixin, EinblendungenMixin, ZustandMixin, QWidget):
         # Erklaerende Tooltips — beim laengeren Hover eingeblendet, UNTERHALB der Pille
         # (oben liegt die Live-Transkription). Der Event-Filter faengt das ToolTip-
         # Ereignis ab und positioniert den Hinweis mittig unter der Pille.
-        self._cancel_btn.setToolTip("Abbrechen — nichts einfügen")
-        self._finish_btn.setToolTip("Fertig — Text einfügen")
-        self._dot_tooltip_base = (
+        self._cancel_btn.setToolTip(tr("Abbrechen — nichts einfügen"))
+        self._finish_btn.setToolTip(tr("Fertig — Text einfügen"))
+        self._dot_tooltip_base = tr(
             "Zeigt das Profil, das für das nächste Diktat gilt — es bestimmt, "
             "WAS aus dem Diktat wird: normaler Text, eine E-Mail oder ein "
             "KI-Prompt. Ein Klick wechselt reihum durch deine Profile, aber nur "

@@ -16,9 +16,12 @@ from PySide6.QtWidgets import (
     QFrame, QHBoxLayout, QLabel, QPushButton, QScrollArea, QVBoxLayout, QWidget,
 )
 
+from ...gruende import anzeige as grund_text
 from ...history import HistoryStore, treffer_als_markdown
+from ...i18n import tr
 from ...usersettings import UserSettings
 from ..dialogs import TranscriptDetailDialog
+from .anzeigetext import datum
 from .verlaufbestand import bestand_zeile
 from .verlauffilter import VerlaufFilter
 from ..theme import (
@@ -50,7 +53,7 @@ class HistoryEntryRow(QFrame):
             f"QFrame#entry:hover {{ background: {ROW_HOVER}; }}"
         )
         self.setCursor(Qt.PointingHandCursor)
-        self.setToolTip("Klicken für den vollen Text")
+        self.setToolTip(tr("Klicken für den vollen Text"))
         self.entry_id = entry["id"]
 
         row = QHBoxLayout(self)
@@ -68,7 +71,7 @@ class HistoryEntryRow(QFrame):
         del_btn.setIconSize(QSize(14, 14))
         del_btn.setFixedSize(24, 24)
         del_btn.setCursor(Qt.PointingHandCursor)
-        del_btn.setToolTip("Eintrag löschen")
+        del_btn.setToolTip(tr("Eintrag löschen"))
         del_btn.setFocusPolicy(Qt.NoFocus)
         del_btn.setStyleSheet(
             f"QPushButton {{ background: transparent; border: none; border-radius: 8px; }}"
@@ -86,7 +89,7 @@ class HistoryEntryRow(QFrame):
         # bei dem der Rohtext einsprang oder Woerter wegfielen, im Verlauf aus wie
         # jedes andere — der Grund war nur im Moment des Einfuegens sichtbar.
         # Feste Breite und nur ein Zeichen: kein Layoutbruch in der Zeile.
-        grund = str(entry.get("reason", "") or "").strip()
+        grund = grund_text(str(entry.get("reason", "") or "").strip())
         if grund:
             mark = QLabel("●")
             mark.setStyleSheet(
@@ -94,7 +97,7 @@ class HistoryEntryRow(QFrame):
             mark.setFixedWidth(12)
             mark.setToolTip(grund)
             row.addWidget(mark)
-            self.setToolTip(f"{grund} — klicken für den vollen Text")
+            self.setToolTip(tr("{grund} — klicken für den vollen Text", grund=grund))
         row.addWidget(del_btn)
 
     def mousePressEvent(self, event) -> None:
@@ -173,7 +176,7 @@ class HomePage(QWidget):
 
         # Kurz-Stats (rechts) — Design-System: grosse Kennzahl + kleines Label,
         # der erste Wert (Woerter gesamt) traegt den Akzent.
-        self._stats_frame, stats_box = _card("Kurz-Stats")
+        self._stats_frame, stats_box = _card(tr("Kurz-Stats"))
         self._stats_frame.setFixedWidth(190)
         stats_box.setSpacing(12)
 
@@ -191,9 +194,9 @@ class HomePage(QWidget):
             stats_box.addLayout(holder)
             return value
 
-        self._stat_words = _stat(ACCENT, "Wörter gesamt")
-        self._stat_wpm = _stat(TEXT, "WPM")
-        self._stat_streak = _stat(TEXT, "Tage-Serie")
+        self._stat_words = _stat(ACCENT, tr("Wörter gesamt"))
+        self._stat_wpm = _stat(TEXT, tr("WPM"))
+        self._stat_streak = _stat(TEXT, tr("Tage-Serie"))
         stats_box.addStretch(1)
         side = QVBoxLayout()
         side.addWidget(self._stats_frame)
@@ -206,7 +209,7 @@ class HomePage(QWidget):
         self._stats_frame.setVisible(ui.home_show_stats)
 
     def enable_hiding(self, settings, on_changed) -> None:
-        enable_card_hiding(self._stats_frame, "Statistik", "home_show_stats",
+        enable_card_hiding(self._stats_frame, tr("Statistik"), "home_show_stats",
                            settings, on_changed)
 
     def _display_name(self) -> str:
@@ -220,7 +223,8 @@ class HomePage(QWidget):
 
     def refresh(self) -> None:
         name = self._display_name()
-        self._welcome.setText(f"Willkommen zurück{', ' + name if name else ''}")
+        self._welcome.setText(tr("Willkommen zurück, {name}", name=name) if name
+                              else tr("Willkommen zurück"))
 
         stats = self.store.stats()
         self._stat_words.setText(f"{stats.total_words:n}")
@@ -243,9 +247,9 @@ class HomePage(QWidget):
         self._treffer = entries
         if not entries:
             empty = QLabel(
-                "Keine Treffer — anderer Suchbegriff, andere Anwendung oder "
-                "größerer Zeitraum." if self.filter.aktiv()
-                else "Noch keine Diktate — halte den Hotkey und sprich los."
+                tr("Keine Treffer — anderer Suchbegriff, andere Anwendung oder "
+                   "größerer Zeitraum.") if self.filter.aktiv()
+                else tr("Noch keine Diktate — halte den Hotkey und sprich los.")
             )
             empty.setStyleSheet(f"color: {MUTED}; font-size: 10pt;")
             self._timeline.insertWidget(0, empty)
@@ -257,9 +261,9 @@ class HomePage(QWidget):
             day = _dt.datetime.fromtimestamp(entry["ts"]).date()
             if day != group:
                 group = day
-                title = ("HEUTE" if day == today else
-                         "GESTERN" if day == today - _dt.timedelta(days=1)
-                         else day.strftime("%d.%m.%Y"))
+                title = (tr("HEUTE") if day == today else
+                         tr("GESTERN") if day == today - _dt.timedelta(days=1)
+                         else datum(day).upper())
                 header = QLabel(title)
                 header.setStyleSheet(
                     f"color: {MUTED}; font-size: 7.5pt; font-weight: 600;"
@@ -307,7 +311,7 @@ class HomePage(QWidget):
             return
         vorschlag = f"fleech-verlauf-{_dt.date.today().isoformat()}.md"
         pfad, _filter = QFileDialog.getSaveFileName(
-            self, "Treffer als Markdown speichern", vorschlag, "Markdown (*.md)")
+            self, tr("Treffer als Markdown speichern"), vorschlag, "Markdown (*.md)")
         if not pfad:
             return
         self._schreibe_markdown(pfad, eintraege)
@@ -363,7 +367,7 @@ class HomePage(QWidget):
             f"QMenu::item:selected {{ background: {NAV_ACTIVE_BG}; color: {ACCENT}; }}"
             f"QMenu::separator {{ height: 1px; background: {TRACK}; margin: 4px 8px; }}")
 
-        neu_menu = menu.addMenu("Neu bereinigen als …")
+        neu_menu = menu.addMenu(tr("Neu bereinigen als …"))
         neu_menu.setStyleSheet(menu.styleSheet())
         # Angeboten werden die Ausgabeformate, nicht die Profilnamen: Zwei Profile
         # mit demselben Format ergaeben denselben Text — das waere eine Auswahl
@@ -371,18 +375,20 @@ class HomePage(QWidget):
         # (Die Ausnahme fuer „Formeln" ist entfallen — das Format steht seit
         #  Befund E-14 gar nicht mehr in PROFILE_FORMATS.)
         for wert, name in PROFILE_FORMATS:
+            # Der Name geht auch an den Fortschritts-Dialog — dort wird er gezeigt.
+            name = tr(name)
             aktion = neu_menu.addAction(name)
             aktion.triggered.connect(
                 lambda _c=False, w=wert, n=name: self._reprocess(entry, w, n))
 
         menu.addSeparator()
-        kopieren = menu.addAction("Text kopieren")
+        kopieren = menu.addAction(tr("Text kopieren"))
         kopieren.triggered.connect(lambda: self._kopiere(entry["cleaned"]))
-        roh_kopieren = menu.addAction("Rohtext kopieren")
+        roh_kopieren = menu.addAction(tr("Rohtext kopieren"))
         roh_kopieren.triggered.connect(
             lambda: self._kopiere(self.store.raw_text(entry["id"]) or entry["cleaned"]))
         menu.addSeparator()
-        loeschen = menu.addAction("Eintrag löschen")
+        loeschen = menu.addAction(tr("Eintrag löschen"))
         loeschen.triggered.connect(lambda: self._delete_entry(entry["id"]))
         return menu
 
@@ -410,9 +416,9 @@ class HomePage(QWidget):
                      entry["id"])
             self._zeige_nachbearbeitung(entry["cleaned"], name, entry)
             self.melde_nachbearbeitung(
-                "", "Zu diesem Eintrag ist kein Rohtranskript gespeichert — es gibt "
-                    "nichts, was sich neu bereinigen liesse. Der Verlauf hebt den "
-                    "Rohtext erst seit 5.10.4 auf.")
+                "", tr("Zu diesem Eintrag ist kein Rohtranskript gespeichert — es gibt "
+                       "nichts, was sich neu bereinigen liesse. Der Verlauf hebt den "
+                       "Rohtext erst seit 5.10.4 auf."))
             return
         self._zeige_nachbearbeitung(roh, name, entry)
         self._on_reprocess(roh, fmt, name)
@@ -442,7 +448,7 @@ class HomePage(QWidget):
         if text:
             dialog.zeige_ergebnis(text)
         else:
-            dialog.zeige_fehler(grund or "Es kam kein Text zurück.")
+            dialog.zeige_fehler(grund or tr("Es kam kein Text zurück."))
 
     def _open_entry(self, entry: dict) -> None:
         # Nicht-modal (.show statt .exec) — schliesst bei Klick daneben. Referenz

@@ -17,6 +17,7 @@ import time as _time
 from PySide6.QtCore import Qt, Signal
 from PySide6.QtWidgets import QComboBox, QHBoxLayout, QPushButton, QWidget
 
+from ...i18n import N_, tr
 from ..theme import ACCENT, MUTED, TEXT, style_button
 from ..widgets import _suchfeld
 
@@ -25,13 +26,13 @@ from ..widgets import _suchfeld
 # hat, muss sie hier nicht neu lernen. Bewusst eine eigene Liste statt eines
 # Imports quer ueber die Seiten: Die Insights duerfen ihre Zeitraeume aendern,
 # ohne dass sich der Verlauf mitaendert.
-VERLAUF_RANGES = (("day", "Heute"), ("week", "7 Tage"),
-                  ("month", "30 Tage"), ("all", "Alle"))
+VERLAUF_RANGES = (("day", N_("Heute")), ("week", N_("7 Tage")),
+                  ("month", N_("30 Tage")), ("all", N_("Alle")))
 
 _RANGE_DAYS = {"day": 1, "week": 7, "month": 30, "all": None}
 
 # Beschriftung des ersten Combo-Eintrags = kein App-Filter.
-ALLE_APPS = "Alle Anwendungen"
+ALLE_APPS = N_("Alle Anwendungen")
 
 
 class VerlaufFilter(QWidget):
@@ -46,18 +47,18 @@ class VerlaufFilter(QWidget):
         zeile.setContentsMargins(0, 0, 8, 0)
         zeile.setSpacing(8)
 
-        self.suche = _suchfeld("Verlauf durchsuchen …")
-        self.suche.setToolTip(
+        self.suche = _suchfeld(tr("Verlauf durchsuchen …"))
+        self.suche.setToolTip(tr(
             "Sucht im gesprochenen UND im eingefügten Text — auch nach Wörtern, "
             "die die Bereinigung entfernt hat."
-        )
+        ))
         # Erst nach kurzer Pause suchen waere feiner, ist bei ein paar tausend
         # Zeilen aber unnoetig: Die Abfrage laeuft im Millisekundenbereich.
         self.suche.textChanged.connect(self._melde)
         zeile.addWidget(self.suche, 1)
 
         self.apps = QComboBox()
-        self.apps.addItem(ALLE_APPS, "")
+        self.apps.addItem(tr(ALLE_APPS), "")
         self.apps.setFixedWidth(150)
         self.apps.currentIndexChanged.connect(self._melde)
         zeile.addWidget(self.apps)
@@ -65,7 +66,7 @@ class VerlaufFilter(QWidget):
         self._range = "all"
         self._range_buttons: dict[str, QPushButton] = {}
         for key, label in VERLAUF_RANGES:
-            btn = QPushButton(label)
+            btn = QPushButton(tr(label))
             btn.setCheckable(True)
             btn.setCursor(Qt.PointingHandCursor)
             # Schluessel am Button, KEIN Lambda mit self: Ein Lambda, das `self`
@@ -77,12 +78,12 @@ class VerlaufFilter(QWidget):
             zeile.addWidget(btn)
         self._apply_range_styles()
 
-        self.export_btn = style_button(QPushButton("Treffer speichern …"), "ghost")
-        self.export_btn.setToolTip(
+        self.export_btn = style_button(QPushButton(tr("Treffer speichern …")), "ghost")
+        self.export_btn.setToolTip(tr(
             "Schreibt die angezeigten Einträge als Markdown-Datei — Datum, "
             "Anwendung und Text. Achtung: Der volle Wortlaut steht darin "
             "unverschlüsselt und liegt danach dort, wohin du ihn speicherst."
-        )
+        ))
         self.export_btn.clicked.connect(self.export_gewuenscht)
         zeile.addWidget(self.export_btn)
 
@@ -111,7 +112,7 @@ class VerlaufFilter(QWidget):
             return
         self.apps.blockSignals(True)
         self.apps.clear()
-        self.apps.addItem(ALLE_APPS, "")
+        self.apps.addItem(tr(ALLE_APPS), "")
         for name in namen:
             self.apps.addItem(name, name)
         index = self.apps.findData(gewaehlt)

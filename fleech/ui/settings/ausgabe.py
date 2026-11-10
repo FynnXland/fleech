@@ -8,7 +8,8 @@ from __future__ import annotations
 
 from PySide6.QtWidgets import QLineEdit
 
-from .common import INTERVENTION_HELP, MATH_LEVEL_HELP
+from ...i18n import tr
+from .common import INTERVENTION_HELP, MATH_LEVEL_HELP, uebersetzt
 
 
 def zeilen(panel, form, mehr) -> None:
@@ -24,21 +25,22 @@ def zeilen(panel, form, mehr) -> None:
         apply_math_level(_math_ref, value)
 
     panel._combo(
-        mehr, "Formel-Erkennung",
-        [("auto", "Automatisch — erkennt Formeln im Fließtext"),
-         ("off", "Aus")],
+        mehr, tr("Formel-Erkennung"),
+        [("auto", tr("Automatisch — erkennt Formeln im Fließtext")),
+         ("off", tr("Aus"))],
         math_level(s.math), "math", _set_level,
-        help_map=MATH_LEVEL_HELP,
+        help_map=uebersetzt(MATH_LEVEL_HELP),
     )
     panel._combo(
-        form, "Eingriffsgrad",
-        [("minimal", "Minimal"), ("standard", "Standard (empfohlen)"), ("strong", "Strong")],
+        form, tr("Eingriffsgrad"),
+        [("minimal", tr("Minimal")), ("standard", tr("Standard (empfohlen)")),
+         ("strong", tr("Strong"))],
         s.output.intervention, "output", lambda v: setattr(s.output, "intervention", v),
-        help_map=INTERVENTION_HELP,
+        help_map=uebersetzt(INTERVENTION_HELP),
     )
-    panel._check(mehr, "Safe-Word-Befehle aktiv", s.output.command_enabled, "output",
+    panel._check(mehr, tr("Safe-Word-Befehle aktiv"), s.output.command_enabled, "output",
                  lambda v: setattr(s.output, "command_enabled", v),
-                 "Befehle per Safe-Word an/aus.")
+                 tr("Befehle per Safe-Word an/aus."))
     panel._trigger_field = trigger = QLineEdit(s.output.trigger_word)
     # E-17: Der Platzhalter nannte nur die Herkunft ("Wert aus config.yaml"), nie
     # den WERT selbst — genau die Frage ("auf welches Wort reagiert Fleech?") blieb
@@ -48,27 +50,27 @@ def zeilen(panel, form, mehr) -> None:
         from ...config import load_config
 
         _effektiv = load_config().command.trigger_word or "Kimono"
-        trigger.setPlaceholderText(f"leer = {_effektiv} (aus config.yaml)")
+        trigger.setPlaceholderText(tr("leer = {wort} (aus config.yaml)", wort=_effektiv))
     except Exception:
-        trigger.setPlaceholderText("leer = Wert aus config.yaml")
+        trigger.setPlaceholderText(tr("leer = Wert aus config.yaml"))
     trigger.editingFinished.connect(
         lambda: (setattr(s.output, "trigger_word", trigger.text().strip()),
                  panel._changed("output"))
     )
     label_w, _ = panel._row_label(
-        "Safe-Word (Befehle)",
-        "Gesprochenes Auslösewort für Befehle, z. B. „Kimono, mach das formeller“.",
+        tr("Safe-Word (Befehle)"),
+        tr("Gesprochenes Auslösewort für Befehle, z. B. „Kimono, mach das formeller“."),
     )
     mehr.addRow(label_w, trigger)
-    panel._check(mehr, "Gesprochene Zeichen schreiben", s.output.spoken_symbols,
+    panel._check(mehr, tr("Gesprochene Zeichen schreiben"), s.output.spoken_symbols,
                  "output", lambda v: setattr(s.output, "spoken_symbols", v),
-                 "„Slash Hunter“ wird zu „/Hunter“. Ersetzt werden vier Wörter "
-                 "(Slash, Backslash, Hashtag, Klammeraffe), sobald ein weiteres "
-                 "Wort folgt: an einen Namen gebunden („/Hunter“), vor "
-                 "gewöhnlichem Text mit Leerzeichen („# oder“). „Raute“, "
-                 "„Unterstrich“, „Schrägstrich“, „Minus“ und „Plus“ bleiben "
-                 "Text — das sind gewöhnliche deutsche Wörter.")
-    panel._check(mehr, "Cursor-Rückkehr", s.output.restore_focus, "output",
+                 tr("„Slash Hunter“ wird zu „/Hunter“. Ersetzt werden vier Wörter "
+                    "(Slash, Backslash, Hashtag, Klammeraffe), sobald ein weiteres "
+                    "Wort folgt: an einen Namen gebunden („/Hunter“), vor "
+                    "gewöhnlichem Text mit Leerzeichen („# oder“). „Raute“, "
+                    "„Unterstrich“, „Schrägstrich“, „Minus“ und „Plus“ bleiben "
+                    "Text — das sind gewöhnliche deutsche Wörter."))
+    panel._check(mehr, tr("Cursor-Rückkehr"), s.output.restore_focus, "output",
                  lambda v: setattr(s.output, "restore_focus", v),
-                 "Fügt den Text dort ein, wo das Diktat begann — auch wenn du "
-                 "zwischendurch woanders hingeklickt hast.")
+                 tr("Fügt den Text dort ein, wo das Diktat begann — auch wenn du "
+                    "zwischendurch woanders hingeklickt hast."))

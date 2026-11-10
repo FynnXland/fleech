@@ -32,6 +32,7 @@ from PySide6.QtWidgets import (
 from ...llm import apikeys
 from ...llm import modellberater as berater
 from ...llm.providers import ANBIETER, AUS, EIGENER, OLLAMA, anbieter, modelle_abrufen
+from ...i18n import tr
 from ..settings.ki import datenschutz_satz, fehlertext
 from .bausteine import GELB, GRUEN, NOTIZ_STIL, ROT, auswahl, notiz, text, titel
 
@@ -79,29 +80,29 @@ class KiSeite(QWidget):
     def _baue(self) -> None:
         lay = QVBoxLayout(self)
         lay.setSpacing(8)
-        lay.addWidget(titel("Wer räumt deinen Text auf?"))
-        lay.addWidget(text("Eine KI entfernt Füllwörter und Versprecher und setzt die "
-                           "Zeichen — deine Worte bleiben deine Worte."))
+        lay.addWidget(titel(tr("Wer räumt deinen Text auf?")))
+        lay.addWidget(text(tr("Eine KI entfernt Füllwörter und Versprecher und setzt "
+                              "die Zeichen — deine Worte bleiben deine Worte.")))
         self._gruppe = QButtonGroup(self)
-        self._lokal = self._option(lay, "Lokal auf diesem Rechner (empfohlen)",
-                                   "Kostenlos, kein Konto, nichts verlässt den PC. "
-                                   "Lädt einmal ein Modell (ab etwa 3 GB).")
+        self._lokal = self._option(lay, tr("Lokal auf diesem Rechner (empfohlen)"),
+                                   tr("Kostenlos, kein Konto, nichts verlässt den PC. "
+                                      "Lädt einmal ein Modell (ab etwa 3 GB)."))
         if keine_grafikkarte():
-            hinweis = notiz("Keine NVIDIA-Grafikkarte erkannt: Lokal rechnet dann der "
-                            "Prozessor — mehrere Sekunden je Diktat. Ein "
-                            "Cloud-Anbieter ist hier meist die bessere Wahl.")
+            hinweis = notiz(tr("Keine NVIDIA-Grafikkarte erkannt: Lokal rechnet dann "
+                               "der Prozessor — mehrere Sekunden je Diktat. Ein "
+                               "Cloud-Anbieter ist hier meist die bessere Wahl."))
             hinweis.setStyleSheet(GELB)
             hinweis.setContentsMargins(26, 0, 0, 0)
             lay.addWidget(hinweis)
         self._lokal_box = self._baue_lokal(lay)
-        self._cloud = self._option(lay, "Cloud-Anbieter mit eigenem API-Schlüssel",
-                                   "OpenAI, Anthropic, Google, Mistral, Groq … Kein "
-                                   "großer Download; pro Diktat meist Bruchteile "
-                                   "eines Cents.")
+        self._cloud = self._option(lay, tr("Cloud-Anbieter mit eigenem API-Schlüssel"),
+                                   tr("OpenAI, Anthropic, Google, Mistral, Groq … Kein "
+                                      "großer Download; pro Diktat meist Bruchteile "
+                                      "eines Cents."))
         self._cloud_box = self._baue_cloud(lay)
-        self._aus = self._option(lay, "Ohne KI — nur Spracherkennung",
-                                 "Füllwörter fallen trotzdem weg, sonst bleibt der "
-                                 "Text, wie er erkannt wurde.")
+        self._aus = self._option(lay, tr("Ohne KI — nur Spracherkennung"),
+                                 tr("Füllwörter fallen trotzdem weg, sonst bleibt der "
+                                    "Text, wie er erkannt wurde."))
         self._satz = notiz("")
         lay.addWidget(self._satz)
         self._fehler = QLabel("")
@@ -142,14 +143,14 @@ class KiSeite(QWidget):
         spalte.setSpacing(6)
         self._anbieter = auswahl()
         for eintrag in CLOUD:
-            self._anbieter.addItem(eintrag.name, eintrag.id)
+            self._anbieter.addItem(tr(eintrag.name), eintrag.id)
         self._anbieter.currentIndexChanged.connect(self._anbieter_gewechselt)
         spalte.addWidget(self._anbieter)
 
         reihe = QHBoxLayout()
         self._schluessel = QLineEdit()
         self._schluessel.setEchoMode(QLineEdit.Password)
-        self._schluessel.setPlaceholderText("API-Schlüssel einfügen und Enter drücken")
+        self._schluessel.setPlaceholderText(tr("API-Schlüssel einfügen und Enter drücken"))
         self._schluessel.editingFinished.connect(self._schluessel_gesetzt)
         reihe.addWidget(self._schluessel, 1)
         spalte.addLayout(reihe)
@@ -161,7 +162,8 @@ class KiSeite(QWidget):
         spalte.addWidget(self._schluessel_status)
 
         self._adresse = QLineEdit(self.settings.ki.adresse)
-        self._adresse.setPlaceholderText("Server-Adresse, z. B. http://127.0.0.1:1234/v1")
+        self._adresse.setPlaceholderText(tr("Server-Adresse, z. B. {beispiel}",
+                                             beispiel="http://127.0.0.1:1234/v1"))
         self._adresse.editingFinished.connect(self._lade_cloud)
         spalte.addWidget(self._adresse)
 
@@ -208,10 +210,10 @@ class KiSeite(QWidget):
         """Was fehlt noch fuer „Weiter"? Leer = nichts."""
         eintrag = anbieter(self.weg())
         if eintrag.id == EIGENER and not self._adresse.text().strip():
-            return "Bitte die Adresse deines Servers eintragen."
+            return tr("Bitte die Adresse deines Servers eintragen.")
         if eintrag.braucht_schluessel and not apikeys.lies(eintrag.id):
-            return (f"Bitte einen API-Schlüssel für {eintrag.name} eintragen — "
-                    f"oder „Lokal“ wählen.")
+            return tr("Bitte einen API-Schlüssel für {anbieter} eintragen — "
+                      "oder „Lokal“ wählen.", anbieter=tr(eintrag.name))
         return ""
 
     def zeige_fehler(self, meldung: str) -> None:
@@ -257,7 +259,7 @@ class KiSeite(QWidget):
         self._cloud_modell.clear()
         empfohlen = berater.empfohlenes_modell(eintrag.id, self._katalog)
         if empfohlen:
-            self._cloud_modell.addItem(f"{empfohlen} · empfohlen", empfohlen)
+            self._cloud_modell.addItem(tr("{modell} · empfohlen", modell=empfohlen), empfohlen)
         self._cloud_modell.blockSignals(False)
         self._cloud_modell_gewaehlt(0)
         self._cloud_geladen = ""
@@ -267,16 +269,17 @@ class KiSeite(QWidget):
         vorhanden = apikeys.lies(eintrag.id) if eintrag.braucht_schluessel else ""
         if vorhanden:
             self._schluessel_status.setText(
-                f"Schlüssel gespeichert ({apikeys.maskiert(vorhanden)}).")
+                tr("Schlüssel gespeichert ({maske}).", maske=apikeys.maskiert(vorhanden)))
             self._schluessel_status.setStyleSheet(GRUEN)
         elif eintrag.schluessel_url:
-            self._schluessel_status.setText(
-                f'Noch kein Schlüssel. <a href="{eintrag.schluessel_url}">Schlüssel bei '
-                f'{eintrag.name} anlegen</a> — ein Abo wie ChatGPT Plus zählt nicht.')
+            self._schluessel_status.setText(tr(
+                'Noch kein Schlüssel. <a href="{url}">Schlüssel bei {anbieter} '
+                'anlegen</a> — ein Abo wie ChatGPT Plus zählt nicht.',
+                url=eintrag.schluessel_url, anbieter=tr(eintrag.name)))
             self._schluessel_status.setStyleSheet(NOTIZ_STIL)
         else:
-            self._schluessel_status.setText("Schlüssel optional — nur, wenn dein "
-                                            "Server einen verlangt.")
+            self._schluessel_status.setText(tr("Schlüssel optional — nur, wenn dein "
+                                               "Server einen verlangt."))
             self._schluessel_status.setStyleSheet(NOTIZ_STIL)
 
     def _schluessel_gesetzt(self) -> None:
@@ -285,10 +288,10 @@ class KiSeite(QWidget):
         if not neu:
             return
         if not apikeys.speichere(eintrag.id, neu):
-            self._schluessel_status.setText(
+            self._schluessel_status.setText(tr(
                 "Kein Schlüsselbund verfügbar — bitte die Umgebungsvariable "
-                f"{eintrag.umgebung or 'FLEECH_' + eintrag.id.upper() + '_API_KEY'} "
-                "setzen.")
+                "{variable} setzen.",
+                variable=eintrag.umgebung or f"FLEECH_{eintrag.id.upper()}_API_KEY"))
             self._schluessel_status.setStyleSheet(ROT)
             return
         self._schluessel.clear()
@@ -349,12 +352,13 @@ class KiSeite(QWidget):
         box.setCurrentIndex(index if index >= 0 else 0)
         box.blockSignals(False)
         if neuer:
-            self._cloud_status.setText(f"Neueres Modell verfügbar: {neuer} — in der "
-                                       f"Liste wählbar. {len(namen)} Modelle insgesamt.")
+            self._cloud_status.setText(tr("Neueres Modell verfügbar: {neuer} — in der "
+                                          "Liste wählbar. {n} Modelle insgesamt.",
+                                          neuer=neuer, n=len(namen)))
             self._cloud_status.setStyleSheet(GELB)
         else:
-            self._cloud_status.setText(f"Schlüssel funktioniert — {len(namen)} Modelle "
-                                       f"verfügbar.")
+            self._cloud_status.setText(tr("Schlüssel funktioniert — {n} Modelle "
+                                          "verfügbar.", n=len(namen)))
             self._cloud_status.setStyleSheet(GRUEN)
 
     def _lade_lokal(self) -> None:
@@ -388,7 +392,8 @@ class KiSeite(QWidget):
                 (eintrag.id == EIGENER and not adresse):
             return
         self._cloud_geladen = eintrag.id
-        self._cloud_status.setText(f"Frage {eintrag.name} nach den Modellen …")
+        self._cloud_status.setText(tr("Frage {anbieter} nach den Modellen …",
+                                      anbieter=tr(eintrag.name)))
         self._cloud_status.setStyleSheet(NOTIZ_STIL)
         bruecke = self._bruecke
 

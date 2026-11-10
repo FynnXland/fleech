@@ -14,6 +14,7 @@ from __future__ import annotations
 import logging
 import threading
 from pathlib import Path
+from ...i18n import tr
 
 
 log = logging.getLogger(__name__)
@@ -69,10 +70,11 @@ class UpdateMixin:
             self.tray.show_update(version, self._update_file is not None)
         except Exception:
             log.debug("Tray-Update-Eintrag fehlgeschlagen.", exc_info=True)
-        text = (f"Version {version} ist geladen und kann installiert werden."
+        text = (tr("Version {version} ist geladen und kann installiert werden.",
+                   version=version)
                 if self._update_file is not None
-                else f"Version {version} ist verfügbar.")
-        self.notifier.toast("background_info", "Fleech-Update", text)
+                else tr("Version {version} ist verfügbar.", version=version))
+        self.notifier.toast("background_info", tr("Fleech-Update"), text)
 
     def show_update_dialog(self) -> None:
         """Update-Dialog oeffnen (Tray-Eintrag oder Einstellungen)."""

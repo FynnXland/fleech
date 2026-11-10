@@ -22,6 +22,8 @@ import threading
 import time
 from dataclasses import dataclass, field
 
+from .i18n import dezimal, tr
+
 log = logging.getLogger(__name__)
 
 # Grobe Erwartungswerte fuer die Anzeige ("… von etwa 1,6 GB"). Bewusst
@@ -57,12 +59,13 @@ def dauer_text(sekunden: float | None) -> str:
         return ""
     fuenfer = max(5, int(round(sekunden / 5.0)) * 5)
     if fuenfer < 60:
-        return f"noch ca. {fuenfer} s"
+        return tr("noch ca. {n} s", n=fuenfer)
     minuten = max(1, int(round(sekunden / 60.0)))
     if minuten < 60:
-        return f"noch ca. {minuten} Min."
+        return tr("noch ca. {n} Min.", n=minuten)
     stunden, rest = divmod(minuten, 60)
-    return f"noch ca. {stunden} Std. {rest} Min." if rest else f"noch ca. {stunden} Std."
+    return (tr("noch ca. {h} Std. {n} Min.", h=stunden, n=rest) if rest
+            else tr("noch ca. {h} Std.", h=stunden))
 
 
 class Restzeit:
@@ -95,11 +98,10 @@ class Restzeit:
         self._tempo = tempo if self._tempo is None else 0.7 * self._tempo + 0.3 * tempo
         self._fertig, self._t = fertig, jetzt
         if self._tempo <= 0:
-            self._text = "wartet auf Daten …"
+            self._text = tr("wartet auf Daten …")
             return self._text
         mb_s = self._tempo / (1024 * 1024)
-        tempo_text = (f"{mb_s:.0f} MB/s" if mb_s >= 10
-                      else f"{mb_s:.1f} MB/s".replace(".", ","))
+        tempo_text = f"{mb_s:.0f} MB/s" if mb_s >= 10 else f"{dezimal(mb_s, 1)} MB/s"
         rest = dauer_text(max(0, gesamt - fertig) / self._tempo)
         self._text = f"{tempo_text} · {rest}" if rest else tempo_text
         return self._text
@@ -170,19 +172,19 @@ def ensure_whisper(size: str, on_progress=None, poll: float = 1.0,
         while not stop.wait(poll):
             roh = whisper_cache_bytes(size)
             mb = roh / (1024 * 1024)
-            ziel = f" von etwa {erwartet:.1f} GB".replace(".", ",") if erwartet else ""
-            text = f"Lade Erkennungsmodell … {mb:.0f} MB{ziel}"
+            stand = (tr("{mb} MB von etwa {gb} GB", mb=f"{mb:.0f}", gb=dezimal(erwartet, 1))
+                     if erwartet else f"{mb:.0f} MB")
             if on_progress:
-                on_progress(text)
+                on_progress(tr("Lade Erkennungsmodell … {stand}", stand=stand))
             if on_stand:
                 prozent = min(99, int(roh * 100 / ziel_bytes)) if ziel_bytes else -1
                 rest = restzeit.melde(roh, ziel_bytes) if ziel_bytes else ""
-                on_stand(f"{mb:.0f} MB{ziel}" + (f" · {rest}" if rest else ""), prozent)
+                on_stand(stand + (f" · {rest}" if rest else ""), prozent)
 
     if on_progress:
-        on_progress("Lade Erkennungsmodell …")
+        on_progress(tr("Lade Erkennungsmodell …"))
     if on_stand:
-        on_stand("Lade Erkennungsmodell …", -1)
+        on_stand(tr("Lade Erkennungsmodell …"), -1)
     beobachter = threading.Thread(target=beobachte, daemon=True,
                                   name="stt-download-progress")
     beobachter.start()
@@ -219,20 +221,20 @@ def build_steps(endpoints, stt_model: str, base_url: str) -> list:
 
     lage = ollama_setup.status(base_url)
     ollama_schritt = SetupStep(
-        key="ollama", title="Ollama-Dienst",
-        detail="führt die lokale KI aus — ohne ihn bleibt der Text unbereinigt.",
+        key="ollama", title=tr("Ollama-Dienst"),
+        detail=tr("führt die lokale KI aus — ohne ihn bleibt der Text unbereinigt."),
     )
     if lage == "ready":
         ollama_schritt.state = "done"
-        ollama_schritt.note = "läuft"
+        ollama_schritt.note = tr("läuft")
     elif lage == "installed":
-        ollama_schritt.note = "installiert, aber nicht gestartet"
+        ollama_schritt.note = tr("installiert, aber nicht gestartet")
     elif not ollama_setup.install_available():
         ollama_schritt.state = "manual"
         ollama_schritt.manual = ollama_setup.manual_hint()
-        ollama_schritt.note = "fehlt"
+        ollama_schritt.note = tr("fehlt")
     else:
-        ollama_schritt.note = "fehlt — Fleech kann es installieren"
+        ollama_schritt.note = tr("fehlt — Fleech kann es installieren")
     schritte.append(ollama_schritt)
 
     vorhanden = ollama_installed_models(base_url) if lage == "ready" else set()
@@ -241,21 +243,21 @@ def build_steps(endpoints, stt_model: str, base_url: str) -> list:
         if not modell or any(s.key == f"llm:{modell}" for s in schritte):
             continue
         schritt = SetupStep(
-            key=f"llm:{modell}", title=f"Sprachmodell {modell}",
-            detail="bereinigt das Diktat (Füllwörter, Versprecher, Zeichensetzung).",
+            key=f"llm:{modell}", title=tr("Sprachmodell {modell}", modell=modell),
+            detail=tr("bereinigt das Diktat (Füllwörter, Versprecher, Zeichensetzung)."),
         )
         quelle = schlank.quelle_von(modell)
         if quelle:
-            schritt.detail = (f"bereinigt das Diktat — {quelle} ohne den Bildteil, "
-                              f"den Fleech nie braucht (spart rund 0,8 GB Speicher).")
+            schritt.detail = tr("bereinigt das Diktat — {quelle} ohne den Bildteil, den Fleech "
+                                "nie braucht (spart rund {gb} GB Speicher).",
+                                quelle=quelle, gb=dezimal(0.8, 1))
         if modell in vorhanden:
             schritt.state = "done"
-            schritt.note = "vorhanden"
+            schritt.note = tr("vorhanden")
         elif quelle and quelle in vorhanden:
-            schritt.note = f"wird aus {quelle} gebaut (kein Download)"
+            schritt.note = tr("wird aus {quelle} gebaut (kein Download)", quelle=quelle)
         elif quelle:
-            schritt.note = (_llm_groesse_text(quelle).replace("wird geladen", f"lädt {quelle}")
-                            + ", danach wird der Bildteil entfernt")
+            schritt.note = _llm_groesse_text(quelle, umbau=True)
         else:
             schritt.note = _llm_groesse_text(modell)
         schritte.append(schritt)
@@ -264,31 +266,37 @@ def build_steps(endpoints, stt_model: str, base_url: str) -> list:
     return schritte
 
 
-def _llm_groesse_text(modell: str) -> str:
-    """„wird geladen (etwa 3,3 GB)" — die Groesse aus dem Modellkatalog."""
+def _llm_groesse_text(modell: str, umbau: bool = False) -> str:
+    """„wird geladen (etwa 3,3 GB)" — die Groesse aus dem Modellkatalog.
+
+    `umbau`: Das Original wird geladen, um daraus die schlanke Fassung zu bauen.
+    Ein ganzer Satz je Fall — ein `replace()` am fertigen Text braeche im Englischen."""
+    gb = 0.0
     try:
         from .llm.modellberater import mitgelieferter_katalog, ollama_modelle
 
-        for m in ollama_modelle(mitgelieferter_katalog()):
-            if m.modell == modell and m.groesse_gb:
-                return f"wird geladen (etwa {m.groesse_gb:.1f} GB)".replace(".", ",")
+        gb = next((m.groesse_gb for m in ollama_modelle(mitgelieferter_katalog())
+                   if m.modell == modell and m.groesse_gb), 0.0)
     except Exception:
         log.debug("Modellkatalog fuer die Groesse nicht lesbar.", exc_info=True)
-    return "wird geladen"
+    if umbau:
+        return (tr("lädt {modell} (etwa {gb} GB), danach wird der Bildteil entfernt",
+                   modell=modell, gb=dezimal(gb, 1)) if gb
+                else tr("lädt {modell}, danach wird der Bildteil entfernt", modell=modell))
+    return tr("wird geladen (etwa {gb} GB)", gb=dezimal(gb, 1)) if gb else tr("wird geladen")
 
 
 def _stt_schritt(stt_model: str) -> SetupStep:
     stt = SetupStep(
-        key="stt", title=f"Erkennungsmodell {stt_model}",
-        detail="wandelt deine Stimme in Text — läuft auf der Grafikkarte.",
+        key="stt", title=tr("Erkennungsmodell {modell}", modell=stt_model),
+        detail=tr("wandelt deine Stimme in Text — läuft auf der Grafikkarte."),
     )
     if whisper_present(stt_model):
         stt.state = "done"
-        stt.note = "vorhanden"
+        stt.note = tr("vorhanden")
     else:
         gb = STT_GROESSEN_GB.get(stt_model)
-        stt.note = (f"wird geladen (etwa {gb:.1f} GB)".replace(".", ",") if gb
-                    else "wird geladen")
+        stt.note = tr("wird geladen (etwa {gb} GB)", gb=dezimal(gb, 1)) if gb else tr("wird geladen")
     return stt
 
 
@@ -339,9 +347,9 @@ class SetupRunner:
 
         if not ollama_setup.binary_present():
             if not ollama_setup.install_available():
-                self._melde("ollama", "manual", "muss von Hand installiert werden")
+                self._melde("ollama", "manual", tr("muss von Hand installiert werden"))
                 return False
-            self._melde("ollama", "running", "wird installiert")
+            self._melde("ollama", "running", tr("wird installiert"))
             fortschritt = self._fortschritt
 
             def melde_text(text: str) -> None:
@@ -353,7 +361,7 @@ class SetupRunner:
 
         # Nach der Installation startet Ollama seinen Dienst selbst — aber nicht
         # sofort. Kurz warten, statt den Nutzer mit "fehlt" zurueckzulassen.
-        self._melde("ollama", "running", "wird gestartet")
+        self._melde("ollama", "running", tr("wird gestartet"))
         for _ in range(30):
             if ollama_setup.service_running(self.base_url, timeout=2.0):
                 return True
@@ -372,14 +380,14 @@ class SetupRunner:
             return self._schritt_stt()
 
         if self._schritt_ollama():
-            self._melde("ollama", "done", "läuft")
+            self._melde("ollama", "done", tr("läuft"))
         else:
             # Ohne Dienst sind die Modell-Schritte sinnlos: sie laufen ueber
             # dessen API. Ehrlich abbrechen statt drei Fehler hintereinander.
-            self._melde("ollama", "manual", "nicht erreichbar")
+            self._melde("ollama", "manual", tr("nicht erreichbar"))
             for endpoint in self.endpoints or []:
                 self._melde(f"llm:{getattr(endpoint, 'model', '')}", "pending",
-                            "wartet auf Ollama")
+                            tr("wartet auf Ollama"))
             alles_gut = False
 
         if not alles_gut:
@@ -392,7 +400,7 @@ class SetupRunner:
                 continue
             key = f"llm:{modell}"
             if modell in vorhanden:
-                self._melde(key, "done", "vorhanden")
+                self._melde(key, "done", tr("vorhanden"))
                 continue
             if self._abbruch.is_set():
                 return False
@@ -402,19 +410,19 @@ class SetupRunner:
                 on_bytes=self._pull_stand(key),
                 on_prozent=lambda p, k=key: self._fortschritt(k, f"{p} %", p))
             if not ergebnis.modell:
-                self._melde(key, "failed", "Download fehlgeschlagen")
+                self._melde(key, "failed", tr("Download fehlgeschlagen"))
                 alles_gut = False
             elif ergebnis.modell != modell:
                 # Umbau ging nicht: das Original rechnet — ehrlich dazugesagt.
                 for ep in self.endpoints or []:
                     if getattr(ep, "model", "") == modell:
                         ep.model = ergebnis.modell
-                self._melde(key, "done", f"läuft als {ergebnis.modell} — "
-                                         f"{schlank.grund(modell) or 'Umbau ging nicht'}")
+                self._melde(key, "done", tr("läuft als {modell} — {grund}", modell=ergebnis.modell,
+                                            grund=schlank.grund(modell) or tr("Umbau ging nicht")))
             elif ergebnis.verschlankt:
-                self._melde(key, "done", "bereit · ohne Bildteil")
+                self._melde(key, "done", tr("bereit · ohne Bildteil"))
             else:
-                self._melde(key, "done", "geladen")
+                self._melde(key, "done", tr("geladen"))
 
         return self._schritt_stt() and alles_gut
 
@@ -442,18 +450,18 @@ class SetupRunner:
 
     def _schritt_stt(self) -> bool:
         if whisper_present(self.stt_model):
-            self._melde("stt", "done", "vorhanden")
+            self._melde("stt", "done", tr("vorhanden"))
             return True
         if self._abbruch.is_set():
             return False
-        self._melde("stt", "running", "wird geladen")
+        self._melde("stt", "running", tr("wird geladen"))
         fortschritt = self._fortschritt
 
         def melde_stand(text: str, prozent: int) -> None:
             fortschritt("stt", text, prozent)
 
         if ensure_whisper(self.stt_model, on_stand=melde_stand):
-            self._melde("stt", "done", "geladen")
+            self._melde("stt", "done", tr("geladen"))
             return True
-        self._melde("stt", "failed", "Download fehlgeschlagen")
+        self._melde("stt", "failed", tr("Download fehlgeschlagen"))
         return False

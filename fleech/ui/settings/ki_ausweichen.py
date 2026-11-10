@@ -18,6 +18,7 @@ import threading
 from PySide6.QtCore import QObject, Qt, Signal
 from PySide6.QtWidgets import QComboBox, QHBoxLayout, QLabel, QLineEdit, QWidget
 
+from ...i18n import N_, tr
 from ...llm import apikeys
 from ...llm.frist import ausweich_modell
 from ...llm.providers import ANBIETER, anbieter, modelle_abrufen
@@ -29,7 +30,7 @@ _GRUEN = "color: #4CC38A; font-size: 8pt;"
 _ROT = "color: #E5484D; font-size: 8pt;"
 _GELB = "color: #E8A13C; font-size: 9pt;"
 
-AUS_TEXT = "Nicht ausweichen — der Text bleibt auf diesem Rechner"
+AUS_TEXT = N_("Nicht ausweichen — der Text bleibt auf diesem Rechner")
 
 
 class _Bruecke(QObject):
@@ -44,13 +45,13 @@ def cloud_anbieter() -> list:
 def satz(ident: str) -> tuple[str, str]:
     """(Satz, Stil) — was passiert bei dieser Wahl?"""
     if not ident:
-        return ("Antwortet die lokale KI nicht rechtzeitig, fügt Fleech den erkannten "
-                "Text ohne Bereinigung ein. Während der Verarbeitung tut der Haken in "
-                "der Pille dasselbe sofort.", _GRAU)
-    name = anbieter(ident).name
-    return (f"Nur wenn die lokale KI nicht rechtzeitig antwortet oder ausfällt, geht "
-            f"der Text dieses einen Diktats — nicht die Tonaufnahme — an {name}. Im "
-            f"Verlauf steht dann „in der Cloud bereinigt“.", _GELB)
+        return (tr("Antwortet die lokale KI nicht rechtzeitig, fügt Fleech den erkannten "
+                   "Text ohne Bereinigung ein. Während der Verarbeitung tut der Haken in "
+                   "der Pille dasselbe sofort."), _GRAU)
+    name = tr(anbieter(ident).name)
+    return (tr("Nur wenn die lokale KI nicht rechtzeitig antwortet oder ausfällt, geht "
+               "der Text dieses einen Diktats — nicht die Tonaufnahme — an {name}. Im "
+               "Verlauf steht dann „in der Cloud bereinigt“.", name=name), _GELB)
 
 
 def build(panel, form, bruecke_eltern):
@@ -61,15 +62,15 @@ def build(panel, form, bruecke_eltern):
     panel._ki_ausweich_bruecke = bruecke
 
     box = QComboBox()
-    box.addItem(AUS_TEXT, "")
+    box.addItem(tr(AUS_TEXT), "")
     for eintrag in cloud_anbieter():
-        box.addItem(eintrag.name, eintrag.id)
+        box.addItem(tr(eintrag.name), eintrag.id)
     box.setCurrentIndex(max(0, box.findData(ki.ausweichen or "")))
     label_w, _ = panel._row_label(
-        "Wenn die lokale KI hängt",
-        "Laufen viele Programme nebenher, kann die lokale KI sehr langsam werden. "
-        "Fleech wartet nur begrenzt (je nach Länge des Diktats etwa 6–20 s) und "
-        "nimmt dann den Rohtext — oder, wenn hier gewählt, einen Cloud-Anbieter.")
+        tr("Wenn die lokale KI hängt"),
+        tr("Laufen viele Programme nebenher, kann die lokale KI sehr langsam werden. "
+           "Fleech wartet nur begrenzt (je nach Länge des Diktats etwa 6–20 s) und "
+           "nimmt dann den Rohtext — oder, wenn hier gewählt, einen Cloud-Anbieter."))
     form.addRow(label_w, box)
 
     erklaerung = QLabel("")
@@ -81,7 +82,7 @@ def build(panel, form, bruecke_eltern):
     spalte.setContentsMargins(0, 0, 0, 0)
     feld = QLineEdit()
     feld.setEchoMode(QLineEdit.Password)
-    feld.setPlaceholderText("Schlüssel einfügen und Enter drücken")
+    feld.setPlaceholderText(tr("Schlüssel einfügen und Enter drücken"))
     status = QLabel("")
     status.setTextFormat(Qt.RichText)
     status.setOpenExternalLinks(True)
@@ -89,9 +90,10 @@ def build(panel, form, bruecke_eltern):
     spalte.addWidget(feld, 1)
     spalte.addWidget(status, 1)
     form.addRow(panel._row_label(
-        "Schlüssel dafür", "Wird im Schlüsselbund des Systems abgelegt, nie in einer "
-                           "Datei. Derselbe Schlüssel gilt auch, wenn du den Anbieter "
-                           "oben als Haupt-KI wählst.")[0], zeile)
+        tr("Schlüssel dafür"),
+        tr("Wird im Schlüsselbund des Systems abgelegt, nie in einer "
+           "Datei. Derselbe Schlüssel gilt auch, wenn du den Anbieter "
+           "oben als Haupt-KI wählst."))[0], zeile)
 
     def zeige_stand() -> str:
         """Schlüssel da? — ohne Netz. Gibt den Schlüssel zurück ("" = keiner)."""
@@ -99,12 +101,13 @@ def build(panel, form, bruecke_eltern):
         schluessel = apikeys.lies(eintrag.id) if ki.ausweichen else ""
         if schluessel:
             modell = ki.ausweichen_modell or eintrag.modell
-            status.setText(f"Gespeichert ({apikeys.maskiert(schluessel)}) — springt "
-                           f"mit {modell} ein.")
+            status.setText(tr("Gespeichert ({maske}) — springt mit {modell} ein.",
+                              maske=apikeys.maskiert(schluessel), modell=modell))
             status.setStyleSheet(_GRUEN)
         elif eintrag.schluessel_url:
-            status.setText(f'Noch kein Schlüssel. <a href="{eintrag.schluessel_url}">'
-                           f'Schlüssel bei {eintrag.name} anlegen</a>')
+            status.setText(tr('Noch kein Schlüssel. <a href="{url}">'
+                              'Schlüssel bei {name} anlegen</a>',
+                              url=eintrag.schluessel_url, name=tr(eintrag.name)))
             status.setStyleSheet(_GRAU)
         return schluessel
 
@@ -114,7 +117,7 @@ def build(panel, form, bruecke_eltern):
         schluessel = zeige_stand()
         if not schluessel:
             return
-        status.setText(f"Gespeichert ({apikeys.maskiert(schluessel)}) — prüfe …")
+        status.setText(tr("Gespeichert ({maske}) — prüfe …", maske=apikeys.maskiert(schluessel)))
         status.setStyleSheet(_GRAU)
 
         def arbeite():
@@ -136,7 +139,7 @@ def build(panel, form, bruecke_eltern):
             status.setText(fehler)
             status.setStyleSheet(_ROT)
             return
-        status.setText(f"Bereit — springt mit {name} ein.")
+        status.setText(tr("Bereit — springt mit {modell} ein.", modell=name))
         status.setStyleSheet(_GRUEN)
         if name and name != ki.ausweichen_modell:
             ki.ausweichen_modell = name
@@ -173,8 +176,8 @@ def build(panel, form, bruecke_eltern):
             return
         if not apikeys.speichere(ki.ausweichen, neu):
             eintrag = anbieter(ki.ausweichen)
-            status.setText(f"Kein Schlüsselbund verfügbar — bitte die Umgebungsvariable "
-                           f"{eintrag.umgebung} setzen.")
+            status.setText(tr("Kein Schlüsselbund verfügbar — bitte die Umgebungsvariable "
+                              "{name} setzen.", name=eintrag.umgebung))
             status.setStyleSheet(_ROT)
             return
         feld.clear()

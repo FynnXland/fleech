@@ -6,25 +6,27 @@ einzelnen Toene unter „Mehr Optionen".
 
 from __future__ import annotations
 
+from ...i18n import N_, tr
+
 
 def zeilen(panel, form, mehr) -> None:
     s = panel.settings
-    panel._check(form, "UI-Sounds", s.sounds.enabled, "sounds",
+    panel._check(form, tr("UI-Sounds"), s.sounds.enabled, "sounds",
                  lambda v: setattr(s.sounds, "enabled", v),
-                 "Alle Töne an/aus.")
-    panel._slider(form, "Lautstärke", s.sounds.volume, "sounds",
+                 tr("Alle Töne an/aus."))
+    panel._slider(form, tr("Lautstärke"), s.sounds.volume, "sounds",
                   lambda v: setattr(s.sounds, "volume", v),
-                  hint_text="Lautstärke der Fleech-Töne.")
-    panel._combo(mehr, "Klangstil", [("warm", "Warm (Standard)"),
-                                     ("chimes", "Klassisch (Chimes)"),
-                                     ("click", "Click (Ticks)")],
+                  hint_text=tr("Lautstärke der Fleech-Töne."))
+    panel._combo(mehr, tr("Klangstil"), [("warm", tr("Warm (Standard)")),
+                                         ("chimes", tr("Klassisch (Chimes)")),
+                                         ("click", tr("Click (Ticks)"))],
                  s.sounds.preset, "sounds", lambda v: setattr(s.sounds, "preset", v),
-                 hint_text="Klangstil der Töne.")
+                 hint_text=tr("Klangstil der Töne."))
     for key, label, tip in (
-        ("start", "Start der Aufnahme", "Ton beim Aufnahmestart."),
-        ("stop", "Stopp der Aufnahme", "Ton beim Aufnahmestopp."),
-        ("commit", "Text eingefügt", "Ton, wenn der Text eingefügt wurde."),
-        ("error", "Fehler/Fallback", "Ton bei Fehlern oder Ersatz-Verarbeitung."),
+        ("start", N_("Start der Aufnahme"), N_("Ton beim Aufnahmestart.")),
+        ("stop", N_("Stopp der Aufnahme"), N_("Ton beim Aufnahmestopp.")),
+        ("commit", N_("Text eingefügt"), N_("Ton, wenn der Text eingefügt wurde.")),
+        ("error", N_("Fehler/Fallback"), N_("Ton bei Fehlern oder Ersatz-Verarbeitung.")),
     ):
-        panel._check(mehr, label, getattr(s.sounds, key), "sounds",
-                     lambda v, k=key: setattr(s.sounds, k, v), tip)
+        panel._check(mehr, tr(label), getattr(s.sounds, key), "sounds",
+                     lambda v, k=key: setattr(s.sounds, k, v), tr(tip))

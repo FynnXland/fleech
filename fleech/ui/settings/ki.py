@@ -27,7 +27,9 @@ from PySide6.QtWidgets import (
 
 from ...llm import apikeys
 from ...llm.providers import ANBIETER, AUS, EIGENER, OLLAMA, anbieter, modell_vorschlag, modelle_abrufen
+from ...i18n import dezimal, tr
 from . import ki_ausweichen
+
 log = logging.getLogger(__name__)
 
 _GRAU = "color: #808088; font-size: 8pt;"
@@ -49,30 +51,30 @@ def datenschutz_satz(ident: str) -> tuple[str, str]:
     """(Satz, Stil) — wohin geht der Text bei dieser Wahl?"""
     eintrag = anbieter(ident)
     if eintrag.id == OLLAMA:
-        return ("Alles bleibt auf diesem Rechner — kein Konto, keine Kosten.", _GRUEN)
+        return (tr("Alles bleibt auf diesem Rechner — kein Konto, keine Kosten."), _GRUEN)
     if eintrag.id == AUS:
-        return ("Nur Spracherkennung: Füllwörter wie „äh“ entfernt Fleech weiterhin, "
-                "aber keine KI glättet den Text. Befehle (Safe-Word) und Formate wie "
-                "E-Mail oder KI-Prompt ruhen.", _GRAU)
-    ziel = "deinen eigenen Server" if eintrag.id == EIGENER else eintrag.name
-    return (f"Dein diktierter Text — nicht die Tonaufnahme — wird zum Bereinigen an "
-            f"{ziel} gesendet und dort nach dessen Bedingungen verarbeitet. Die "
-            f"Kosten rechnet der Anbieter über deinen Schlüssel ab (pro Diktat "
-            f"meist Bruchteile eines Cents).", _GELB)
+        return (tr("Nur Spracherkennung: Füllwörter wie „äh“ entfernt Fleech weiterhin, "
+                   "aber keine KI glättet den Text. Befehle (Safe-Word) und Formate wie "
+                   "E-Mail oder KI-Prompt ruhen."), _GRAU)
+    ziel = tr("deinen eigenen Server") if eintrag.id == EIGENER else tr(eintrag.name)
+    return (tr("Dein diktierter Text — nicht die Tonaufnahme — wird zum Bereinigen an "
+               "{ziel} gesendet und dort nach dessen Bedingungen verarbeitet. Die "
+               "Kosten rechnet der Anbieter über deinen Schlüssel ab (pro Diktat "
+               "meist Bruchteile eines Cents).", ziel=ziel), _GELB)
 
 
 def fehlertext(exc: Exception) -> str:
     """Netz- und HTTP-Fehler in einen Satz, der sagt, was zu tun ist."""
     code = getattr(exc, "code", None)
     if code in (401, 403):
-        return "Schlüssel abgelehnt — bitte prüfen."
+        return tr("Schlüssel abgelehnt — bitte prüfen.")
     if code == 404:
-        return "Adresse oder Modell nicht gefunden."
+        return tr("Adresse oder Modell nicht gefunden.")
     if code == 429:
-        return "Kontingent erschöpft oder zu viele Anfragen."
+        return tr("Kontingent erschöpft oder zu viele Anfragen.")
     if code:
-        return f"Der Dienst antwortete mit Fehler {code}."
-    return "Keine Verbindung — Internet oder Adresse prüfen."
+        return tr("Der Dienst antwortete mit Fehler {code}.", code=code)
+    return tr("Keine Verbindung — Internet oder Adresse prüfen.")
 
 
 def zeilen(panel, form, mehr) -> None:
@@ -84,12 +86,13 @@ def zeilen(panel, form, mehr) -> None:
 
     box = QComboBox()
     for eintrag in ANBIETER:
-        box.addItem(eintrag.name, eintrag.id)
+        box.addItem(tr(eintrag.name), eintrag.id)
     box.setCurrentIndex(max(0, box.findData(anbieter(s.ki.anbieter).id)))
     label_w, _ = panel._row_label(
-        "Anbieter", "Lokal: Ollama auf diesem Rechner (empfohlen). Cloud: OpenAI, "
-                    "Anthropic, Google, Mistral, Groq, OpenRouter oder ein eigener "
-                    "OpenAI-kompatibler Server. „Ohne KI“: nur Spracherkennung.")
+        tr("Anbieter"),
+        tr("Lokal: Ollama auf diesem Rechner (empfohlen). Cloud: OpenAI, "
+           "Anthropic, Google, Mistral, Groq, OpenRouter oder ein eigener "
+           "OpenAI-kompatibler Server. „Ohne KI“: nur Spracherkennung."))
     form.addRow(label_w, box)
 
     satz = QLabel("")
@@ -98,31 +101,35 @@ def zeilen(panel, form, mehr) -> None:
 
     schluessel_w, schluessel_feld, schluessel_status = _schluessel_zeile(panel)
     form.addRow(panel._row_label(
-        "API-Schlüssel", "Wird im Schlüsselbund des Systems abgelegt (Windows: "
-                         "Anmeldeinformationsverwaltung), nie in einer Datei.")[0],
+        tr("API-Schlüssel"),
+        tr("Wird im Schlüsselbund des Systems abgelegt (Windows: "
+           "Anmeldeinformationsverwaltung), nie in einer Datei."))[0],
         schluessel_w)
 
     adresse = QLineEdit(s.ki.adresse)
     adresse.setPlaceholderText("http://127.0.0.1:1234/v1")
     form.addRow(panel._row_label(
-        "Server-Adresse", "Basis-Adresse eines OpenAI-kompatiblen Servers "
-                          "(LM Studio, vLLM, llama.cpp …), meist mit /v1 am Ende.")[0],
+        tr("Server-Adresse"),
+        tr("Basis-Adresse eines OpenAI-kompatiblen Servers "
+           "(LM Studio, vLLM, llama.cpp …), meist mit /v1 am Ende."))[0],
         adresse)
 
     modell_w, modell_box, modell_status = _modell_zeile(panel, bruecke)
     form.addRow(panel._row_label(
-        "Modell", "Leer = Vorschlag des Anbieters. „Liste laden“ fragt den Anbieter, "
-                  "welche Modelle dein Schlüssel nutzen darf.")[0], modell_w)
+        tr("Modell"),
+        tr("Leer = Vorschlag des Anbieters. „Liste laden“ fragt den Anbieter, "
+           "welche Modelle dein Schlüssel nutzen darf."))[0], modell_w)
 
     test_w, test_status = _test_zeile(panel, bruecke)
     form.addRow("", test_w)
 
     neu_w, neu_zeigen = _neuheiten_zeile(panel, bruecke)
     mehr.addRow(panel._row_label(
-        "Neuere Modelle", "Einmal pro Woche fragt Fleech nach: beim Cloud-Anbieter "
-                          "die Modellliste, für lokal die Ollama-Registry und den "
-                          "Modellkatalog auf GitHub. Vorgeschlagen wird nur — "
-                          "umgestellt wird nie von selbst.")[0], neu_w)
+        tr("Neuere Modelle"),
+        tr("Einmal pro Woche fragt Fleech nach: beim Cloud-Anbieter "
+           "die Modellliste, für lokal die Ollama-Registry und den "
+           "Modellkatalog auf GitHub. Vorgeschlagen wird nur — "
+           "umgestellt wird nie von selbst."))[0], neu_w)
 
     ausweiche_sichtbar = ki_ausweichen.build(panel, mehr, panel)
 
@@ -145,7 +152,7 @@ def zeilen(panel, form, mehr) -> None:
         if s.ki.modell:
             modell_box.addItem(s.ki.modell)
         modell_box.setEditText(s.ki.modell)
-        modell_box.lineEdit().setPlaceholderText(eintrag.modell or "Modellname")
+        modell_box.lineEdit().setPlaceholderText(eintrag.modell or tr("Modellname"))
         modell_box.blockSignals(False)
         modell_status.setText("")
         test_status.setText("")
@@ -166,9 +173,10 @@ def zeilen(panel, form, mehr) -> None:
         if not neu:
             return
         if not apikeys.speichere(eintrag.id, neu):
-            schluessel_status.setText(
-                f"Kein Schlüsselbund verfügbar — bitte die Umgebungsvariable "
-                f"{eintrag.umgebung or 'FLEECH_' + eintrag.id.upper() + '_API_KEY'} setzen.")
+            schluessel_status.setText(tr(
+                "Kein Schlüsselbund verfügbar — bitte die Umgebungsvariable "
+                "{name} setzen.",
+                name=eintrag.umgebung or 'FLEECH_' + eintrag.id.upper() + '_API_KEY'))
             schluessel_status.setStyleSheet(_ROT)
             return
         schluessel_feld.clear()
@@ -191,7 +199,7 @@ def zeilen(panel, form, mehr) -> None:
             modell_status.setStyleSheet(_ROT)
             return
         if not namen:
-            modell_status.setText("Der Anbieter nannte keine Modelle.")
+            modell_status.setText(tr("Der Anbieter nannte keine Modelle."))
             modell_status.setStyleSheet(_GRAU)
             return
         vorher = modell_box.currentText().strip()
@@ -201,7 +209,7 @@ def zeilen(panel, form, mehr) -> None:
         wahl = vorher if vorher in namen else modell_vorschlag(aktuell(), namen)
         modell_box.setEditText(wahl)
         modell_box.blockSignals(False)
-        modell_status.setText(f"{len(namen)} Modelle verfügbar.")
+        modell_status.setText(tr("{n} Modelle verfügbar.", n=len(namen)))
         modell_status.setStyleSheet(_GRUEN)
         modell_gesetzt()
 
@@ -231,14 +239,15 @@ def zeilen(panel, form, mehr) -> None:
 def _zeige_schluessel_stand(eintrag, status: QLabel) -> None:
     vorhanden = apikeys.lies(eintrag.id) if eintrag.braucht_schluessel else ""
     if vorhanden:
-        status.setText(f"Gespeichert ({apikeys.maskiert(vorhanden)}).")
+        status.setText(tr("Gespeichert ({maske}).", maske=apikeys.maskiert(vorhanden)))
         status.setStyleSheet(_GRUEN)
     elif eintrag.schluessel_url:
-        status.setText(f'Noch kein Schlüssel. <a href="{eintrag.schluessel_url}">'
-                       f'Schlüssel bei {eintrag.name} anlegen</a>')
+        status.setText(tr('Noch kein Schlüssel. <a href="{url}">'
+                          'Schlüssel bei {name} anlegen</a>',
+                          url=eintrag.schluessel_url, name=tr(eintrag.name)))
         status.setStyleSheet(_GRAU)
     else:
-        status.setText("Optional — nur, wenn dein Server einen verlangt.")
+        status.setText(tr("Optional — nur, wenn dein Server einen verlangt."))
         status.setStyleSheet(_GRAU)
 
 
@@ -248,7 +257,7 @@ def _schluessel_zeile(panel):
     spalte.setContentsMargins(0, 0, 0, 0)
     feld = QLineEdit()
     feld.setEchoMode(QLineEdit.Password)
-    feld.setPlaceholderText("Schlüssel einfügen und Enter drücken")
+    feld.setPlaceholderText(tr("Schlüssel einfügen und Enter drücken"))
     status = QLabel("")
     status.setTextFormat(Qt.RichText)
     status.setOpenExternalLinks(True)
@@ -264,7 +273,7 @@ def _modell_zeile(panel, bruecke):
     spalte.setContentsMargins(0, 0, 0, 0)
     box = QComboBox()
     box.setEditable(True)
-    knopf = QPushButton("Liste laden")
+    knopf = QPushButton(tr("Liste laden"))
     status = QLabel("")
     status.setStyleSheet(_GRAU)
     spalte.addWidget(box, 2)
@@ -275,7 +284,7 @@ def _modell_zeile(panel, bruecke):
     def laden():
         eintrag = anbieter(ki.anbieter)
         adresse = ki.adresse
-        status.setText("Frage den Anbieter …")
+        status.setText(tr("Frage den Anbieter …"))
         status.setStyleSheet(_GRAU)
 
         def arbeite():
@@ -296,7 +305,7 @@ def _test_zeile(panel, bruecke):
     w = QWidget()
     spalte = QHBoxLayout(w)
     spalte.setContentsMargins(0, 0, 0, 0)
-    knopf = QPushButton("Verbindung testen")
+    knopf = QPushButton(tr("Verbindung testen"))
     status = QLabel("")
     status.setWordWrap(True)
     spalte.addWidget(knopf)
@@ -304,7 +313,7 @@ def _test_zeile(panel, bruecke):
     settings = panel.settings
 
     def testen():
-        status.setText("Teste …")
+        status.setText(tr("Teste …"))
         status.setStyleSheet(_GRAU)
         from ...config import load_config
         from ...llm import ChatClient
@@ -319,11 +328,11 @@ def _test_zeile(panel, bruecke):
                 antwort = ChatClient(endpunkt).complete(
                     "Antworte nur mit dem Wort OK.", "Test")
                 dauer = time.perf_counter() - t0
-                sekunden = f"{dauer:.1f}".replace(".", ",")
                 bruecke.test.emit(bool(antwort.strip()),
-                                  f"Verbunden — {endpunkt.model} antwortete in "
-                                  f"{sekunden} s." if antwort.strip()
-                                  else "Leere Antwort erhalten.")
+                                  tr("Verbunden — {modell} antwortete in {sekunden} s.",
+                                     modell=endpunkt.model, sekunden=dezimal(dauer, 1))
+                                  if antwort.strip()
+                                  else tr("Leere Antwort erhalten."))
             except Exception as exc:
                 log.info("KI-Test fehlgeschlagen (%s): %s", endpunkt.provider, exc)
                 bruecke.test.emit(False, fehlertext(exc))
@@ -349,17 +358,17 @@ def _neuheiten_zeile(panel, bruecke):
     vorschlag.setWordWrap(True)
     vorschlag.setStyleSheet(_GELB)
     knoepfe = QHBoxLayout()
-    uebernehmen = QPushButton("Übernehmen")
-    ausblenden = QPushButton("Nicht mehr zeigen")
+    uebernehmen = QPushButton(tr("Übernehmen"))
+    ausblenden = QPushButton(tr("Nicht mehr zeigen"))
     knoepfe.addWidget(uebernehmen)
     knoepfe.addWidget(ausblenden)
     knoepfe.addStretch(1)
     spalte.addWidget(vorschlag)
     spalte.addLayout(knoepfe)
     reihe = QHBoxLayout()
-    schalter = QCheckBox("Wöchentlich nachsehen")
+    schalter = QCheckBox(tr("Wöchentlich nachsehen"))
     schalter.setChecked(bool(ki.modelle_pruefen))
-    jetzt = QPushButton("Jetzt prüfen")
+    jetzt = QPushButton(tr("Jetzt prüfen"))
     status = QLabel("")
     status.setStyleSheet(_GRAU)
     status.setWordWrap(True)
@@ -371,7 +380,7 @@ def _neuheiten_zeile(panel, bruecke):
 
     def zeigen():
         offen = bool(ki.hinweis_modell)
-        vorschlag.setText(ki.hinweis_text or f"Neueres Modell: {ki.hinweis_modell}")
+        vorschlag.setText(ki.hinweis_text or tr("Neueres Modell: {modell}", modell=ki.hinweis_modell))
         for teil in (vorschlag, uebernehmen, ausblenden):
             teil.setVisible(offen)
 
@@ -379,7 +388,7 @@ def _neuheiten_zeile(panel, bruecke):
         ki.modell = ki.hinweis_modell
         ki.hinweis_modell = ki.hinweis_text = ""
         zeigen()
-        status.setText(f"Umgestellt auf {ki.modell}.")
+        status.setText(tr("Umgestellt auf {modell}.", modell=ki.modell))
         status.setStyleSheet(_GRUEN)
         rueckruf = getattr(panel, "_ki_modell_uebernommen", None)
         if rueckruf is not None:
@@ -398,7 +407,7 @@ def _neuheiten_zeile(panel, bruecke):
         changed("general")
 
     def pruefen():
-        status.setText("Frage nach …")
+        status.setText(tr("Frage nach …"))
         status.setStyleSheet(_GRAU)
         from ...config import load_config
 
@@ -427,7 +436,7 @@ def _neuheiten_zeile(panel, bruecke):
         ki.geprueft_am = datetime.date.today().isoformat()
         if befund is None:
             ki.hinweis_modell = ki.hinweis_text = ""
-            status.setText("Nichts Neueres gefunden — deine Wahl ist aktuell.")
+            status.setText(tr("Nichts Neueres gefunden — deine Wahl ist aktuell."))
             status.setStyleSheet(_GRUEN)
         else:
             ki.hinweis_modell, ki.hinweis_text = befund.neuer, befund.grund

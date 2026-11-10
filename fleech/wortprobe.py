@@ -33,6 +33,7 @@ import logging
 from dataclasses import dataclass
 
 from .freihand import enthaelt_wort, normalisiere
+from .i18n import tr
 from .protokolltext import inhalt
 
 
@@ -67,31 +68,32 @@ class Probe:
         if self.zweck == "startwort":
             return self._startwort_text()
         if self.ergebnis == Ergebnis.TREFFER:
-            return f"Erkannt: „{self.gehoert}“ — der Eintrag greift."
+            return tr("Erkannt: „{gehoert}“ — der Eintrag greift.", gehoert=self.gehoert)
         if self.ergebnis == Ergebnis.AEHNLICH:
-            return (f"Fast: „{self.gehoert}“ statt „{self.begriff}“. Das Wörterbuch "
-                    f"korrigiert das meist; bei Wiederholung deutlicher sprechen.")
+            return tr("Fast: „{gehoert}“ statt „{begriff}“. Das Wörterbuch korrigiert das "
+                      "meist; bei Wiederholung deutlicher sprechen.",
+                      gehoert=self.gehoert, begriff=self.begriff)
         if self.ergebnis == Ergebnis.NICHTS:
-            return "Nichts verstanden — war das Mikrofon an?"
+            return tr("Nichts verstanden — war das Mikrofon an?")
         if self.vorschlag:
-            return (f"Verstanden wurde „{self.gehoert}“ — als Schreibvariante "
-                    f"eintragen: {self.vorschlag}")
-        return (f"Verstanden wurde „{self.gehoert}“ — das trifft den Eintrag nicht. "
-                f"Nochmal versuchen oder deutlicher sprechen.")
+            return tr("Verstanden wurde „{gehoert}“ — als Schreibvariante eintragen: "
+                      "{vorschlag}", gehoert=self.gehoert, vorschlag=self.vorschlag)
+        return tr("Verstanden wurde „{gehoert}“ — das trifft den Eintrag nicht. "
+                  "Nochmal versuchen oder deutlicher sprechen.", gehoert=self.gehoert)
 
     def _startwort_text(self) -> str:
         """Für Freihand zählt eine andere Frage: Würde es auslösen?"""
         if self.ergebnis == Ergebnis.TREFFER:
-            return (f"Erkannt: „{self.gehoert}“ — Freihand würde starten.")
+            return tr("Erkannt: „{gehoert}“ — Freihand würde starten.", gehoert=self.gehoert)
         if self.ergebnis == Ergebnis.AEHNLICH:
-            return (f"Verstanden wurde „{self.gehoert}“ — nah genug, Freihand "
-                    f"würde starten. Das Prüfmodell zerreisst Wörter oft, deshalb "
-                    f"wird bewusst unscharf verglichen.")
+            return tr("Verstanden wurde „{gehoert}“ — nah genug, Freihand würde starten. "
+                      "Das Prüfmodell zerreisst Wörter oft, deshalb wird bewusst unscharf "
+                      "verglichen.", gehoert=self.gehoert)
         if self.ergebnis == Ergebnis.NICHTS:
-            return "Nichts verstanden — war das Mikrofon an?"
-        return (f"Verstanden wurde „{self.gehoert}“ — damit würde Freihand NICHT "
-                f"starten. Nochmal versuchen; bleibt es dabei, ist „{self.begriff}“ "
-                f"für deine Aussprache kein gutes Startwort.")
+            return tr("Nichts verstanden — war das Mikrofon an?")
+        return tr("Verstanden wurde „{gehoert}“ — damit würde Freihand NICHT starten. "
+                  "Nochmal versuchen; bleibt es dabei, ist „{begriff}“ für deine "
+                  "Aussprache kein gutes Startwort.", gehoert=self.gehoert, begriff=self.begriff)
 
     @property
     def vorschlag(self) -> str:

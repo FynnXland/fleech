@@ -17,6 +17,7 @@ import logging
 import threading
 
 from ..state import AppState
+from ...i18n import tr
 
 log = logging.getLogger(__name__)
 
@@ -199,9 +200,9 @@ class FreihandMixin:
         log.warning("Freihand nicht gestartet: %s", grund)
         try:
             self.notifier.toast(
-                "background_info", "Freihand konnte nicht starten",
-                "Das Mikrofon liess sich nicht öffnen. Prüfe die Mikrofon-Auswahl "
-                "in den Einstellungen.",
+                "background_info", tr("Freihand konnte nicht starten"),
+                tr("Das Mikrofon liess sich nicht öffnen. Prüfe die Mikrofon-Auswahl "
+                   "in den Einstellungen."),
                 bypass_cooldown=True,
             )
         except Exception:

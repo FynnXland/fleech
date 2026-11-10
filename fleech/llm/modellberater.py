@@ -33,6 +33,7 @@ import urllib.request
 from dataclasses import dataclass
 from pathlib import Path
 
+from ..i18n import N_, dezimal, tr
 from .providers import AUS, EIGENER, OLLAMA, anbieter, modelle_abrufen
 
 log = logging.getLogger(__name__)
@@ -50,6 +51,25 @@ MAX_WACHSTUM = 2.5
 _VORSCHAU = {"preview", "exp", "experimental", "beta", "alpha"}
 # Bedeutungslos fuer die Familie: „latest" ist ein Zeiger, kein Modell.
 _RAUSCHEN = {"latest"} | _VORSCHAU
+
+# Die Notizen des mitgelieferten Katalogs, damit die Anzeige sie mit tr(notiz)
+# uebersetzen kann. Der Katalog selbst bleibt deutsch und in seinem Format (aeltere
+# Versionen lesen ihn von GitHub mit); eine neue Notiz von dort erscheint englisch,
+# sobald sie hier steht — bis dahin deutsch. `tests/test_modellberater.py` prueft,
+# dass jede Notiz der mitgelieferten modelle.json hier steht.
+KATALOG_NOTIZEN = (
+    N_("An echten Diktaten gemessen: schnell und wortgetreu. Braucht rund 4 GB "
+       "Grafikspeicher."),
+    N_("Gründlicher, aber deutlich langsamer. Erst ab etwa 12 GB Grafikspeicher sinnvoll."),
+    N_("Für schwache Rechner: An 76 echten Diktaten gemessen fast so wortgetreu wie "
+       "gemma3:4b und schneller, braucht aber nur rund 2,4 statt 4 GB. Baut gelegentlich "
+       "einen Tippfehler ein."),
+    N_("Nicht empfohlen: An 76 echten Diktaten gemessen lässt es ganze Sätze weg und "
+       "übersetzt teils ins Englische. Für schwache Rechner besser qwen3.5:2b-q4_K_M."),
+    N_("An 40 echten Diktaten gemessen: etwa doppelt so schnell wie gemma3:4b und "
+       "streicht Füllwörter gründlicher — lässt aber öfter kleine Satzteile weg. Braucht "
+       "rund 5 GB Grafikspeicher."),
+)
 
 
 @dataclass(frozen=True)
@@ -290,7 +310,7 @@ def ollama_nachfolger(aktuell: str, timeout: float = 6.0) -> tuple:
 
 
 def _gb(wert: float) -> str:
-    return f"{wert:.1f}".replace(".", ",") + " GB"
+    return dezimal(wert, 1) + " GB"
 
 
 def pruefe(anbieter_id: str, modell: str, schluessel: str = "", adresse: str = "",
@@ -323,14 +343,16 @@ def _pruefe_ollama(aktuell: str, daten: dict, registry: bool,
         if aktuell in m.ersetzt or ollama_generation_groesser(m.modell, aktuell):
             groesse = f" ({_gb(m.groesse_gb)})" if m.groesse_gb else ""
             return Befund(OLLAMA, aktuell, m.modell,
-                          f"Fleech empfiehlt jetzt {m.modell}{groesse} — an echten "
-                          f"Diktaten gemessen.", gemessen=True)
+                          tr("Fleech empfiehlt jetzt {modell}{groesse} — an echten "
+                             "Diktaten gemessen.", modell=m.modell, groesse=groesse),
+                          gemessen=True)
     # Vor ungemessenen Neuheiten aus der Registry: Die schlanke Fassung ist
     # gemessen und spart Speicher, eine neue Generation ist meist groesser.
     schlank = schlanke_fassung(aktuell)
     if schlank:
         return Befund(OLLAMA, aktuell, schlank,
-                      f"Schlanke Fassung verfügbar: {erklaerung(schlank)}", gemessen=True)
+                      tr("Schlanke Fassung verfügbar: {erklaerung}",
+                         erklaerung=erklaerung(schlank)), gemessen=True)
     if not registry:
         return None
     name, groesse = ollama_nachfolger(aktuell, timeout)
@@ -347,7 +369,9 @@ def _pruefe_ollama(aktuell: str, daten: dict, registry: bool,
             if m.gemessen:
                 gb = f" ({_gb(groesse)})" if groesse else ""
                 return Befund(OLLAMA, aktuell, name,
-                              f"Neue Generation: {name}{gb}. {m.notiz}", gemessen=True)
+                              tr("Neue Generation: {name}{gb}. {notiz}", name=name, gb=gb,
+                                 notiz=tr(m.notiz) if m.notiz else ""),
+                              gemessen=True)
             break
     vorher = groessen.get(aktuell) or registry_groesse_gb(aktuell, timeout)
     # Ein Vielfaches an Groesse ist keine Alternative, sondern eine andere
@@ -358,11 +382,13 @@ def _pruefe_ollama(aktuell: str, daten: dict, registry: bool,
         return None
     vergleich = ""
     if groesse:
-        vergleich = (f" ({_gb(groesse)} statt {_gb(vorher)})" if vorher
+        vergleich = (" ({})".format(tr("{neu} statt {alt}", neu=_gb(groesse),
+                                        alt=_gb(vorher))) if vorher
                      else f" ({_gb(groesse)})")
     return Befund(OLLAMA, aktuell, name,
-                  f"Neue Generation bei Ollama: {name}{vergleich}. Noch nicht an "
-                  f"Diktaten gemessen — neuer ist nicht immer schneller.")
+                  tr("Neue Generation bei Ollama: {name}{vergleich}. Noch nicht an "
+                     "Diktaten gemessen — neuer ist nicht immer schneller.",
+                     name=name, vergleich=vergleich))
 
 
 def _pruefe_cloud(eintrag, aktuell: str, schluessel: str, adresse: str,
@@ -379,8 +405,8 @@ def _pruefe_cloud(eintrag, aktuell: str, schluessel: str, adresse: str,
     neuer = neuester_verwandter(aktuell, namen)
     if neuer:
         return Befund(eintrag.id, aktuell, neuer,
-                      f"{eintrag.name} bietet ein neueres Modell derselben Klasse an: "
-                      f"{neuer}.")
+                      tr("{anbieter} bietet ein neueres Modell derselben Klasse an: "
+                         "{neuer}.", anbieter=tr(eintrag.name), neuer=neuer))
     if aktuell not in namen and "latest" not in aktuell:
         from .providers import modell_vorschlag
 
@@ -388,8 +414,9 @@ def _pruefe_cloud(eintrag, aktuell: str, schluessel: str, adresse: str,
         ersatz = ersatz if ersatz in namen else modell_vorschlag(eintrag, namen)
         if ersatz and ersatz != aktuell:
             return Befund(eintrag.id, aktuell, ersatz,
-                          f"{aktuell} steht bei {eintrag.name} nicht mehr zur Wahl — "
-                          f"Vorschlag: {ersatz}.")
+                          tr("{aktuell} steht bei {anbieter} nicht mehr zur Wahl — "
+                             "Vorschlag: {ersatz}.", aktuell=aktuell,
+                             anbieter=tr(eintrag.name), ersatz=ersatz))
     return None
 
 
@@ -425,31 +452,31 @@ def lokale_auswahl(daten: dict, installiert=(), nachfolger: tuple = ("", None)) 
             # Die schlanke Fassung steht direkt VOR ihrem Original und erbt dessen
             # Empfehlung — mit dem Satz, was sie ist und woher sie kommt.
             st = [schlank, _gb(schlank_mod.GROESSE_GB.get(schlank, 0) or m.groesse_gb)]
-            st += ["empfohlen"] if m.empfohlen else []
-            st += ["installiert"] if schlank in installiert else []
+            st += [tr("empfohlen")] if m.empfohlen else []
+            st += [tr("installiert")] if schlank in installiert else []
             raus.append(Wahl(schlank, " · ".join(st), schlank_mod.erklaerung(schlank)))
             gesehen.add(schlank)
         elif m.empfohlen:
-            teile.append("empfohlen")
+            teile.append(tr("empfohlen"))
         elif m.neu and not m.gemessen:
-            teile.append("neu, noch nicht gemessen")
+            teile.append(tr("neu, noch nicht gemessen"))
         if m.modell in installiert:
-            teile.append("installiert")
-        raus.append(Wahl(m.modell, " · ".join(teile), m.notiz))
+            teile.append(tr("installiert"))
+        raus.append(Wahl(m.modell, " · ".join(teile), tr(m.notiz) if m.notiz else ""))
         gesehen.add(m.modell)
     for name in sorted(installiert - gesehen):
-        raus.append(Wahl(name, f"{name} · installiert",
-                         "Schon auf diesem Rechner — von Fleech nicht gemessen."))
+        raus.append(Wahl(name, f"{name} · {tr('installiert')}",
+                         tr("Schon auf diesem Rechner — von Fleech nicht gemessen.")))
         gesehen.add(name)
     name, groesse = nachfolger or ("", None)
     # Steht dieselbe Generation schon im Katalog (gemma4:e4b), ist „gemma4" aus
     # der Registry nur ein zweiter Name dafuer.
     familien = {_ollama_basis(n)[:2] for n in gesehen}
     if name and _ollama_basis(name)[:2] not in familien:
-        teile = [name] + ([_gb(groesse)] if groesse else []) + ["neu bei Ollama"]
+        teile = [name] + ([_gb(groesse)] if groesse else []) + [tr("neu bei Ollama")]
         raus.append(Wahl(name, " · ".join(teile),
-                         "Neue Generation, gerade erschienen. Noch nicht an Diktaten "
-                         "gemessen — neuer ist nicht immer schneller."))
+                         tr("Neue Generation, gerade erschienen. Noch nicht an Diktaten "
+                            "gemessen — neuer ist nicht immer schneller.")))
     return raus
 
 
@@ -467,12 +494,12 @@ def cloud_auswahl(anbieter_id: str, namen, daten: dict) -> tuple:
     if empfohlen not in namen:
         empfohlen = modell_vorschlag(eintrag, namen) if namen else empfohlen
     neuer = neuester_verwandter(empfohlen, namen)
-    raus = [Wahl(empfohlen, f"{empfohlen} · empfohlen",
-                 "Schnell und günstig — reicht zum Aufräumen von Diktaten.")]
+    raus = [Wahl(empfohlen, f"{empfohlen} · {tr('empfohlen')}",
+                 tr("Schnell und günstig — reicht zum Aufräumen von Diktaten."))]
     if neuer:
-        raus.append(Wahl(neuer, f"{neuer} · neuer",
-                         f"Neuere Fassung derselben Klasse wie {empfohlen}. Von "
-                         f"Fleech noch nicht an Diktaten gemessen."))
+        raus.append(Wahl(neuer, f"{neuer} · {tr('neuer')}",
+                         tr("Neuere Fassung derselben Klasse wie {empfohlen}. Von "
+                            "Fleech noch nicht an Diktaten gemessen.", empfohlen=empfohlen)))
     for name in namen:
         if name not in (empfohlen, neuer):
             raus.append(Wahl(name, name))

@@ -9,6 +9,7 @@ from __future__ import annotations
 
 from PySide6.QtWidgets import QComboBox, QHBoxLayout, QPushButton
 
+from ...i18n import tr
 from ..theme import style_button
 from .common import hint
 from .mehr import angleichen, bereich
@@ -18,25 +19,25 @@ def build(panel) -> None:
     s = panel.settings
     seite, form = panel._page()
     form.addRow("", hint(
-        "Eigene Begriffe für die Spracherkennung — und Textbausteine, die ein "
-        "gesprochenes Kürzel durch festen Text ersetzen."
+        tr("Eigene Begriffe für die Spracherkennung — und Textbausteine, die ein "
+           "gesprochenes Kürzel durch festen Text ersetzen.")
     ))
     mehr = bereich(seite, form)
     panel._dictionary_editor = panel._lines_editor(
-        form, "Wörterbuch", s.output.dictionary, "dictionary",
+        form, tr("Wörterbuch"), s.output.dictionary, "dictionary",
         lambda lines: setattr(s.output, "dictionary", lines),
-        placeholder="Fleech\nKimono\ngithub => GitHub\nCosinus => Kosinus",
-        hint_text="„Begriff“ = besser erkennen. „falsch => richtig“ = zusätzlich "
-                  "automatisch ersetzen.",
+        placeholder=tr("Fleech\nKimono\ngithub => GitHub\nCosinus => Kosinus"),
+        hint_text=tr("„Begriff“ = besser erkennen. „falsch => richtig“ = zusätzlich "
+                     "automatisch ersetzen."),
         height=220,
     )
     # Einsprech-Test: Man traegt ein Wort ein und weiss nicht, ob es etwas
     # gebracht hat — bis es mitten im Diktat wieder falsch dasteht.
     if panel._wortprobe_fn is not None:
-        panel._probe_btn = style_button(QPushButton("Eintrag einsprechen …"), "ghost")
+        panel._probe_btn = style_button(QPushButton(tr("Eintrag einsprechen …")), "ghost")
         panel._probe_btn.setToolTip(
-            "Markiere im Wörterbuch eine Zeile (oder setz den Cursor hinein) "
-            "und sprich das Wort einmal ins Mikrofon. Fleech zeigt, was ankommt."
+            tr("Markiere im Wörterbuch eine Zeile (oder setz den Cursor hinein) "
+               "und sprich das Wort einmal ins Mikrofon. Fleech zeigt, was ankommt.")
         )
         panel._probe_btn.clicked.connect(panel._wortprobe_starten)
         form.addRow("", panel._probe_btn)
@@ -46,27 +47,27 @@ def build(panel) -> None:
     panel._refresh_priming_hint()
     form.addRow("", panel._priming_hint)
     panel._bausteine_editor = panel._lines_editor(
-        form, "Textbausteine", s.output.textbausteine, "dictionary",
+        form, tr("Textbausteine"), s.output.textbausteine, "dictionary",
         lambda lines: setattr(s.output, "textbausteine", lines),
-        placeholder="Baustein Signatur => Viele Grüße\\nAlex\n"
-                    "Baustein Adresse => Musterstraße 1, 12345 Musterstadt",
-        hint_text="„Kürzel => Text“: Sagst du das Kürzel, steht genau dieser Text im "
-                  "Feld — ohne KI, Zeichen für Zeichen. „\\n“ im Text = neue Zeile. "
-                  "Nimm am besten zwei Wörter, die du sonst nie sagst (etwa "
-                  "„Baustein Signatur“), damit nichts aus Versehen auslöst. Gilt im "
-                  "normalen Diktat, nicht in E-Mail-, Stichpunkt- und Prompt-Profilen.",
+        placeholder=tr("Baustein Signatur => Viele Grüße\\nAlex\n"
+                       "Baustein Adresse => Musterstraße 1, 12345 Musterstadt"),
+        hint_text=tr("„Kürzel => Text“: Sagst du das Kürzel, steht genau dieser Text im "
+                     "Feld — ohne KI, Zeichen für Zeichen. „\\n“ im Text = neue Zeile. "
+                     "Nimm am besten zwei Wörter, die du sonst nie sagst (etwa "
+                     "„Baustein Signatur“), damit nichts aus Versehen auslöst. Gilt im "
+                     "normalen Diktat, nicht in E-Mail-, Stichpunkt- und Prompt-Profilen."),
         height=90,
     )
     # Ignorier-Liste: abgelehnte Rueckfragen + weggeklickte Insights-Vorschlaege.
     # Sichtbar und editierbar, DAMIT „Ignorieren" dauerhaft sein darf — Zeile
     # loeschen holt den Vorschlag bzw. die Rueckfrage zurueck.
     panel._ignores_editor = panel._lines_editor(
-        mehr, "Ignoriert", s.output.dictionary_ignores, "dictionary",
+        mehr, tr("Ignoriert"), s.output.dictionary_ignores, "dictionary",
         lambda lines: setattr(s.output, "dictionary_ignores", lines),
         placeholder="kimano => kimono",
-        hint_text="Paare, die nie mehr vorgeschlagen werden — aus abgelehnten "
-                  "Rückfragen und „Ignorieren“ in den Insights. Zeile löschen "
-                  "holt den Vorschlag zurück.",
+        hint_text=tr("Paare, die nie mehr vorgeschlagen werden — aus abgelehnten "
+                     "Rückfragen und „Ignorieren“ in den Insights. Zeile löschen "
+                     "holt den Vorschlag zurück."),
         height=90,
     )
 
@@ -75,17 +76,17 @@ def build(panel) -> None:
     # automatisch — beides primt die Erkennung. Wer sucht, warum ein Wort
     # anders geschrieben wird, schaut an einer Stelle.
     panel._kontext_cb = panel._check(
-        form, "Gedächtnis", getattr(s.advanced, "kontext_lernen", True),
+        form, tr("Gedächtnis"), getattr(s.advanced, "kontext_lernen", True),
         "output", panel._on_kontext_toggled,
-        hint_text="Gelerntes Fachvokabular als Erkennungs-Hinweis. "
-                  "Aus = weder lernen noch verwenden.",
+        hint_text=tr("Gelerntes Fachvokabular als Erkennungs-Hinweis. "
+                     "Aus = weder lernen noch verwenden."),
     )
     form.addRow("", hint(
-        "Fleech merkt sich je Programm und Fenster die Fachbegriffe, die dort "
-        "vorkommen (alles mit Binnenversalien, Ziffern oder Punkten — "
-        "„MCP-Server“, „PySide6“, „x_3“), und gibt sie beim nächsten Diktat "
-        "als Hinweis an die Erkennung. Nur Schreibweisen: Der Inhalt geht nie "
-        "an die KI, das Diktat wird dadurch nicht langsamer."
+        tr("Fleech merkt sich je Programm und Fenster die Fachbegriffe, die dort "
+           "vorkommen (alles mit Binnenversalien, Ziffern oder Punkten — "
+           "„MCP-Server“, „PySide6“, „x_3“), und gibt sie beim nächsten Diktat "
+           "als Hinweis an die Erkennung. Nur Schreibweisen: Der Inhalt geht nie "
+           "an die KI, das Diktat wird dadurch nicht langsamer.")
     ))
     panel._kontext_zeile = hint("")
     form.addRow("", panel._kontext_zeile)
@@ -97,17 +98,17 @@ def build(panel) -> None:
     panel._kontext_begriffe = QComboBox()
     panel._kontext_begriffe.setMinimumWidth(220)
     panel._kontext_begriffe.setToolTip(
-        "Was Fleech in diesem Programm gelernt hat, häufigste zuerst. "
-        "Steht hier eine falsche Schreibweise, vergiss genau sie."
+        tr("Was Fleech in diesem Programm gelernt hat, häufigste zuerst. "
+           "Steht hier eine falsche Schreibweise, vergiss genau sie.")
     )
     einzeln.addWidget(panel._kontext_begriffe, 1)
-    einzeln_btn = style_button(QPushButton("Begriff vergessen"), "ghost")
+    einzeln_btn = style_button(QPushButton(tr("Begriff vergessen")), "ghost")
     einzeln_btn.clicked.connect(panel._kontext_begriff_vergessen)
     einzeln.addWidget(einzeln_btn)
     label_w, _ = panel._row_label(
-        "Gelerntes", "Einzelne falsch gelernte Schreibweisen vergessen — oder alles.")
+        tr("Gelerntes"), tr("Einzelne falsch gelernte Schreibweisen vergessen — oder alles."))
     mehr.addRow(label_w, einzeln)
-    vergessen = style_button(QPushButton("Gelerntes vergessen"), "ghost")
+    vergessen = style_button(QPushButton(tr("Gelerntes vergessen")), "ghost")
     vergessen.clicked.connect(panel._kontext_vergessen)
     mehr.addRow("", vergessen)
     panel._refresh_kontext_zeile()

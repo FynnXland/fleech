@@ -21,6 +21,7 @@ from ...app import DictationApp
 from ...audio import Recorder
 from ...pipeline_factory import build_pipeline
 from ..state import AppState
+from ...i18n import tr
 
 log = logging.getLogger(__name__)
 
@@ -88,15 +89,15 @@ class ModelleMixin:
             return
         try:
             log.warning("Erkennungsmodell %s fehlt — wird nachgeladen.", modell)
-            self.bus.hinweis.emit("Spracherkennung fehlt — wird geladen …")
+            self.bus.hinweis.emit(tr("Spracherkennung fehlt — wird geladen …"))
             if (provisioning.ensure_whisper(modell, on_progress=self._report_model_download)
                     and provisioning.whisper_present(modell)):
                 self._warm_up_stt()
-                self.bus.hinweis.emit("Spracherkennung bereit — du kannst diktieren.")
+                self.bus.hinweis.emit(tr("Spracherkennung bereit — du kannst diktieren."))
             else:
-                self.bus.hinweis.emit(
+                self.bus.hinweis.emit(tr(
                     "Spracherkennung konnte nicht geladen werden — Internetverbindung "
-                    "prüfen. Fleech versucht es beim nächsten Start erneut.")
+                    "prüfen. Fleech versucht es beim nächsten Start erneut."))
         finally:
             self._stt_nachladen.release()
 
@@ -114,12 +115,13 @@ class ModelleMixin:
         if provisioning.whisper_present(modell):
             return False
         if self.settings.general.onboarding_done:
-            self.bus.set_state(AppState.ERROR, "Spracherkennung fehlt — wird geladen …")
+            self.bus.set_state(AppState.ERROR, tr("Spracherkennung fehlt — wird geladen …"))
             threading.Thread(target=self._stt_modell_fehlt, args=(modell,),
                              name="fleech-sttnachladen", daemon=True).start()
         else:
-            self.bus.set_state(AppState.ERROR, "Spracherkennung fehlt — Einstellungen → "
-                               "Allgemein → Mehr Optionen → „Einführung erneut zeigen“")
+            self.bus.set_state(AppState.ERROR, tr(
+                "Spracherkennung fehlt — Einstellungen → "
+                "Allgemein → Mehr Optionen → „Einführung erneut zeigen“"))
         return True
 
     def _warm_up_stt(self) -> None:
@@ -143,7 +145,7 @@ class ModelleMixin:
         if dlg is not None and not dlg.isVisible():
             # Die Einfuehrung ist schon zu, der Download lief weiter — sagen,
             # dass es jetzt losgehen kann.
-            self.tray.notify("Fleech", "Einrichtung fertig — du kannst diktieren.")
+            self.tray.notify("Fleech", tr("Einrichtung fertig — du kannst diktieren."))
 
     def _ensure_preview_model(self):
         from ...overlay import PreviewModel
@@ -320,10 +322,10 @@ class ModelleMixin:
         log.warning("Ollama rechnet %s auf dem PROZESSOR, nicht auf der Grafikkarte — "
                     "jede Bereinigung dauert dadurch ein Vielfaches. Abhilfe: Ollama "
                     "neu starten.", endpoint.model)
-        self.bus.hinweis.emit(
+        self.bus.hinweis.emit(tr(
             "Die lokale KI rechnet gerade auf dem Prozessor statt auf der "
             "Grafikkarte — Diktate dauern dadurch 10–30 Sekunden. Abhilfe: Ollama "
-            "im Infobereich beenden und neu starten.")
+            "im Infobereich beenden und neu starten."))
 
     def _report_model_download(self, text: str) -> None:
         """Download-Fortschritt sichtbar machen — mehrere GB duerfen nicht wie eine
@@ -348,8 +350,8 @@ class ModelleMixin:
         if getattr(self, "_ki_offline_gemeldet", False):
             return
         self._ki_offline_gemeldet = True
-        text = ("Lokale KI läuft nicht — Einstellungen → Allgemein → Mehr Optionen → "
-                "„Einführung erneut zeigen“")
+        text = tr("Lokale KI läuft nicht — Einstellungen → Allgemein → Mehr Optionen → "
+                  "„Einführung erneut zeigen“")
         log.error("%s", text)
         try:
             self.bus.progress.emit(text)
@@ -439,21 +441,25 @@ class ModelleMixin:
         ziel = modell_fuer(self.settings.advanced.stt_modell, self.config.stt.model_size)
         if ziel == self.config.stt.model_size:
             return
-        name = "deutsche" if self.settings.advanced.stt_modell == "deutsch" else "allgemeine"
+        deutsch = self.settings.advanced.stt_modell == "deutsch"
 
         def lauf():
             if not provisioning.whisper_present(ziel):
-                self.bus.hinweis.emit(f"Lade {name} Spracherkennung (1,6 GB) …")
+                self.bus.hinweis.emit(
+                    tr("Lade deutsche Spracherkennung (1,6 GB) …") if deutsch
+                    else tr("Lade allgemeine Spracherkennung (1,6 GB) …"))
                 if not provisioning.ensure_whisper(ziel, on_progress=log.info):
-                    self.bus.hinweis.emit(
+                    self.bus.hinweis.emit(tr(
                         "Spracherkennung konnte nicht geladen werden — die bisherige "
-                        "bleibt aktiv. Internetverbindung prüfen.")
+                        "bleibt aktiv. Internetverbindung prüfen."))
                     return
             self.controller.stop_if_active()
             self.config.stt.model_size = ziel
             self.pipeline.stt = create_stt(self.config.stt)
             self._warm_up_stt()
             log.info("Erkennungsmodell gewechselt: %s", ziel)
-            self.bus.hinweis.emit(f"Jetzt aktiv: {name} Spracherkennung.")
+            self.bus.hinweis.emit(
+                tr("Jetzt aktiv: deutsche Spracherkennung.") if deutsch
+                else tr("Jetzt aktiv: allgemeine Spracherkennung."))
 
         threading.Thread(target=lauf, name="fleech-sttwechsel", daemon=True).start()

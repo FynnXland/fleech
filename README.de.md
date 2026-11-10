@@ -33,8 +33,9 @@ Kein Konto, kein Abo, und keine Aufnahme verlässt deinen PC. Fleech ist eine lo
 Open-Source-Alternative zu Cloud-Diktierdiensten wie Wispr Flow.
 
 > [!NOTE]
-> Diktiert wird auf **Deutsch und Englisch** (Einstellungen → *Allgemein* oder je Profil).
-> Die Oberfläche ist bisher deutsch; eine englische Fassung ist geplant.
+> Diktiert wird auf **Deutsch und Englisch** (Einstellungen → *Allgemein* → *Diktiersprache*
+> oder je Profil). Die Oberfläche gibt es auf **Deutsch und Englisch**; sie folgt der
+> Anzeigesprache von Windows (Einstellungen → *Allgemein* → *Sprache der Oberfläche*).
 
 ## Warum nicht einfach Whisper + ChatGPT?
 
@@ -178,7 +179,7 @@ korrigiert hat, dazu Wörterbuch-Vorschläge für Wörter, die immer wieder fals
 **Profile:** Ton, Format, Sprache und Safe-Word je Profil.
 <p align="center"><img src="docs/media/profiles.png" width="838" alt="Profilseite, E-Mail-Profil ausgewählt"></p>
 
-**Einstellungen → *Allgemein*:** Sprache, Bedienmodus, Diktat-Taste und Mikrofon; alles Weitere
+**Einstellungen → *Allgemein*:** Diktiersprache, Bedienmodus, Diktat-Taste und Mikrofon; alles Weitere
 steht auf jeder der sechs Seiten unter *Mehr Optionen*.
 <p align="center"><img src="docs/media/settings-recording.png" width="838" alt="Allgemeine Einstellungen mit F9 als Diktat-Taste"></p>
 

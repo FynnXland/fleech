@@ -11,7 +11,15 @@ GitHub-Release-Notizen (`packaging/release.py`).
 
 ---
 
-## 6.6.0 — in Arbeit, noch nicht veröffentlicht
+## 6.6.0 — 2026-11-10
+
+**Fleech spricht Englisch.** Fenster, Einstellungen, Einführung, Tray-Menü, Pille,
+Dialoge und Benachrichtigungen gibt es jetzt auch auf Englisch. Umschalten unter
+Einstellungen → Allgemein → *Sprache der Oberfläche*: *Systemsprache* (Vorgabe),
+*Deutsch* oder *English*. Die Wahl gilt nach einem Neustart, den die Zeile gleich
+anbietet. Läuft Windows auf Deutsch, bleibt für dich alles wie gehabt. Die Sprache,
+in der du diktierst, ist davon unabhängig: Die Zeile darüber heißt deshalb jetzt
+*Diktiersprache* statt nur *Sprache*.
 
 **Neue Töne.** Start, Stopp, „Text eingefügt“ und Fehler klingen jetzt weicher und
 leiser: ein kurzer, tiefer Wischer beim Start, derselbe rückwärts beim Stopp und ein

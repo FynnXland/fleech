@@ -47,9 +47,15 @@ RestartApplications=no
 Name: "german"; MessagesFile: "compiler:Languages\German.isl"
 Name: "english"; MessagesFile: "compiler:Default.isl"
 
+[CustomMessages]
+german.AutostartTask=Fleech beim Anmelden automatisch starten
+english.AutostartTask=Start Fleech automatically when signing in
+german.AppComment=Fleech Diktat-App
+english.AppComment=Fleech dictation app
+
 [Tasks]
 Name: "desktopicon"; Description: "{cm:CreateDesktopIcon}"; GroupDescription: "{cm:AdditionalIcons}"; Flags: unchecked
-Name: "autostart"; Description: "Fleech beim Anmelden automatisch starten"; GroupDescription: "Autostart:"; Flags: unchecked
+Name: "autostart"; Description: "{cm:AutostartTask}"; GroupDescription: "Autostart:"; Flags: unchecked
 
 [Files]
 ; Kompletter onedir-Build (EXE + _internal + Assets/Prompts/config.yaml).
@@ -57,7 +63,7 @@ Source: "..\dist\Fleech\*"; DestDir: "{app}"; Flags: recursesubdirs createallsub
 
 [Icons]
 ; Startmenue-Eintrag → in Windows-Suche als "Fleech" auffindbar.
-Name: "{autoprograms}\{#AppName}"; Filename: "{app}\{#AppExeName}"; Comment: "Fleech Diktat-App"
+Name: "{autoprograms}\{#AppName}"; Filename: "{app}\{#AppExeName}"; Comment: "{cm:AppComment}"
 Name: "{autodesktop}\{#AppName}"; Filename: "{app}\{#AppExeName}"; Tasks: desktopicon
 
 [Registry]

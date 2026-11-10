@@ -18,6 +18,8 @@ from dataclasses import dataclass, field
 
 from pynput import keyboard
 
+from .i18n import N_, tr
+
 log = logging.getLogger(__name__)
 
 MODIFIER_TOKENS = ("ctrl", "alt", "shift", "win")
@@ -70,7 +72,8 @@ _DISPLAY = {
     "space": "Space", "enter": "Enter", "tab": "Tab", "esc": "Esc",
     "page_up": "Page Up", "page_down": "Page Down", "print_screen": "Print",
     "scroll_lock": "Scroll Lock", "caps_lock": "Caps Lock", "num_lock": "Num Lock",
-    "mouse_middle": "Mittlere Maustaste", "mouse4": "Maustaste 4", "mouse5": "Maustaste 5",
+    "mouse_middle": N_("Mittlere Maustaste"), "mouse4": N_("Maustaste 4"),
+    "mouse5": N_("Maustaste 5"),
 }
 
 
@@ -201,13 +204,13 @@ def repeat_grace_s(delay_fn=system_repeat_delay_s) -> float:
 
 def _pretty(token: str) -> str:
     if token in _DISPLAY:
-        return _DISPLAY[token]
+        return tr(_DISPLAY[token])
     if len(token) == 1:
         return token.upper()
     if token.startswith("f") and token[1:].isdigit():
         return token.upper()
     if token.startswith("vk") and token[2:].isdigit():
-        return f"Sondertaste ({token[2:]})"  # z. B. G-Taste/Makrotaste ohne Standard-Namen
+        return tr("Sondertaste ({nr})", nr=token[2:])  # z. B. G-/Makrotaste ohne Standard-Namen
     return token.replace("_", " ").title()
 
 
