@@ -1,6 +1,6 @@
 # Fleech architecture
 
-Status: 6.4.0. This page is for contributors. It explains how a dictation travels through
+Status: 6.5.0. This page is for contributors. It explains how a dictation travels through
 the code, which thread does what, and where things live. The source code is the final
 authority. For every feature and setting in detail, read [concept.de.md](concept.de.md)
 (German); the deep dives linked below go further on single topics. What happens to a
@@ -73,9 +73,12 @@ imports the settings; `pipeline_factory.py` builds it from `AppConfig` and `User
    the end ("… als E-Mail"). Formulas are not a mode: since 3.0.0, `formula.py`
    translates spoken maths to LaTeX before the cleanup (opt-in) and hides it behind
    `[[M1]]` placeholders the model must keep. A failed command or format falls back to
-   the cleanup; the safe word and the instruction never end up in the text.
+   the cleanup; the safe word and the instruction never end up in the text. Text
+   snippets (`textbausteine.py`, since 6.5.0) split the dictation at their spoken codes
+   first: only the text pieces go through cleanup and guards, the snippets are pasted
+   exactly as stored. A dictation that is only a code needs no model at all.
 5. **LLM.** `llm/client.py` (`ChatClient`, standard library only, no SDK) talks to the
-   provider chosen on the settings page "KI" (`llm/providers.py`):
+   provider chosen on the settings page "KI & Text" (`llm/providers.py`):
 
    | Choice | Endpoint | Key |
    |---|---|---|
@@ -102,7 +105,10 @@ imports the settings; `pipeline_factory.py` builds it from `AppConfig` and `User
    records the reason for the history.
 7. **Finishing.** `vorbereinigung.py` removes "äh/ähm/öh" (after the model, not at
    intervention level "minimal"), `dictionary.py` applies replacement rules, and spoken
-   symbols become characters ("Slash" → "/").
+   symbols become characters ("Slash" → "/"). If the profile has a target language,
+   `uebersetzung.py` (since 6.5.0) translates the cleaned text with a second LLM call
+   (`prompts/translate.md`) and checks numbers, formulas, length and script; a failed
+   check keeps the untranslated text and records the reason.
 8. **Injection.** `injection.TextInjector` writes the clipboard, reads it back until
    confirmed (at most 400 ms), returns to the field captured at recording start (cursor
    return, on by default; `ui/focusrestore.py`: window plus caret), sends Ctrl+V and then

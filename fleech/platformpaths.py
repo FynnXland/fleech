@@ -13,6 +13,8 @@ import os
 import sys
 from pathlib import Path
 
+from .i18n import N_
+
 APP_DIR_NAME = "Fleech"
 
 
@@ -35,9 +37,9 @@ def session_kind() -> str:
 # Was unter Wayland (ohne Portal-Unterstuetzung) nicht funktioniert — einmal zentral
 # formuliert, damit UI und Log dieselbe Aussage treffen.
 WAYLAND_LIMITS = (
-    "Cursor-Rückkehr springt nur zum Fenster, nicht ins genaue Textfeld",
-    "Vollbild-/Spiel-Erkennung greift nicht (Overlay- und RAM-Automatik entfallen)",
-    "gebundene Maustasten lösen zusätzlich ihre normale Funktion aus",
+    N_("Cursor-Rückkehr springt nur zum Fenster, nicht ins genaue Textfeld"),
+    N_("Vollbild-/Spiel-Erkennung greift nicht (Overlay- und RAM-Automatik entfallen)"),
+    N_("gebundene Maustasten lösen zusätzlich ihre normale Funktion aus"),
 )
 
 

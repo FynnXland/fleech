@@ -26,6 +26,8 @@ import subprocess
 import sys
 import urllib.request
 
+from .i18n import tr
+
 log = logging.getLogger(__name__)
 
 WINGET_PAKET = "Ollama.Ollama"
@@ -63,8 +65,8 @@ def install_available() -> bool:
 def manual_hint() -> str:
     """Was der Nutzer tun muss, wenn Fleech es nicht kann."""
     if sys.platform.startswith("linux"):
-        return f"Im Terminal ausführen:\n{LINUX_BEFEHL}"
-    return f"Ollama von {DOWNLOAD_SEITE} herunterladen und installieren."
+        return tr("Im Terminal ausführen:\n{befehl}", befehl=LINUX_BEFEHL)
+    return tr("Ollama von {seite} herunterladen und installieren.", seite=DOWNLOAD_SEITE)
 
 
 def install(on_progress=None, timeout: float = 900.0) -> bool:
@@ -84,7 +86,7 @@ def install(on_progress=None, timeout: float = 900.0) -> bool:
             except Exception:
                 log.debug("Fortschrittsmeldung fehlgeschlagen.", exc_info=True)
 
-    melde("Ollama wird installiert — das dauert einige Minuten …")
+    melde(tr("Ollama wird installiert — das dauert einige Minuten …"))
     try:
         # --silent: kein eigenes Installer-Fenster. Die Zustimmungen sind noetig,
         # weil winget sonst interaktiv nachfragt und in einem GUI-Prozess haengt.
@@ -95,20 +97,20 @@ def install(on_progress=None, timeout: float = 900.0) -> bool:
         )
     except subprocess.TimeoutExpired:
         log.warning("winget-Installation von Ollama nach %.0f s abgebrochen.", timeout)
-        melde("Installation hat zu lange gedauert — bitte von Hand nachholen.")
+        melde(tr("Installation hat zu lange gedauert — bitte von Hand nachholen."))
         return False
     except Exception:
         log.exception("winget-Aufruf fehlgeschlagen.")
-        melde("Installation konnte nicht gestartet werden.")
+        melde(tr("Installation konnte nicht gestartet werden."))
         return False
 
     if ergebnis.returncode == 0:
         log.info("Ollama per winget installiert.")
-        melde("Ollama ist installiert.")
+        melde(tr("Ollama ist installiert."))
         return True
     log.warning("winget endete mit Code %s: %s", ergebnis.returncode,
                 (ergebnis.stderr or ergebnis.stdout or "")[-300:])
-    melde("Installation nicht erfolgreich — bitte von Hand nachholen.")
+    melde(tr("Installation nicht erfolgreich — bitte von Hand nachholen."))
     return False
 
 

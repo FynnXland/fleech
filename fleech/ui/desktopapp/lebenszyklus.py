@@ -17,6 +17,7 @@ import sys
 from PySide6.QtWidgets import QApplication
 
 from ...audio import list_input_devices
+from ...i18n import tr
 
 log = logging.getLogger(__name__)
 
@@ -114,7 +115,7 @@ class LebenszyklusMixin:
             log.info("Aufnahmegeraet geprueft: %s — in Ordnung.", check.name)
             return
         log.error("⚠ Aufnahmegeraet '%s': %s", check.name, check.reason)
-        self.tray.notify("Fleech — Aufnahmegerät", f"„{check.name}“: {check.reason}")
+        self.tray.notify(tr("Fleech — Aufnahmegerät"), f"„{check.name}“: {check.reason}")
 
     def _melde_mikrofon_rueckfall(self, benutzt: str) -> None:
         """Das gewaehlte Mikrofon ist weg — aufgenommen wird ueber den Systemstandard.
@@ -134,8 +135,8 @@ class LebenszyklusMixin:
         ein wieder eingestecktes Mikrofon ist fuer Fleech in dieser Sitzung ohnehin
         nicht vorhanden.
         """
-        gewaehlt = self.settings.recording.microphone or "Systemstandard"
-        benutzt = benutzt or "Systemstandard"
+        gewaehlt = self.settings.recording.microphone or tr("Systemstandard")
+        benutzt = benutzt or tr("Systemstandard")
         if getattr(self, "_mikrofon_rueckfall", "") == benutzt:
             return
         self._mikrofon_rueckfall = benutzt
@@ -144,7 +145,8 @@ class LebenszyklusMixin:
         # Die Statuszeile trug den GEWAEHLTEN Namen; hier zaehlt, was wirklich aufnimmt.
         if getattr(self, "focus", None) is not None:
             self.focus.device_check.name = f"{benutzt} (statt „{gewaehlt}“)"
-        self._flash_status(f"Mikrofon „{gewaehlt}“ fehlt — nehme über {benutzt} auf")
+        self._flash_status(tr("Mikrofon „{gewaehlt}“ fehlt — nehme über {benutzt} auf",
+                              gewaehlt=gewaehlt, benutzt=benutzt))
 
     def _stelle_lautstaerken_her(self) -> None:
         """Fremde Apps vor dem Beenden wieder laut machen (Befund D-5).
@@ -173,18 +175,18 @@ class LebenszyklusMixin:
         from PySide6.QtWidgets import QInputDialog, QLineEdit
 
         text, ok = QInputDialog.getText(
-            self.window, "Verlauf löschen",
-            "Das löscht ALLE aufgezeichneten Diktate unwiderruflich.\n"
-            "Zur Bestätigung „Delete“ eintippen:",
+            self.window, tr("Verlauf löschen"),
+            tr("Das löscht ALLE aufgezeichneten Diktate unwiderruflich.\n"
+               "Zur Bestätigung „Delete“ eintippen:"),
             QLineEdit.Normal, "",
         )
         if not ok or text.strip().lower() != "delete":
             if ok:  # bestaetigt, aber falsch getippt → kurz erklaeren statt still nichts
-                self.tray.notify("Fleech", "Nicht gelöscht — Bestätigung war nicht „Delete“.")
+                self.tray.notify("Fleech", tr("Nicht gelöscht — Bestätigung war nicht „Delete“."))
             return
         self.store.clear()
         self.window.refresh_data()
-        self.tray.notify("Fleech", "Diktat-Verlauf gelöscht.")
+        self.tray.notify("Fleech", tr("Diktat-Verlauf gelöscht."))
 
     def _on_window_closed_to_tray(self) -> None:
         # Overlay nie im Bearbeiten-Modus zurücklassen (sonst bleibt die Pille dauerhaft).
@@ -195,7 +197,7 @@ class LebenszyklusMixin:
         if not self.settings.window.tray_hint_shown:
             shown = self.notifier.toast(
                 "background_info", "Fleech",
-                "Die App läuft im Hintergrund weiter — Beenden über das Tray-Menü.",
+                tr("Die App läuft im Hintergrund weiter — Beenden über das Tray-Menü."),
             )
             if shown:
                 self.settings.window.tray_hint_shown = True

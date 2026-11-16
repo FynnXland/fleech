@@ -26,7 +26,8 @@ from collections import Counter
 from dataclasses import dataclass, field
 from pathlib import Path
 
-from . import kiverlauf, tresor
+from . import i18n, kiverlauf, tresor
+from .i18n import tr
 from .usersettings import SETTINGS_DIR
 
 log = logging.getLogger(__name__)
@@ -174,11 +175,13 @@ def treffer_als_markdown(eintraege: list[dict]) -> str:
     Der Text geht damit unverschluesselt aus der Anwendung heraus — der Hinweis
     dazu steht am Knopf, der diese Funktion aufruft.
     """
-    zeilen = [f"# Fleech-Verlauf — {len(eintraege)} Einträge", ""]
+    zeilen = [tr("# Fleech-Verlauf — {n} Einträge", n=len(eintraege)), ""]
+    # Englisch ISO-Datum: eindeutig, und eine Notiz sortiert damit richtig.
+    muster = "%d.%m.%Y %H:%M" if i18n.aktuell() == "de" else "%Y-%m-%d %H:%M"
     for eintrag in eintraege:
         zeit = _dt.datetime.fromtimestamp(eintrag.get("ts", 0.0))
-        app = str(eintrag.get("app", "") or "").strip() or "unbekannte Anwendung"
-        zeilen.append(f"## {zeit.strftime('%d.%m.%Y %H:%M')} · {app}")
+        app = str(eintrag.get("app", "") or "").strip() or tr("unbekannte Anwendung")
+        zeilen.append(f"## {zeit.strftime(muster)} · {app}")
         zeilen.append("")
         zeilen.append(str(eintrag.get("cleaned", "") or "").strip())
         zeilen.append("")

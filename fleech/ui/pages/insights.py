@@ -15,8 +15,10 @@ from PySide6.QtCore import Qt
 from PySide6.QtWidgets import QHBoxLayout, QLabel, QPushButton, QVBoxLayout, QWidget
 
 from ...history import HistoryStore
+from ...i18n import N_, dezimal, tr
 from ...milestones import word_milestone
 from ..dialogs import WordDetailDialog
+from .anzeigetext import ganzzahl
 from ..theme import (
     ACCENT, MUTED, PAGE_MARGINS, PAGE_SPACING, TEXT, page_title_qss,
     style_button,
@@ -35,7 +37,7 @@ def _ganzzahl(n: int) -> str:
     Trenner (F-9/Befund 9) — `milestones._zahl` haengt bei Werten < 10 eine
     Nachkommastelle an (fuer Faktoren gedacht), das waere fuer eine Stueckzahl
     falsch, deshalb dieser einfachere Zwilling."""
-    return f"{int(n):,}".replace(",", ".")
+    return ganzzahl(n)
 
 
 def _tier_names() -> tuple:
@@ -56,10 +58,10 @@ def _tier_names() -> tuple:
     except Exception:
         log.debug("Konfiguration fuer Routing-Beschriftung nicht lesbar.", exc_info=True)
     if gleich:
-        return (("trivial", "ohne KI"), ("simple", "kurzer Weg"),
-                ("complex", "voller Weg"))
-    return (("trivial", "ohne KI"), ("simple", "schnelles Modell"),
-            ("complex", "großes Modell"))
+        return (("trivial", tr("ohne KI")), ("simple", tr("kurzer Weg")),
+                ("complex", tr("voller Weg")))
+    return (("trivial", tr("ohne KI")), ("simple", tr("schnelles Modell")),
+            ("complex", tr("großes Modell")))
 
 
 def _gruende_zeile(gruende_zaehler) -> str:
@@ -77,8 +79,9 @@ def _gruende_zeile(gruende_zaehler) -> str:
         kurz[kurzform(grund)] += anzahl
     if not kurz:
         return ""
+    # `kurzform` liefert das Etikett schon in der Sprache der Oberfläche.
     teile = [f"{anzahl}× {name}" for name, anzahl in kurz.most_common(4)]
-    return "\nRückfälle: " + " · ".join(teile)
+    return "\n" + tr("Rückfälle: {liste}", liste=" · ".join(teile))
 
 
 def _processing_summary(stats, gruende_zaehler=None) -> str:
@@ -94,26 +97,27 @@ def _processing_summary(stats, gruende_zaehler=None) -> str:
     `gruende_zaehler`: {Grund: Anzahl} aus `HistoryStore.reasons(since)` — None
     laesst die Gruende-Zeile weg (Aufrufer ohne Verlauf, z. B. Tests)."""
     if not stats.stt_median_ms and not (stats.tier_shares or {}):
-        return "Noch keine Daten — Latenzen werden ab dem nächsten Diktat erfasst."
+        return tr("Noch keine Daten — Latenzen werden ab dem nächsten Diktat erfasst.")
     lines = []
     if stats.stt_median_ms or stats.llm_median_ms:
         median_s = (stats.stt_median_ms + stats.llm_median_ms) / 1000
         p90_s = (stats.stt_p90_ms + stats.llm_p90_ms) / 1000
-        lines.append(
-            f"Verarbeitung: die Hälfte deiner Diktate war nach {median_s:.1f} s da, "
-            f"neun von zehn nach {p90_s:.1f} s"
-        )
-        detail = f"davon {stats.stt_median_ms / 1000:.1f} s Erkennung (Median)"
+        lines.append(tr(
+            "Verarbeitung: die Hälfte deiner Diktate war nach {median} s da, "
+            "neun von zehn nach {p90} s", median=dezimal(median_s), p90=dezimal(p90_s)))
+        detail = tr("davon {s} s Erkennung (Median)",
+                    s=dezimal(stats.stt_median_ms / 1000))
         if stats.llm_median_ms:
-            detail += f" · {stats.llm_median_ms / 1000:.1f} s KI-Bereinigung (Median)"
+            detail += " · " + tr("{s} s KI-Bereinigung (Median)",
+                                 s=dezimal(stats.llm_median_ms / 1000))
         lines.append(detail)
     shares = stats.tier_shares or {}
     if shares:
         parts = [f"{round(shares[key] * 100)} % {label}"
                  for key, label in _tier_names() if key in shares]
-        lines.append("Routing: " + " · ".join(parts))
-    lines.append(f"Fallback-Quote: {round(stats.fallback_rate * 100)} % "
-                 f"(Diktate, die auf das Roh-Transkript zurückfielen)")
+        lines.append(tr("Routing: {teile}", teile=" · ".join(parts)))
+    lines.append(tr("Fallback-Quote: {n} % (Diktate, die auf das Roh-Transkript "
+                    "zurückfielen)", n=round(stats.fallback_rate * 100)))
     return "\n".join(lines) + _gruende_zeile(gruende_zaehler)
 
 
@@ -138,27 +142,33 @@ def _latency_trend_line(store) -> str:
     best, worst = min(values), max(values)
     if worst <= 0:
         return ""
-    line = f"\nKI-Latenz der letzten {len(values)} Tage: {values[-1] / 1000:.1f} s zuletzt"
+    line = "\n" + tr("KI-Latenz der letzten {n} Tage: {s} s zuletzt",
+                     n=len(values), s=dezimal(values[-1] / 1000))
     if worst >= best * 2 and worst - best > 2000:
-        line += (f" · Spanne {best / 1000:.1f}–{worst / 1000:.1f} s "
-                 f"(Ausreisser = Modell-Kaltstart)")
+        line += " · " + tr("Spanne {von}–{bis} s (Ausreisser = Modell-Kaltstart)",
+                           von=dezimal(best / 1000), bis=dezimal(worst / 1000))
     return line
 
 
 # Anzeigetexte fuer history.Stats.productive_daypart ("Deine Muster"-Karte).
 _DAYPART_LABELS = {
-    "morgens": "morgens (5–11 Uhr)",
-    "mittags": "mittags (11–14 Uhr)",
-    "nachmittags": "nachmittags (14–18 Uhr)",
-    "abends": "abends (18–23 Uhr)",
-    "nachts": "nachts (23–5 Uhr)",
+    "morgens": N_("morgens (5–11 Uhr)"),
+    "mittags": N_("mittags (11–14 Uhr)"),
+    "nachmittags": N_("nachmittags (14–18 Uhr)"),
+    "abends": N_("abends (18–23 Uhr)"),
+    "nachts": N_("nachts (23–5 Uhr)"),
 }
+
+# `history.Stats.productive_weekday` liefert den deutschen Namen — übersetzt wird
+# beim Anzeigen. Die Liste markiert die Namen für den Sprachkatalog.
+_WOCHENTAGE = (N_("Montag"), N_("Dienstag"), N_("Mittwoch"), N_("Donnerstag"),
+               N_("Freitag"), N_("Samstag"), N_("Sonntag"))
 
 
 # Zeitraeume der Insights: (Schluessel, Beschriftung, Tage | None fuer „alles").
 # Bewusst kurz gehalten — vier Knoepfe passen in die Kopfzeile, sieben nicht.
-INSIGHT_RANGES = (("day", "Heute"), ("week", "7 Tage"),
-                  ("month", "30 Tage"), ("all", "Alle"))
+INSIGHT_RANGES = (("day", N_("Heute")), ("week", N_("7 Tage")),
+                  ("month", N_("30 Tage")), ("all", N_("Alle")))
 
 
 _RANGE_DAYS = {"day": 1, "week": 7, "month": 30, "all": None}
@@ -193,13 +203,13 @@ class InsightsPage(QWidget):
         # die Seite ueberhaupt lebendig wirkt — ohne ihn rechnet jede Zahl ueber die
         # gesamte Historie, und nach ein paar hundert Diktaten bewegt sich nichts mehr.
         head = QHBoxLayout()
-        title = QLabel("Insights")
+        title = QLabel(tr("Insights"))
         title.setStyleSheet(page_title_qss())
         head.addWidget(title)
         head.addStretch(1)
         self._range_buttons: dict[str, QPushButton] = {}
         for key, label in INSIGHT_RANGES:
-            btn = QPushButton(label)
+            btn = QPushButton(tr(label))
             btn.setCheckable(True)
             btn.setCursor(Qt.PointingHandCursor)
             btn.setProperty("range_key", key)   # KEIN Lambda mit self — Referenzzyklus
@@ -215,7 +225,7 @@ class InsightsPage(QWidget):
         row1.setSpacing(12)
         outer.addLayout(row1)
 
-        self._wpm_frame, wpm_box = _card("WPM")
+        self._wpm_frame, wpm_box = _card(tr("WPM"))
         gauge_row = QHBoxLayout()
         self._gauge = WpmGauge()
         gauge_row.addStretch(1)
@@ -234,13 +244,13 @@ class InsightsPage(QWidget):
         wpm_box.addWidget(self._time_label)
         wpm_box.addStretch(1)
 
-        self._fix_frame, fix_box, self._fix_value = _metric("Korrekturen von Fleech")
+        self._fix_frame, fix_box, self._fix_value = _metric(tr("Korrekturen von Fleech"))
         self._fix_detail = QLabel("")
         self._fix_detail.setStyleSheet(f"color: {MUTED}; font-size: 8.5pt; border: none;")
         fix_box.addWidget(self._fix_detail)
         fix_box.addStretch(1)
 
-        self._words_frame, words_box, self._words_value = _metric("Wörter diktiert")
+        self._words_frame, words_box, self._words_value = _metric(tr("Wörter diktiert"))
         # Hier stand bisher der Lokal-Anteil („Desktop · 100 % lokal"). Seit v3.6.0
         # gibt es ueberhaupt keinen Cloud-Pfad mehr — die Zeile konnte gar nichts
         # anderes mehr sagen und war damit tote Flaeche. Jetzt steht dort ein
@@ -263,8 +273,8 @@ class InsightsPage(QWidget):
         row2 = QHBoxLayout()
         row2.setSpacing(12)
         outer.addLayout(row2)
-        self._usage_frame, self._usage_box = _card("App-Nutzung")
-        self._streak_frame, streak_box = _card("Serie")
+        self._usage_frame, self._usage_box = _card(tr("App-Nutzung"))
+        self._streak_frame, streak_box = _card(tr("Serie"))
         self._calendar = StreakCalendar()
         streak_box.addWidget(self._calendar)
         self._streak_label = QLabel("")
@@ -281,15 +291,15 @@ class InsightsPage(QWidget):
         # Haeufigste Woerter — Rangliste wie App-Nutzung, Fuellwoerter ausgeblendet
         # (STOPWORDS_DE); die erste Zeile ist damit implizit das "Lieblingswort".
         # "Alle anzeigen" oeffnet die vollstaendige Liste (nicht nur die Top 5).
-        show_all_words = _link_button("Alle anzeigen")
+        show_all_words = _link_button(tr("Alle anzeigen"))
         show_all_words.clicked.connect(self._open_word_detail)
         self._words_freq_frame, self._words_freq_box = _card(
-            "Häufigste Wörter", header_action=show_all_words
+            tr("Häufigste Wörter"), header_action=show_all_words
         )
         row3.addWidget(self._words_freq_frame, 1)
 
         # Deine Muster — kurze Einordnung aus Tageszeit/Wochentag der Diktate.
-        self._pattern_frame, pattern_box = _card("Deine Muster")
+        self._pattern_frame, pattern_box = _card(tr("Deine Muster"))
         self._pattern_label = QLabel("")
         self._pattern_label.setWordWrap(True)
         self._pattern_label.setStyleSheet(f"color: {TEXT}; font-size: 9pt; border: none;")
@@ -300,11 +310,11 @@ class InsightsPage(QWidget):
         # Verarbeitung — lokale Latenz-Telemetrie + Routing-/Fallback-Bild.
         # Vorschlags-Karte: aus Zahlen wird eine Handlung. Wird nur eingeblendet,
         # wenn es tatsaechlich etwas vorzuschlagen gibt (sonst leerer Platz).
-        self._advice_frame, self._advice_box = _card("Vorschläge")
+        self._advice_frame, self._advice_box = _card(tr("Vorschläge"))
         self._advice_rows: list[QWidget] = []
         outer.addWidget(self._advice_frame)
 
-        self._processing_frame, processing_box = _card("Verarbeitung")
+        self._processing_frame, processing_box = _card(tr("Verarbeitung"))
         self._processing_label = QLabel("")
         self._processing_label.setWordWrap(True)
         self._processing_label.setStyleSheet(f"color: {TEXT}; font-size: 9pt; border: none;")
@@ -334,24 +344,24 @@ class InsightsPage(QWidget):
         # F-1: sagen, was der Klick TUT (nicht nur, was bisher passiert ist) —
         # "Als Regel übernehmen" wirkt global, wortgrenzenbasiert, in jedem
         # künftigen Diktat, nicht nur an dieser einen Stelle.
-        label = QLabel(
-            f"„{wrong}“ wurde {count}× zu „{right}“ korrigiert — die Regel ersetzt "
-            f"„{wrong}“ künftig überall durch „{right}“."
-        )
+        label = QLabel(tr(
+            "„{falsch}“ wurde {n}× zu „{richtig}“ korrigiert — die Regel ersetzt "
+            "„{falsch}“ künftig überall durch „{richtig}“.",
+            falsch=wrong, richtig=right, n=count))
         label.setStyleSheet(f"color: {TEXT}; font-size: 9pt; border: none;")
-        button = style_button(QPushButton("Als Regel übernehmen"))
+        button = style_button(QPushButton(tr("Als Regel übernehmen")))
         # Daten am Button statt in einem Lambda: ein Lambda, das `self` faengt und in
         # einem Kind-Widget haengt, erzeugt einen Referenzzyklus (real: sporadische
         # Access Violations). Eine gebundene Methode + sender()-Property ist sicher.
         button.setProperty("rule_wrong", wrong)
         button.setProperty("rule_right", right)
         button.clicked.connect(self._on_take_rule)
-        ignore = style_button(QPushButton("Ignorieren"))
-        ignore.setToolTip(
+        ignore = style_button(QPushButton(tr("Ignorieren")))
+        ignore.setToolTip(tr(
             "Schlägt dieses Paar nicht mehr vor. Die Liste der ignorierten Paare "
             "steht unter Einstellungen → Wörterbuch → Mehr Optionen — dort löschen holt den "
             "Vorschlag zurück."
-        )
+        ))
         ignore.setProperty("rule_wrong", wrong)
         ignore.setProperty("rule_right", right)
         ignore.clicked.connect(self._on_ignore_rule)
@@ -373,10 +383,10 @@ class InsightsPage(QWidget):
         h = QHBoxLayout(row)
         h.setContentsMargins(0, 2, 0, 2)
         h.setSpacing(10)
-        label = QLabel(
-            f"„{frage.haeufig}“ {frage.haeufig_anzahl}× · „{frage.selten}“ "
-            f"{frage.selten_anzahl}× — welche Schreibweise stimmt?"
-        )
+        label = QLabel(tr(
+            "„{a}“ {n_a}× · „{b}“ {n_b}× — welche Schreibweise stimmt?",
+            a=frage.haeufig, n_a=frage.haeufig_anzahl,
+            b=frage.selten, n_b=frage.selten_anzahl))
         label.setWordWrap(True)
         label.setStyleSheet(f"color: {TEXT}; font-size: 9pt; border: none;")
         h.addWidget(label, 1)
@@ -385,20 +395,20 @@ class InsightsPage(QWidget):
         # Erkennung, Ersetzung danach).
         for richtig, falsch in ((frage.haeufig, frage.selten),
                                 (frage.selten, frage.haeufig)):
-            btn = style_button(QPushButton(f"„{richtig}“ ist richtig"))
-            btn.setToolTip(
-                f"Ersetzt künftig jedes „{falsch}“ durch „{richtig}“ — überall, "
-                f"in jedem Diktat — und vergisst „{falsch}“ im Gedächtnis."
-            )
+            btn = style_button(QPushButton(tr("„{richtig}“ ist richtig", richtig=richtig)))
+            btn.setToolTip(tr(
+                "Ersetzt künftig jedes „{falsch}“ durch „{richtig}“ — überall, "
+                "in jedem Diktat — und vergisst „{falsch}“ im Gedächtnis.",
+                falsch=falsch, richtig=richtig))
             btn.setProperty("rule_wrong", falsch)
             btn.setProperty("rule_right", richtig)
             btn.clicked.connect(self._on_take_rule)
             h.addWidget(btn)
-        ignore = style_button(QPushButton("Ignorieren"))
-        ignore.setToolTip(
+        ignore = style_button(QPushButton(tr("Ignorieren")))
+        ignore.setToolTip(tr(
             "Fragt nie wieder nach diesem Paar — z. B. weil es zwei verschiedene "
             "Wörter sind. Zurücknehmen: Einstellungen → Wörterbuch → Mehr Optionen → Ignoriert."
-        )
+        ))
         ignore.setProperty("rule_wrong", frage.haeufig)
         ignore.setProperty("rule_right", frage.selten)
         ignore.clicked.connect(self._on_ignore_rule)
@@ -535,8 +545,9 @@ class InsightsPage(QWidget):
                 continue
             shown += 1
             if self._on_add_rule is None:
-                self._advice_rows.append(self._advice_text(
-                    f"„{wrong}“ wurde {count}× zu „{right}“ korrigiert."))
+                self._advice_rows.append(self._advice_text(tr(
+                    "„{falsch}“ wurde {n}× zu „{richtig}“ korrigiert.",
+                    falsch=wrong, richtig=right, n=count)))
             else:
                 self._advice_rows.append(self._correction_row(wrong, right, count))
 
@@ -547,11 +558,10 @@ class InsightsPage(QWidget):
         # Nur melden, wenn es genug Diktate gab UND der Anstieg deutlich ist —
         # sonst ist jede Schwankung ein Fehlalarm.
         if seen >= 5 and recent >= 0.25 and recent > previous * 1.5:
-            self._advice_rows.append(self._advice_text(
-                f"Die Fallback-Quote liegt zuletzt bei {round(recent * 100)} % (davor "
-                f"{round(previous * 100)} %) — läuft Ollama noch, und stimmt das "
-                f"Modell in der Konfiguration?"
-            ))
+            self._advice_rows.append(self._advice_text(tr(
+                "Die Fallback-Quote liegt zuletzt bei {jetzt} % (davor {davor} %) — "
+                "läuft Ollama noch, und stimmt das Modell in der Konfiguration?",
+                jetzt=round(recent * 100), davor=round(previous * 100))))
         self._update_advice_visibility()
 
     def apply_interface(self, ui) -> None:
@@ -570,15 +580,15 @@ class InsightsPage(QWidget):
     def enable_hiding(self, settings, on_changed) -> None:
         """Jede Karte per Rechtsklick ausblendbar machen (statt Checkbox-Liste)."""
         for frame, title, attr in (
-            (self._wpm_frame, "Wörter/Minute", "insights_show_wpm"),
-            (self._fix_frame, "Korrekturen", "insights_show_corrections"),
-            (self._words_frame, "Wörter diktiert", "insights_show_words"),
-            (self._usage_frame, "App-Nutzung", "insights_show_app_usage"),
-            (self._streak_frame, "Serie", "insights_show_streak"),
-            (self._words_freq_frame, "Häufigste Wörter", "insights_show_top_words"),
-            (self._pattern_frame, "Deine Muster", "insights_show_patterns"),
-            (self._processing_frame, "Verarbeitung", "insights_show_processing"),
-            (self._advice_frame, "Vorschläge", "insights_show_advice"),
+            (self._wpm_frame, tr("Wörter/Minute"), "insights_show_wpm"),
+            (self._fix_frame, tr("Korrekturen"), "insights_show_corrections"),
+            (self._words_frame, tr("Wörter diktiert"), "insights_show_words"),
+            (self._usage_frame, tr("App-Nutzung"), "insights_show_app_usage"),
+            (self._streak_frame, tr("Serie"), "insights_show_streak"),
+            (self._words_freq_frame, tr("Häufigste Wörter"), "insights_show_top_words"),
+            (self._pattern_frame, tr("Deine Muster"), "insights_show_patterns"),
+            (self._processing_frame, tr("Verarbeitung"), "insights_show_processing"),
+            (self._advice_frame, tr("Vorschläge"), "insights_show_advice"),
         ):
             enable_card_hiding(frame, title, attr, settings, on_changed)
 
@@ -641,8 +651,9 @@ class InsightsPage(QWidget):
             kinds = []
         if not kinds:
             return ""
-        teile = " · ".join(f"{name} {count}×" for name, count in kinds)
-        return f"\nBefehle: {teile}"
+        # Die Befehlsarten stammen aus `commands.classify_command` (deutsch).
+        teile = " · ".join(f"{tr(name)} {count}×" for name, count in kinds)
+        return "\n" + tr("Befehle: {teile}", teile=teile)
 
     def refresh(self) -> None:
         seit = self._range_since()
@@ -655,17 +666,17 @@ class InsightsPage(QWidget):
         cleanup_dictations = stats.total_dictations - stats.non_cleanup_dictations
         per_dictation = (stats.corrected_words / cleanup_dictations
                          if cleanup_dictations else 0.0)
-        fix_detail = (
-            f"Wörter korrigiert oder entfernt\n"
-            f"aus {_ganzzahl(cleanup_dictations)} Diktaten · Ø {per_dictation:.1f} je Diktat"
-        )
+        fix_detail = tr(
+            "Wörter korrigiert oder entfernt\naus {n} Diktaten · Ø {schnitt} je Diktat",
+            n=_ganzzahl(cleanup_dictations), schnitt=dezimal(per_dictation))
         if stats.non_cleanup_dictations:
-            fix_detail += f"\n{_ganzzahl(stats.non_cleanup_dictations)} Diktate umformuliert"
+            fix_detail += "\n" + tr("{n} Diktate umformuliert",
+                                    n=_ganzzahl(stats.non_cleanup_dictations))
         self._fix_detail.setText(fix_detail)
         self._words_value.setText(_ganzzahl(stats.total_words))
-        self._streak_label.setText(
-            f"Aktuell {stats.streak} Tage · längste Serie {stats.longest_streak} Tage"
-        )
+        self._streak_label.setText(tr(
+            "Aktuell {n} Tage · längste Serie {laengste} Tage",
+            n=stats.streak, laengste=stats.longest_streak))
         self._calendar.set_data(stats.daily_counts or {})
 
         usage_entries = [
@@ -673,7 +684,7 @@ class InsightsPage(QWidget):
             for app, _words, share in (stats.app_usage or [])[:5]
         ]
         self._usage_rows = _rebuild_ranked_list(
-            self._usage_box, self._usage_rows, usage_entries, "Noch keine Daten."
+            self._usage_box, self._usage_rows, usage_entries, tr("Noch keine Daten.")
         )
 
         # Deterministisch aus der (ungefilterten) LEBENSZEIT-Wortzahl gewuerfelt,
@@ -693,7 +704,8 @@ class InsightsPage(QWidget):
             for word, count, share in (stats.top_words or [])[:5]
         ]
         self._words_freq_rows = _rebuild_ranked_list(
-            self._words_freq_box, self._words_freq_rows, word_entries, "Noch keine Daten."
+            self._words_freq_box, self._words_freq_rows, word_entries,
+            tr("Noch keine Daten.")
         )
 
         # Wochentag-/Tageszeit-Satz erst ab einem Zeitraum, der ueberhaupt eine
@@ -707,20 +719,20 @@ class InsightsPage(QWidget):
         if zeigt_tageszeit or zeigt_wochentag:
             saetze = []
             if zeigt_tageszeit:
-                saetze.append(
-                    f"Du diktierst am meisten "
-                    f"{_DAYPART_LABELS.get(stats.productive_daypart, stats.productive_daypart)}."
-                )
+                zeit = _DAYPART_LABELS.get(stats.productive_daypart,
+                                           stats.productive_daypart)
+                saetze.append(tr("Du diktierst am meisten {zeit}.", zeit=tr(zeit)))
             if zeigt_wochentag:
-                saetze.append(f"Dein aktivster Wochentag ist {stats.productive_weekday}.")
+                saetze.append(tr("Dein aktivster Wochentag ist {tag}.",
+                                 tag=tr(stats.productive_weekday)))
             pattern_text = " ".join(saetze)
         elif stats.productive_daypart or stats.productive_weekday:
             # Genug Diktate insgesamt fuer ein Muster, aber der gewaehlte Zeitraum
             # ist zu kurz dafuer — ein anderer Grund als "noch nicht genug Diktate".
-            pattern_text = ("Für diesen Zeitraum noch kein verlässliches Muster — "
-                            "ein längerer Zeitraum zeigt mehr.")
+            pattern_text = tr("Für diesen Zeitraum noch kein verlässliches Muster — "
+                              "ein längerer Zeitraum zeigt mehr.")
         else:
-            pattern_text = (
+            pattern_text = tr(
                 "Noch nicht genug Diktate für eine Auswertung — nach ein paar Tagen "
                 "zeigen wir dir hier, wann du am produktivsten bist."
             )

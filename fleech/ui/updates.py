@@ -32,6 +32,7 @@ import urllib.request
 from pathlib import Path
 from urllib.parse import urlparse
 
+from ..i18n import tr
 from ..version import APP_VERSION
 
 log = logging.getLogger(__name__)
@@ -127,14 +128,14 @@ def check_for_updates(feed_url: str | None = None, timeout: float = 8.0) -> dict
     erlaubt = ((urlparse(quelle).hostname or "",) if eigener_feed else _GITHUB_HOSTS)
     if not _host_ok(quelle, erlaubt):
         return {"status": "error", "current": APP_VERSION,
-                "message": "Update-Quelle muss eine HTTPS-Adresse sein."}
+                "message": tr("Update-Quelle muss eine HTTPS-Adresse sein.")}
     try:
         data = _fetch_json(quelle, timeout)
     except Exception as exc:
         # GitHub antwortet mit 404, solange es noch kein Release gibt.
         if getattr(exc, "code", None) == 404 and not eigener_feed:
             return {"status": "no_release", "current": APP_VERSION,
-                    "message": "Noch keine Veröffentlichung vorhanden."}
+                    "message": tr("Noch keine Veröffentlichung vorhanden.")}
         log.info("Update-Pruefung fehlgeschlagen: %s", exc)
         return {"status": "error", "current": APP_VERSION, "message": str(exc)}
 
@@ -156,12 +157,12 @@ def check_for_updates(feed_url: str | None = None, timeout: float = 8.0) -> dict
     if not info["url"]:
         # Version ist neuer, aber ohne Datei — ehrlich benennen statt "verfuegbar".
         ergebnis["status"] = "error"
-        ergebnis["message"] = ("Version " + info["latest"] +
-                               " ist veröffentlicht, aber ohne Installationsdatei.")
+        ergebnis["message"] = tr("Version {version} ist veröffentlicht, aber ohne "
+                                 "Installationsdatei.", version=info["latest"])
         return ergebnis
     if not _host_ok(info["url"], erlaubt):
         ergebnis["status"] = "error"
-        ergebnis["message"] = "Download-Adresse gehört nicht zur Update-Quelle."
+        ergebnis["message"] = tr("Download-Adresse gehört nicht zur Update-Quelle.")
         return ergebnis
     ergebnis["status"] = "update_available"
     return ergebnis
@@ -210,7 +211,7 @@ def download_update(url: str, ziel_ordner: Path, on_progress=None,
                 log.warning("Update-Download nach Weiterleitung abgelehnt: %s", tatsaechlich)
                 return None
             gesamt = expected_size or int(antwort.headers.get("Content-Length") or 0)
-            melde(0, "Lade Update …")
+            melde(0, tr("Lade Update …"))
             zuletzt = -5
             with open(ziel, "wb") as datei:
                 while True:
@@ -224,9 +225,9 @@ def download_update(url: str, ziel_ordner: Path, on_progress=None,
                         prozent = int(geladen * 100 / gesamt)
                         if prozent >= zuletzt + 5:
                             zuletzt = prozent
-                            melde(prozent, f"Lade Update … {prozent} %")
+                            melde(prozent, tr("Lade Update … {prozent} %", prozent=prozent))
                     else:
-                        melde(-1, f"Lade Update … {geladen // (1024 * 1024)} MB")
+                        melde(-1, tr("Lade Update … {mb} MB", mb=geladen // (1024 * 1024)))
     except Exception as exc:
         log.warning("Update-Download fehlgeschlagen: %s", exc)
         ziel.unlink(missing_ok=True)
@@ -246,7 +247,7 @@ def download_update(url: str, ziel_ordner: Path, on_progress=None,
         log.info("Update-Pruefsumme bestaetigt.")
     else:
         log.info("Update ohne veroeffentlichte Pruefsumme geladen (nur Groesse geprueft).")
-    melde(100, "Update geladen.")
+    melde(100, tr("Update geladen."))
     return ziel
 
 

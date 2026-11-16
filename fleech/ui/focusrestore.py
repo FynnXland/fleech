@@ -150,6 +150,22 @@ def restore_foreground(hwnd: int | None) -> bool:
         return False
 
 
+def erlaube_fremden_vordergrund() -> None:
+    """Gibt das Vordergrund-Recht dieses Prozesses an einen anderen weiter.
+
+    Fuer den Zweitstart: Der neue Prozess kommt vom Klick des Nutzers und darf
+    deshalb nach vorn — die laufende Instanz, die das Fenster zeigen soll, darf es
+    nicht. `AllowSetForegroundWindow(ASFW_ANY)` reicht das Recht weiter, bevor der
+    Weckruf rausgeht. Best-Effort: Scheitert es, greift noch der Trick in
+    `restore_foreground`."""
+    if sys.platform != "win32":
+        return
+    try:
+        ctypes.windll.user32.AllowSetForegroundWindow(wt.DWORD(0xFFFFFFFF))  # ASFW_ANY
+    except Exception:
+        log.debug("AllowSetForegroundWindow fehlgeschlagen.", exc_info=True)
+
+
 def _point_in_window(hwnd: int, x: int, y: int) -> bool:
     """Liegt der Bildschirmpunkt im aktuellen Rechteck des Zielfensters?
 

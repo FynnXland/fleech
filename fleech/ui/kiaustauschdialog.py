@@ -17,18 +17,20 @@ from PySide6.QtWidgets import (
     QVBoxLayout, QWidget,
 )
 
+from ..i18n import dezimal, tr
 from .theme import AMBER, BG, BORDER_HAIRLINE, CARD, MUTED, TEXT, style_button
 
 
 def kopfzeile(aufruf: dict, gesamt: int) -> str:
     """„Aufruf 1 von 2 · gemma3:4b (ollama) · 1,2 s" — ohne Qt pruefbar."""
-    teile = [f"Aufruf {aufruf.get('nr', 1)} von {gesamt}" if gesamt > 1 else "Aufruf"]
+    teile = [tr("Aufruf {nr} von {gesamt}", nr=aufruf.get("nr", 1), gesamt=gesamt)
+             if gesamt > 1 else tr("Aufruf")]
     modell, anbieter = aufruf.get("modell", ""), aufruf.get("anbieter", "")
     if modell:
         teile.append(f"{modell} ({anbieter})" if anbieter else modell)
     ms = int(aufruf.get("ms", 0) or 0)
     if ms:
-        teile.append(f"{ms / 1000:.1f} s".replace(".", ","))
+        teile.append(f"{dezimal(ms / 1000, 1)} s")
     return " · ".join(teile)
 
 
@@ -56,19 +58,19 @@ def _textfeld(text: str, farbe: str = TEXT) -> QTextEdit:
 class KiAustauschDialog(QDialog):
     def __init__(self, aufrufe: list[dict], parent=None):
         super().__init__(parent)
-        self.setWindowTitle("KI-Austausch")
+        self.setWindowTitle(tr("KI-Austausch"))
         self.resize(620, 640)
         self.setStyleSheet(f"QDialog {{ background: {BG}; }}")
 
         outer = QVBoxLayout(self)
         outer.setContentsMargins(20, 16, 20, 14)
         outer.setSpacing(6)
-        kopf = QLabel("KI-AUSTAUSCH")
+        kopf = QLabel(tr("KI-AUSTAUSCH"))
         kopf.setStyleSheet(
             f"color: {MUTED}; font-size: 9pt; font-weight: 600; letter-spacing: 0.5px;")
         outer.addWidget(kopf)
-        hinweis = QLabel("Was die KI bekam und wie ihre Antwort lautete, bevor Fleech "
-                         "sie geprüft hat. Liegt verschlüsselt im Verlauf.")
+        hinweis = QLabel(tr("Was die KI bekam und wie ihre Antwort lautete, bevor Fleech "
+                            "sie geprüft hat. Liegt verschlüsselt im Verlauf."))
         hinweis.setWordWrap(True)
         hinweis.setStyleSheet(f"color: {MUTED}; font-size: 8.5pt;")
         outer.addWidget(hinweis)
@@ -91,7 +93,7 @@ class KiAustauschDialog(QDialog):
 
         knoepfe = QHBoxLayout()
         knoepfe.addStretch(1)
-        schliessen = style_button(QPushButton("Schließen"), "ghost")
+        schliessen = style_button(QPushButton(tr("Schließen")), "ghost")
         schliessen.clicked.connect(self.accept)
         knoepfe.addWidget(schliessen)
         outer.addLayout(knoepfe)
@@ -103,23 +105,23 @@ class KiAustauschDialog(QDialog):
         box.addWidget(titel)
         fehler = str(aufruf.get("fehler", "") or "")
         if aufruf.get("abgeschnitten"):
-            fehler = fehler or "Antwort am Kontextfenster abgeschnitten"
+            fehler = fehler or tr("Antwort am Kontextfenster abgeschnitten")
         if fehler:
-            zeile = QLabel(fehler)
+            zeile = QLabel(tr(fehler))
             zeile.setWordWrap(True)
             zeile.setStyleSheet(f"color: {AMBER}; font-size: 8.5pt;")
             box.addWidget(zeile)
-        box.addWidget(_abschnitt("EINGABE"))
+        box.addWidget(_abschnitt(tr("EINGABE")))
         box.addWidget(_textfeld(aufruf.get("eingabe", ""), MUTED))
         if aufruf.get("antwort"):
-            box.addWidget(_abschnitt("ANTWORT"))
+            box.addWidget(_abschnitt(tr("ANTWORT")))
             box.addWidget(_textfeld(aufruf["antwort"]))
         system = aufruf.get("system", "")
         if system:
             feld = _textfeld(system, MUTED)
             feld.setFixedHeight(260)
             feld.hide()
-            knopf = style_button(QPushButton("System-Prompt ein-/ausblenden"), "ghost")
+            knopf = style_button(QPushButton(tr("System-Prompt ein-/ausblenden")), "ghost")
             knopf.setCheckable(True)
             # Gebundene Methode statt Lambda: kein Python-Zyklus ueber Qt-Objekte.
             knopf.toggled.connect(feld.setVisible)

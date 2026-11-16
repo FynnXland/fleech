@@ -1,7 +1,8 @@
 # Benachrichtigungen und Fokus
 
-Stand: 6.1.0 · Code: `fleech/ui/notifications.py` (Policy), `fleech/ui/windowsfocus.py`
-(Fokus-Signale), Einstellungsseite `fleech/ui/settings/benachrichtigungen.py`.
+Stand: 6.5.0 · Code: `fleech/ui/notifications.py` (Policy), `fleech/ui/windowsfocus.py`
+(Fokus-Signale), Einstellungen `fleech/ui/settings/benachrichtigungen.py` (Baustein der
+Seite „Ruhe“, `fleech/ui/settings/ruhe.py`).
 
 ## Kanal-Strategie
 
@@ -73,7 +74,7 @@ Win32 und Qt und vollständig unit-getestet (`tests/test_notifications.py`).
   - „Versteckt“ blendet die Pille aus, auch während der Aufnahme.
   - „Unverändert“ lässt alles, wie es ist.
 - Fleech-eigene Töne mit dem Regler „Fleech-eigene Töne im Spiel“ (Vorgabe 50 %, 0 % = stumm)
-- Bei „Modell-Warmhaltung: Nach Nutzung“ (Vorgabe, Einstellungen → Advanced) entlädt
+- Bei „Modell-Warmhaltung: Nach Nutzung“ (Vorgabe, Einstellungen → KI & Text → Mehr Optionen) entlädt
   Fleech beim Spielstart das lokale KI-Modell und gibt so Grafikspeicher frei.
 - Prozesse auf der Ausnahmeliste gelten nie als Spiel (z. B. ein Videoplayer).
 
@@ -82,12 +83,13 @@ vorübergehender Override. Bei „Nicht stören“ ohne Spiel gilt — sofern
 „Windows Do Not Disturb respektieren“ an ist — dasselbe wie „Nur bei
 Aufnahme/Verarbeitung“.
 
-## Einstellungsseite „Benachrichtigungen“
+## Einstellungen (Seite „Ruhe“)
 
-Windows Do Not Disturb respektieren · Sounds bei DND stummschalten · Windows-Banner
-(Nichts/Wichtiges/Alles) · Akzent-Sound bei kritischen Toasts · Gaming-/Fullscreen-Erkennung
-· Overlay im Gaming-Modus · Fleech-eigene Töne im Spiel · Ausnahmen (Prozesse) · Testen
-(Test-Toast, Test-Sound).
+Bis 6.4 eine eigene Seite „Benachrichtigungen“, seit 6.5.0 zusammen mit dem Audio-Fokus
+auf „Ruhe“. Oben: Windows Do Not Disturb respektieren · Windows-Banner
+(Nichts/Wichtiges/Alles) · Gaming-/Fullscreen-Erkennung. Unter „Mehr Optionen“: Sounds bei
+DND stummschalten · Akzent-Sound bei kritischen Toasts · Overlay im Gaming-Modus ·
+Fleech-eigene Töne im Spiel · Ausnahmen (Prozesse) · Testen (Test-Toast, Test-Sound).
 
 Der Test-Toast läuft absichtlich durch die echte Policy: Unter „Nicht stören“ oder im
 Spiel wird er unterdrückt, und das Protokoll vermerkt das. Er zählt als Statusmeldung —

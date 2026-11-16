@@ -7,6 +7,7 @@ Entscheidungen, die Feineinstellungen unter „Mehr Optionen".
 
 from __future__ import annotations
 
+from ...i18n import tr
 from . import audiofokus, benachrichtigungen
 from .common import hint
 from .mehr import angleichen, bereich
@@ -15,7 +16,7 @@ from .mehr import angleichen, bereich
 def build(panel) -> None:
     seite, form = panel._page()
     form.addRow("", hint(
-        "Musik und Videos leiser beim Diktieren — und wann Fleech selbst still bleibt."
+        tr("Musik und Videos leiser beim Diktieren — und wann Fleech selbst still bleibt.")
     ))
     mehr = bereich(seite, form)
     audiofokus.zeilen(panel, form, mehr)

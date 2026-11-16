@@ -24,6 +24,7 @@ import secrets
 import threading
 from pathlib import Path
 
+from ..i18n import N_
 from ..platformpaths import user_data_dir
 from . import ablage as _ablagen
 from .datei import ist_umschlag
@@ -154,12 +155,12 @@ def schluessel_aus(code: str) -> bytes:
     try:
         roh = base64.b32decode(zeichen + "=" * (-len(zeichen) % 8))
     except Exception as exc:
-        raise ValueError("Das ist kein gültiger Wiederherstellungscode.") from exc
+        raise ValueError(N_("Das ist kein gültiger Wiederherstellungscode.")) from exc
     if len(roh) != LAENGE + 2:
-        raise ValueError("Der Code ist zu kurz oder zu lang.")
+        raise ValueError(N_("Der Code ist zu kurz oder zu lang."))
     schluessel, pruef = roh[:LAENGE], roh[LAENGE:]
     if hashlib.sha256(schluessel).digest()[:2] != pruef:
-        raise ValueError("Der Code enthält einen Tippfehler.")
+        raise ValueError(N_("Der Code enthält einen Tippfehler."))
     return schluessel
 
 

@@ -17,6 +17,7 @@ from __future__ import annotations
 import logging
 import threading
 import time
+from ...i18n import tr
 
 log = logging.getLogger(__name__)
 
@@ -74,7 +75,7 @@ class NachbereitungMixin:
             self.settings.save()
             self.pipeline.set_dictionary(self.settings.output.dictionary,
                                          self.settings.output.dictionary_usage)
-            self.tray.notify("Fleech", f"Gelernt: „{rec}“ → „{target}“.")
+            self.tray.notify("Fleech", tr("Gelernt: „{rec}“ → „{target}“.", rec=rec, target=target))
 
         def ignore(rec: str, target: str) -> None:
             self.settings.output.dictionary_ignores.append(
@@ -107,16 +108,16 @@ class NachbereitungMixin:
         """
         kandidat = getattr(self, "_undo_candidate", None)
         if not kandidat:
-            self._flash_status("Nichts zum Zurücknehmen")
+            self._flash_status(tr("Nichts zum Zurücknehmen"))
             return
         injected, raw, ts = kandidat
         if time.monotonic() - ts > self._UNDO_MAX_AGE_S:
             self._undo_candidate = None
-            self._flash_status("Letzte Ausgabe ist zu lange her")
+            self._flash_status(tr("Letzte Ausgabe ist zu lange her"))
             return
         raw = (raw or "").strip()
         if not raw or raw == injected:
-            self._flash_status("Rohtext ist identisch")
+            self._flash_status(tr("Rohtext ist identisch"))
             return
         # Steht der Cursor noch hinter unserem Text? Nach Fensterwechsel ist die
         # Position unbekannt — dann wird NICHT geloescht.
@@ -127,13 +128,13 @@ class NachbereitungMixin:
         self.pipeline.tracker.sync_window()
         if self.pipeline.tracker.resolve_scope("dictated") is None:
             self._undo_candidate = None
-            self._flash_status("Cursor nicht mehr an der Stelle")
+            self._flash_status(tr("Cursor nicht mehr an der Stelle"))
             return
 
         if self._process_lock.locked():
             # Ein Diktat wird gerade eingefuegt — dazwischenzufunken hiesse, an einer
             # Stelle zu loeschen, die sich im selben Moment verschiebt.
-            self._flash_status("Verarbeitung läuft — bitte kurz warten")
+            self._flash_status(tr("Verarbeitung läuft — bitte kurz warten"))
             return
 
         self._undo_candidate = None          # nur ein Versuch je Ausgabe
@@ -145,12 +146,12 @@ class NachbereitungMixin:
                     self.pipeline.tracker.record_replace(len(injected), raw)
             except Exception:
                 log.exception("Rueckgaengig fehlgeschlagen.")
-                self._flash_status("Zurücknehmen fehlgeschlagen — Log prüfen")
+                self._flash_status(tr("Zurücknehmen fehlgeschlagen — Log prüfen"))
                 return
             log.info("Letzte Ausgabe durch Rohtext ersetzt (%d → %d Zeichen).",
                      len(injected), len(raw))
             self.notifier.sound("commit")
-            self._flash_status("Rohtext eingesetzt")
+            self._flash_status(tr("Rohtext eingesetzt"))
 
         threading.Thread(target=arbeit, daemon=True).start()
 
@@ -165,7 +166,7 @@ class NachbereitungMixin:
             log.info("Automatisch abgeschickt (Profil-Einstellung).")
         except Exception:
             log.exception("Automatisches Absenden fehlgeschlagen — Text steht im Feld.")
-            self._flash_status("Absenden fehlgeschlagen")
+            self._flash_status(tr("Absenden fehlgeschlagen"))
 
     # -- Die letzte Aufnahme (V-15) ----------------------------------------------------
     #
@@ -179,7 +180,7 @@ class NachbereitungMixin:
     def _letzte_aufnahme_oder_meldung(self):
         audio = getattr(self, "_letzte_aufnahme", None)
         if audio is None or not len(audio):
-            self._flash_status("Keine Aufnahme im Speicher")
+            self._flash_status(tr("Keine Aufnahme im Speicher"))
             return None
         return audio
 
@@ -197,7 +198,7 @@ class NachbereitungMixin:
         if audio is None:
             return
         if self._process_lock.locked():
-            self._flash_status("Ein Diktat läuft noch")
+            self._flash_status(tr("Ein Diktat läuft noch"))
             return
         from ..state import AppState
 
@@ -214,7 +215,7 @@ class NachbereitungMixin:
             return
         vorschlag = f"fleech-aufnahme-{time.strftime('%Y-%m-%d-%H%M%S')}.wav"
         pfad, _filter = QFileDialog.getSaveFileName(
-            None, "Letzte Aufnahme sichern", vorschlag, "WAV-Datei (*.wav)")
+            None, tr("Letzte Aufnahme sichern"), vorschlag, tr("WAV-Datei (*.wav)"))
         if not pfad:
             return
         self._schreibe_wav(pfad, audio)
@@ -231,10 +232,10 @@ class NachbereitungMixin:
             Path(pfad).write_bytes(audio_to_wav_bytes(audio, rate))
         except Exception:
             log.exception("Aufnahme konnte nicht gesichert werden: %s", pfad)
-            self._flash_status("Sichern fehlgeschlagen — Log prüfen")
+            self._flash_status(tr("Sichern fehlgeschlagen — Log prüfen"))
             return False
         log.info("Letzte Aufnahme gesichert: %s", pfad)
-        self._flash_status("Aufnahme gesichert")
+        self._flash_status(tr("Aufnahme gesichert"))
         return True
 
     def _reprocess_entry(self, roh: str, fmt: str, name: str) -> None:
@@ -249,24 +250,24 @@ class NachbereitungMixin:
             # Bewusst ueber dasselbe Signal wie das Ergebnis: Wer den Weg hierher
             # ausgeloest hat, wartet auf eine Antwort. Ein stilles `return` liesse
             # das Fortschritts-Fenster endlos laufen.
-            self.bus.reprocessed.emit("", name, "Ein Diktat läuft gerade — "
-                                                "danach noch einmal versuchen.")
+            self.bus.reprocessed.emit("", name, tr("Ein Diktat läuft gerade — "
+                                                   "danach noch einmal versuchen."))
             return
 
         def arbeit():
             with self._process_lock:
-                self.bus.progress.emit(f"Neu bereinigen als {name} …")
+                self.bus.progress.emit(tr("Neu bereinigen als {name} …", name=name))
                 grund = ""
                 try:
                     text = self.pipeline.reprocess(roh, fmt)
                 except Exception:
                     log.exception("Nachbearbeitung fehlgeschlagen.")
                     text = ""
-                    grund = ("Die Nachbearbeitung ist fehlgeschlagen. Läuft die "
-                             "lokale KI? Einzelheiten stehen im Protokoll.")
+                    grund = tr("Die Nachbearbeitung ist fehlgeschlagen. Läuft die "
+                               "lokale KI? Einzelheiten stehen im Protokoll.")
                 if not text and not grund:
-                    grund = ("Das Modell hat keinen Text geliefert — der Rohtext "
-                             "bleibt unverändert.")
+                    grund = tr("Das Modell hat keinen Text geliefert — der Rohtext "
+                               "bleibt unverändert.")
                 self.bus.reprocessed.emit(text, name, grund)
 
         threading.Thread(target=arbeit, daemon=True).start()
@@ -287,8 +288,8 @@ class NachbereitungMixin:
     def _on_reprocessed(self, text: str, name: str, grund: str = "") -> None:
         """UI-Thread: Ergebnis in die Zwischenablage und Rueckmeldung geben."""
         if not text:
-            grund = grund or f"{name} fehlgeschlagen — Text unverändert."
-            self._flash_status(f"{name} fehlgeschlagen — Text unverändert")
+            grund = grund or tr("{name} fehlgeschlagen — Text unverändert.", name=name)
+            self._flash_status(tr("{name} fehlgeschlagen — Text unverändert", name=name))
             self._melde_nachbearbeitung("", grund)
             return
         try:
@@ -297,12 +298,12 @@ class NachbereitungMixin:
             copy_text(text)
         except Exception:
             log.exception("Zwischenablage nicht beschreibbar.")
-            self._flash_status("Zwischenablage nicht erreichbar")
-            self._melde_nachbearbeitung("", "Die Zwischenablage ist nicht "
-                                            "erreichbar — der Text konnte nicht "
-                                            "abgelegt werden.")
+            self._flash_status(tr("Zwischenablage nicht erreichbar"))
+            self._melde_nachbearbeitung("", tr("Die Zwischenablage ist nicht "
+                                               "erreichbar — der Text konnte nicht "
+                                               "abgelegt werden."))
             return
         self._melde_nachbearbeitung(text, "")
         log.info("Neu bereinigt als %s (%d Zeichen) — in der Zwischenablage.",
                  name, len(text))
-        self._flash_status(f"{name} kopiert — Strg+V zum Einfügen")
+        self._flash_status(tr("{name} kopiert — Strg+V zum Einfügen", name=name))

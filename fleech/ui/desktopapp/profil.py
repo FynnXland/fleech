@@ -18,6 +18,7 @@ import logging
 from PySide6.QtCore import QTimer
 from ...profiles import APP_STANDARD
 from ...protokolltext import inhalt
+from ...i18n import tr
 
 
 log = logging.getLogger(__name__)
@@ -259,7 +260,7 @@ class ProfilMixin:
             return True
         log.info("Profilwechsel abgelehnt — Profile sind global ausgeschaltet.")
         try:
-            self.overlay.show_profile("Profile sind ausgeschaltet")
+            self.overlay.show_profile(tr("Profile sind ausgeschaltet"))
         except Exception:
             log.debug("Profil-Anzeige fehlgeschlagen.", exc_info=True)
         return False
@@ -271,7 +272,7 @@ class ProfilMixin:
         self.settings.profiles.active = name
         self.settings.save()
         aktiv = self.active_profile_name()
-        anzeige = name or f"{APP_STANDARD} ({aktiv})"
+        anzeige = name or f"{tr(APP_STANDARD)} ({aktiv})"
         # Merken, was zuletzt zu sehen war: Sonst zeigte der naechste
         # Aufnahmestart dieselbe Kapsel gleich noch einmal.
         self._zuletzt_gemeldetes_profil = aktiv

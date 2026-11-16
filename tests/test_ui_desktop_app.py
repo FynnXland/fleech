@@ -4,6 +4,7 @@ Teil der Qt-Smoke-Tests (offscreen, siehe conftest.py): Widgets bauen, Zustaende
 schalten, Persistenz-Callbacks pruefen. Keine Optik-Pruefung.
 """
 
+import numpy as np
 import pytest
 
 pytest.importorskip("PySide6")
@@ -176,12 +177,48 @@ def test_unload_llms_async_is_idempotent(monkeypatch):
 def test_sound_synthesis_all_events_and_presets():
     from fleech.ui.sounds import _build_preset
 
-    for preset in ("soft", "click"):
+    for preset in ("warm", "chimes", "click"):
         samples = _build_preset(preset)
         assert set(samples) == {"start", "stop", "commit", "error"}
         for name, arr in samples.items():
             assert 0 < arr.size < 44100  # kurz (<1 s) und nicht leer
-            assert abs(float(arr.max())) <= 1.3
+            # Schon mit dem Pegel verrechnet: bei voller Lautstaerke nie uebersteuert.
+            assert float(np.abs(arr).max()) <= 1.0, (preset, name)
+
+
+def test_warm_kommt_aus_den_dateien_und_ist_leiser_als_die_chimes():
+    """Die neuen Klaenge sind Dateien (kein Rueckfall auf Synthese) und klingen
+    bewusst leiser als die alten Chimes — die waren der Kritikpunkt."""
+    from fleech.resources import asset
+    from fleech.ui.sounds import EVENTS, _build_preset
+
+    for ev in EVENTS:
+        assert asset(f"sounds/warm/{ev}.wav").is_file(), ev
+    warm, chimes = _build_preset("warm"), _build_preset("chimes")
+    assert not np.array_equal(warm["start"][:100], chimes["start"][:100])
+
+    def rms(x):
+        return float(np.sqrt(np.mean(x ** 2)))
+    for ev in EVENTS:
+        assert rms(warm[ev]) < rms(chimes[ev]), ev
+    # Kein Vorlauf: der Start-Ton muss sofort kommen.
+    start = np.abs(warm["start"])
+    assert int(np.argmax(start > start.max() * 0.02)) < 44  # < 1 ms
+
+
+def test_fehlende_klangdatei_faellt_auf_chimes_zurueck(monkeypatch, tmp_path):
+    import fleech.ui.sounds as snd
+
+    monkeypatch.setattr(snd, "asset", lambda name: tmp_path / name)
+    samples = snd._build_preset("warm")
+    chimes = snd._build_preset("chimes")
+    assert np.array_equal(samples["start"], chimes["start"])
+
+
+def test_unbekannter_klangstil_spielt_den_standard():
+    from fleech.ui.sounds import _build_preset
+
+    assert np.array_equal(_build_preset("gibtsnicht")["stop"], _build_preset("warm")["stop"])
 
 def test_sound_player_respects_switches(monkeypatch):
     import sounddevice

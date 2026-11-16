@@ -19,13 +19,23 @@ from PySide6.QtWidgets import (
     QTextEdit, QVBoxLayout, QWidget,
 )
 
+from .. import gruende
 from ..history import HistoryStore
+from ..i18n import tr
+from ..profiles import anzeigename
 from .theme import (
     ACCENT, AMBER, BG, BORDER_HAIRLINE, CARD, MUTED, TEXT, style_button,
 )
 from .widgets import _ranked_row
 
 log = logging.getLogger(__name__)
+
+
+def _datum(ts: _dt.datetime) -> str:
+    """Datum und Uhrzeit eines Verlaufseintrags — dasselbe Format wie im Verlauf."""
+    from .pages.anzeigetext import datum
+
+    return f"{datum(ts.date())} · {ts.strftime('%H:%M')}"
 
 
 class PromptDialog(QDialog):
@@ -64,18 +74,18 @@ class PromptDialog(QDialog):
         outer.setContentsMargins(20, 16, 20, 14)
         outer.setSpacing(8)
 
-        kopf = QLabel(f"SYSTEM-PROMPT · {name.upper()}.MD"
-                      + ("  ·  EIGENE FASSUNG" if eigen else "  ·  WERKSZUSTAND"))
+        kopf = QLabel(tr("SYSTEM-PROMPT · {name}.MD", name=name.upper()) + "  ·  "
+                      + (tr("EIGENE FASSUNG") if eigen else tr("WERKSZUSTAND")))
         kopf.setStyleSheet(
             f"color: {ACCENT if eigen else MUTED}; font-size: 9pt;"
             f" font-weight: 600; letter-spacing: 0.5px;")
         outer.addWidget(kopf)
 
-        hinweis = QLabel(
+        hinweis = QLabel(tr(
             "Das ist die Anweisung, die das Sprachmodell bei diesem Ausgabeformat "
             "bekommt. Änderungen wirken ab dem nächsten Diktat. Die Sicherheitsregel "
             "zu den Text-Markern ergänzt Fleech notfalls selbst — sie lässt sich "
-            "nicht wegkürzen.")
+            "nicht wegkürzen."))
         hinweis.setWordWrap(True)
         hinweis.setStyleSheet(f"color: {MUTED}; font-size: 8.5pt;")
         outer.addWidget(hinweis)
@@ -94,15 +104,15 @@ class PromptDialog(QDialog):
 
         knoepfe = QHBoxLayout()
         knoepfe.setSpacing(8)
-        zurueck = style_button(QPushButton("Auf Werkszustand zurücksetzen"), "ghost")
+        zurueck = style_button(QPushButton(tr("Auf Werkszustand zurücksetzen")), "ghost")
         zurueck.setEnabled(eigen)
         zurueck.clicked.connect(self._zuruecksetzen)
         knoepfe.addWidget(zurueck)
         knoepfe.addStretch(1)
-        schliessen = style_button(QPushButton("Schließen"), "ghost")
+        schliessen = style_button(QPushButton(tr("Schließen")), "ghost")
         schliessen.clicked.connect(self.close)
         knoepfe.addWidget(schliessen)
-        speichern = style_button(QPushButton("Speichern"), "primary")
+        speichern = style_button(QPushButton(tr("Speichern")), "primary")
         speichern.clicked.connect(self._speichern)
         knoepfe.addWidget(speichern)
         outer.addLayout(knoepfe)
@@ -113,14 +123,14 @@ class PromptDialog(QDialog):
 
         text = self._edit.toPlainText()
         if not text.strip():
-            self._meldung.setText("Leer speichern geht nicht — nutze „Zurücksetzen“.")
+            self._meldung.setText(tr("Leer speichern geht nicht — nutze „Zurücksetzen“."))
             return
         if save_user_prompt(self._name, text):
-            self._meldung.setText("Gespeichert. Gilt ab dem nächsten Diktat.")
+            self._meldung.setText(tr("Gespeichert. Gilt ab dem nächsten Diktat."))
             self._zurueck_btn.setEnabled(True)
             self.gespeichert.emit()
         else:
-            self._meldung.setText("Konnte nicht gespeichert werden — siehe Protokoll.")
+            self._meldung.setText(tr("Konnte nicht gespeichert werden — siehe Protokoll."))
 
     def _zuruecksetzen(self) -> None:
         from ..prompts import prompt_text, save_user_prompt
@@ -128,7 +138,7 @@ class PromptDialog(QDialog):
         save_user_prompt(self._name, "")
         werk, _eigen = prompt_text(self._prompts_dir, self._name)
         self._edit.setPlainText(werk)
-        self._meldung.setText("Werkszustand wiederhergestellt.")
+        self._meldung.setText(tr("Werkszustand wiederhergestellt."))
         self._zurueck_btn.setEnabled(False)
         self.gespeichert.emit()
 
@@ -145,7 +155,7 @@ class TranscriptDetailDialog(QDialog):
         # Bewusst NICHT modal: der Dialog soll sich schliessen, sobald man daneben
         # klickt (siehe event()) — statt den Klick zu blocken (Windows-Fehlerton).
         super().__init__(parent)
-        self.setWindowTitle("Transkript")
+        self.setWindowTitle(tr("Transkript"))
         self.resize(480, 440)
         self.setStyleSheet(f"QDialog {{ background: {BG}; }}")
         self._text = entry["cleaned"]
@@ -156,7 +166,7 @@ class TranscriptDetailDialog(QDialog):
         outer.setSpacing(4)
 
         ts = _dt.datetime.fromtimestamp(entry["ts"])
-        header = QLabel(f"TRANSKRIPT · {ts.strftime('%d.%m.%Y · %H:%M')}")
+        header = QLabel(tr("TRANSKRIPT · {datum}", datum=_datum(ts)))
         header.setStyleSheet(
             f"color: {MUTED}; font-size: 9pt; font-weight: 600; letter-spacing: 0.5px;"
         )
@@ -167,15 +177,15 @@ class TranscriptDetailDialog(QDialog):
         # dem Diktat nicht mehr feststellbar. Leere Felder (Altzeilen, glatter
         # Lauf) erzeugen KEINE Zeile, sonst waere jeder Eintrag voller "—".
         for beschriftung, wert, farbe in (
-            ("Profil", entry.get("profile", ""), MUTED),
-            ("Fenster", entry.get("title", ""), MUTED),
-            ("Grund", entry.get("reason", ""), AMBER),
-            ("Verworfen (Rohtext-Ende)", entry.get("dropped", ""), AMBER),
+            (tr("Profil"), anzeigename(entry.get("profile", "")), MUTED),
+            (tr("Fenster"), entry.get("title", ""), MUTED),
+            (tr("Grund"), gruende.anzeige(entry.get("reason", "")), AMBER),
+            (tr("Verworfen (Rohtext-Ende)"), entry.get("dropped", ""), AMBER),
         ):
             wert = str(wert or "").strip()
             if not wert:
                 continue
-            zeile = QLabel(f"{beschriftung}: {wert}")
+            zeile = QLabel(tr("{feld}: {wert}", feld=beschriftung, wert=wert))
             zeile.setWordWrap(True)
             zeile.setStyleSheet(f"color: {farbe}; font-size: 8.5pt;")
             outer.addWidget(zeile)
@@ -189,7 +199,7 @@ class TranscriptDetailDialog(QDialog):
             )
             outer.addWidget(lab)
 
-        _section("BEREINIGT")
+        _section(tr("BEREINIGT"))
         self._edit = QTextEdit()
         self._edit.setReadOnly(True)
         self._edit.setPlainText(self._text)
@@ -203,7 +213,7 @@ class TranscriptDetailDialog(QDialog):
         raw = (raw or "").strip()
         if raw and raw != self._text:
             outer.addSpacing(6)
-            _section("ROH")
+            _section(tr("ROH"))
             raw_edit = QTextEdit()
             raw_edit.setReadOnly(True)
             raw_edit.setPlainText(raw)
@@ -220,21 +230,22 @@ class TranscriptDetailDialog(QDialog):
         app = (entry.get("app") or "").removesuffix(".exe")
         if app:
             meta_parts.append(app)
-        meta_parts.append(f"{entry.get('words', len(self._text.split()))} Wörter")
-        meta_parts.append("lokal verarbeitet")
+        meta_parts.append(tr("{n} Wörter", n=entry.get("words", len(self._text.split()))))
+        meta_parts.append(tr("lokal verarbeitet"))
         meta = QLabel(" · ".join(meta_parts))
         meta.setStyleSheet(f"color: {MUTED}; font-size: 8.5pt;")
         buttons.addWidget(meta)
         buttons.addStretch(1)
         if ki_anzahl:
-            ki_btn = style_button(QPushButton("KI-Austausch …"), "ghost")
-            ki_btn.setToolTip(f"{ki_anzahl} KI-Aufruf{'' if ki_anzahl == 1 else 'e'}: "
-                              "Eingabe, System-Prompt und Antwort")
+            ki_btn = style_button(QPushButton(tr("KI-Austausch …")), "ghost")
+            ki_btn.setToolTip(
+                tr("1 KI-Aufruf: Eingabe, System-Prompt und Antwort") if ki_anzahl == 1
+                else tr("{n} KI-Aufrufe: Eingabe, System-Prompt und Antwort", n=ki_anzahl))
             ki_btn.clicked.connect(self.ki_gewuenscht)
             buttons.addWidget(ki_btn)
-        self._copy_btn = style_button(QPushButton("Kopieren"))
+        self._copy_btn = style_button(QPushButton(tr("Kopieren")))
         self._copy_btn.clicked.connect(self._copy)
-        close_btn = style_button(QPushButton("Schließen"), "ghost")
+        close_btn = style_button(QPushButton(tr("Schließen")), "ghost")
         close_btn.clicked.connect(self.accept)
         buttons.addWidget(close_btn)
         buttons.addWidget(self._copy_btn)
@@ -244,7 +255,7 @@ class TranscriptDetailDialog(QDialog):
         from ..clipboard import copy_text   # privat: nicht im Win+V-Verlauf
 
         copy_text(self._text)
-        self._copy_btn.setText("Kopiert ✓")
+        self._copy_btn.setText(tr("Kopiert ✓"))
 
     def event(self, e) -> bool:
         # Klick ausserhalb / Fensterwechsel → schliessen (nicht nur in den
@@ -265,18 +276,18 @@ class WordDetailDialog(QDialog):
 
     def __init__(self, store: HistoryStore, parent=None):
         super().__init__(parent)
-        self.setWindowTitle("Häufigste Wörter")
+        self.setWindowTitle(tr("Häufigste Wörter"))
         self.resize(420, 520)
         self.setStyleSheet(f"QDialog {{ background: {BG}; }}")
 
         outer = QVBoxLayout(self)
         outer.setContentsMargins(20, 16, 20, 14)
-        title = QLabel("ALLE WÖRTER")
+        title = QLabel(tr("ALLE WÖRTER"))
         title.setStyleSheet(
             f"color: {MUTED}; font-size: 9pt; font-weight: 600; letter-spacing: 0.5px;"
         )
         outer.addWidget(title)
-        hint = QLabel("Gesamter Verlauf, ohne Füllwörter wie „der“, „die“, „das“.")
+        hint = QLabel(tr("Gesamter Verlauf, ohne Füllwörter wie „der“, „die“, „das“."))
         hint.setStyleSheet(f"color: {MUTED}; font-size: 8.5pt;")
         outer.addWidget(hint)
         outer.addSpacing(8)
@@ -294,7 +305,7 @@ class WordDetailDialog(QDialog):
 
         words = store.top_words(limit=50)
         if not words:
-            empty = QLabel("Noch keine Daten.")
+            empty = QLabel(tr("Noch keine Daten."))
             empty.setStyleSheet(f"color: {MUTED}; font-size: 9pt;")
             box.addWidget(empty)
         else:
@@ -304,7 +315,7 @@ class WordDetailDialog(QDialog):
         scroll.setWidget(holder)
         outer.addWidget(scroll, 1)
 
-        close_btn = style_button(QPushButton("Schließen"))
+        close_btn = style_button(QPushButton(tr("Schließen")))
         close_btn.clicked.connect(self.accept)
         outer.addWidget(close_btn, 0, Qt.AlignRight)
 
@@ -318,7 +329,7 @@ class DictionarySuggestionDialog(QDialog):
     def __init__(self, recognized: str, meant: str, sentence: str,
                  on_learn, on_ignore, parent=None):
         super().__init__(parent)
-        self.setWindowTitle("Wörterbuch")
+        self.setWindowTitle(tr("Wörterbuch"))
         self.resize(440, 240)
         self.setStyleSheet(f"QDialog {{ background: {BG}; }}")
         self._on_learn = on_learn
@@ -328,11 +339,11 @@ class DictionarySuggestionDialog(QDialog):
 
         outer = QVBoxLayout(self)
         outer.setContentsMargins(20, 18, 20, 16)
-        title = QLabel(f"Meintest du „{meant}“?")
+        title = QLabel(tr("Meintest du „{wort}“?", wort=meant))
         title.setStyleSheet(f"color: {TEXT}; font-size: 12.5pt; font-weight: 600;")
         outer.addWidget(title)
-        sub = QLabel(f"Erkannt wurde „{recognized}“ — das liegt nah an deinem "
-                     f"Wörterbuch-Begriff „{meant}“.")
+        sub = QLabel(tr("Erkannt wurde „{erkannt}“ — das liegt nah an deinem "
+                        "Wörterbuch-Begriff „{gemeint}“.", erkannt=recognized, gemeint=meant))
         sub.setStyleSheet(f"color: {MUTED}; font-size: 9pt;")
         sub.setWordWrap(True)
         outer.addWidget(sub)
@@ -343,7 +354,7 @@ class DictionarySuggestionDialog(QDialog):
         highlighted = sentence.replace(
             recognized, f'<span style="color:{ACCENT}; font-weight:600;">{recognized}</span>'
         )
-        sentence_label.setText(f"„{highlighted}“")
+        sentence_label.setText(tr("„{satz}“", satz=highlighted))
         sentence_label.setWordWrap(True)
         sentence_label.setStyleSheet(
             f"color: {TEXT}; font-size: 10pt; background: {CARD};"
@@ -352,9 +363,9 @@ class DictionarySuggestionDialog(QDialog):
         outer.addWidget(sentence_label, 1)
 
         buttons = QHBoxLayout()
-        learn_btn = style_button(QPushButton(f"Ja — künftig „{meant}“ schreiben"), "primary")
+        learn_btn = style_button(QPushButton(tr("Ja — künftig „{wort}“ schreiben", wort=meant)), "primary")
         learn_btn.clicked.connect(self._learn)
-        ignore_btn = style_button(QPushButton("Nein, war richtig"), "ghost")
+        ignore_btn = style_button(QPushButton(tr("Nein, war richtig")), "ghost")
         ignore_btn.clicked.connect(self._ignore)
         buttons.addWidget(learn_btn)
         buttons.addStretch(1)
@@ -399,7 +410,7 @@ class WortprobeDialog(QDialog):
         self._aufnehmen = aufnehmen          # fn(begriff, sekunden, zweck) -> Probe
         self._zweck = zweck
         self._vorschlag = ""
-        self.setWindowTitle(f"„{begriff}“ testen")
+        self.setWindowTitle(tr("„{begriff}“ testen", begriff=begriff))
         self.setMinimumWidth(460)
         self.setStyleSheet(f"QDialog {{ background: {BG}; }}")
 
@@ -407,17 +418,18 @@ class WortprobeDialog(QDialog):
         lay.setContentsMargins(20, 18, 20, 18)
         lay.setSpacing(10)
 
-        titel = QLabel(f"Sag „{begriff}“")
+        titel = QLabel(tr("Sag „{begriff}“", begriff=begriff))
         titel.setStyleSheet(f"color: {TEXT}; font-size: 13pt; font-weight: 600;")
         lay.addWidget(titel)
 
         hinweis = QLabel(
-            f"Nach dem Klick wird {self.AUFNAHME_S:.0f} Sekunden aufgenommen. "
-            + ("Sag es beiläufig, so wie mitten im Reden — nicht betont "
-               "deutlich. Genau so muss es später erkannt werden."
+            tr("Nach dem Klick wird {n} Sekunden aufgenommen.", n=f"{self.AUFNAHME_S:.0f}")
+            + " "
+            + (tr("Sag es beiläufig, so wie mitten im Reden — nicht betont "
+                  "deutlich. Genau so muss es später erkannt werden.")
                if zweck == "startwort" else
-               "Sprich das Wort einmal so, wie du es im Diktat sagen würdest — "
-               "nicht betont langsam.")
+               tr("Sprich das Wort einmal so, wie du es im Diktat sagen würdest — "
+                  "nicht betont langsam."))
         )
         hinweis.setWordWrap(True)
         hinweis.setStyleSheet(f"color: {MUTED}; font-size: 9pt;")
@@ -430,17 +442,17 @@ class WortprobeDialog(QDialog):
         lay.addWidget(self._meldung)
 
         knoepfe = QHBoxLayout()
-        self._start_btn = style_button(QPushButton("Aufnehmen"), "primary")
+        self._start_btn = style_button(QPushButton(tr("Aufnehmen")), "primary")
         self._start_btn.clicked.connect(self._starten)
         knoepfe.addWidget(self._start_btn)
         # Erscheint erst, wenn es etwas zu übernehmen gibt — ein toter Knopf
         # daneben sähe aus, als wäre etwas kaputt.
-        self._uebernehmen_btn = style_button(QPushButton("Als Variante eintragen"))
+        self._uebernehmen_btn = style_button(QPushButton(tr("Als Variante eintragen")))
         self._uebernehmen_btn.clicked.connect(self.accept)
         self._uebernehmen_btn.hide()
         knoepfe.addWidget(self._uebernehmen_btn)
         knoepfe.addStretch(1)
-        schliessen = style_button(QPushButton("Schließen"), "ghost")
+        schliessen = style_button(QPushButton(tr("Schließen")), "ghost")
         schliessen.clicked.connect(self.reject)
         knoepfe.addWidget(schliessen)
         lay.addLayout(knoepfe)
@@ -454,20 +466,20 @@ class WortprobeDialog(QDialog):
         self._start_btn.setEnabled(False)
         self._uebernehmen_btn.hide()
         self._vorschlag = ""
-        self._meldung.setText("Aufnahme läuft — jetzt sprechen …")
+        self._meldung.setText(tr("Aufnahme läuft — jetzt sprechen …"))
         QApplication.processEvents()          # die Meldung MUSS vor der Aufnahme stehen
         try:
             probe = self._aufnehmen(self._begriff, self.AUFNAHME_S, self._zweck)
         except Exception:
             log.exception("Wortprobe fehlgeschlagen.")
-            self._meldung.setText("Aufnahme nicht möglich — läuft gerade ein Diktat?")
+            self._meldung.setText(tr("Aufnahme nicht möglich — läuft gerade ein Diktat?"))
             self._start_btn.setEnabled(True)
-            self._start_btn.setText("Nochmal")
+            self._start_btn.setText(tr("Nochmal"))
             return
         self._meldung.setText(probe.als_text())
         self._vorschlag = probe.vorschlag
         if self._vorschlag:
-            self._uebernehmen_btn.setText(f"„{self._vorschlag}“ eintragen")
+            self._uebernehmen_btn.setText(tr("„{wort}“ eintragen", wort=self._vorschlag))
             self._uebernehmen_btn.show()
         self._start_btn.setEnabled(True)
-        self._start_btn.setText("Nochmal")
+        self._start_btn.setText(tr("Nochmal"))

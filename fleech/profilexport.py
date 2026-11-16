@@ -25,6 +25,7 @@ import logging
 from dataclasses import dataclass, field
 from pathlib import Path
 
+from .i18n import tr
 from .profiles import ensure_default_profile
 
 log = logging.getLogger(__name__)
@@ -47,15 +48,17 @@ class Bericht:
     def satz(self) -> str:
         teile = []
         if self.ergaenzt:
-            teile.append(f"{len(self.ergaenzt)} ergänzt ({', '.join(self.ergaenzt)})")
+            teile.append(tr("{n} ergänzt ({namen})", n=len(self.ergaenzt),
+                            namen=", ".join(self.ergaenzt)))
         if self.ersetzt:
-            teile.append(f"{len(self.ersetzt)} ersetzt ({', '.join(self.ersetzt)})")
+            teile.append(tr("{n} ersetzt ({namen})", n=len(self.ersetzt),
+                            namen=", ".join(self.ersetzt)))
         if self.uebersprungen:
-            teile.append(f"{len(self.uebersprungen)} unverändert gelassen "
-                         f"({', '.join(self.uebersprungen)})")
+            teile.append(tr("{n} unverändert gelassen ({namen})", n=len(self.uebersprungen),
+                            namen=", ".join(self.uebersprungen)))
         if self.schnellwechsel:
-            teile.append(f"{self.schnellwechsel} Schnellwechsel-Einträge")
-        return "  ·  ".join(teile) or "Nichts zu übernehmen — alles war schon da."
+            teile.append(tr("{n} Schnellwechsel-Einträge", n=self.schnellwechsel))
+        return "  ·  ".join(teile) or tr("Nichts zu übernehmen — alles war schon da.")
 
 
 def export_daten(settings) -> dict:
@@ -85,9 +88,9 @@ def lies(pfad) -> dict:
     try:
         daten = json.loads(Path(pfad).read_text(encoding="utf-8"))
     except Exception as fehler:
-        raise ValueError(f"Datei nicht lesbar: {fehler}") from fehler
+        raise ValueError(tr("Datei nicht lesbar: {fehler}", fehler=fehler)) from fehler
     if not isinstance(daten, dict) or not isinstance(daten.get("items"), list):
-        raise ValueError("Das ist keine Fleech-Profildatei.")
+        raise ValueError(tr("Das ist keine Fleech-Profildatei."))
     return daten
 
 

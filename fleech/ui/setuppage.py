@@ -23,6 +23,7 @@ from PySide6.QtWidgets import (
 )
 
 from ..provisioning import SetupRunner, build_steps
+from ..i18n import tr
 from .theme import ACCENT, BORDER_HAIRLINE, MUTED, TEXT, style_button
 
 log = logging.getLogger(__name__)
@@ -164,14 +165,14 @@ class SetupPage(QWidget):
         lay.setSpacing(10)
         lay.setContentsMargins(0, 0, 0, 0)
 
-        titel = QLabel("Einrichtung")
+        titel = QLabel(tr("Einrichtung"))
         titel.setStyleSheet(f"color: {TEXT}; font-size: 14pt; font-weight: 600;")
         lay.addWidget(titel)
-        self._intro = QLabel(
+        self._intro = QLabel(tr(
             "Damit die Erkennung ohne Internet läuft, müssen die Modelle einmal auf "
             "diesen Rechner. Das übernimmt Fleech selbst — du kannst schon "
             "weiterklicken, der Download läuft im Hintergrund weiter."
-        )
+        ))
         self._intro.setWordWrap(True)
         self._intro.setStyleSheet(f"color: {TEXT}; font-size: 10pt;")
         lay.addWidget(self._intro)
@@ -181,10 +182,10 @@ class SetupPage(QWidget):
         lay.addLayout(self._rows_box)
 
         knopf_reihe = QHBoxLayout()
-        self._btn = style_button(QPushButton("Jetzt einrichten"), "primary")
+        self._btn = style_button(QPushButton(tr("Jetzt einrichten")), "primary")
         self._btn.clicked.connect(self.start)
         knopf_reihe.addWidget(self._btn)
-        self._recheck = style_button(QPushButton("Erneut prüfen"))
+        self._recheck = style_button(QPushButton(tr("Erneut prüfen")))
         self._recheck.clicked.connect(self.refresh)
         knopf_reihe.addWidget(self._recheck)
         knopf_reihe.addStretch(1)
@@ -258,20 +259,21 @@ class SetupPage(QWidget):
         # HuggingFace und laesst sich auch ohne Ollama laden.
         machbar = [s for s in offen if s.state != "manual"]
         self._btn.setEnabled(bool(machbar))
-        self._btn.setText("Jetzt einrichten" if offen else "Alles bereit")
+        self._btn.setText(tr("Jetzt einrichten") if offen else tr("Alles bereit"))
         if not offen:
-            self._status.setText("Fleech ist einsatzbereit — du kannst gleich diktieren.")
+            self._status.setText(tr("Fleech ist einsatzbereit — du kannst gleich "
+                                    "diktieren."))
         elif manuell:
-            rest = (" Den Rest holt Fleech trotzdem." if machbar else "")
-            self._status.setText(
-                "Ollama kann Fleech auf diesem System nicht selbst installieren. "
-                f"Nach der Installation auf „Erneut prüfen“ klicken.{rest}"
-            )
+            satz = tr("Ollama kann Fleech auf diesem System nicht selbst installieren. "
+                      "Nach der Installation auf „Erneut prüfen“ klicken.")
+            if machbar:
+                satz = tr("{satz} Den Rest holt Fleech trotzdem.", satz=satz)
+            self._status.setText(satz)
         else:
-            self._status.setText(
+            self._status.setText(tr(
                 "Der Download läuft im Hintergrund — du kannst das Fenster offen "
                 "lassen und weiterarbeiten."
-            )
+            ))
 
     def _only_downloads_missing(self) -> bool:
         """Fehlt nur noch Herunterladbares (Ollama laeuft schon)?"""
@@ -286,11 +288,11 @@ class SetupPage(QWidget):
         if self._thread is not None and self._thread.is_alive():
             return
         self._btn.setEnabled(False)
-        self._btn.setText("Läuft …")
-        self._status.setText(
+        self._btn.setText(tr("Läuft …"))
+        self._status.setText(tr(
             "Der Download läuft im Hintergrund — du kannst das Fenster offen "
             "lassen und weiterarbeiten."
-        )
+        ))
         bridge = self._bridge          # nur die Bridge fangen, nicht `self`
 
         def melde_state(key, state, note):
@@ -355,21 +357,21 @@ class SetupPage(QWidget):
             self.starte_wenn_moeglich()
             return
         self.fertig.emit(bool(ok))
-        self.stand.emit("Alles geladen — Fleech ist einsatzbereit." if ok
-                        else "Ein Download ist offen geblieben — siehe Einrichtung.")
-        self._btn.setText("Alles bereit" if ok else "Erneut versuchen")
+        self.stand.emit(tr("Alles geladen — Fleech ist einsatzbereit.") if ok
+                        else tr("Ein Download ist offen geblieben — siehe Einrichtung."))
+        self._btn.setText(tr("Alles bereit") if ok else tr("Erneut versuchen"))
         self._btn.setEnabled(not ok)
         if ok:
-            self._status.setText(
+            self._status.setText(tr(
                 "Fertig — Fleech ist einsatzbereit. Weiter zum nächsten Schritt."
-            )
+            ))
             if self._on_ready is not None:
                 try:
                     self._on_ready()
                 except Exception:
                     log.debug("on_ready-Hook fehlgeschlagen.", exc_info=True)
         else:
-            self._status.setText(
+            self._status.setText(tr(
                 "Ein Schritt ist offen geblieben — die Zeile oben sagt, welcher. "
                 "Fleech versucht es beim nächsten Start automatisch erneut."
-            )
+            ))

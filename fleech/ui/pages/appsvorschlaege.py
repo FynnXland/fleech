@@ -27,6 +27,8 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
+from ...i18n import N_, tr
+from ...profiles import anzeigename as profilname
 from ...profiles import parse_app_rule, profile_mode
 
 # Ab wie vielen Diktaten eine Anwendung überhaupt gefragt wird. Bewusst hoch: Bei
@@ -46,7 +48,8 @@ MIN_FORMAT_TREFFER = 2
 MAX_VORSCHLAEGE = 2
 
 # Für den Begründungssatz — die Profile heißen beim Nutzer, wie er sie nennt.
-_FORMAT_NAMEN = {"prompt": "KI-Prompt", "summary": "Stichpunkte", "email": "E-Mail"}
+_FORMAT_NAMEN = {"prompt": N_("KI-Prompt"), "summary": N_("Stichpunkte"),
+                 "email": N_("E-Mail")}
 
 
 @dataclass
@@ -61,9 +64,13 @@ class Vorschlag:
     grund: str = ""         # warum gerade dieses Profil ("" = kein Muster)
 
     def satz(self) -> str:
-        prozent = f" ({self.anteil * 100:.0f} % aller)" if self.anteil else ""
-        satz = (f"In {self.app} hast du {self.diktate} Diktate gemacht{prozent}. "
-                f"Kein Profil zugewiesen.")
+        if self.anteil:
+            satz = tr("In {app} hast du {n} Diktate gemacht ({anteil} % aller). "
+                      "Kein Profil zugewiesen.", app=self.app, n=self.diktate,
+                      anteil=f"{self.anteil * 100:.0f}")
+        else:
+            satz = tr("In {app} hast du {n} Diktate gemacht. Kein Profil zugewiesen.",
+                      app=self.app, n=self.diktate)
         return f"{satz} {self.grund}".strip()
 
 
@@ -124,8 +131,8 @@ def _kandidaten(nutzung, items) -> tuple[list, str]:
         if (treffer >= MIN_PROFIL_DIKTATE and treffer / mit_profil >= PROFIL_ANTEIL
                 and str(sieger).lower() in bekannt):
             namen.append(str(sieger))
-            grund = (f"Dort nimmst du {treffer} von {mit_profil} Mal "
-                     f"„{sieger}“ von Hand.")
+            grund = tr("Dort nimmst du {n} von {gesamt} Mal „{profil}“ von Hand.",
+                       n=treffer, gesamt=mit_profil, profil=profilname(str(sieger)))
 
     for mode, anzahl in sorted((nutzung.modi or {}).items(), key=lambda p: -p[1]):
         name = nach_format.get(mode)
@@ -135,8 +142,8 @@ def _kandidaten(nutzung, items) -> tuple[list, str]:
             continue
         namen.append(name)
         if not grund:
-            grund = (f"{anzahl} davon liefen als "
-                     f"{_FORMAT_NAMEN.get(mode, mode)}.")
+            grund = tr("{n} davon liefen als {format}.", n=anzahl,
+                       format=tr(_FORMAT_NAMEN.get(mode, mode)))
 
     if standard and standard.lower() not in {n.lower() for n in namen}:
         namen.append(standard)

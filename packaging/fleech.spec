@@ -21,6 +21,8 @@ datas = [
     # Modellkatalog (6.2.0): Rueckfall, wenn GitHub nicht erreichbar ist. Liegt
     # neben modellberater.py, das ihn ueber __file__ findet.
     (str(ROOT / "fleech" / "llm" / "modelle.json"), "fleech/llm"),
+    # Sprachkataloge der Oberflaeche (6.6.0), gefunden ueber fleech.i18n.katalog_dir.
+    (str(ROOT / "fleech" / "i18n" / "en"), "fleech/i18n/en"),
 ]
 binaries = []
 hiddenimports = ["fleech", "fleech.ui.desktop"]

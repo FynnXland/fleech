@@ -21,7 +21,7 @@ from PySide6.QtCore import QEvent, QPoint, QRectF, Qt, QTimer, Signal
 from PySide6.QtGui import QCursor, QPainter
 from PySide6.QtWidgets import QApplication, QPushButton, QVBoxLayout, QWidget
 
-from ..profiles import APP_STANDARD
+from ..profiles import APP_STANDARD, anzeigename
 from .theme import ACCENT, TEXT
 
 log = logging.getLogger(__name__)
@@ -84,7 +84,8 @@ class ProfilePicker(QWidget):
         self._buttons = []
         eintraege = [(n, n) for n in namen] + [(APP_STANDARD, "")]
         for text, wert in eintraege:
-            btn = self._button(text, wert, wert == aktiv)
+            # Nur die Beschriftung wird übersetzt; gemeldet wird der gespeicherte Name.
+            btn = self._button(anzeigename(text), wert, wert == aktiv)
             self._layout.addWidget(btn)
             self._buttons.append(btn)
         self.adjustSize()

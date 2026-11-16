@@ -17,6 +17,8 @@ from __future__ import annotations
 import time
 from dataclasses import dataclass
 
+from ..i18n import N_
+
 
 @dataclass
 class KiAufruf:
@@ -31,8 +33,9 @@ class KiAufruf:
 
 
 # Die beiden Abbrueche aus `frist.py` tragen keinen Text — lesbar statt Klassenname.
-_FEHLERNAMEN = {"Uebersprungen": "Übersprungen (Haken)",
-                "FristAbgelaufen": "Zeitgrenze überschritten"}
+# Gespeichert wird deutsch (Verlauf-DB); die Anzeige uebersetzt mit tr(fehler).
+_FEHLERNAMEN = {"Uebersprungen": N_("Übersprungen (Haken)"),
+                "FristAbgelaufen": N_("Zeitgrenze überschritten")}
 
 
 def _endpunkt(llm) -> tuple[str, str]:

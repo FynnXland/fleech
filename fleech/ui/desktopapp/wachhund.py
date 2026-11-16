@@ -18,6 +18,7 @@ import logging
 import time
 
 from ..state import AppState
+from ...i18n import tr
 
 log = logging.getLogger(__name__)
 
@@ -32,7 +33,8 @@ def schwelle_s(audio_s: float) -> float:
 
 def meldung(dauer_s: float) -> str:
     minuten, sekunden = divmod(int(dauer_s), 60)
-    return f"Dauert länger als üblich … {minuten}:{sekunden:02d}"
+    return tr("Dauert länger als üblich … {minuten}:{sekunden:02d}",
+              minuten=minuten, sekunden=sekunden)
 
 
 class WachhundMixin:

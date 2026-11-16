@@ -96,7 +96,7 @@ def test_oben_steht_nur_das_noetige(panel):
         f"neue Einstellung nicht unter „Mehr Optionen“?\n{sichtbar}")
     # Was man zum Diktieren braucht, darf nie hinter einem Klick verschwinden.
     for name, zeile in (("Allgemein", "Diktat-Hotkey"), ("Allgemein", "Mikrofon"),
-                        ("Allgemein", "Sprache"), ("KI & Text", "Anbieter"),
+                        ("Allgemein", "Diktiersprache"), ("KI & Text", "Anbieter"),
                         ("Wörterbuch", "Wörterbuch"), ("Datenschutz", "Verlauf löschen")):
         treffer = [z for z in sichtbar[name] if zeile.split()[0] in z]
         assert treffer, f"„{zeile}“ fehlt oben auf „{name}“: {sichtbar[name]}"

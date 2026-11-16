@@ -11,6 +11,7 @@ from __future__ import annotations
 from PySide6.QtCore import QPoint, QRect, QSize, Qt
 from PySide6.QtWidgets import QApplication
 
+from ...i18n import tr
 from ..state import AppState
 from .bausteine import _button_style
 from .konstanten import _MARGIN, _SNAP_PX, PILL_HEIGHT, PILL_WIDTH, SIZE_FACTORS
@@ -201,7 +202,7 @@ class GeometrieMixin:
     def _show_edit_hint(self) -> None:
         self._caption.show_above(
             self.frameGeometry(),
-            "Zum Verschieben ziehen — dann „Fertig“ klicken",
+            tr("Zum Verschieben ziehen — dann „Fertig“ klicken"),
             sticky=True, accent=True,
         )
 

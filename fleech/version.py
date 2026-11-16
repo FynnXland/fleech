@@ -7,7 +7,7 @@
 
 from __future__ import annotations
 
-APP_VERSION = "6.5.0"  # 6.5.0: Einstellungen auf sechs Seiten mit „Mehr Optionen"
+APP_VERSION = "6.6.1"  # 6.6.1: Vollbild entlädt die KI nur bei Spielen
 
 
 def _read_build() -> str:

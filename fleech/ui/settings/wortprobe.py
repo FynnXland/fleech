@@ -14,6 +14,8 @@ settings_window.py war mit den Methoden ueber seine Groessengrenze gelaufen.
 
 from __future__ import annotations
 
+from ...i18n import tr
+
 
 class WortprobeMixin:
     def _wortprobe_begriff(self) -> str:
@@ -41,7 +43,7 @@ class WortprobeMixin:
             return
         begriff = self._wortprobe_begriff()
         if not begriff:
-            self._probe_btn.setText("Erst eine Zeile ins Wörterbuch schreiben")
+            self._probe_btn.setText(tr("Erst eine Zeile ins Wörterbuch schreiben"))
             return
         from ..dialogs import WortprobeDialog
 
@@ -54,4 +56,4 @@ class WortprobeMixin:
             if dlg.vorschlag not in zeilen:
                 zeilen.append(dlg.vorschlag)
                 editor.setPlainText("\n".join(zeilen))
-        self._probe_btn.setText("Eintrag einsprechen …")
+        self._probe_btn.setText(tr("Eintrag einsprechen …"))

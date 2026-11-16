@@ -11,7 +11,35 @@ GitHub-Release-Notizen (`packaging/release.py`).
 
 ---
 
-## 6.5.0 — in Arbeit, noch nicht veröffentlicht
+## 6.6.1 — 2026-11-17 · nicht einzeln veröffentlicht
+
+**Die lokale KI bleibt bei Videos und Alt+Tab geladen.** Fleech gibt den
+Grafikspeicher frei, sobald ein Spiel im Vollbild läuft. Bisher galt dafür jedes
+Vollbild: ein YouTube-Video im Browser, Discord, die Alt+Tab-Ansicht oder das
+Aufnahme-Overlay von FlowShare. Danach musste das nächste Diktat die KI erst neu
+laden und dauerte spürbar länger. Jetzt zählen Browser- und Electron-Fenster,
+Overlays, maximierte Fenster, Sperrbildschirm, Remotedesktop und Videoplayer nicht
+mehr als Spiel. Echte Spiele im Vollbild, auch randlose, geben den Speicher weiter frei.
+
+## 6.6.0 — 2026-11-10
+
+**Fleech spricht Englisch.** Fenster, Einstellungen, Einführung, Tray-Menü, Pille,
+Dialoge und Benachrichtigungen gibt es jetzt auch auf Englisch. Umschalten unter
+Einstellungen → Allgemein → *Sprache der Oberfläche*: *Systemsprache* (Vorgabe),
+*Deutsch* oder *English*. Die Wahl gilt nach einem Neustart, den die Zeile gleich
+anbietet. Läuft Windows auf Deutsch, bleibt für dich alles wie gehabt. Die Sprache,
+in der du diktierst, ist davon unabhängig: Die Zeile darüber heißt deshalb jetzt
+*Diktiersprache* statt nur *Sprache*.
+
+**Neue Töne.** Start, Stopp, „Text eingefügt“ und Fehler klingen jetzt weicher und
+leiser: ein kurzer, tiefer Wischer beim Start, derselbe rückwärts beim Stopp und ein
+runder Doppelton, wenn der Text eingefügt ist. Die Töne stammen aus Kenneys
+„Interface Sounds“ und sind gemeinfrei (CC0). Wer die alten Pieptöne lieber mag,
+findet sie unter Einstellungen → Pille & Töne → Mehr Optionen → Klangstil
+„Klassisch (Chimes)“. Hattest du den Klangstil nie geändert, bekommst du die neuen
+Töne automatisch.
+
+## 6.5.0 — 2026-11-03
 
 **Einstellungen auf sechs Seiten statt zehn.** Die Einstellungen heißen jetzt
 *Allgemein*, *KI & Text*, *Wörterbuch*, *Pille & Töne*, *Ruhe* und
@@ -63,13 +91,14 @@ abschicken“ drückt dann kein Enter. Nach Englisch, Spanisch und Deutsch
 übersetzt die lokale KI gut; im Französischen erfindet sie gelegentlich ein Wort.
 Mit „Ohne KI“ gibt es keine Übersetzung.
 
-**Die lokale KI bleibt bei Videos und Alt+Tab geladen.** Fleech gibt den
-Grafikspeicher frei, sobald ein Spiel im Vollbild läuft. Bisher galt dafür jedes
-Vollbild: ein YouTube-Video im Browser, Discord, die Alt+Tab-Ansicht oder das
-Aufnahme-Overlay von FlowShare. Danach musste das nächste Diktat die KI erst neu
-laden und dauerte spürbar länger. Jetzt zählen Browser- und Electron-Fenster,
-Overlays, maximierte Fenster, Sperrbildschirm, Remotedesktop und Videoplayer nicht
-mehr als Spiel. Echte Spiele im Vollbild, auch randlose, geben den Speicher weiter frei.
+**Fleech öffnet sich wieder beim ersten Klick.** War das Fenster minimiert, tat
+ein Klick auf das Fleech-Symbol im Infobereich oder ein erneuter Start über das
+Startmenü scheinbar nichts: Das Fenster blieb unten in der Taskleiste liegen.
+Jetzt kommt es zurück, ein vorher maximiertes Fenster wieder maximiert, und
+landet vorn statt hinter dem Fenster, in dem du gerade warst.
+
+Die Einführung sagt jetzt richtig, dass der Verlauf verschlüsselt auf deinem Rechner
+liegt; dort stand seit 6.3.0 fälschlich noch „unverschlüsselt“.
 
 ## 6.4.1 — 2026-10-25 · nicht einzeln veröffentlicht
 

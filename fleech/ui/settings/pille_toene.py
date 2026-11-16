@@ -6,6 +6,7 @@ und `sounds` (an/aus und Lautstaerke oben); alles Feinere unter „Mehr Optionen
 
 from __future__ import annotations
 
+from ...i18n import tr
 from . import overlay, sounds
 from .common import hint
 from .mehr import angleichen, bereich
@@ -14,7 +15,7 @@ from .mehr import angleichen, bereich
 def build(panel) -> None:
     seite, form = panel._page()
     form.addRow("", hint(
-        "Die kleine Pille am Bildschirmrand und Fleechs Töne für Start, Stopp und Fehler."
+        tr("Die kleine Pille am Bildschirmrand und Fleechs Töne für Start, Stopp und Fehler.")
     ))
     mehr = bereich(seite, form)
     overlay.zeilen(panel, form, mehr)

@@ -22,6 +22,8 @@ import time
 from dataclasses import dataclass
 from enum import Enum
 
+from .i18n import tr
+
 log = logging.getLogger(__name__)
 
 
@@ -151,20 +153,21 @@ class DeviceGuard:
             name = cls.resolve_input_name(device)
         except Exception as exc:
             return DeviceCheck(ok=False, name=str(device),
-                               reason=f"Geraet nicht abfragbar: {exc}", source="error")
+                               reason=tr("Geraet nicht abfragbar: {fehler}", fehler=exc),
+                               source="error")
 
         entry = device_blocked_by_user(name, blocklist)
         if entry:
             return DeviceCheck(
                 ok=False, name=name, source="blocklist",
-                reason=f"Steht auf deiner Sperrliste (Eintrag „{entry}“).",
+                reason=tr("Steht auf deiner Sperrliste (Eintrag „{eintrag}“).", eintrag=entry),
             )
 
         if is_monitor_source(name):
             return DeviceCheck(
                 ok=False, name=name, source="monitor",
-                reason="Monitor-Quelle (Systemton) — kein Mikrofon. Systemaudio "
-                       "wuerde in die Transkription gelangen.",
+                reason=tr("Monitor-Quelle (Systemton) — kein Mikrofon. Systemaudio "
+                          "wuerde in die Transkription gelangen."),
             )
 
         if _LOOPBACK_PATTERNS.search(name):
@@ -172,8 +175,8 @@ class DeviceGuard:
                 ok=False,
                 name=name,
                 source="name",
-                reason="Loopback-/Mix-Geraet erkannt — Systemaudio wuerde in die "
-                       "Transkription gelangen.",
+                reason=tr("Loopback-/Mix-Geraet erkannt — Systemaudio wuerde in die "
+                          "Transkription gelangen."),
             )
         return DeviceCheck(ok=True, name=name)
 

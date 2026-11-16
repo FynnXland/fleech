@@ -9,6 +9,8 @@ from __future__ import annotations
 
 from PySide6.QtWidgets import QLabel
 
+from ...i18n import N_, tr
+
 
 def hint(text: str) -> QLabel:
     """Einzeilige Seiten-Einordnung oben — der einzige dauerhaft sichtbare Hinweis."""
@@ -19,18 +21,23 @@ def hint(text: str) -> QLabel:
 
 
 INTERVENTION_HELP = {
-    "minimal": "Fast Rohtext, keine KI — am schnellsten.",
-    "standard": "Füllwörter weg, saubere Zeichensetzung. (Empfohlen)",
-    "strong": "Stärkere Glättung mit Absätzen und Aufzählungen. Die Prüfungen "
-              "auf Umformulieren und Ausschmücken sind dabei ausgesetzt — Zahlen "
-              "und Verneinungen werden weiterhin geprüft.",
+    "minimal": N_("Fast Rohtext, keine KI — am schnellsten."),
+    "standard": N_("Füllwörter weg, saubere Zeichensetzung. (Empfohlen)"),
+    "strong": N_("Stärkere Glättung mit Absätzen und Aufzählungen. Die Prüfungen "
+                 "auf Umformulieren und Ausschmücken sind dabei ausgesetzt — Zahlen "
+                 "und Verneinungen werden weiterhin geprüft."),
 }
 
 MATH_LEVEL_HELP = {
-    "auto": "Gesprochene Formeln werden im Fließtext erkannt und als LaTeX "
-            "geschrieben — vollständig auf diesem Rechner, ohne Umschalten. "
-            "Mehrdeutige Ausdrücke werden nach den üblichen Vorrangregeln "
-            "übersetzt und in der Vorschau als „geraten“ markiert; sprich "
-            "„Klammer auf … Klammer zu“ mit, wenn es eindeutig sein soll.",
-    "off": "Keine Formel-Erkennung. Alles wird als normaler Text behandelt.",
+    "auto": N_("Gesprochene Formeln werden im Fließtext erkannt und als LaTeX "
+               "geschrieben — vollständig auf diesem Rechner, ohne Umschalten. "
+               "Mehrdeutige Ausdrücke werden nach den üblichen Vorrangregeln "
+               "übersetzt und in der Vorschau als „geraten“ markiert; sprich "
+               "„Klammer auf … Klammer zu“ mit, wenn es eindeutig sein soll."),
+    "off": N_("Keine Formel-Erkennung. Alles wird als normaler Text behandelt."),
 }
+
+
+def uebersetzt(texte: dict) -> dict:
+    """Die Hilfetexte einer Auswahl in der Oberflächensprache (beim Aufbau, nie beim Import)."""
+    return {schluessel: tr(text) for schluessel, text in texte.items()}

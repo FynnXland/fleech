@@ -8,6 +8,7 @@ from PySide6.QtCore import Qt
 from PySide6.QtGui import QAction, QBrush, QColor, QIcon, QPainter, QPixmap
 from PySide6.QtWidgets import QMenu, QSystemTrayIcon
 
+from ..i18n import N_, tr
 from .state import AppState
 
 log = logging.getLogger(__name__)
@@ -19,10 +20,10 @@ _STATE_COLOR = {
     AppState.ERROR: "#b03060",
 }
 _STATE_TOOLTIP = {
-    AppState.IDLE: "Fleech — bereit",
-    AppState.LISTENING: "Fleech — Aufnahme läuft",
-    AppState.PROCESSING: "Fleech — verarbeite Diktat",
-    AppState.ERROR: "Fleech — Fehler (Log prüfen)",
+    AppState.IDLE: N_("Fleech — bereit"),
+    AppState.LISTENING: N_("Fleech — Aufnahme läuft"),
+    AppState.PROCESSING: N_("Fleech — verarbeite Diktat"),
+    AppState.ERROR: N_("Fleech — Fehler (Log prüfen)"),
 }
 
 
@@ -60,18 +61,18 @@ class TrayController:
         letzten = die letzte Aufnahme, V-15)."""
         self._icons = {state: _make_icon(color) for state, color in _STATE_COLOR.items()}
         self.tray = QSystemTrayIcon(self._icons[AppState.IDLE])
-        self.tray.setToolTip(_STATE_TOOLTIP[AppState.IDLE])
+        self.tray.setToolTip(tr(_STATE_TOOLTIP[AppState.IDLE]))
         menu = QMenu()
         # Update-Eintrag: erst sichtbar, wenn wirklich eine neue Version bereitliegt.
         # Er ist der Weg, der auch dann funktioniert, wenn der Nutzer alle Toasts
         # abgeschaltet hat — sonst waere ein Update unsichtbar.
-        self._update_action = QAction("Update installieren …")
+        self._update_action = QAction(tr("Update installieren …"))
         self._update_action.setVisible(False)
         if actions.get("open_update"):
             self._update_action.triggered.connect(actions["open_update"])
-        self._record_action = QAction("Aufnahme starten")
+        self._record_action = QAction(tr("Aufnahme starten"))
         self._record_action.triggered.connect(actions["toggle_recording"])
-        self._overlay_action = QAction("Overlay ein/aus")
+        self._overlay_action = QAction(tr("Overlay ein/aus"))
         self._overlay_action.triggered.connect(actions["toggle_overlay"])
         # Der Freihand-Schnellschalter ist mit der Freihand-Oberflaeche in 5.11.0
         # entfallen: Er meldete einen Zustand („Freihand: an"), den der stillgelegte
@@ -84,27 +85,28 @@ class TrayController:
         # waere ein Griff an ein Qt-Objekt aus dem falschen Thread.
         self._wieder_actions = []
         for schluessel, text, tipp in (
-            ("redo_last", "Letzte Aufnahme noch einmal erkennen",
-             "Schickt den zuletzt aufgenommenen Ton noch einmal durch die "
-             "Erkennung — nützlich nach einem leeren oder falschen Ergebnis."),
-            ("save_last_wav", "Letzte Aufnahme als WAV sichern …",
-             "Speichert den zuletzt aufgenommenen Ton als Datei."),
+            ("redo_last", tr("Letzte Aufnahme noch einmal erkennen"),
+             tr("Schickt den zuletzt aufgenommenen Ton noch einmal durch die "
+                "Erkennung — nützlich nach einem leeren oder falschen Ergebnis.")),
+            ("save_last_wav", tr("Letzte Aufnahme als WAV sichern …"),
+             tr("Speichert den zuletzt aufgenommenen Ton als Datei.")),
         ):
             if not actions.get(schluessel):
                 continue
             a = QAction(text)
             a.setToolTip(
-                tipp + " Hinweis: Die letzte Aufnahme liegt bis zur nächsten "
-                "im Arbeitsspeicher — auf die Festplatte kommt sie nur, wenn du "
-                "sie hier ausdrücklich sicherst."
+                tipp + " " + tr(
+                    "Hinweis: Die letzte Aufnahme liegt bis zur nächsten "
+                    "im Arbeitsspeicher — auf die Festplatte kommt sie nur, wenn du "
+                    "sie hier ausdrücklich sicherst.")
             )
             a.triggered.connect(actions[schluessel])
             self._wieder_actions.append(a)
-        settings_action = QAction("Einstellungen …")
+        settings_action = QAction(tr("Einstellungen …"))
         settings_action.triggered.connect(actions["open_settings"])
-        reload_action = QAction("Neu laden")
+        reload_action = QAction(tr("Neu laden"))
         reload_action.triggered.connect(actions["reload"])
-        quit_action = QAction("Beenden")
+        quit_action = QAction(tr("Beenden"))
         quit_action.triggered.connect(actions["quit"])
         for a in (self._record_action, self._overlay_action):
             menu.addAction(a)
@@ -133,16 +135,16 @@ class TrayController:
 
     def set_state(self, state: AppState) -> None:
         self.tray.setIcon(self._icons[state])
-        self.tray.setToolTip(_STATE_TOOLTIP[state])
+        self.tray.setToolTip(tr(_STATE_TOOLTIP[state]))
         self._record_action.setText(
-            "Aufnahme stoppen" if state is AppState.LISTENING else "Aufnahme starten"
+            tr("Aufnahme stoppen") if state is AppState.LISTENING else tr("Aufnahme starten")
         )
 
     def show_update(self, version: str, bereit: bool) -> None:
         """Update-Eintrag im Menue ein-/ausblenden. bereit = schon geladen."""
         self._update_action.setText(
-            f"Update {version} installieren …" if bereit
-            else f"Update {version} laden …"
+            tr("Update {version} installieren …", version=version) if bereit
+            else tr("Update {version} laden …", version=version)
         )
         self._update_action.setVisible(bool(version))
 

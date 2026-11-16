@@ -15,6 +15,8 @@ er gehoert zu Anstupsen, nicht zu Freihand.
 
 from __future__ import annotations
 
+from ...i18n import tr
+
 
 def zeilen(panel, form, mehr) -> None:
     """Hauptzeilen nach `form`, der Rest nach `mehr` (zugeklappt)."""
@@ -37,74 +39,74 @@ def zeilen(panel, form, mehr) -> None:
             layout.setRowVisible(box, v == "nudge")
 
     panel._combo(
-        form, "Bedienmodus",
-        [("hold", "Hold-to-talk (halten)"), ("toggle", "Toggle (drücken/drücken)"),
-         ("nudge", "Anstupsen (endet von selbst)")],
+        form, tr("Bedienmodus"),
+        [("hold", tr("Hold-to-talk (halten)")), ("toggle", tr("Toggle (drücken/drücken)")),
+         ("nudge", tr("Anstupsen (endet von selbst)"))],
         s.recording.mode, "recording", modus_gesetzt,
         help_map={
-            "hold": "Taste halten = aufnehmen, loslassen = fertig.",
-            "toggle": "Einmal drücken = Start, nochmal = fertig.",
-            "nudge": "Einmal drücken = Start. Hörst du auf zu reden, ist das "
-                     "Diktat fertig — ohne dass du die Taste nochmal anfasst. "
-                     "Ein zweiter Druck beendet trotzdem sofort.",
+            "hold": tr("Taste halten = aufnehmen, loslassen = fertig."),
+            "toggle": tr("Einmal drücken = Start, nochmal = fertig."),
+            "nudge": tr("Einmal drücken = Start. Hörst du auf zu reden, ist das "
+                        "Diktat fertig — ohne dass du die Taste nochmal anfasst. "
+                        "Ein zweiter Druck beendet trotzdem sofort."),
         },
     )
     panel._sprechpause_box = panel._spin(
-        form, "Sprechpause bis Ende", s.freihand.stille_s, 1.0, 4.0, "freihand",
+        form, tr("Sprechpause bis Ende"), s.freihand.stille_s, 1.0, 4.0, "freihand",
         lambda v: setattr(s.freihand, "stille_s", v),
-        hint_text="Nur beim Anstupsen: So lange still = Diktat fertig. Kürzer "
-                  "schneidet Denkpausen ab, länger lässt dich warten.",
+        hint_text=tr("Nur beim Anstupsen: So lange still = Diktat fertig. Kürzer "
+                     "schneidet Denkpausen ab, länger lässt dich warten."),
     )
     pausen_zeilen.append((form, panel._sprechpause_box))
     form.setRowVisible(panel._sprechpause_box, s.recording.mode == "nudge")
     panel._add_hotkey_field(
-        form, "Diktat-Hotkey", "hotkey", "dictate", "f9",
-        hint_text="„Aufnehmen“ klicken, dann Taste, Kombination oder Maustaste "
-                  "4/5/Mitte drücken. Esc, Entf oder Backspace = Bindung löschen.",
+        form, tr("Diktat-Hotkey"), "hotkey", "dictate", "f9",
+        hint_text=tr("„Aufnehmen“ klicken, dann Taste, Kombination oder Maustaste "
+                     "4/5/Mitte drücken. Esc, Entf oder Backspace = Bindung löschen."),
     )
     # Das Feld „Mathe-Umschalt" ist mit v3.7.2 entfallen: Den Modus gibt es seit
     # v3.0.0 nicht mehr (Formeln entstehen im lokalen Parser), die Taste war also
     # seit sieben Versionen wirkungslos einstellbar.
-    mics = [(None, "Systemstandard")] + [(name, name) for name in panel._list_microphones()]
+    mics = [(None, tr("Systemstandard"))] + [(name, name) for name in panel._list_microphones()]
     panel._combo(
-        form, "Mikrofon", mics, s.recording.microphone, "microphone",
+        form, tr("Mikrofon"), mics, s.recording.microphone, "microphone",
         lambda v: setattr(s.recording, "microphone", v),
-        hint_text="Wirkt ab der nächsten Aufnahme.",
+        hint_text=tr("Wirkt ab der nächsten Aufnahme."),
     )
     panel._add_hotkey_field(
-        mehr, "KI-Prompting", "prompt_toggle_hotkey", "prompt_toggle", "ctrl+alt+p",
-        hint_text="Nur WÄHREND einer Aufnahme: dieses Diktat wird als strukturierter "
-                  "KI-Prompt formuliert. Dauerhaft: Profil „KI-Prompt“ wählen.",
+        mehr, tr("KI-Prompting"), "prompt_toggle_hotkey", "prompt_toggle", "ctrl+alt+p",
+        hint_text=tr("Nur WÄHREND einer Aufnahme: dieses Diktat wird als strukturierter "
+                     "KI-Prompt formuliert. Dauerhaft: Profil „KI-Prompt“ wählen."),
     )
     panel._add_hotkey_field(
-        mehr, "Rohtext einsetzen", "undo_hotkey", "undo", "ctrl+alt+z",
+        mehr, tr("Rohtext einsetzen"), "undo_hotkey", "undo", "ctrl+alt+z",
         # Befund A-12: Hier stand „solange der Cursor noch dort steht". Geprüft
         # wird aber allein der Fensterwechsel — eigenes Tippen sieht Fleech nicht.
-        hint_text="Ersetzt die zuletzt eingefügte Fassung durch das wörtliche "
-                  "Transkript — für den Fall, dass die Bereinigung danebengriff. "
-                  "Nur direkt danach und nur, solange du das Fenster nicht "
-                  "gewechselt hast. Ob du selbst getippt hast, kann Fleech nicht "
-                  "erkennen — dann lösche lieber von Hand.",
+        hint_text=tr("Ersetzt die zuletzt eingefügte Fassung durch das wörtliche "
+                     "Transkript — für den Fall, dass die Bereinigung danebengriff. "
+                     "Nur direkt danach und nur, solange du das Fenster nicht "
+                     "gewechselt hast. Ob du selbst getippt hast, kann Fleech nicht "
+                     "erkennen — dann lösche lieber von Hand."),
     )
     panel._add_hotkey_field(
-        mehr, "Profil wechseln", "profile_hotkey", "profile", "",
-        hint_text="Kurz drücken = nächstes Profil. GEDRÜCKT HALTEN = Liste aller "
-                  "Profile am Mauszeiger, dort direkt anklicken. Sinnvoll auf "
-                  "einer Maus-Zusatztaste (mouse4/mouse5) — deshalb ohne "
-                  "Vorbelegung. Esc im Aufnahmefeld löscht eine Bindung.",
+        mehr, tr("Profil wechseln"), "profile_hotkey", "profile", "",
+        hint_text=tr("Kurz drücken = nächstes Profil. GEDRÜCKT HALTEN = Liste aller "
+                     "Profile am Mauszeiger, dort direkt anklicken. Sinnvoll auf "
+                     "einer Maus-Zusatztaste (mouse4/mouse5) — deshalb ohne "
+                     "Vorbelegung. Esc im Aufnahmefeld löscht eine Bindung."),
     )
     panel._add_hotkey_field(
-        mehr, "Pause", "pause_hotkey", "pause", "ctrl+alt+space",
-        hint_text="Hält die laufende Aufnahme an — währenddessen wird nichts "
-                  "aufgezeichnet, du kannst also frei sprechen. Nochmal drücken "
-                  "setzt dasselbe Diktat fort. Auch als Knopf in der Pille.",
+        mehr, tr("Pause"), "pause_hotkey", "pause", "ctrl+alt+space",
+        hint_text=tr("Hält die laufende Aufnahme an — währenddessen wird nichts "
+                     "aufgezeichnet, du kannst also frei sprechen. Nochmal drücken "
+                     "setzt dasselbe Diktat fort. Auch als Knopf in der Pille."),
     )
     panel._lines_editor(
-        mehr, "Gesperrte Geräte", s.recording.blocked_devices, "microphone",
+        mehr, tr("Gesperrte Geräte"), s.recording.blocked_devices, "microphone",
         lambda lines: setattr(s.recording, "blocked_devices", lines),
         placeholder="Stereomix\nCABLE Output\nAufnahmesumme",
-        hint_text="Geräte, die nie als Mikrofon gelten sollen — ein Namensteil "
-                  "je Zeile. Fleech erkennt die gängigen Loopback-Geräte schon "
-                  "selbst; diese Liste ist für die Fälle, die dabei durchrutschen.",
+        hint_text=tr("Geräte, die nie als Mikrofon gelten sollen — ein Namensteil "
+                     "je Zeile. Fleech erkennt die gängigen Loopback-Geräte schon "
+                     "selbst; diese Liste ist für die Fälle, die dabei durchrutschen."),
         height=90,
     )

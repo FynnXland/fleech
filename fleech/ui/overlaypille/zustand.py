@@ -8,6 +8,7 @@ Konstellation, aus der in diesem Projekt die wandernden Abstuerze kamen
 
 from __future__ import annotations
 
+from ...i18n import tr
 from ..state import AppState
 from .bausteine import _GLYPH_COLORS, _glyph_icon
 from .konstanten import _KEIN_TON
@@ -83,8 +84,8 @@ class ZustandMixin:
         # erkannten Text sofort ein, ohne auf die KI zu warten (`llm/frist.py`).
         self._finish_btn.setEnabled(state in (AppState.LISTENING, AppState.PROCESSING))
         self._finish_btn.setToolTip(
-            "Ohne KI einfügen — nicht auf die Bereinigung warten"
-            if state is AppState.PROCESSING else "Fertig — Text einfügen")
+            tr("Ohne KI einfügen — nicht auf die Bereinigung warten")
+            if state is AppState.PROCESSING else tr("Fertig — Text einfügen"))
         self._pause_btn.setEnabled(state is AppState.LISTENING)
         # Profil-Punkt ebenso: wechseln nur waehrend der Aufnahme. Bewusst
         # set_klickbar statt setEnabled — der Punkt bleibt sichtbar und zeigt
@@ -170,7 +171,7 @@ class ZustandMixin:
         self._freihand = zustand
         self._math_dot.set_lauscht(zustand == "lauscht")
         self._math_dot.setToolTip(
-            "Freihand: hört auf das Startwort" if zustand == "lauscht"
+            tr("Freihand: hört auf das Startwort") if zustand == "lauscht"
             else self._dot_tooltip_base)
         # Der Punkt ist sonst nur bei aktivem Modus sichtbar — beim Lauschen muss
         # er es auch sein, sonst waere der Zustand unsichtbar.
@@ -208,7 +209,7 @@ class ZustandMixin:
             self._caption_is_live = False
             self._caption_is_status = True
             self._caption.show_above(
-                self.frameGeometry(), "Pause — es wird nichts aufgenommen", sticky=True,
+                self.frameGeometry(), tr("Pause — es wird nichts aufgenommen"), sticky=True,
             )
         else:
             self._clear_status_caption()
@@ -237,7 +238,7 @@ class ZustandMixin:
             self._caption_is_live = False
             self._caption_is_status = True
             self._caption.show_above(
-                self.frameGeometry(), "Kein Ton vom Mikrofon — zu leise oder Gerät prüfen",
+                self.frameGeometry(), tr("Kein Ton vom Mikrofon — zu leise oder Gerät prüfen"),
                 sticky=True, accent_color=_KEIN_TON,
             )
         else:
@@ -263,13 +264,15 @@ class ZustandMixin:
             self._math_dot.setToolTip(self._dot_tooltip_base)
             return
         chunks, minutes = info[0], info[1]
-        wann = "gerade eben" if minutes < 1 else f"vor {minutes} min"
-        text = (f"{self._dot_tooltip_base}\nErinnert sich an "
-                f"{chunks} Diktat{'e' if chunks != 1 else ''} in diesem Fenster "
-                f"({wann}).")
+        wann = tr("gerade eben") if minutes < 1 else tr("vor {n} min", n=minutes)
+        erinnert = (tr("Erinnert sich an 1 Diktat in diesem Fenster ({wann}).", wann=wann)
+                    if chunks == 1 else
+                    tr("Erinnert sich an {n} Diktate in diesem Fenster ({wann}).",
+                       n=chunks, wann=wann))
+        text = f"{self._dot_tooltip_base}\n{erinnert}"
         if nur_lesbar:
-            text += ("\nNur lesbar: Nach dem Fensterwechsel kann Fleech nicht mehr "
-                     "ersetzen — diktiere einmal neu, dann geht es wieder.")
+            text += "\n" + tr("Nur lesbar: Nach dem Fensterwechsel kann Fleech nicht mehr "
+                              "ersetzen — diktiere einmal neu, dann geht es wieder.")
         self._math_dot.setToolTip(text)
 
     def set_feedback(self, text: str) -> None:

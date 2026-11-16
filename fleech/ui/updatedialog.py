@@ -20,6 +20,7 @@ from PySide6.QtWidgets import (
     QDialog, QHBoxLayout, QLabel, QProgressBar, QPushButton, QTextEdit, QVBoxLayout,
 )
 
+from ..i18n import tr
 from ..usersettings import SETTINGS_DIR
 from .theme import ACCENT, BORDER_HAIRLINE, CARD, MUTED, TEXT, style_button
 from .updates import download_update, install_update
@@ -48,7 +49,7 @@ class UpdateDialog(QDialog):
         self._datei = fertige_datei
         self._thread = None
 
-        self.setWindowTitle("Update verfügbar")
+        self.setWindowTitle(tr("Update verfügbar"))
         self.setMinimumWidth(460)
         self.setStyleSheet(f"QDialog {{ background: {CARD}; }}")
 
@@ -60,14 +61,17 @@ class UpdateDialog(QDialog):
         lay.setContentsMargins(24, 20, 24, 16)
         lay.setSpacing(12)
 
-        titel = QLabel(f"Fleech {self._info.get('latest', '?')} ist verfügbar")
+        titel = QLabel(tr("Fleech {version} ist verfügbar", version=self._info.get("latest", "?")))
         titel.setStyleSheet(f"color: {TEXT}; font-size: 14pt; font-weight: 600;")
         titel.setWordWrap(True)
         lay.addWidget(titel)
 
         groesse = int(self._info.get("size") or 0)
-        mb = f" · Download {groesse / (1024 * 1024):.0f} MB" if groesse else ""
-        unter = QLabel(f"Installiert: {self._info.get('current', '')}{mb}")
+        aktuell = self._info.get("current", "")
+        unter = QLabel(
+            tr("Installiert: {version} · Download {mb} MB", version=aktuell,
+               mb=f"{groesse / (1024 * 1024):.0f}")
+            if groesse else tr("Installiert: {version}", version=aktuell))
         unter.setStyleSheet(f"color: {MUTED}; font-size: 9pt;")
         lay.addWidget(unter)
 
@@ -101,11 +105,11 @@ class UpdateDialog(QDialog):
         lay.addWidget(self._status)
 
         knoepfe = QHBoxLayout()
-        self._spaeter = style_button(QPushButton("Später"))
+        self._spaeter = style_button(QPushButton(tr("Später")))
         self._spaeter.clicked.connect(self.reject)
         knoepfe.addWidget(self._spaeter)
         knoepfe.addStretch(1)
-        self._btn = style_button(QPushButton("Herunterladen"), "primary")
+        self._btn = style_button(QPushButton(tr("Herunterladen")), "primary")
         self._btn.clicked.connect(self._on_button)
         knoepfe.addWidget(self._btn)
         lay.addLayout(knoepfe)
@@ -116,10 +120,10 @@ class UpdateDialog(QDialog):
     # -- Ablauf ------------------------------------------------------------------
 
     def _bereit(self) -> None:
-        self._btn.setText("Installieren und neu starten")
+        self._btn.setText(tr("Installieren und neu starten"))
         self._btn.setEnabled(True)
         self._status.setText(
-            "Geladen und geprüft. Beim Installieren beendet sich Fleech kurz."
+            tr("Geladen und geprüft. Beim Installieren beendet sich Fleech kurz.")
         )
 
     def _on_button(self) -> None:
@@ -132,7 +136,7 @@ class UpdateDialog(QDialog):
         if self._thread is not None and self._thread.is_alive():
             return
         self._btn.setEnabled(False)
-        self._btn.setText("Lädt …")
+        self._btn.setText(tr("Lädt …"))
         self._bar.show()
         self._bar.setRange(0, 100)
         bridge = self._bridge                  # nur die Bridge fangen, nicht `self`
@@ -158,12 +162,11 @@ class UpdateDialog(QDialog):
 
     def _installieren(self) -> None:
         self._btn.setEnabled(False)
-        self._status.setText("Installation startet …")
+        self._status.setText(tr("Installation startet …"))
         if not install_update(self._datei):
-            self._status.setText(
+            self._status.setText(tr(
                 "Der Installer ließ sich nicht starten. Die Datei liegt in "
-                f"{UPDATE_DIR} und kann von Hand ausgeführt werden."
-            )
+                "{ordner} und kann von Hand ausgeführt werden.", ordner=UPDATE_DIR))
             self._btn.setEnabled(True)
             return
         self.accept()
@@ -187,12 +190,11 @@ class UpdateDialog(QDialog):
         self._thread = None
         self._bar.hide()
         if not pfad:
-            self._btn.setText("Erneut versuchen")
+            self._btn.setText(tr("Erneut versuchen"))
             self._btn.setEnabled(True)
-            self._status.setText(
+            self._status.setText(tr(
                 "Download oder Prüfung fehlgeschlagen — nichts wurde installiert. "
-                "Details stehen im Log."
-            )
+                "Details stehen im Log."))
             return
         from pathlib import Path
 

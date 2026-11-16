@@ -91,6 +91,11 @@ Provider/Modelle/Prompts sind in `config.yaml` + `prompts/` konfigurierbar
   einen echten Schlüssel an.
 - `fleech/protokolltext.py` — Diktattext und Fenstertitel gehen nur durch `inhalt()` ins Log
   (sonst „‹12 Wörter›"); Freigabe zur Fehlersuche: Einstellungen → Advanced.
+- `fleech/i18n/` — Sprache der Oberfläche (6.6.0): Deutsch steht im Code und ist der Schlüssel,
+  `tr("…", platzhalter=…)` beim Anzeigen (nie auf Modulebene, Konstanten mit `N_()`), Englisch in
+  `fleech/i18n/en/<bereich>.json`. **Neuer sichtbarer Text = `tr()` + englischer Eintrag**
+  (`tests/test_i18n.py` wacht; Suchhilfe `python -m fleech.i18n.pruefung --offen <pfad>`).
+  Logs und Prompts nie durch `tr()`. Umschalten wirkt nach Neustart.
 - `fleech/history.py` — SQLite-Verlauf (`history.db`), Stats für Insights; je Eintrag seit 5.10.4
   auch `reason`/`profile`/`title`/`dropped`. `fleech/gruende.py` — die Grund-Texte dazu.
 - `fleech/ui/` — `desktop.py` (Aufbau, Aufnahme-Lebenszyklus, Hotkeys, Verdrahtung),
@@ -247,5 +252,4 @@ halten (`platformpaths`, `clipboard`, `audiofocus.default_playback_sessions`,
 
 - StateBus-Signale (`fleech/ui/state.py`) übertragen Worker-Thread → UI thread-sicher.
 - Der Nutzer erledigt echte Mikrofon-/Hotkey-Tests selbst; Fixture-Tests nutzen TTS-WAVs.
-- Der lange Sitzungs-Verlauf (Entscheidungen, gelöste Bugs) steht in der Auto-Memory
-  (`memory/fleech-projekt-stand.md`) — dort nachsehen, statt Vergangenes neu herzuleiten.
+- Entscheidungen und gelöste Bugs stehen in `CHANGELOG.md` und in den Commit-Nachrichten: dort nachsehen, statt Vergangenes neu herzuleiten.

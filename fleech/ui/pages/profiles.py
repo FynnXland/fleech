@@ -17,6 +17,8 @@ from PySide6.QtWidgets import (
 )
 
 from ...history import HistoryStore
+from ...i18n import N_, tr
+from ...profiles import anzeigename as profilname
 from ...profiles import (
     APP_STANDARD, PROFILE_FORMATS, PROFILE_SPRACHEN, PROFIL_FARBEN,
     ensure_default_profile, profile_color, profile_command_mode,
@@ -104,10 +106,10 @@ class ProfilesPage(QWidget):
     # auch die Auswahlliste am Profil-Hotkey nimmt (`_set_profile`).
     profil_aktiv_gewaehlt = Signal(str)
 
-    _INTERVENTION_LABELS = [("", "Wie Einstellungen (KI & Text)"),
-                            ("minimal", "Minimal (kein LLM-Eingriff)"),
-                            ("standard", "Standard"),
-                            ("strong", "Strong (starke Glättung)")]
+    _INTERVENTION_LABELS = [("", N_("Wie Einstellungen (KI & Text)")),
+                            ("minimal", N_("Minimal (kein LLM-Eingriff)")),
+                            ("standard", N_("Standard")),
+                            ("strong", N_("Strong (starke Glättung)"))]
 
     def __init__(self, settings: UserSettings, store: HistoryStore, on_changed=None):
         super().__init__()
@@ -143,14 +145,14 @@ class ProfilesPage(QWidget):
     def _baue_kopf(self, outer) -> None:
         """Titelzeile mit dem grossen globalen Schalter, darunter die Einordnung."""
         head = QHBoxLayout()
-        title = QLabel("Profile")
+        title = QLabel(tr("Profile"))
         title.setStyleSheet(page_title_qss())
         head.addWidget(title)
         head.addStretch(1)
         # Grosser globaler Toggle, rechtsbuendig in der Titelzeile.
         self._global_cb = QCheckBox()
         self._global_cb.setChecked(self.settings.profiles.enabled)
-        self._global_cb.setToolTip("App-Profile global aktivieren/deaktivieren")
+        self._global_cb.setToolTip(tr("App-Profile global aktivieren/deaktivieren"))
         self._global_cb.setCursor(Qt.PointingHandCursor)
         self._global_cb.setStyleSheet(apply_chevrons(
             f"QCheckBox::indicator {{ width: 22px; height: 22px; border-radius: 6px;"
@@ -162,9 +164,9 @@ class ProfilesPage(QWidget):
         self._global_cb.toggled.connect(self._on_global_toggled)
         head.addWidget(self._global_cb)
         outer.addLayout(head)
-        hint = QLabel("Ein Profil bestimmt, was aus dem Diktat wird. Welche App "
-                      "welches Profil bekommt, steht auf der Seite „Apps“ — hier "
-                      "gilt „Alle“ als Standard.")
+        hint = QLabel(tr("Ein Profil bestimmt, was aus dem Diktat wird. Welche App "
+                         "welches Profil bekommt, steht auf der Seite „Apps“ — hier "
+                         "gilt „Alle“ als Standard."))
         hint.setStyleSheet(f"color: {MUTED}; font-size: 9pt;")
         hint.setWordWrap(True)
         outer.addWidget(hint)
@@ -182,24 +184,24 @@ class ProfilesPage(QWidget):
         """
         zeile = QHBoxLayout()
         zeile.setSpacing(8)
-        beschriftung = QLabel("Jetzt aktiv")
+        beschriftung = QLabel(tr("Jetzt aktiv"))
         beschriftung.setStyleSheet(f"color: {MUTED}; font-size: 9pt;")
         zeile.addWidget(beschriftung)
         self._aktiv_combo = QComboBox()
         self._aktiv_combo.setStyleSheet(apply_chevrons(_COMBO_QSS))
         self._aktiv_combo.setMinimumWidth(220)
-        self._aktiv_combo.setToolTip(
+        self._aktiv_combo.setToolTip(tr(
             "Gilt fuer alle folgenden Diktate, bis du es aenderst — auch nach "
             "einem Neustart. „App-Standard“ heißt: es gilt, was auf der Seite "
             "„Apps“ für die jeweilige Anwendung hinterlegt ist."
-        )
+        ))
         self._aktiv_combo.currentIndexChanged.connect(self._on_aktiv_gewaehlt)
         zeile.addWidget(self._aktiv_combo)
-        zeile.addWidget(HelpBadge(
+        zeile.addWidget(HelpBadge(tr(
             "Dasselbe, was der Profil-Hotkey und der Punkt an der Pille tun — nur "
             "ohne laufende Aufnahme. Das Standardprofil steht bewusst nicht zur "
             "Wahl: Von Hand gewählt legte es die App-Zuordnung still, dafür gibt "
-            "es „App-Standard“."))
+            "es „App-Standard“.")))
         zeile.addStretch(1)
         outer.addLayout(zeile)
         self._fuelle_aktiv_combo()
@@ -212,12 +214,12 @@ class ProfilesPage(QWidget):
         vorher = self._loading
         self._loading = True
         self._aktiv_combo.clear()
-        self._aktiv_combo.addItem(APP_STANDARD, "")
+        self._aktiv_combo.addItem(profilname(APP_STANDARD), "")
         for profile in self._items():
             if isinstance(profile, dict) and not profile.get("default"):
                 name = str(profile.get("name", ""))
                 if name:
-                    self._aktiv_combo.addItem(name, name)
+                    self._aktiv_combo.addItem(profilname(name), name)
         aktiv = str(getattr(self.settings.profiles, "active", "") or "")
         index = self._aktiv_combo.findData(aktiv)
         self._aktiv_combo.setCurrentIndex(max(0, index))
@@ -242,8 +244,8 @@ class ProfilesPage(QWidget):
         Die frueher hier stehende App-Spalte ist mit v4.7.0 auf die eigene Seite
         „Apps" gewandert: Ein Profil beantwortet „was wird aus dem Diktat", die
         Frage „wo gilt das" gehoert zur App, nicht zum Profil."""
-        frame, box = _card("Profile")
-        self._profil_suche = _suchfeld("Profil suchen …")
+        frame, box = _card(tr("Profile"))
+        self._profil_suche = _suchfeld(tr("Profil suchen …"))
         self._profil_suche.textChanged.connect(
             lambda _t: self._refresh_profiles(keep_row=True))
         box.addWidget(self._profil_suche)
@@ -254,9 +256,9 @@ class ProfilesPage(QWidget):
         box.addWidget(self._profiles_list, 1)
         row = QHBoxLayout()
         row.setSpacing(8)
-        add_btn = style_button(QPushButton("Hinzufügen"))
+        add_btn = style_button(QPushButton(tr("Hinzufügen")))
         add_btn.clicked.connect(self._add_profile)
-        del_btn = style_button(QPushButton("Löschen"), "ghost")
+        del_btn = style_button(QPushButton(tr("Löschen")), "ghost")
         del_btn.clicked.connect(self._delete_profile)
         row.addWidget(add_btn, 1)
         row.addWidget(del_btn)
@@ -266,16 +268,16 @@ class ProfilesPage(QWidget):
         # je angelegt wurde, ist daraus zweimal verschwunden.
         sicher_row = QHBoxLayout()
         sicher_row.setSpacing(8)
-        export_btn = style_button(QPushButton("Profile exportieren …"), "ghost")
-        export_btn.setToolTip(
+        export_btn = style_button(QPushButton(tr("Profile exportieren …")), "ghost")
+        export_btn.setToolTip(tr(
             "Schreibt Profile und Schnellwechsel in eine JSON-Datei. Bewusst nur "
             "das — Mikrofon und alle anderen Einstellungen "
-            "bleiben draußen, damit man die Datei weitergeben kann.")
+            "bleiben draußen, damit man die Datei weitergeben kann."))
         export_btn.clicked.connect(self._profile_exportieren)
-        import_btn = style_button(QPushButton("Profile importieren …"), "ghost")
-        import_btn.setToolTip(
+        import_btn = style_button(QPushButton(tr("Profile importieren …")), "ghost")
+        import_btn.setToolTip(tr(
             "Liest so eine Datei wieder ein. Additiv: Unbekannte Profile kommen "
-            "dazu, gleichnamige nur nach Rückfrage — gelöscht wird nie etwas.")
+            "dazu, gleichnamige nur nach Rückfrage — gelöscht wird nie etwas."))
         import_btn.clicked.connect(self._profile_importieren)
         sicher_row.addWidget(export_btn, 1)
         sicher_row.addWidget(import_btn, 1)
@@ -290,20 +292,21 @@ class ProfilesPage(QWidget):
         from ...profilexport import export_daten, schreibe
 
         pfad, _filter = QFileDialog.getSaveFileName(
-            self, "Profile exportieren", "fleech-profile.json",
-            "Fleech-Profile (*.json)")
+            self, tr("Profile exportieren"), "fleech-profile.json",
+            tr("Fleech-Profile (*.json)"))
         if not pfad:
             return
         try:
             schreibe(pfad, export_daten(self.settings))
         except Exception as fehler:
             log.exception("Profil-Export fehlgeschlagen: %s", pfad)
-            QMessageBox.warning(self, "Export fehlgeschlagen", str(fehler))
+            QMessageBox.warning(self, tr("Export fehlgeschlagen"), str(fehler))
             return
         log.info("Profile exportiert nach %s", pfad)
         QMessageBox.information(
-            self, "Profile exportiert",
-            f"{len(self.settings.profiles.items)} Profile stehen jetzt in\n{pfad}")
+            self, tr("Profile exportiert"),
+            tr("{n} Profile stehen jetzt in\n{pfad}",
+               n=len(self.settings.profiles.items), pfad=pfad))
 
     def _profile_importieren(self) -> None:
         from PySide6.QtWidgets import QFileDialog, QMessageBox
@@ -311,13 +314,13 @@ class ProfilesPage(QWidget):
         from ...profilexport import importiere, lies, namenskonflikte
 
         pfad, _filter = QFileDialog.getOpenFileName(
-            self, "Profile importieren", "", "Fleech-Profile (*.json)")
+            self, tr("Profile importieren"), "", tr("Fleech-Profile (*.json)"))
         if not pfad:
             return
         try:
             daten = lies(pfad)
         except ValueError as fehler:
-            QMessageBox.warning(self, "Import nicht möglich", str(fehler))
+            QMessageBox.warning(self, tr("Import nicht möglich"), str(fehler))
             return
         # Rueckfrage NUR bei echtem Konflikt: Wer nichts ueberschreibt, soll auch
         # nicht gefragt werden — sonst klickt man die Frage irgendwann blind weg.
@@ -325,35 +328,35 @@ class ProfilesPage(QWidget):
         ersetzen = False
         if konflikte:
             antwort = QMessageBox.question(
-                self, "Gleichnamige Profile ersetzen?",
-                "Diese Profile gibt es hier schon:\n\n"
-                + "\n".join(f"·  {n}" for n in konflikte)
-                + "\n\nJa = mit der Datei überschreiben.\n"
-                  "Nein = so lassen, nur die unbekannten ergänzen.")
+                self, tr("Gleichnamige Profile ersetzen?"),
+                tr("Diese Profile gibt es hier schon:\n\n{liste}\n\n"
+                   "Ja = mit der Datei überschreiben.\n"
+                   "Nein = so lassen, nur die unbekannten ergänzen.",
+                   liste="\n".join(f"·  {profilname(n)}" for n in konflikte)))
             ersetzen = antwort == QMessageBox.Yes
         bericht = importiere(self.settings, daten, ersetzen)
         self._save()
         self._on_changed("profiles")
         self.refresh()
-        QMessageBox.information(self, "Profile importiert", bericht.satz())
+        QMessageBox.information(self, tr("Profile importiert"), bericht.satz())
 
     def _baue_detail_spalte(self) -> QWidget:
         """Rechts: alles zum gewaehlten Profil — Name, Ausgabeformat, Farbe,
         Schnellwechsel, darunter der ausklappbare erweiterte Block."""
-        frame, box = _card("Details")
+        frame, box = _card(tr("Details"))
         self._baue_detail_kopf(box)
         self._baue_format_und_farbe(box)
 
-        self._quick_cb = QCheckBox("Im Schnellwechsel zeigen")
+        self._quick_cb = QCheckBox(tr("Im Schnellwechsel zeigen"))
         self._quick_cb.setCursor(Qt.PointingHandCursor)
         self._quick_cb.setStyleSheet(apply_chevrons(_CB_QSS))
-        self._quick_cb.setToolTip(
+        self._quick_cb.setToolTip(tr(
             "Punkt in der Pille, Profil-Hotkey und Auswahlliste gehen nur durch "
             "diese Profile. Wer viele pflegt, aber im Alltag zwischen zweien "
             "wechselt, blendet den Rest hier aus. Das Standardprofil läuft nie "
             "mit — dafür gibt es die Station „App-Standard“ am Ende des Zyklus, "
             "die zusätzlich die App-Zuordnung zulässt."
-        )
+        ))
         self._quick_cb.toggled.connect(self._on_quick_toggled)
         box.addWidget(self._quick_cb)
 
@@ -372,14 +375,14 @@ class ProfilesPage(QWidget):
             f"  background: transparent; border: none; padding: 0; }}"
             f"QLineEdit:focus {{ border-bottom: 1px solid {ACCENT}; }}"
         )
-        self._detail_title.setToolTip("Zum Umbenennen anklicken, Enter übernimmt")
+        self._detail_title.setToolTip(tr("Zum Umbenennen anklicken, Enter übernimmt"))
         self._detail_title.editingFinished.connect(self._on_rename_profile)
         title_row = QWidget()
         trow = QHBoxLayout(title_row)
         trow.setContentsMargins(0, 0, 0, 0)
         trow.setSpacing(6)
         trow.addWidget(self._detail_title, 1)
-        trow.addWidget(HelpBadge("Name anklicken und tippen — Enter benennt das Profil um."))
+        trow.addWidget(HelpBadge(tr("Name anklicken und tippen — Enter benennt das Profil um.")))
         box.addWidget(title_row)
 
     def _baue_format_und_farbe(self, box) -> None:
@@ -388,36 +391,38 @@ class ProfilesPage(QWidget):
         # Glaettungsstufe. Der frueher entfernte „Modus-Slot" ist damit zurueck —
         # diesmal mit einem Zweck, den man beim Diktieren sofort merkt.
         box.addWidget(_abschnitt(
-            "Ausgabeformat", "Was aus dem Diktat wird. „Diktat“ = bereinigter Text "
-            "wie gesprochen. „E-Mail“ und „KI-Prompt“ formulieren um: Anrede und "
-            "Absätze bzw. knappe Stichpunkte für eine KI.",
+            tr("Ausgabeformat"), tr("Was aus dem Diktat wird. „Diktat“ = bereinigter "
+                                    "Text wie gesprochen. „E-Mail“ und „KI-Prompt“ "
+                                    "formulieren um: Anrede und Absätze bzw. knappe "
+                                    "Stichpunkte für eine KI."),
         ))
         self._profile_format_combo = QComboBox()
         self._profile_format_combo.setStyleSheet(apply_chevrons(_COMBO_QSS))
         for value, label in PROFILE_FORMATS:
-            self._profile_format_combo.addItem(label, value)
+            self._profile_format_combo.addItem(tr(label), value)
         self._profile_format_combo.currentIndexChanged.connect(
             self._on_profile_format_changed
         )
         box.addWidget(self._profile_format_combo)
         # Der Prompt hinter dem Format — sichtbar und aenderbar. Bis 5.1.0 war er
         # eine Blackbox: Man sah, DASS ein Profil anders formuliert, aber nie warum.
-        self._prompt_btn = style_button(QPushButton("Prompt ansehen …"), "ghost")
+        self._prompt_btn = style_button(QPushButton(tr("Prompt ansehen …")), "ghost")
         self._prompt_btn.clicked.connect(self._prompt_bearbeiten)
         box.addWidget(self._prompt_btn)
 
         # Zielsprache (6.5.0): oben bei den Grundeinstellungen und nicht im
         # erweiterten Block — wer ein Profil fuer Englisch anlegt, sucht genau das.
         box.addWidget(_abschnitt(
-            "Übersetzen in", "Der fertige Text wird nach der Bereinigung in diese "
-            "Sprache übersetzt — du diktierst weiter in deiner Sprache. Braucht "
-            "ein KI-Modell; klappt die Übersetzung nicht, kommt der Text "
-            "unübersetzt und der Verlauf sagt, warum.",
+            tr("Übersetzen in"), tr("Der fertige Text wird nach der Bereinigung in "
+                                    "diese Sprache übersetzt — du diktierst weiter in "
+                                    "deiner Sprache. Braucht ein KI-Modell; klappt die "
+                                    "Übersetzung nicht, kommt der Text unübersetzt und "
+                                    "der Verlauf sagt, warum."),
         ))
         self._zielsprache_combo = QComboBox()
         self._zielsprache_combo.setStyleSheet(apply_chevrons(_COMBO_QSS))
         for value, label in profile_zielsprachen():
-            self._zielsprache_combo.addItem(label, value)
+            self._zielsprache_combo.addItem(tr(label), value)
         self._zielsprache_combo.currentIndexChanged.connect(self._on_zielsprache_changed)
         box.addWidget(self._zielsprache_combo)
 
@@ -425,9 +430,10 @@ class ProfilesPage(QWidget):
         # Pille. Eine Reihe zum Antippen statt eines Aufklappmenues: Es sind acht
         # Werte, und die Farbe selbst IST die Beschriftung.
         box.addWidget(_abschnitt(
-            "Farbe", "Der Punkt vor dem Namen — und der Ring am linken Knopf der "
-            "Pille, solange dieses Profil aktiv ist. So sieht man beim Diktieren, "
-            "welches Profil gerade greift, ohne hinzuklicken.",
+            tr("Farbe"), tr("Der Punkt vor dem Namen — und der Ring am linken Knopf "
+                            "der Pille, solange dieses Profil aktiv ist. So sieht man "
+                            "beim Diktieren, welches Profil gerade greift, ohne "
+                            "hinzuklicken."),
         ))
         self._farb_reihe = QWidget()
         farb_lay = QHBoxLayout(self._farb_reihe)
@@ -439,7 +445,7 @@ class ProfilesPage(QWidget):
             knopf.setCheckable(True)
             knopf.setCursor(Qt.PointingHandCursor)
             knopf.setFixedSize(24, 24)
-            knopf.setToolTip(bezeichnung)
+            knopf.setToolTip(tr(bezeichnung))
             knopf.setProperty("farbe", wert)
             knopf.setStyleSheet(self._farb_knopf_qss(wert, False))
             # WICHTIG (CLAUDE.md, Referenzzyklus-Crash): nur den reinen Wert
@@ -468,13 +474,14 @@ class ProfilesPage(QWidget):
         box.addWidget(self._advanced_box, 1)
 
         adv.addWidget(_abschnitt(
-            "Eingriff", "Wie stark die KI das Diktat glättet. „Wie Einstellungen“ = "
-            "globaler Wert aus Einstellungen → KI & Text.",
+            tr("Eingriff"), tr("Wie stark die KI das Diktat glättet. „Wie "
+                               "Einstellungen“ = globaler Wert aus Einstellungen → "
+                               "KI & Text."),
         ))
         self._intervention_combo = QComboBox()
         self._intervention_combo.setStyleSheet(apply_chevrons(_COMBO_QSS))
         for value, label in self._INTERVENTION_LABELS:
-            self._intervention_combo.addItem(label, value)
+            self._intervention_combo.addItem(tr(label), value)
         self._intervention_combo.currentIndexChanged.connect(self._on_intervention_changed)
         adv.addWidget(self._intervention_combo)
 
@@ -484,14 +491,15 @@ class ProfilesPage(QWidget):
         # der settings.json (Befund G-B6). Genau die Trennung, fuer die Profile da
         # sind: deutscher Prompt im Chat, englischer Kommentar in der IDE.
         adv.addWidget(_abschnitt(
-            "Sprache", "In welcher Sprache in diesen Apps diktiert wird. „Wie "
-            "Einstellungen“ = globaler Wert aus Einstellungen → Allgemein. "
-            "„Automatisch erkennen“ kostet Genauigkeit bei kurzen Diktaten.",
+            tr("Sprache"), tr("In welcher Sprache in diesen Apps diktiert wird. „Wie "
+                              "Einstellungen“ = globaler Wert aus Einstellungen → "
+                              "Allgemein. „Automatisch erkennen“ kostet Genauigkeit "
+                              "bei kurzen Diktaten."),
         ))
         self._profile_sprache_combo = QComboBox()
         self._profile_sprache_combo.setStyleSheet(apply_chevrons(_COMBO_QSS))
         for value, label in PROFILE_SPRACHEN:
-            self._profile_sprache_combo.addItem(label, value)
+            self._profile_sprache_combo.addItem(tr(label), value)
         self._profile_sprache_combo.currentIndexChanged.connect(
             self._on_profile_sprache_changed
         )
@@ -500,14 +508,15 @@ class ProfilesPage(QWidget):
         # Gesprochenes Safe-Word je Profil: im Meeting/Grossraum unpassend und
         # zufaellig ausloesbar. Der »-Knopf in der Pille bleibt immer verfuegbar.
         adv.addWidget(_abschnitt(
-            "Safe-Word (gesprochen)", "Ob in diesen Apps ein gesprochenes Safe-Word "
-            "Befehle auslöst. Der »-Knopf in der Pille funktioniert immer.",
+            tr("Safe-Word (gesprochen)"), tr("Ob in diesen Apps ein gesprochenes "
+                                             "Safe-Word Befehle auslöst. Der »-Knopf "
+                                             "in der Pille funktioniert immer."),
         ))
         self._profile_command_combo = QComboBox()
         self._profile_command_combo.setStyleSheet(apply_chevrons(_COMBO_QSS))
-        for value, label in (("", "Wie Einstellungen (KI & Text)"),
-                             ("on", "An — gesprochenes Safe-Word erlaubt"),
-                             ("off", "Aus — nur über den »-Knopf")):
+        for value, label in (("", tr("Wie Einstellungen (KI & Text)")),
+                             ("on", tr("An — gesprochenes Safe-Word erlaubt")),
+                             ("off", tr("Aus — nur über den »-Knopf"))):
             self._profile_command_combo.addItem(label, value)
         self._profile_command_combo.currentIndexChanged.connect(
             self._on_profile_command_changed
@@ -522,19 +531,20 @@ class ProfilesPage(QWidget):
         # von Hand pflegt; die Pipeline nimmt es unveraendert entgegen.
 
         adv.addWidget(_abschnitt(
-            "Nachricht absenden", "Nach dem Einfügen zusätzlich Enter drücken — "
-            "praktisch in KI-Chats, gefährlich in E-Mails.",
+            tr("Nachricht absenden"), tr("Nach dem Einfügen zusätzlich Enter drücken "
+                                         "— praktisch in KI-Chats, gefährlich in "
+                                         "E-Mails."),
         ))
-        self._autosend_cb = QCheckBox("Diktat direkt abschicken")
+        self._autosend_cb = QCheckBox(tr("Diktat direkt abschicken"))
         self._autosend_cb.setStyleSheet(apply_chevrons(_CB_QSS))
         self._autosend_cb.setCursor(Qt.PointingHandCursor)
-        self._autosend_cb.setToolTip(
+        self._autosend_cb.setToolTip(tr(
             "Gilt nur für die diesem Profil zugewiesenen Apps und nur bei einem "
             "normalen Diktat — nach einem Befehl oder einem Rohtext-Rückfall wird "
             "nie automatisch gesendet. Beim Ausgabeformat „E-Mail“ greift der "
             "Haken bewusst nicht: Eine Mail, die sich selbst abschickt, ist der "
             "eine Fall, in dem ein Versehen echte Folgen hat."
-        )
+        ))
         self._autosend_cb.toggled.connect(self._on_autosend_toggled)
         adv.addWidget(self._autosend_cb)
 
@@ -546,15 +556,15 @@ class ProfilesPage(QWidget):
         # Platzhalter mit versteckt.
         frame.layout().addStretch(1)
 
-        self._advanced_cb = QCheckBox("Erweiterte Einstellungen")
+        self._advanced_cb = QCheckBox(tr("Erweiterte Einstellungen"))
         self._advanced_cb.setCursor(Qt.PointingHandCursor)
         self._advanced_cb.setStyleSheet(apply_chevrons(_CB_QSS))
-        self._advanced_cb.setToolTip(
+        self._advanced_cb.setToolTip(tr(
             "Zeigt Eingriffsgrad, Safe-Word und automatisches Absenden. Ohne "
             "das besteht ein Profil aus Name, Ausgabeformat und Schnellwechsel "
             "— für die meisten genug. Welche App welches Profil bekommt, steht "
             "auf der Seite „Apps“."
-        )
+        ))
         self._advanced_cb.setChecked(bool(self.settings.interface.profiles_advanced))
         self._advanced_cb.toggled.connect(self._on_advanced_toggled)
         frame.layout().addWidget(self._advanced_cb)
@@ -608,8 +618,8 @@ class ProfilesPage(QWidget):
     # dieses Profil?" in der LISTE — vorher musste man jedes Profil anklicken.
     # („Formeln" ist hier entfallen — das Format gab es nur in der Liste, nie im
     #  Code; siehe Befund E-14 in fleech/profiles.py.)
-    _MODE_KURZ = {"email": "E-Mail", "prompt": "KI-Prompt",
-                  "summary": "Stichpunkte"}
+    _MODE_KURZ = {"email": N_("E-Mail"), "prompt": N_("KI-Prompt"),
+                  "summary": N_("Stichpunkte")}
 
     @staticmethod
     def _mode_dot_icon(color: str) -> QIcon:
@@ -631,10 +641,10 @@ class ProfilesPage(QWidget):
         self._loading = True
         self._profiles_list.clear()
         for index, profile in enumerate(self._items()):
-            name = profile.get("name", "Profil")
+            name = profilname(str(profile.get("name", "") or "")) or tr("Profil")
             if profile.get("default"):
-                name += "  („Alle“)"
-            kurz = self._MODE_KURZ.get(profile_mode(profile), "")
+                name += "  " + tr("(„Alle“)")
+            kurz = tr(self._MODE_KURZ.get(profile_mode(profile), ""))
             # „E-Mail · E-Mail" ist keine Zusatzinfo, sondern Laerm: Die
             # Standardprofile heissen wie ihr Format. Nur anhaengen, wenn der
             # Name das Format NICHT schon sagt.
@@ -643,7 +653,7 @@ class ProfilesPage(QWidget):
             if not profile_in_quickswitch(profile):
                 # Ausgeblendete Profile bleiben sichtbar, aber erkennbar: sonst
                 # sucht man spaeter, warum der Schnellwechsel eines auslaesst.
-                name += "   (nicht im Schnellwechsel)"
+                name += "   " + tr("(nicht im Schnellwechsel)")
             if not _passt(name, suche):
                 continue
             item = QListWidgetItem(name)
@@ -676,7 +686,7 @@ class ProfilesPage(QWidget):
             self._loading = False
             return
         self._detail_title.setEnabled(True)
-        self._detail_title.setText(profile.get("name", "Profil"))
+        self._detail_title.setText(self._anzeigename(profile))
         self._refresh_farb_reihe(profile)
         self._profile_command_combo.setCurrentIndex(
             ["", "on", "off"].index(profile_command_mode(profile))
@@ -780,13 +790,13 @@ class ProfilesPage(QWidget):
         datei = self._FORMAT_PROMPTS.get(fmt or "")
         self._prompt_btn.setEnabled(bool(datei))
         if not datei:
-            self._prompt_btn.setText("Kein Prompt (Formeln laufen ohne Modell)")
+            self._prompt_btn.setText(tr("Kein Prompt (Formeln laufen ohne Modell)"))
             return
         from ...prompts import user_prompt_path
 
         eigen = user_prompt_path(datei).is_file()
         self._prompt_btn.setText(
-            "Prompt bearbeiten  ·  eigene Fassung" if eigen else "Prompt ansehen …")
+            tr("Prompt bearbeiten  ·  eigene Fassung") if eigen else tr("Prompt ansehen …"))
 
     def _prompt_bearbeiten(self) -> None:
         profile = self._current_profile()
@@ -807,7 +817,11 @@ class ProfilesPage(QWidget):
             return
         profile = self._current_profile()
         name = self._detail_title.text().strip()
-        if profile is None or not name or name == profile.get("name"):
+        # Der Titel zeigt Vorgaben übersetzt (`profilname`). Steht dort noch genau
+        # diese Anzeige, wurde nichts umbenannt — sonst schriebe ein bloßer
+        # Fokuswechsel den übersetzten Namen in die Einstellungen.
+        if profile is None or not name or name in (profile.get("name"),
+                                                   self._anzeigename(profile)):
             return
         profile["name"] = name
         self._save()
@@ -847,7 +861,7 @@ class ProfilesPage(QWidget):
 
     def _add_profile(self) -> None:
         items = self._items()
-        items.append({"name": f"Profil {len(items)}", "intervention": "standard",
+        items.append({"name": tr("Profil {n}", n=len(items)), "intervention": "standard",
                       "tags": [], "apps": []})
         self._save()
         # Suche leeren: Sonst legt man bei aktivem Filter ein Profil an, das die
@@ -895,6 +909,10 @@ class ProfilesPage(QWidget):
         # Farbe geaendert, soll das sofort sichtbar sein und nicht erst beim
         # naechsten Profilwechsel.
         self._on_changed("profiles")
+
+    @staticmethod
+    def _anzeigename(profile: dict) -> str:
+        return profilname(str(profile.get("name", "") or "")) or tr("Profil")
 
     def _refresh_farb_reihe(self, profile: dict | None) -> None:
         """Markiert den Knopf der aktuellen Farbe.

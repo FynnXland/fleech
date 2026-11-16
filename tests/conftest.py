@@ -13,6 +13,17 @@ import pytest
 
 
 @pytest.fixture(autouse=True)
+def _deutsche_oberflaeche():
+    """Tests prüfen die deutschen Texte. Wer Englisch braucht, setzt es selbst —
+    danach steht die Sprache wieder auf Deutsch, egal wie der Test endet."""
+    import fleech.i18n as i18n
+
+    i18n.setze("de")
+    yield
+    i18n.setze("de")
+
+
+@pytest.fixture(autouse=True)
 def _kein_echtes_gedaechtnis(tmp_path, monkeypatch):
     """Kein Test fasst das echte Projekt-Gedaechtnis des Nutzers an.
 

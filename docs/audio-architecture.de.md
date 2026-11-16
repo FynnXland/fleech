@@ -1,6 +1,6 @@
 # Audio-Architektur: Aufnahme, Ducking, Geräteschutz
 
-Stand: 6.1.0 · maßgeblich ist der Quellcode (`fleech/audio.py`, `fleech/audiofocus.py`).
+Stand: 6.5.0 · maßgeblich ist der Quellcode (`fleech/audio.py`, `fleech/audiofocus.py`).
 
 ## Kern-Invariante
 
@@ -32,7 +32,7 @@ auf DEM gewählten Mikrofon               Windows: pycaw / WASAPI-Sessions
 
 `DeviceGuard.check()` prüft das gewählte Eingabegerät in dieser Reihenfolge:
 
-1. **Sperrliste des Nutzers** (Einstellungen → Aufnahme → „Gesperrte Geräte“): ein
+1. **Sperrliste des Nutzers** (Einstellungen → Allgemein → Mehr Optionen → „Gesperrte Geräte“): ein
    Namensteil je Zeile, Groß-/Kleinschreibung egal, Zeilen mit `#` zählen nicht. Steht
    vorn, damit ein bewusst ausgeschlossenes Gerät nie durchrutscht.
 2. **Monitor-Quellen unter Linux**: PulseAudio/PipeWire meldet strukturell, ob eine
@@ -49,8 +49,8 @@ den Systemstandard auf und sagt das einmal je Gerät an der Pille.
 
 ## Die drei Modi
 
-Einstellungen → Audio-Fokus → „Fokus-Modus“, dazu der Regler „Restlautstärke anderer
-Apps“ (Vorgabe 25 %).
+Einstellungen → Ruhe → „Fokus-Modus“, dazu unter „Mehr Optionen“ der Regler
+„Restlautstärke anderer Apps“ (Vorgabe 25 %).
 
 | Anzeige | Wert | Verhalten |
 |---|---|---|

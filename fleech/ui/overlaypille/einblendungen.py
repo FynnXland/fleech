@@ -8,6 +8,7 @@ Konstellation, aus der in diesem Projekt die wandernden Abstuerze kamen
 
 from __future__ import annotations
 
+from ...i18n import tr
 from ..state import AppState
 from .bausteine import _glyph_icon
 from .konstanten import (
@@ -23,7 +24,7 @@ def _guessed_line(formulas: list) -> str:
     Erklaerung: Der Hinweis erscheint mitten im Schreiben, dort zaehlt Kuerze."""
     from ...formula import readable
 
-    return "⚠ geraten: " + " · ".join(readable(f) for f in formulas)
+    return tr("⚠ geraten: {formeln}", formeln=" · ".join(readable(f) for f in formulas))
 
 
 def _dropped_line(dropped: str) -> str:
@@ -36,7 +37,7 @@ def _dropped_line(dropped: str) -> str:
     preview = " ".join(words[:6])
     if len(words) > 6:
         preview += " …"
-    return f"⚠ {len(words)} Wörter verworfen: {preview}"
+    return tr("⚠ {n} Wörter verworfen: {vorschau}", n=len(words), vorschau=preview)
 
 
 class EinblendungenMixin:
@@ -112,8 +113,8 @@ class EinblendungenMixin:
         self._caption_is_status = False
         self._caption.show_above(
             self.frameGeometry(),
-            f"{auszug}\n\nNicht eingefügt — du warst inzwischen in einem anderen "
-            f"Fenster. Der Text liegt in der Zwischenablage: Strg+V.",
+            auszug + "\n\n" + tr("Nicht eingefügt — du warst inzwischen in einem anderen "
+                                  "Fenster. Der Text liegt in der Zwischenablage: Strg+V."),
             duration_ms=_IN_ABLAGE_MS,
             accent_color=_PROMPT_ACCENT,
         )
@@ -176,7 +177,7 @@ class EinblendungenMixin:
                               else text[:self.ROH_MAX].rsplit(" ", 1)[0] + " …")
         self._caption_is_live = False
         self._caption_is_status = True
-        self._zeige_roh_mit_status("Bereinige …")
+        self._zeige_roh_mit_status(tr("Bereinige …"))
 
     def _zeige_roh_mit_status(self, status: str) -> None:
         """Rohtext oben, aktuelle Stufe darunter — eine Blase, zwei Ebenen."""

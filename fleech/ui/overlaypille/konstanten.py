@@ -9,6 +9,8 @@ from __future__ import annotations
 
 from PySide6.QtGui import QColor
 
+from ...i18n import N_
+
 # Pillen-Optik: die groessere, randlose „cleane" Pille (bewusste Nutzer-Entscheidung
 # NACH dem Design-Import — das Konzept mit Punkt/Buttons bleibt, nur die Kapseln
 # tragen KEINEN neutralen Rahmen und die Basishoehe bleibt bei 44).
@@ -72,8 +74,8 @@ SIZE_FACTORS = {"compact": 0.85, "normal": 1.0, "large": 1.2}
 
 # Positions-Presets: Schluessel → Anzeigename. "custom" = frei gezogen.
 OVERLAY_PRESETS = [
-    ("right_center", "Rechts"),
-    ("left_center", "Links"),
-    ("top_center", "Oben"),
-    ("bottom_center", "Unten"),
+    ("right_center", N_("Rechts")),
+    ("left_center", N_("Links")),
+    ("top_center", N_("Oben")),
+    ("bottom_center", N_("Unten")),
 ]

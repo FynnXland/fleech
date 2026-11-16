@@ -11,14 +11,15 @@ from __future__ import annotations
 
 from PySide6.QtWidgets import QPushButton
 
+from ...i18n import N_, tr
 from ..theme import style_button
 from . import advanced
 from .common import hint
 from .mehr import angleichen, bereich
 
 # 0 = unbegrenzt. Die Vorgabe (90) steht in GeneralSettings/history.
-AUFBEWAHRUNG = [(30, "30 Tage"), (90, "90 Tage"), (180, "180 Tage"),
-                (365, "1 Jahr"), (0, "Unbegrenzt")]
+AUFBEWAHRUNG = [(30, N_("30 Tage")), (90, N_("90 Tage")), (180, N_("180 Tage")),
+                (365, N_("1 Jahr")), (0, N_("Unbegrenzt"))]
 
 
 def tresor_zeile() -> str:
@@ -26,28 +27,29 @@ def tresor_zeile() -> str:
     try:
         from ...tresor import schluessel
 
-        return ("Verlauf, gelerntes Vokabular und Einstellungen liegen verschlüsselt "
-                f"(AES-256); der Schlüssel ist {schluessel.ablage().beschreibung()}.")
+        return tr("Verlauf, gelerntes Vokabular und Einstellungen liegen verschlüsselt "
+                  "(AES-256); der Schlüssel ist {ort}.",
+                  ort=tr(schluessel.ablage().beschreibung()))
     except Exception:
-        return "Verschlüsselung: Status nicht abrufbar."
+        return tr("Verschlüsselung: Status nicht abrufbar.")
 
 
 def build(panel) -> None:
     s = panel.settings
     seite, form = panel._page()
     form.addRow("", hint(
-        "Was Fleech speichert, wie es geschützt ist — und wie du es löschst."
+        tr("Was Fleech speichert, wie es geschützt ist — und wie du es löschst.")
     ))
     mehr = bereich(seite, form)
-    panel._check(form, "Diktat-Verlauf speichern", s.general.save_history, "general",
+    panel._check(form, tr("Diktat-Verlauf speichern"), s.general.save_history, "general",
                  lambda v: setattr(s.general, "save_history", v),
-                 "Speichert Diktate lokal für Home und Insights — keine Cloud, "
-                 "verschlüsselt auf der Platte.")
+                 tr("Speichert Diktate lokal für Home und Insights — keine Cloud, "
+                    "verschlüsselt auf der Platte."))
     _verschluesselung(panel, form)
-    clear_btn = style_button(QPushButton("Verlauf löschen …"), "danger")
+    clear_btn = style_button(QPushButton(tr("Verlauf löschen …")), "danger")
     clear_btn.clicked.connect(lambda: (panel._on_clear_history or (lambda: None))())
     label_w, _ = panel._row_label(
-        "Verlauf", "Löscht alle Diktate endgültig — dazu „Delete“ eintippen.")
+        tr("Verlauf"), tr("Löscht alle Diktate endgültig — dazu „Delete“ eintippen."))
     form.addRow(label_w, clear_btn)
     advanced.protokoll(panel, mehr)
     angleichen(form, mehr)
@@ -57,22 +59,22 @@ def _verschluesselung(panel, form) -> None:
     """Aufbewahrung, Wiederherstellungscode und der Hinweis, solange er fehlt."""
     s = panel.settings
     panel._combo(
-        form, "Verlauf aufbewahren", AUFBEWAHRUNG,
+        form, tr("Verlauf aufbewahren"), [(w, tr(t)) for w, t in AUFBEWAHRUNG],
         s.general.verlauf_tage if s.general.verlauf_tage in dict(AUFBEWAHRUNG) else 90,
         "datenschutz", lambda v: setattr(s.general, "verlauf_tage", int(v)),
-        hint_text="Ältere Diktate löscht Fleech automatisch. Die Zahlen für "
-                  "Insights (Serie, Wörter) bleiben erhalten, Text, App und "
-                  "Fenstertitel nicht.")
-    code_btn = style_button(QPushButton("Wiederherstellungscode …"))
+        hint_text=tr("Ältere Diktate löscht Fleech automatisch. Die Zahlen für "
+                     "Insights (Serie, Wörter) bleiben erhalten, Text, App und "
+                     "Fenstertitel nicht."))
+    code_btn = style_button(QPushButton(tr("Wiederherstellungscode …")))
     label_w, _ = panel._row_label(
-        "Verschlüsselung",
-        tresor_zeile() + " Der Code öffnet deine Daten, falls das Windows-Konto "
-        "verloren geht (Neuinstallation, neuer Rechner). Ohne ihn sind sie dann "
-        "nicht mehr lesbar.")
+        tr("Verschlüsselung"),
+        tresor_zeile() + " " + tr("Der Code öffnet deine Daten, falls das Windows-Konto "
+                                  "verloren geht (Neuinstallation, neuer Rechner). Ohne ihn sind sie dann "
+                                  "nicht mehr lesbar."))
     form.addRow(label_w, code_btn)
     # Einzeilig: Umbrechende Labels bekommen im QFormLayout zu viel Hoehe.
-    panel._code_offen = hint("Noch nicht notiert. Ohne Code sind die Daten nach einer "
-                             "Neuinstallation weg.")
+    panel._code_offen = hint(tr("Noch nicht notiert. Ohne Code sind die Daten nach einer "
+                                "Neuinstallation weg."))
     panel._code_offen.setWordWrap(False)
     panel._code_offen.setStyleSheet("color: #E0A030; font-size: 8pt;")
     panel._code_offen.setHidden(bool(s.general.wiederherstellung_notiert))

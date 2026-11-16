@@ -18,13 +18,24 @@ from __future__ import annotations
 import logging
 from dataclasses import dataclass, field
 
+from .i18n import N_, tr
+
 log = logging.getLogger(__name__)
 
 # Beschriftung fuer „kein Profil von Hand gewaehlt" — es gilt, was die Apps-Seite
 # fuer die gerade fokussierte Anwendung vorsieht. Hiess bis v4.9.2 „Automatisch
 # (nach App)"; das las sich wie eine Automatik, die selbst entscheidet, statt wie
 # der Standard, den man dort hinterlegt hat.
-APP_STANDARD = "App-Standard"
+APP_STANDARD = N_("App-Standard")
+
+
+def anzeigename(name: str) -> str:
+    """Profilname zum Anzeigen: Vorgaben (und „App-Standard") in der Sprache der
+    Oberflaeche, solange sie noch so heissen; ein eigener Name bleibt, wie er ist.
+    Nie zurueckschreiben — in den Einstellungen steht immer der deutsche Name."""
+    name = str(name or "")
+    vorgaben = {p["name"] for p in _default_profiles()} | {APP_STANDARD}
+    return tr(name) if name in vorgaben else name
 
 
 def _default_profiles() -> list:
@@ -34,32 +45,32 @@ def _default_profiles() -> list:
     intervention "" heisst dort "wie Einstellungen → Ausgabe".
     """
     return [
-        {"name": "Standard", "default": True, "intervention": "", "tags": [], "apps": []},
+        {"name": N_("Standard"), "default": True, "intervention": "", "tags": [], "apps": []},
         # command="off": im beruflichen Umfeld (Meeting, Grossraum) ist ein laut
         # gesprochenes Safe-Word unpassend und faellt bei Fashion-/Textilthemen sogar
         # zufaellig — der »-Knopf in der Pille bleibt als leiser Weg.
-        {"name": "Geschäftlich", "intervention": "strong",
+        {"name": N_("Geschäftlich"), "intervention": "strong",
          "tags": ["professioneller, sachlicher Ton"], "apps": [], "command": "off"},
-        {"name": "Privat", "intervention": "minimal",
+        {"name": N_("Privat"), "intervention": "minimal",
          "tags": [], "apps": []},
-        {"name": "Coding", "intervention": "minimal", "tags": [], "apps": []},
+        {"name": N_("Coding"), "intervention": "minimal", "tags": [], "apps": []},
         # Einen Formel-Modus gibt es seit v3.0.0 nicht mehr — Formeln entstehen
         # global ueber Einstellungen → Ausgabe, nie ueber ein Profil (Befund E-14).
         # „Mathe" bleibt deshalb ein reines Eingriffsgrad-Profil; die violette
         # Farbe traegt es fest, damit es aussieht wie bisher.
-        {"name": "Mathe", "intervention": "standard", "tags": [], "apps": [],
+        {"name": N_("Mathe"), "intervention": "standard", "tags": [], "apps": [],
          "color": "#AA78F0"},
         # Die beiden UMFORMULIERENDEN Profile. Sie sind bewusst KEINER App fest
         # zugewiesen: ob dieses Diktat eine Mail wird, weiss nur der Sprecher —
         # deshalb ueber den Profil-Knopf in der Pille waehlbar.
-        {"name": "E-Mail", "intervention": "strong", "tags": [], "apps": [],
+        {"name": N_("E-Mail"), "intervention": "strong", "tags": [], "apps": [],
          "mode": "email", "command": "off"},
-        {"name": "KI-Prompt", "intervention": "standard", "tags": [], "apps": [],
+        {"name": N_("KI-Prompt"), "intervention": "standard", "tags": [], "apps": [],
          "mode": "prompt", "command": "off", "auto_send": False},
         # Der leisere Bruder des KI-Prompts: nur destillieren, keine Rolle und
         # keinen Kontext erfinden. Fuer Zuruf an eine KI oft der bessere Weg —
         # dort steht der Kontext ohnehin schon im Gespraech.
-        {"name": "Stichpunkte", "intervention": "standard", "tags": [], "apps": [],
+        {"name": N_("Stichpunkte"), "intervention": "standard", "tags": [], "apps": [],
          "mode": "summary", "command": "off"},
     ]
 
@@ -305,10 +316,10 @@ def profil_fuer_app(items: list, app: str, title: str = "") -> tuple[dict | None
 # wechselnde Sprachen, kostet aber Genauigkeit bei kurzen Diktaten, weil die
 # Erkennung dann selbst raten muss.
 PROFILE_SPRACHEN = [
-    ("", "Wie Einstellungen"),
-    ("de", "Deutsch"),
-    ("en", "Englisch"),
-    ("auto", "Automatisch erkennen"),
+    ("", N_("Wie Einstellungen")),
+    ("de", N_("Deutsch")),
+    ("en", N_("Englisch")),
+    ("auto", N_("Automatisch erkennen")),
 ]
 
 
@@ -316,17 +327,17 @@ def profile_zielsprachen() -> list[tuple[str, str]]:
     """Auswahl „Übersetzen in" — erst „nicht übersetzen", dann die Sprachen."""
     from .uebersetzung import ZIELSPRACHEN
 
-    return [("", "Nicht übersetzen")] + [(c, n) for c, (n, _e) in ZIELSPRACHEN.items()]
+    return [("", tr("Nicht übersetzen"))] + [(c, tr(n)) for c, (n, _e) in ZIELSPRACHEN.items()]
 
 
 # „Formeln" stand hier bis 5.10.2 mit drin und war das einzige Format ohne jeden
 # Codepfad — angeboten, gewaehlt, wirkungslos (Befund E-14). Jedes Format hier ist
 # jetzt ein umformulierendes Format, siehe REWRITING_FORMATS.
 PROFILE_FORMATS = [
-    ("", "Diktat (Standard)"),
-    ("summary", "Stichpunkte"),
-    ("email", "E-Mail"),
-    ("prompt", "KI-Prompt"),
+    ("", N_("Diktat (Standard)")),
+    ("summary", N_("Stichpunkte")),
+    ("email", N_("E-Mail")),
+    ("prompt", N_("KI-Prompt")),
 ]
 # Formate, die den Text ueber einen eigenen System-Prompt neu formulieren.
 REWRITING_FORMATS = ("summary", "email", "prompt")
@@ -353,14 +364,14 @@ AUTO_SEND_MODES = ("cleanup", "prompt", "summary")
 # Sie ist ausserdem die Farbe des Freihand-Rings an der Pille: Ein tuerkises
 # Profil haette dort zwei fast gleiche Ringe ergeben.
 PROFIL_FARBEN = [
-    ("#AA78F0", "Violett"),
-    ("#E8A13C", "Amber"),
-    ("#6E86C8", "Blau"),
-    ("#7FD1A6", "Gruen"),
-    ("#A8C86E", "Limette"),
-    ("#E08585", "Rot"),
-    ("#D982C0", "Pink"),
-    ("#9AA6B2", "Grau"),
+    ("#AA78F0", N_("Violett")),
+    ("#E8A13C", N_("Amber")),
+    ("#6E86C8", N_("Blau")),
+    ("#7FD1A6", N_("Gruen")),
+    ("#A8C86E", N_("Limette")),
+    ("#E08585", N_("Rot")),
+    ("#D982C0", N_("Pink")),
+    ("#9AA6B2", N_("Grau")),
 ]
 
 # Welche Farbe ein Format MITBRINGT, solange nichts eigenes gewaehlt wurde. Damit

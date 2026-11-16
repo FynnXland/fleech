@@ -23,6 +23,7 @@ import logging
 import re
 
 from . import gruende
+from .i18n import N_, tr
 from .protokolltext import inhalt
 from .textfilter import find_foreign_script, strip_meta_preamble
 from .textutils import TRANSCRIPT_CLOSE, TRANSCRIPT_OPEN, strip_wrapping_quotes
@@ -30,18 +31,19 @@ from .textutils import TRANSCRIPT_CLOSE, TRANSCRIPT_OPEN, strip_wrapping_quotes
 log = logging.getLogger(__name__)
 
 # Code → (Anzeigename, Name im Prompt). Englische Namen im Prompt, weil der Prompt
-# englisch ist: Er muss in jede Richtung funktionieren, auch nach Deutsch.
+# englisch ist: Er muss in jede Richtung funktionieren, auch nach Deutsch. Der
+# Anzeigename geht erst beim Anzeigen durch tr() (`profiles.profile_zielsprachen`).
 # Nur Sprachen in lateinischer Schrift, deshalb bleibt die Prüfung auf fremde
 # Schrift hier gültig.
 ZIELSPRACHEN = {
-    "de": ("Deutsch", "German"),
-    "en": ("Englisch", "English"),
-    "fr": ("Französisch", "French"),
-    "es": ("Spanisch", "Spanish"),
-    "it": ("Italienisch", "Italian"),
-    "nl": ("Niederländisch", "Dutch"),
-    "pt": ("Portugiesisch", "Portuguese"),
-    "pl": ("Polnisch", "Polish"),
+    "de": (N_("Deutsch"), "German"),
+    "en": (N_("Englisch"), "English"),
+    "fr": (N_("Französisch"), "French"),
+    "es": (N_("Spanisch"), "Spanish"),
+    "it": (N_("Italienisch"), "Italian"),
+    "nl": (N_("Niederländisch"), "Dutch"),
+    "pt": (N_("Portugiesisch"), "Portuguese"),
+    "pl": (N_("Polnisch"), "Polish"),
 }
 
 PLATZHALTER_SPRACHE = "{ZIELSPRACHE}"
@@ -82,7 +84,8 @@ _MIN_WOERTER = 6
 
 
 def anzeigename(code: str) -> str:
-    return ZIELSPRACHEN.get(code, ("", ""))[0]
+    name = ZIELSPRACHEN.get(code, ("", ""))[0]
+    return tr(name) if name else ""
 
 
 def gueltig(code: str) -> str:
@@ -146,18 +149,18 @@ def saeubere_antwort(antwort: str) -> str:
 def pruefe(original: str, uebersetzt: str) -> str:
     """Leerer String = plausibel, sonst ein kurzes Detail für den Grund."""
     if not uebersetzt.strip():
-        return "Antwort war leer"
+        return N_("Antwort war leer")
     fehlend = sorted(_zahlen(original) - _zahlen(uebersetzt), key=lambda z: (-len(z), z))
     if fehlend:
         return f"Zahl {fehlend[0]} fehlt"
     if find_foreign_script(uebersetzt) >= 0 and find_foreign_script(original) < 0:
-        return "fremde Schrift in der Antwort"
+        return N_("fremde Schrift in der Antwort")
     n = len(original.split())
     if n >= _MIN_WOERTER:
         verhaeltnis = len(uebersetzt.split()) / n
         if not _VERHAELTNIS_MIN <= verhaeltnis <= _VERHAELTNIS_MAX:
-            return ("deutlich kürzer als das Diktat" if verhaeltnis < 1
-                    else "deutlich länger als das Diktat")
+            return (N_("deutlich kürzer als das Diktat") if verhaeltnis < 1
+                    else N_("deutlich länger als das Diktat"))
     return ""
 
 
@@ -174,7 +177,7 @@ def uebersetze(text: str, ziel: str, vorlage: str, frage) -> tuple[str, str]:
     zurueck = setze_formeln(ergebnis, formeln)
     if zurueck is None:
         log.warning("Übersetzung: Formel-Platzhalter verloren — Text bleibt unübersetzt.")
-        return text, gruende.mit_detail(gruende.NICHT_UEBERSETZT, "Formel verloren")
+        return text, gruende.mit_detail(gruende.NICHT_UEBERSETZT, N_("Formel verloren"))
     detail = pruefe(text, zurueck)
     if detail:
         log.warning("Übersetzung verworfen (%s): %s", detail, inhalt(zurueck, 120))

@@ -10,6 +10,8 @@ from __future__ import annotations
 
 from PySide6.QtWidgets import QLineEdit, QPushButton
 
+from ... import i18n
+from ...i18n import tr
 from .. import autostart
 from ..theme import style_button
 from . import advanced, aufnahme
@@ -21,21 +23,24 @@ def build(panel) -> None:
     s = panel.settings
     seite, form = panel._page()
     form.addRow("", hint(
-        "Sprache, Taste und Mikrofon — mehr braucht es zum Diktieren nicht."
+        tr("Sprache, Taste und Mikrofon — mehr braucht es zum Diktieren nicht.")
     ))
     mehr = bereich(seite, form)
     panel._combo(
-        form, "Sprache",
-        [("de", "Deutsch"), ("en", "Englisch"),
-         ("auto", "Automatisch (mehrsprachig)")],
+        form, tr("Diktiersprache"),
+        [("de", tr("Deutsch")), ("en", tr("Englisch")),
+         ("auto", tr("Automatisch (mehrsprachig)"))],
         s.general.language, "general", lambda v: setattr(s.general, "language", v),
-        hint_text="Sprache der Erkennung. „Automatisch“ erkennt sie selbst.",
+        hint_text=tr("Die Sprache, in der du sprichst; wirkt sofort auf die Erkennung. "
+                     "„Automatisch“ erkennt sie selbst. Die Sprache der Fenster und "
+                     "Menüs steht in der Zeile darunter."),
     )
+    _oberflaeche(panel, form)
     aufnahme.zeilen(panel, form, mehr)
     panel._autostart_cb = auto = panel._check(
-        form, "Autostart mit Windows", autostart.is_autostart_enabled(), "general",
+        form, tr("Autostart mit Windows"), autostart.is_autostart_enabled(), "general",
         lambda v: setattr(s.general, "autostart", v),
-        "Startet Fleech automatisch beim Windows-Anmelden.",
+        tr("Startet Fleech automatisch beim Windows-Anmelden."),
     )
     panel._autostart_warn = hint("")
     panel._autostart_warn.setStyleSheet("color: #E0574A; font-size: 8pt;")
@@ -44,31 +49,59 @@ def build(panel) -> None:
     auto.toggled.connect(panel._apply_autostart)
 
     name = QLineEdit(s.general.display_name)
-    name.setPlaceholderText("leer = Windows-Benutzername")
+    name.setPlaceholderText(tr("leer = Windows-Benutzername"))
     name.editingFinished.connect(
         lambda: (setattr(s.general, "display_name", name.text().strip()),
                  panel._changed("general"))
     )
     label_w, _ = panel._row_label(
-        "Anzeigename",
-        "Name in der Begrüßung auf Home — und die Unterschrift unter Diktaten "
-        "im Profil „E-Mail“. Leer heißt: die Mail endet mit der Grußformel, "
-        "ohne Namen (ein geratener Name unter einer Mail wäre schlimmer).")
+        tr("Anzeigename"),
+        tr("Name in der Begrüßung auf Home — und die Unterschrift unter Diktaten "
+           "im Profil „E-Mail“. Leer heißt: die Mail endet mit der Grußformel, "
+           "ohne Namen (ein geratener Name unter einer Mail wäre schlimmer)."))
     mehr.addRow(label_w, name)
-    onboarding_btn = style_button(QPushButton("Einführung erneut zeigen"))
+    onboarding_btn = style_button(QPushButton(tr("Einführung erneut zeigen")))
     onboarding_btn.clicked.connect(panel._show_onboarding)
     label_w, _ = panel._row_label(
-        "Einführung", "Der Erststart-Rundgang: Mikrofon, Bedienung, Modi.")
+        tr("Einführung"), tr("Der Erststart-Rundgang: Mikrofon, Bedienung, Modi."))
     mehr.addRow(label_w, onboarding_btn)
 
-    cards_btn = style_button(QPushButton("Alle Karten wieder einblenden"))
+    cards_btn = style_button(QPushButton(tr("Alle Karten wieder einblenden")))
     cards_btn.clicked.connect(panel._restore_cards)
     label_w, _ = panel._row_label(
-        "Karten",
-        "Karten auf Home und Insights blendest du per Rechtsklick auf die "
-        "jeweilige Karte aus. Dieser Knopf holt alle zurück.")
+        tr("Karten"),
+        tr("Karten auf Home und Insights blendest du per Rechtsklick auf die "
+           "jeweilige Karte aus. Dieser Knopf holt alle zurück."))
     mehr.addRow(label_w, cards_btn)
     panel._cards_hint = hint("")
     mehr.addRow("", panel._cards_hint)
     advanced.updates(panel, form, mehr)
     angleichen(form, mehr)
+
+
+def _oberflaeche(panel, form) -> None:
+    """Sprache der Oberfläche (6.6.0). Wirkt nach einem Neustart — den bietet
+    die Zeile direkt an, statt ihn dem Nutzer zu überlassen."""
+    s = panel.settings
+    hinweis = hint(tr("Wird nach einem Neustart übernommen."))
+    knopf = style_button(QPushButton(tr("Jetzt neu starten")))
+    knopf.clicked.connect(lambda: panel._on_changed("neustart"))
+
+    def gewaehlt(wert: str) -> None:
+        s.general.ui_language = wert
+        anders = i18n.aufloesen(wert) != i18n.aktuell()
+        hinweis.setHidden(not anders)
+        knopf.setHidden(not anders)
+
+    # Sprachnamen stehen in ihrer eigenen Sprache — wer die andere sucht, liest sie so.
+    panel._combo(
+        form, tr("Sprache der Oberfläche"),
+        [("auto", tr("Systemsprache")), ("de", "Deutsch"), ("en", "English")],
+        s.general.ui_language, "general", gewaehlt,
+        hint_text=tr("Sprache von Fenstern, Menüs und Meldungen. „Systemsprache“ "
+                     "folgt der Anzeigesprache des Betriebssystems."),
+    )
+    form.addRow("", hinweis)
+    form.addRow("", knopf)
+    hinweis.hide()
+    knopf.hide()

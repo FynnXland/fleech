@@ -4,6 +4,9 @@ __pycache__/
 *.pyc
 .pytest_cache/
 *.wav
+# Ausnahme: die mitgelieferten UI-Toene (CC0, siehe THIRD-PARTY-NOTICES.md).
+# Nie echte Aufnahmen hier ablegen — alles hier wird veroeffentlicht.
+!assets/sounds/*/*.wav
 
 # Build-Artefakte
 build/

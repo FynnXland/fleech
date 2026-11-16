@@ -18,14 +18,17 @@ from pathlib import Path
 from ...profiles import (
     PROFILE_FORMATS, profil_fuer_app, profile_mode, profile_sprache, profile_zielsprache,
 )
+from ...i18n import N_, tr
+from ...profiles import anzeigename as profilname
 from ...uebersetzung import anzeigename
 
 # Fenstertitel werden lang (ganze Dateipfade, ganze Chat-Eingaben). Fuer die Zeile
 # reicht der Anfang — sie soll eine Zeile bleiben und nicht die halbe Seite fuellen.
 _MAX_TITEL = 48
 
-_EINGRIFF = {"minimal": "Minimal", "standard": "Standard", "strong": "Stark"}
-_SPRACHEN = {"de": "Deutsch", "en": "Englisch", "auto": "automatisch erkannt"}
+_EINGRIFF = {"minimal": N_("Minimal"), "standard": N_("Standard"), "strong": N_("Stark")}
+_SPRACHEN = {"de": N_("Deutsch"), "en": N_("Englisch"), "auto": N_("automatisch erkannt")}
+# Die Formatnamen stammen aus `profiles.PROFILE_FORMATS` — übersetzt beim Anzeigen.
 _FORMATE = dict(PROFILE_FORMATS)
 
 
@@ -61,53 +64,57 @@ def _profil_und_herkunft(settings, app: str, titel: str) -> tuple[dict | None, s
     if gewaehlt:
         for item in items:
             if str(item.get("name", "")) == gewaehlt:
-                return item, "von Hand gewählt"
-        return None, "von Hand gewählt, aber gelöscht"
+                return item, tr("von Hand gewählt")
+        return None, tr("von Hand gewählt, aber gelöscht")
     treffer, regel = profil_fuer_app(items, app, titel)
     if treffer is None:
         return None, ""
     if regel:
-        return treffer, f"Regel: {regel}"
-    return treffer, "Standardprofil"
+        return treffer, tr("Regel: {regel}", regel=regel)
+    return treffer, tr("Standardprofil")
 
 
 def beschreibe_jetzt(settings, app: str, titel: str, fleech_selbst: bool = False) -> str:
     """Ein Satz: Ziel-App, aufgeloestes Profil samt Grund, und was es bewirkt."""
     if not getattr(settings.profiles, "enabled", True):
-        return ("Profile sind ausgeschaltet — für jedes Diktat gilt, was unter "
-                "Einstellungen → KI & Text steht.")
+        return tr("Profile sind ausgeschaltet — für jedes Diktat gilt, was unter "
+                  "Einstellungen → KI & Text steht.")
 
-    kopf = "Wenn du jetzt diktierst: "
     if fleech_selbst:
-        kopf += "(Fleech selbst) · zuletzt " + (app or "keine Anwendung")
+        ziel_text = tr("(Fleech selbst) · zuletzt {app}",
+                       app=app or tr("keine Anwendung"))
     elif app:
-        kopf += app
+        ziel_text = app
     else:
-        return kopf + "keine Anwendung erkennbar."
+        return tr("Wenn du jetzt diktierst: keine Anwendung erkennbar.")
     if titel:
-        kopf += f" · „{_kurz(titel)}“"
+        ziel_text += " · " + tr("„{titel}“", titel=_kurz(titel))
+    kopf = tr("Wenn du jetzt diktierst: {ziel}", ziel=ziel_text)
 
     profil, herkunft = _profil_und_herkunft(settings, app, titel)
     if profil is None:
-        return kopf + " → kein Profil" + (f" ({herkunft})" if herkunft else "")
+        return kopf + " " + (tr("→ kein Profil ({grund})", grund=herkunft) if herkunft
+                             else tr("→ kein Profil"))
 
-    teile = [f"Ausgabe: {_FORMATE.get(profile_mode(profil), 'Diktat (Standard)')}"]
+    teile = [tr("Ausgabe: {format}", format=tr(
+        _FORMATE.get(profile_mode(profil), _FORMATE.get("", "Diktat (Standard)"))))]
     eingriff = str(profil.get("intervention", "") or "")
-    global_eingriff = _EINGRIFF.get(
-        str(getattr(settings.output, "intervention", "") or ""), "Standard")
-    teile.append("Eingriff: " + (_EINGRIFF.get(eingriff)
-                                 or f"wie Einstellungen ({global_eingriff})"))
+    global_eingriff = tr(_EINGRIFF.get(
+        str(getattr(settings.output, "intervention", "") or ""), _EINGRIFF["standard"]))
+    teile.append(tr("Eingriff: {wert}", wert=tr(_EINGRIFF[eingriff]) if eingriff in _EINGRIFF
+                    else tr("wie Einstellungen ({wert})", wert=global_eingriff)))
     sprache = profile_sprache(profil)
-    global_sprache = _SPRACHEN.get(
-        str(getattr(settings.general, "language", "") or ""), "Deutsch")
-    teile.append("Sprache: " + (_SPRACHEN.get(sprache)
-                                or f"wie Einstellungen ({global_sprache})"))
+    global_sprache = tr(_SPRACHEN.get(
+        str(getattr(settings.general, "language", "") or ""), _SPRACHEN["de"]))
+    teile.append(tr("Sprache: {wert}", wert=tr(_SPRACHEN[sprache]) if sprache in _SPRACHEN
+                    else tr("wie Einstellungen ({wert})", wert=global_sprache)))
     ziel = profile_zielsprache(profil)
     if ziel:
-        teile.append(f"übersetzt in: {anzeigename(ziel)}")
+        teile.append(tr("übersetzt in: {sprache}", sprache=anzeigename(ziel)))
     if profil.get("auto_send"):
         # Das Ueberraschendste, was ein Profil tun kann — es drueckt Enter.
-        teile.append("schickt direkt ab")
+        teile.append(tr("schickt direkt ab"))
 
-    name = str(profil.get("name", "") or "Profil")
-    return (f"{kopf} → Profil {name} ({herkunft})  ·  " + "  ·  ".join(teile))
+    name = profilname(str(profil.get("name", "") or "")) or tr("Profil")
+    return (tr("{kopf} → Profil {name} ({grund})", kopf=kopf, name=name, grund=herkunft)
+            + "  ·  " + "  ·  ".join(teile))
