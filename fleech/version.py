@@ -7,7 +7,7 @@
 
 from __future__ import annotations
 
-APP_VERSION = "6.6.0"  # 6.6.0 (in Arbeit): neue Töne
+APP_VERSION = "6.6.1"  # 6.6.1: Vollbild entlädt die KI nur bei Spielen
 
 
 def _read_build() -> str:
